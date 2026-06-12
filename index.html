@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   --navy:#0c2433; --navy-2:#123349; --navy-3:#1b4460;
@@ -603,7 +604,10 @@ tr.attn-row:hover{background:#ffefdd !important}
               <div class="fgrid">
                 <label>受檢船舶<input type="text" id="px-ship" list="shiplist"></label>
                 <label>船型<select id="px-vtype"><option>tanker</option><option>bulk</option><option>other</option></select></label>
-                <label>檢查類型<input type="text" id="px-itype" list="itypelist"></label>
+                <label>檢查類型<div style="display:flex;gap:6px;flex-wrap:wrap">
+                <select id="px-itype" onchange="$('#px-itype-other').style.display=this.value==='其他'?'':'none'"></select>
+                <input type="text" id="px-itype-other" placeholder="請說明檢查類型" style="display:none;flex:1;min-width:120px">
+              </div></label>
                 <label>檢查日期<input type="text" id="px-date" placeholder="2026/6/12"></label>
                 <label>檢查地點<input type="text" id="px-place"></label>
                 <label>檢查員<input type="text" id="px-inspector"></label>
@@ -675,7 +679,10 @@ tr.attn-row:hover{background:#ffefdd !important}
       <div class="fgrid">
         <label>船名<input type="text" id="e-ship" list="shiplist"></label>
         <label>船型<select id="e-vtype"><option>tanker</option><option>bulk</option><option>other</option></select></label>
-        <label>檢查類型<input type="text" id="e-itype" list="itypelist"></label>
+        <label>檢查類型<div style="display:flex;gap:6px;flex-wrap:wrap">
+            <select id="e-itype" onchange="$('#e-itype-other').style.display=this.value==='其他'?'':'none'"></select>
+            <input type="text" id="e-itype-other" placeholder="請說明檢查類型" style="display:none;flex:1;min-width:120px">
+          </div></label>
         <label>檢查日期<input type="text" id="e-date" placeholder="2025/1/1"></label>
         <label>年月<input type="text" id="e-ym" placeholder="2025-01"></label>
         <label>地點<input type="text" id="e-place"></label>
@@ -952,11 +959,21 @@ function applyTM(rec){ // 補齊單筆紀錄的TM欄位
   return rec;
 }
 
+/* ───── 雲端同步 (Supabase) ───── */
+const SUPA_URL="https://iqmbircjokdzdssouwkr.supabase.co";
+const SUPA_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY";
+const sb=(typeof supabase!=="undefined")?supabase.createClient(SUPA_URL,SUPA_KEY):null;
+const DEF_FMAP={tmMain:"tm_main",tmMainName:"tm_main_name",tmLeaf:"tm_leaf",tmLeafName:"tm_leaf_name",tmMethod:"tm_method"};
+const INSP_FMAP={flagType:"flag_type"};
+function toDbRow(rec,fmap){const out={};for(const k in rec){if(k==="updated_at")continue;out[fmap[k]||k]=rec[k]??null;}return out;}
+function fromDbRow(row,fmap){const rev={};for(const k in fmap)rev[fmap[k]]=k;const out={};for(const k in row){if(k==="updated_at")continue;out[rev[k]||k]=row[k];}return out;}
+
 /* ───── 資料層 ───── */
 const App={
   insp:[], defs:[], tasks:[], curTaskId:null,
   LSK:{i:"vsm_insp_v5",d:"vsm_defs_v5",s:"vsm_tasks_v1"},
-  init(){
+  _syncedDefs:new Map(), _syncedInsp:new Map(), _saveTimer:null, _idSeed:0,
+  async init(){
     const built=JSON.parse($("#builtinData").textContent);
     try{
       const li=localStorage.getItem(this.LSK.i), ld=localStorage.getItem(this.LSK.d), ls=localStorage.getItem(this.LSK.s);
@@ -980,10 +997,50 @@ const App={
       }
     }catch(e){this.insp=built.inspections;this.defs=built.deficiencies;}
     this.defs.forEach((d,i)=>{if(!d.id)d.id=i+1;});
+    this.insp.forEach((r,i)=>{if(!r.id)r.id=i+1;});
+
+    if(sb){
+      try{ await this.syncFromCloud(); }
+      catch(e){ console.warn("雲端同步失敗，使用本機資料",e); $("#storeStat").textContent="⚠ 雲端連線失敗，使用本機資料"; }
+    }
+
     Dash.init();Ov.init();Sp.init();Defs.init();SelfCheck.init();if(typeof Pdfx!=="undefined")Pdfx.init();
     this.refreshMeta();
     NavOrder.apply();
     this.saveAll();
+    if(sb)this.subscribeRealtime();
+  },
+  async syncFromCloud(){
+    const [{data:defRows,error:e1},{data:inspRows,error:e2}]=await Promise.all([
+      sb.from("deficiencies").select("*").order("id"),
+      sb.from("inspections").select("*").order("id")
+    ]);
+    if(e1)throw e1; if(e2)throw e2;
+    if((!defRows||defRows.length===0)&&(!inspRows||inspRows.length===0)){
+      // 雲端尚無資料 → 將本機/內建資料推上雲端（首次建置）
+      await this.pushAll();
+      $("#storeStat").textContent="☁ 已將本機資料初始化至雲端";
+    }else{
+      this.defs=defRows.map(r=>fromDbRow(r,DEF_FMAP));
+      this.insp=inspRows.map(r=>fromDbRow(r,INSP_FMAP));
+      this._syncedDefs=new Map(this.defs.map(d=>[d.id,JSON.stringify(d)]));
+      this._syncedInsp=new Map(this.insp.map(r=>[r.id,JSON.stringify(r)]));
+      $("#storeStat").textContent="☁ 已從雲端載入最新資料";
+    }
+  },
+  async pushAll(){
+    const defRows=this.defs.map(d=>toDbRow(d,DEF_FMAP));
+    const inspRows=this.insp.map(r=>toDbRow(r,INSP_FMAP));
+    for(let i=0;i<defRows.length;i+=500){
+      const {error}=await sb.from("deficiencies").upsert(defRows.slice(i,i+500));
+      if(error)throw error;
+    }
+    for(let i=0;i<inspRows.length;i+=500){
+      const {error}=await sb.from("inspections").upsert(inspRows.slice(i,i+500));
+      if(error)throw error;
+    }
+    this._syncedDefs=new Map(this.defs.map(d=>[d.id,JSON.stringify(d)]));
+    this._syncedInsp=new Map(this.insp.map(r=>[r.id,JSON.stringify(r)]));
   },
   saveAll(manual){
     try{
@@ -994,6 +1051,71 @@ const App={
       $("#storeStat").textContent=`已自動儲存 · ${kb} KB`;
       if(manual)toast("✓ 已儲存至本機");
     }catch(e){$("#storeStat").textContent="⚠ 儲存空間不足";if(manual)toast("⚠ localStorage 空間不足，請以 JS 檔備份");}
+    if(sb)this.scheduleCloudSync(manual);
+  },
+  scheduleCloudSync(manual){
+    clearTimeout(this._saveTimer);
+    this._saveTimer=setTimeout(()=>this.syncToCloud(manual),900);
+  },
+  async diffSync(table,arr,syncedMap,fmap){
+    const upserts=[],deletes=[],curIds=new Set();
+    for(const rec of arr){
+      curIds.add(rec.id);
+      const s=JSON.stringify(rec);
+      if(syncedMap.get(rec.id)!==s){upserts.push(toDbRow(rec,fmap));}
+    }
+    for(const id of syncedMap.keys()){ if(!curIds.has(id))deletes.push(id); }
+    if(upserts.length){
+      for(let i=0;i<upserts.length;i+=500){
+        const {error}=await sb.from(table).upsert(upserts.slice(i,i+500));
+        if(error)throw error;
+      }
+    }
+    if(deletes.length){
+      const {error}=await sb.from(table).delete().in("id",deletes);
+      if(error)throw error;
+    }
+    syncedMap.clear();
+    for(const rec of arr)syncedMap.set(rec.id,JSON.stringify(rec));
+  },
+  async syncToCloud(manual){
+    try{
+      await this.diffSync("deficiencies",this.defs,this._syncedDefs,DEF_FMAP);
+      await this.diffSync("inspections",this.insp,this._syncedInsp,INSP_FMAP);
+      $("#storeStat").textContent="☁ 已同步至雲端";
+      if(manual)toast("✓ 已同步至雲端");
+    }catch(e){
+      console.warn("雲端同步失敗",e);
+      $("#storeStat").textContent="⚠ 雲端同步失敗（請檢查網路）";
+      if(manual)toast("⚠ 雲端同步失敗，請檢查網路");
+    }
+  },
+  subscribeRealtime(){
+    sb.channel("defs-rt").on("postgres_changes",{event:"*",schema:"public",table:"deficiencies"},p=>this.onRemote("defs",p)).subscribe();
+    sb.channel("insp-rt").on("postgres_changes",{event:"*",schema:"public",table:"inspections"},p=>this.onRemote("insp",p)).subscribe();
+  },
+  onRemote(kind,payload){
+    const isDef=kind==="defs";
+    const arr=isDef?this.defs:this.insp, map=isDef?this._syncedDefs:this._syncedInsp, fmap=isDef?DEF_FMAP:INSP_FMAP;
+    if(payload.eventType==="DELETE"){
+      const id=payload.old.id;
+      if(!map.has(id))return; // 本機本來就沒有，忽略
+      map.delete(id);
+      const idx=arr.findIndex(x=>x.id===id);
+      if(idx>=0)arr.splice(idx,1); else return;
+    }else{
+      const rec=fromDbRow(payload.new,fmap);
+      const s=JSON.stringify(rec);
+      if(map.get(rec.id)===s)return; // 自己剛剛寫入的回音，忽略
+      map.set(rec.id,s);
+      const idx=arr.findIndex(x=>x.id===rec.id);
+      if(idx>=0)arr[idx]=rec; else arr.push(rec);
+    }
+    if(isDef)arr.sort((a,b)=>a.id-b.id); else arr.sort((a,b)=>a.id-b.id);
+    try{localStorage.setItem(isDef?this.LSK.d:this.LSK.i,JSON.stringify(arr));}catch(e){}
+    this.refreshMeta();
+    Dash.init();Ov.init();Sp.init();Defs.init();
+    toast("☁ 資料已更新（其他使用者編輯）");
   },
   refreshMeta(){
     $("#dm-defn").textContent=this.defs.length;
@@ -1004,7 +1126,12 @@ const App={
     localStorage.removeItem(this.LSK.i);localStorage.removeItem(this.LSK.d);localStorage.removeItem(this.LSK.s);
     location.reload();
   },
-  nextId(){return this.defs.reduce((m,d)=>Math.max(m,+d.id||0),0)+1;}
+  nextId(){
+    let v=Date.now()*1000+Math.floor(Math.random()*1000);
+    if(v<=this._idSeed)v=this._idSeed+1;
+    this._idSeed=v;
+    return v;
+  }
 };
 
 /* ───── 多選下拉元件 ───── */
@@ -1235,7 +1362,7 @@ const Ov={
     let itype=$("#i-itype").value;
     if(itype==="其他"){const o=g("#i-itype-other");itype=o?("其他-"+o):"其他";}
     const rec={ship:g("#i-ship"),vtype:$("#i-vtype").value,itype:itype,date:g("#i-date"),loc:g("#i-loc"),inspector:g("#i-inspector"),unit:g("#i-unit"),ndef:g("#i-ndef")||"0",flagType:g("#i-flag"),detain:$("#i-detain").checked?"Y":"N"};
-    if(this.editIdx==null){App.insp.push(rec);toast("✓ 已新增檢查紀錄");}
+    if(this.editIdx==null){rec.id=App.nextId();App.insp.push(rec);toast("✓ 已新增檢查紀錄");}
     else{Object.assign(App.insp[this.editIdx],rec);toast("✓ 已更新檢查紀錄");}
     App.saveAll();App.refreshMeta();this.closeEdit();this.render();
   },
@@ -1536,7 +1663,15 @@ const Defs={
     $("#em-title").textContent=id==null?"新增缺失紀錄":`編輯缺失紀錄 #${id}`;
     $("#em-del").style.display=id==null?"none":"";
     const set=(i,v)=>$(i).value=v||"";
-    set("#e-ship",d.ship);set("#e-vtype",d.vtype||"tanker");set("#e-itype",d.itype);set("#e-date",d.date);set("#e-ym",d.ym||ymOf(d.date));
+    set("#e-ship",d.ship);set("#e-vtype",d.vtype||"tanker");
+    const _itypes=[...new Set(App.defs.map(x=>x.itype).concat(App.insp.map(x=>x.itype)))].filter(Boolean).sort();
+    $("#e-itype").innerHTML=_itypes.map(s=>`<option>${esc(s)}</option>`).join("")+`<option>其他</option>`;
+    const _rawI=d.itype||"";
+    const _knownI=_itypes.includes(_rawI);
+    const _isOther=_rawI.startsWith("其他-")||(!_knownI&&_rawI!=="");
+    $("#e-itype").value=_rawI?(_knownI?_rawI:"其他"):_itypes[0]||"其他";
+    $("#e-itype-other").value=_isOther?(_rawI.startsWith("其他-")?_rawI.slice(3):_rawI):"";
+    $("#e-itype-other").style.display=$("#e-itype").value==="其他"?"":"none";set("#e-date",d.date);set("#e-ym",d.ym||ymOf(d.date));
     set("#e-place",d.place);set("#e-inspector",d.inspector);set("#e-oilco",d.oilco);set("#e-code",d.code);set("#e-risk",d.risk);
     set("#e-tmleaf",d.tmLeaf);set("#e-tmleafname",d.tmLeafName);
     const tmSel=$("#e-tmmain");
@@ -1551,7 +1686,8 @@ const Defs={
   closeEdit(){$("#editModal").classList.remove("show");},
   saveEdit(){
     const g=i=>$(i).value.trim();
-    const rec={ship:g("#e-ship"),vtype:g("#e-vtype"),itype:g("#e-itype"),date:g("#e-date"),ym:g("#e-ym")||ymOf(g("#e-date")),place:g("#e-place"),inspector:g("#e-inspector"),oilco:g("#e-oilco"),psc:"",code:g("#e-code"),detail:g("#e-detail"),actual:g("#e-actual"),corrective:g("#e-corrective"),root:g("#e-root"),preventive:g("#e-preventive"),tmMain:g("#e-tmmain"),tmMainName:(()=>{const v=g("#e-tmmain");const m=TM_MAINS.find(x=>x[0]===v);return m?m[0]+" "+m[1]:"";})(),tmLeaf:g("#e-tmleaf"),tmLeafName:g("#e-tmleafname"),tmMethod:"人工指定",attn:$("#e-attn").checked,rank:g("#e-rank"),person:g("#e-person"),risk:g("#e-risk")};
+    let _itype=$("#e-itype").value;if(_itype==="其他"){const _o=g("#e-itype-other");_itype=_o?"其他-"+_o:"其他";}
+    const rec={ship:g("#e-ship"),vtype:g("#e-vtype"),itype:_itype,date:g("#e-date"),ym:g("#e-ym")||ymOf(g("#e-date")),place:g("#e-place"),inspector:g("#e-inspector"),oilco:g("#e-oilco"),psc:"",code:g("#e-code"),detail:g("#e-detail"),actual:g("#e-actual"),corrective:g("#e-corrective"),root:g("#e-root"),preventive:g("#e-preventive"),tmMain:g("#e-tmmain"),tmMainName:(()=>{const v=g("#e-tmmain");const m=TM_MAINS.find(x=>x[0]===v);return m?m[0]+" "+m[1]:"";})(),tmLeaf:g("#e-tmleaf"),tmLeafName:g("#e-tmleafname"),tmMethod:"人工指定",attn:$("#e-attn").checked,rank:g("#e-rank"),person:g("#e-person"),risk:g("#e-risk")};
     if(!rec.ship){toast("⚠ 請填寫船名");return;}
     if(this.editId==null){rec.id=App.nextId();App.defs.push(rec);toast("✓ 已新增");}
     else{const d=App.defs.find(x=>x.id===this.editId);Object.assign(d,rec);toast("✓ 已更新");}
@@ -1703,7 +1839,7 @@ const ImportUI={
       Defs.page=1;Defs.selected.clear();Defs.init();
     }else{
       if(mode==="overwrite")App.insp=[];
-      this.pending.forEach(r=>App.insp.push(r));
+      this.pending.forEach(r=>{r.id=App.nextId();App.insp.push(r);});
       Dash.init();
     }
     App.saveAll();App.refreshMeta();
@@ -1936,7 +2072,13 @@ const Pdfx={
     $("#px-ship").value=r.ship;
     const v=App.insp.find(i=>i.ship===r.ship);
     $("#px-vtype").value=(v&&v.vtype)||"tanker";
-    $("#px-itype").value=r.itype;$("#px-date").value=r.date;$("#px-place").value=r.place;
+    const _pxTypes=[...new Set(App.insp.map(x=>x.itype))].filter(Boolean).sort();
+    $("#px-itype").innerHTML=_pxTypes.map(s=>`<option>${esc(s)}</option>`).join("")+`<option>其他</option>`;
+    const _pxKnown=_pxTypes.includes(r.itype);
+    $("#px-itype").value=r.itype?(_pxKnown?r.itype:"其他"):(_pxTypes[0]||"其他");
+    $("#px-itype-other").value=(r.itype&&!_pxKnown)?r.itype:"";
+    $("#px-itype-other").style.display=$("#px-itype").value==="其他"?"":"none";
+    $("#px-date").value=r.date;$("#px-place").value=r.place;
     $("#px-inspector").value=r.inspector;$("#px-unit").value=r.unit;$("#px-detain").checked=r.detain;
     this.defs=r.defs.map(d=>({...d,tm:null}));
     this.renderDefs();
@@ -1965,11 +2107,13 @@ const Pdfx={
   importAll(){
     const ship=$("#px-ship").value.trim();
     if(!ship){toast("⚠ 請填寫受檢船舶");return;}
-    const date=$("#px-date").value.trim(),itype=$("#px-itype").value.trim(),place=$("#px-place").value.trim();
+    const date=$("#px-date").value.trim(),place=$("#px-place").value.trim();
+    let itype=$("#px-itype").value.trim();
+    if(itype==="其他"){const o=$("#px-itype-other").value.trim();itype=o?"其他-"+o:"其他";}
     const live=this.defs.filter(d=>d.detail.trim());
     if(!confirm(`將匯入：${$("#px-incinsp").checked?"1 筆檢查紀錄＋":""}${live.length} 筆缺失紀錄（${ship}／${itype||"—"}／${date||"—"}），確定？`))return;
     if($("#px-incinsp").checked){
-      App.insp.push({ship,vtype:$("#px-vtype").value,itype,date,loc:place,inspector:$("#px-inspector").value.trim(),unit:$("#px-unit").value.trim(),ndef:String(live.length),flagType:"",detain:$("#px-detain").checked?"Y":"N"});
+      App.insp.push({id:App.nextId(),ship,vtype:$("#px-vtype").value,itype,date,loc:place,inspector:$("#px-inspector").value.trim(),unit:$("#px-unit").value.trim(),ndef:String(live.length),flagType:"",detain:$("#px-detain").checked?"Y":"N"});
     }
     live.forEach(d=>{
       const rec={id:App.nextId(),ship,vtype:$("#px-vtype").value,itype,ym:ymOf(date),date,place,inspector:$("#px-inspector").value.trim(),oilco:$("#px-unit").value.trim(),psc:"",code:d.code.trim(),detail:d.detail.trim(),actual:"",corrective:"",root:"",preventive:"",rank:"",person:"",risk:"",attn:false,
