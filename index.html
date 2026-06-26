@@ -258,14 +258,14 @@ tr.attn-row:hover{background:#ffefdd !important}
 .bt-table td{padding:4px}
 .bt-table textarea,.bt-table input,.bt-table select{width:100%;font-size:12px;padding:5px 6px;border:1px solid var(--line-2);border-radius:4px;font-family:var(--sans);resize:vertical}
 .bt-table textarea{min-height:42px;line-height:1.4}
-.air-ta{width:100%;min-width:90px;max-width:none;font-size:12px;padding:5px 6px;border:1px solid var(--line-2);border-radius:4px;font-family:var(--sans);resize:both;overflow:auto;line-height:1.4;min-height:36px;box-sizing:border-box;display:block}
-.air-in{width:100%;font-size:12px;padding:5px 6px;border:1px solid var(--line-2);border-radius:4px;font-family:var(--sans);box-sizing:border-box}
-.psc-msel{position:relative;width:100%}
-.psc-msel-btn{width:100%;font-size:11.5px;padding:5px 6px;border:1px solid var(--line-2);border-radius:4px;background:#fff;text-align:left;cursor:pointer;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.psc-msel-btn:hover{border-color:var(--teal)}
-.psc-msel-panel{position:absolute;z-index:50;top:100%;left:0;min-width:230px;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.15);padding:8px;margin-top:2px}
-.psc-msel-panel label{display:flex;align-items:flex-start;gap:6px;font-size:11.5px;font-weight:400;padding:3px 2px;cursor:pointer;line-height:1.3}
-.psc-msel-panel label:hover{background:#f4f6f7;border-radius:4px}
+.air-ta{width:100%;min-width:90px;max-width:none;font-size:13px;padding:8px 9px;border:1px solid var(--line-2);border-radius:5px;font-family:var(--sans);resize:both;overflow:auto;line-height:1.55;min-height:64px;box-sizing:border-box;display:block}
+.air-in{width:100%;font-size:13px;padding:8px 9px;border:1px solid var(--line-2);border-radius:5px;font-family:var(--sans);box-sizing:border-box;min-height:36px}
+.air-def-wrap{overflow:auto}
+.air-def-tbl{border-collapse:separate;border-spacing:0}
+.air-def-tbl th{padding:10px 9px;white-space:nowrap;font-size:12.5px}
+.air-def-tbl td{padding:11px 9px;vertical-align:top}
+.air-def-tbl .psc-plain-list label{padding:2px 0;font-size:12px}
+.air-def-tbl .msel{min-width:120px}
 .psc-msel-na{font-size:11px;color:var(--ink-3);font-style:italic}
 .bt-table .bt-rm{background:none;border:none;color:var(--bad);cursor:pointer;font-size:15px}
 .bt-table tr td{vertical-align:top}
@@ -882,10 +882,10 @@ tr.attn-row:hover{background:#ffefdd !important}
 
     <!-- ════════ After Inspection Review ════════ -->
     <section id="tab-air" class="tabpage">
-      <div class="banner">船上先填報檢查基本資料與缺失改善明細（<b>操作者／維護者皆可新增、編輯</b>），<b>維護者</b>審核後可勾選將資料分別轉入「檢查紀錄」與「缺失紀錄總表」。</div>
+      <div class="banner">船上填妥 Excel 範本後，請交由<b>維護者匯入</b>系統；<b>新建</b>與<b>匯入 Excel</b>僅限<b>維護者</b>操作，其他角色可查看與<b>匯出 Excel</b>。維護者審核後可勾選將資料分別轉入「檢查紀錄」與「缺失紀錄總表」。</div>
       <div class="toolbar" id="air-toptabs">
         <button class="btn primary" id="air-tab-list-btn" onclick="Air.showList()">📋 AIR 船隊清單</button>
-        <button class="btn" id="air-tab-new-btn" onclick="Air.showForm(null)">＋ 新建 After Inspection Review</button>
+        <button class="btn" id="air-tab-new-btn" onclick="Air.newForm()">＋ 新建 After Inspection Review</button>
       </div>
 
       <div id="air-list-page">
@@ -902,6 +902,9 @@ tr.attn-row:hover{background:#ffefdd !important}
         <div class="card">
           <h3>AIR 船隊清單
             <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn sm" onclick="Air.exportXlsx()">⬇ 匯出 Excel</button>
+              <button class="btn sm" onclick="Air.exportTemplate()">📋 下載匯入模板</button>
+              <button class="btn sm dark" onclick="Air.importFile()">⬆ 匯入 Excel（維護者）</button>
               <button class="btn sm dark" onclick="Air.pushSelected('insp')">➜ 勾選轉入檢查紀錄</button>
               <button class="btn sm dark" onclick="Air.pushSelected('defs')">➜ 勾選轉入缺失紀錄總表</button>
               <button class="btn sm dark" onclick="Air.pushSelected('sirepos')">➜ 勾選轉入SIRE正向評論記錄</button>
@@ -956,10 +959,27 @@ tr.attn-row:hover{background:#ffefdd !important}
             </span>
           </h3>
           <p class="hint" style="margin-bottom:8px">列數會依「缺失數」自動產生，亦可手動增減；填寫完成後按「➜ 轉入缺失紀錄總表」即可轉入。<b>若已勾選特定列，轉入時僅套用於已勾選的列；未勾選任何列則轉入全部已填寫列。</b></p>
-          <div class="tblwrap" style="max-height:460px">
-            <table class="tbl"><thead><tr>
-              <th style="width:3%"><input type="checkbox" onchange="Air.toggleAllDefSel(this.checked)" title="全選/取消全選"></th>
-              <th style="width:5%"></th><th style="width:3%">#</th><th style="width:9%">PSC Action Taken</th><th style="width:6%">CODE</th><th style="width:10%">實際情況</th><th style="width:13%">缺失詳情</th><th style="width:10%">改善措施</th><th style="width:10%">根本原因</th><th style="width:10%">預防措施</th><th style="width:7%">問題別</th><th style="width:7%">大類</th><th style="width:7%">具體名稱</th><th style="width:6%">三要素</th><th style="width:5%">重要程度</th><th style="width:5%">重點關注</th><th style="width:7%">檢查員意見/BP</th><th style="width:4%">風險</th><th style="width:5%">責任人職位</th><th style="width:5%">責任人姓名</th>
+          <div class="tblwrap air-def-wrap" style="max-height:600px">
+            <table class="tbl air-def-tbl"><thead><tr>
+              <th style="min-width:34px"><input type="checkbox" onchange="Air.toggleAllDefSel(this.checked)" title="全選/取消全選"></th>
+              <th style="min-width:34px"></th><th style="min-width:34px">#</th>
+              <th style="min-width:190px">PSC Action Taken</th>
+              <th style="min-width:110px">CODE</th>
+              <th style="min-width:200px">實際情況</th>
+              <th style="min-width:220px">缺失詳情</th>
+              <th style="min-width:200px">改善措施</th>
+              <th style="min-width:200px">根本原因</th>
+              <th style="min-width:200px">預防措施</th>
+              <th style="min-width:130px">問題別</th>
+              <th style="min-width:130px">大類</th>
+              <th style="min-width:130px">具體名稱</th>
+              <th style="min-width:130px">三要素</th>
+              <th style="min-width:90px">重要程度</th>
+              <th style="min-width:90px">重點關注</th>
+              <th style="min-width:190px">檢查員意見/BP</th>
+              <th style="min-width:90px">風險</th>
+              <th style="min-width:110px">責任人職位</th>
+              <th style="min-width:110px">責任人姓名</th>
             </tr></thead><tbody id="air-defect-tbody"></tbody></table>
           </div>
         </div>
@@ -972,10 +992,14 @@ tr.attn-row:hover{background:#ffefdd !important}
             </span>
           </h3>
           <p class="hint" style="margin-bottom:8px">列數會依「正面評論數」自動產生，亦可手動增減；填寫完成後按「➜ 轉入SIRE正向評論記錄」即可轉入「SIRE正向評論」總表。<b>若已勾選特定列，轉入時僅套用於已勾選的列；未勾選任何列則轉入全部已填寫列。</b></p>
-          <div class="tblwrap" style="max-height:460px">
-            <table class="tbl"><thead><tr>
-              <th style="width:3%"><input type="checkbox" onchange="Air.toggleAllPosSel(this.checked)" title="全選/取消全選"></th>
-              <th style="width:5%"></th><th style="width:4%">#</th><th style="width:13%">CODE（章節）</th><th style="width:22%">評論項目</th><th style="width:28%">正向評論內容</th><th style="width:22%">受訪人員（可新增多筆）</th>
+          <div class="tblwrap air-def-wrap" style="max-height:520px">
+            <table class="tbl air-def-tbl"><thead><tr>
+              <th style="min-width:34px"><input type="checkbox" onchange="Air.toggleAllPosSel(this.checked)" title="全選/取消全選"></th>
+              <th style="min-width:34px"></th><th style="min-width:34px">#</th>
+              <th style="min-width:160px">CODE（章節）</th>
+              <th style="min-width:260px">評論項目</th>
+              <th style="min-width:300px">正向評論內容</th>
+              <th style="min-width:260px">受訪人員（可新增多筆）</th>
             </tr></thead><tbody id="air-pos-tbody"></tbody></table>
           </div>
         </div>
@@ -1109,6 +1133,10 @@ tr.attn-row:hover{background:#ffefdd !important}
 
       <!-- 任務列表 -->
       <div id="sc-listview">
+        <div class="card foldable" id="sc-stats-card" style="margin-bottom:14px">
+          <h3>📊 查核狀況統計<span class="fold-btn" onclick="CardFold.toggle('sc-stats-card',()=>SelfCheck.renderStats())">▾ 收合</span></h3>
+          <div class="card-body"><div id="sc-stats-body"></div></div>
+        </div>
         <div class="sc-howto">
           <div class="sc-howto-t">📋 缺失自檢 操作說明</div>
           <div class="sc-howto-body">
@@ -1348,19 +1376,22 @@ tr.attn-row:hover{background:#ffefdd !important}
             <div class="rg-head maint">維護者　<span>海技組</span></div>
             <ul>
               <li>新增／編輯／刪除 檢查紀錄、缺失紀錄、船舶資料</li>
+              <li>新建／匯入 After Inspection Review（其他角色僅可查看與匯出）</li>
+              <li>批量編輯（檢查紀錄、缺失紀錄）、批量新增</li>
+              <li>缺失自檢：<b>建立任務、刪除任務</b>（操作者僅能執行查核，不能建立或刪除任務）</li>
               <li>匯入 Excel／PDF、勾選「🆕新缺失須注意」</li>
               <li>編輯完按「⬆ 發布到雲端」推送給全公司</li>
               <li>解鎖並編修「AI分析提示詞」中甲板督導／機艙督導／海技部門的固定提示詞</li>
               <li>編修「外部/內部檢查」「檢查類型」對應關鍵字、篩選清單標籤</li>
-              <li>設定／還原「預設資料備份」、執行「全部歸零」（皆需二次確認）</li>
+              <li>設定／還原「預設資料備份」、一鍵匯入所有資料、執行「全部歸零」（皆需二次確認）</li>
               <li>於 Supabase 管理變更人員名單、查看全公司操作紀錄</li>
             </ul>
           </div>
           <div class="rg-col">
             <div class="rg-head oper">操作者　<span>督導 / 船上</span></div>
             <ul>
-              <li>檢查／缺失／船舶資料：原則只看不改，按「⬇ 從雲端載入」取得最新</li>
-              <li>缺失自檢：建立／執行任務、查核、結案（不需密碼）</li>
+              <li>檢查／缺失／船舶資料／After Inspection Review：<b>只能查找、查看與匯出</b>，按「⬇ 從雲端載入」取得最新；可編輯既有 AIR 紀錄（不需密碼），但新建 AIR、匯入 Excel、批量新增/編輯均需維護者驗證</li>
+              <li>缺失自檢：<b>只能執行查核</b>（標記查核狀態、填寫處理情形、結案），<b>不能建立新任務或刪除任務</b></li>
               <li>自檢進度自動雲端同步，督導船端互通</li>
               <li>AI分析提示詞可自行「➕新增自訂」角色（僅存於自己瀏覽器，不影響他人）</li>
             </ul>
@@ -1413,7 +1444,7 @@ tr.attn-row:hover{background:#ffefdd !important}
             </div>
           </div>
         </div>
-        <div class="gd-note" style="background:var(--paper);border-color:var(--line)">📡 <b>備援（船上無法連雲端時）</b>：船上「⬇ 匯出清單 JS」→ Email 回傳督導 →「⬆ 匯入任務 JS」→「任務同步」上雲。</div>
+        <div class="gd-note" style="background:var(--paper);border-color:var(--line)">📡 <b>備援（船上無法連雲端時）</b>：船上「⬇ 匯出清單 JS」→ Email 回傳督導 →「⬆ 匯入任務 JS」→「任務同步」上雲。<br>🔁 <b>匯入時不會重複建立任務</b>：系統以任務內建的隱藏識別碼比對，若督導端已有對應任務，匯入會直接「就地更新」該任務的查核進度（取時間較新的版本覆蓋），只有從未存在過的任務才會新增；因此同一艘船的同一個任務可以放心重複匯入，不會變成兩筆。</div>
       </div>
 
       <!-- 各頁速查 -->
@@ -1423,7 +1454,7 @@ tr.attn-row:hover{background:#ffefdd !important}
           <div class="gd-page"><b>Dash Board</b>船隊缺失趨勢、重點管理項目（柏拉圖）、各船落點等管理圖表。</div>
           <div class="gd-page"><b>檢查紀錄</b>各次檢查明細與內外部一覽，可新增／編輯紀錄、依扣船／檢查員／地點等篩選。</div>
           <div class="gd-page"><b>缺失紀錄總表</b>全部缺失，可搜尋篩選、勾「🆕注意」、編輯、匯入匯出、彙入自檢。</div>
-          <div class="gd-page"><b>缺失自檢</b>建立／執行自查任務，逐項查核回報（船上主要使用）。</div>
+          <div class="gd-page"><b>缺失自檢</b>逐項查核回報（操作者/船上主要使用）；建立／刪除任務僅限維護者。</div>
           <div class="gd-page"><b>船舶資料</b>Ship Particulars 與船齡分析，維護者可新增／編輯／刪除船舶。</div>
           <div class="gd-page"><b>重複性缺失</b>找出一再發生的同類缺失，可調期間與門檻，一鍵彙入自檢。</div>
           <div class="gd-page"><b>分類彙總分析</b>分類篩選、要素佔比與趨勢圖、AI總結，並可勾選分類批量跳轉查看／匯出。</div>
@@ -1538,7 +1569,11 @@ tr.attn-row:hover{background:#ffefdd !important}
       </div>
       <div class="card" style="margin-bottom:14px">
         <h3>🗄 資料庫管理
-          <span style="margin-left:auto"><button class="btn dark" onclick="DM.exportAllXlsx()">⬇ 一鍵匯出所有資料（Excel，含所有資料表）</button></span>
+          <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <button class="btn dark" onclick="DM.exportAllXlsx()">⬇ 一鍵匯出所有資料（Excel，含所有資料表）</button>
+            <button class="btn dark" onclick="DM.importAllXlsx()">⬆ 一鍵匯入所有資料（維護者，需double check）</button>
+            <button class="btn" id="dmia-restore-wrap" style="display:none" onclick="DM.restorePreImportAll()">↩ 回復至上次一鍵匯入前</button>
+          </span>
         </h3>
         <div class="grid2">
           <div class="card">
@@ -1582,7 +1617,12 @@ tr.attn-row:hover{background:#ffefdd !important}
           </div>
           <div class="card">
             <h3>After Inspection Review</h3>
-            <p class="hint" style="margin-bottom:10px;line-height:1.7">目前 <b id="dm-airn">0</b> 筆。船上填報之檢查基本資料與缺失改善明細，經維護者勾選後可轉入「檢查紀錄」與「缺失紀錄總表」。新增/編輯不限身分，皆可填寫；刪除僅限維護者。</p>
+            <p class="hint" style="margin-bottom:10px;line-height:1.7">目前 <b id="dm-airn">0</b> 筆。維護者審核後可勾選將資料轉入「檢查紀錄」與「缺失紀錄總表」。<b>新建</b>、<b>匯入 Excel</b>、刪除僅限維護者；其他角色可編輯既有紀錄、查看與匯出 Excel。</p>
+            <div class="toolbar">
+              <button class="btn" onclick="Air.exportXlsx()">⬇ 匯出 Excel</button>
+              <button class="btn dark" onclick="Air.importFile()">⬆ 匯入（維護者）</button>
+              <button class="btn" onclick="Air.exportTemplate()">📋 下載模板</button>
+            </div>
             <div class="toolbar">
               <button class="btn" onclick="document.querySelector('[data-tab=&quot;air&quot;]').click();">前往 After Inspection Review →</button>
             </div>
@@ -2039,6 +2079,31 @@ tr.attn-row:hover{background:#ffefdd !important}
 </div>
 
 <!-- 批量編輯缺失紀錄（僅維護者） -->
+<!-- 一鍵匯入所有資料（需double check） -->
+<div class="modal-bg" id="dmImportAllModal">
+  <div class="modal" style="max-width:560px">
+    <div class="mh"><h3>⚠ 一鍵匯入所有資料 — 請再次確認</h3><button class="x" onclick="DM.closeImportAll()">✕</button></div>
+    <div class="mb">
+      <p class="hint" style="margin-bottom:6px">來源檔案：<b id="dmia-fname"></b></p>
+      <p class="hint" style="margin-bottom:6px">讀取到以下資料，<b style="color:var(--bad)">匯入後將直接覆蓋</b>目前資料庫中對應的工作表：</p>
+      <ul id="dmia-summary" style="margin:0 0 14px 18px;line-height:1.8;font-size:13px"></ul>
+      <div class="banner" style="border-left:4px solid var(--bad);background:#fdecea;line-height:1.7">
+        <b>⚠ 此為高風險操作，請務必再次確認：</b><br>
+        ・系統會在匯入前自動建立一份「匯入前安全備份」，匯入後若發現有誤，可用「↩ 回復至上次一鍵匯入前」還原。<br>
+        ・此安全備份僅保留「最近一次」，若連續匯入兩次，第一次匯入前的狀態將無法復原，請務必先確認檔案內容無誤。
+      </div>
+      <label style="display:flex;align-items:flex-start;gap:8px;font-weight:600;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="dmia-confirm-cb" style="width:16px;height:16px;margin-top:2px" onchange="$('#dmia-confirm-btn').disabled=!this.checked">
+        我已確認上述資料筆數無誤，且了解此操作將覆蓋目前資料庫對應的資料表
+      </label>
+    </div>
+    <div class="mf">
+      <button class="btn" onclick="DM.closeImportAll()">取消</button>
+      <button class="btn primary" id="dmia-confirm-btn" disabled onclick="DM.confirmImportAll()">確定匯入並覆蓋</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="defBatchEditModal">
   <div class="modal" style="max-width:1320px">
     <div class="mh"><h3>批量編輯缺失紀錄（已勾選 <span id="defbe-count">0</span> 筆）</h3><button class="x" onclick="Defs.closeBatchEdit()">✕</button></div>
@@ -2808,6 +2873,7 @@ const App={
     this.air.forEach((d,i)=>{if(!d.id)d.id=3000000+i;if(!Array.isArray(d.posComments))d.posComments=[];if(typeof d.usedPos!=="boolean")d.usedPos=false;});
     this.insp.forEach((d,i)=>{if(!d.id)d.id=4000000+i;});
     try{const dl=document.getElementById("dl-sire-chapters");if(dl)dl.innerHTML=sireChapterDatalistHtml();}catch(e){}
+    try{const rb=document.getElementById("dmia-restore-wrap");if(rb)rb.style.display=localStorage.getItem("vsm_pre_importall_backup_v1")?"":"none";}catch(e){}
     // 將新分類欄位(nc*)由內建種子依id併入既有缺失資料；僅補未存在者,不覆蓋使用者後續編輯
     try{
       const ncMap=new Map(built.deficiencies.map(x=>[x.id,x]));
@@ -3411,8 +3477,8 @@ const Ov={
     const pg=arr.slice((this.page-1)*this.PER,this.page*this.PER);
     $("#ov-tbody").innerHTML=pg.map(r=>{
       const idx=App.insp.indexOf(r);
-      return `<tr class="${this.selRows.has(r.id)?'sel':''}">
-      <td><input type="checkbox" ${this.selRows.has(r.id)?"checked":""} onchange="Ov.toggleSelRow(${r.id},this.checked)"></td>
+      return `<tr class="${this.selRows.has(String(r.id))?'sel':''}">
+      <td><input type="checkbox" ${this.selRows.has(String(r.id))?"checked":""} onchange="Ov.toggleSelRow('${r.id}',this.checked)"></td>
       <td><b>${esc(r.ship)}</b></td><td>${esc(r.vtype)}</td><td>${itypeChip(r.itype)}<span class="io-chip ${isInternal(r.itype)?"io-int":"io-ext"}">${isInternal(r.itype)?"內":"外"}</span></td>
       <td>${icatChip(icatOf(r.itype))}</td>
       <td style="font-family:var(--mono)">${esc(r.date)}</td><td>${esc(r.loc)}</td><td>${esc(r.inspector)}</td><td>${esc(r.unit)}</td>
@@ -3505,11 +3571,11 @@ const Ov={
   /* ─────────────────────────────────────────
      批量編輯（僅維護者）
      ───────────────────────────────────────── */
-  toggleSelRow(id,on){on?this.selRows.add(id):this.selRows.delete(id);},
+  toggleSelRow(id,on){id=String(id);on?this.selRows.add(id):this.selRows.delete(id);},
   toggleAllSel(on){
     const arr=this._lastFiltered||[];
-    if(on)arr.forEach(r=>this.selRows.add(r.id));
-    else arr.forEach(r=>this.selRows.delete(r.id));
+    if(on)arr.forEach(r=>this.selRows.add(String(r.id)));
+    else arr.forEach(r=>this.selRows.delete(String(r.id)));
     this.render();
   },
   /* ─────────────────────────────────────────
@@ -3519,7 +3585,7 @@ const Ov={
   async openBatchEdit(){
     if(!await Guard.require())return; // 僅維護者
     if(!this.selRows.size){toast("⚠ 請先在清單左側勾選要批量編輯的檢查紀錄");return;}
-    const targets=App.insp.filter(r=>this.selRows.has(r.id));
+    const targets=App.insp.filter(r=>this.selRows.has(String(r.id)));
     $("#ovbe-count").textContent=targets.length;
     const tb=$("#ovbe-tbody");tb.innerHTML="";
     const types=this._btTypes();
@@ -3560,8 +3626,8 @@ const Ov={
     if(!rows.length){toast("⚠ 沒有可套用的紀錄");this.closeBatchEdit();return;}
     const errs=[];let n=0;
     rows.forEach((tr,idx)=>{
-      const id=+tr.dataset.id;
-      const rec=App.insp.find(r=>r.id===id);
+      const id=tr.dataset.id;
+      const rec=App.insp.find(r=>String(r.id)===id);
       if(!rec)return;
       const ship=tr.querySelector(".ovbe-ship").value.trim();
       const date=tr.querySelector(".ovbe-date").value.trim();
@@ -4134,31 +4200,12 @@ function autoResizeTA(el){
   if(el.scrollHeight>el.clientHeight){el.style.height=(el.scrollHeight+2)+"px";}
 }
 function initAutoResize(container){if(!container)return;container.querySelectorAll("textarea.air-ta").forEach(autoResizeTA);}
-/* ── PSC Action Taken 多選下拉選單（取代長串checkbox清單） ── */
+/* ── PSC Action Taken：直接列出checkbox清單供勾選(可複選)，不使用下拉選單 ── */
 function pscMselHtml(value,uid,disabled){
   if(disabled)return `<div class="psc-msel-na">非PSC檢查，不適用</div>`;
-  const arr=pscArr(value);
-  const summary=arr.length?arr.map(c=>esc(c)).join(", "):"（未選擇，點此選擇）";
-  return `<div class="psc-msel" data-uid="${uid}">
-    <button type="button" class="psc-msel-btn" onclick="togglePscMsel(event,'${uid}')">${summary}</button>
-    <div class="psc-msel-panel" id="pscpanel-${uid}" style="display:none">${pscBoxHtml(value,uid)}</div>
-  </div>`;
+  return `<div class="psc-plain-list" style="display:flex;flex-direction:column;gap:2px">${pscBoxHtml(value,uid)}</div>`;
 }
-function togglePscMsel(e,uid){
-  e.stopPropagation();
-  document.querySelectorAll(".psc-msel-panel").forEach(p=>{if(p.id!==`pscpanel-${uid}`)p.style.display="none";});
-  const panel=document.getElementById(`pscpanel-${uid}`);
-  if(panel)panel.style.display=panel.style.display==="none"?"block":"none";
-}
-document.addEventListener("click",e=>{
-  if(!e.target.closest(".psc-msel"))document.querySelectorAll(".psc-msel-panel").forEach(p=>p.style.display="none");
-});
-function pscMselUpdateSummary(uid){
-  const v=pscBoxRead(uid);
-  const btn=document.querySelector(`.psc-msel[data-uid="${uid}"] .psc-msel-btn`);
-  if(btn)btn.textContent=v?pscArr(v).join(", "):"（未選擇，點此選擇）";
-  return v;
-}
+function pscMselUpdateSummary(uid){return pscBoxRead(uid);}
 const CDI_CHAPTERS={1:"CERTIFICATION, MANNING 證書及人員配置",2:"MANAGEMENT AND PERSONNEL 管理及人員",3:"BRIDGE 駕駛台",4:"MOORING 繫泊作業",5:"CARGO OPERATIONS 貨物作業",6:"ENGINE DEPARTMENT 機艙部門",7:"OPERATIONAL SAFETY 作業安全",8:"HEALTH, SAFETY AND PERSONNEL PROTECTION 健康、安全及人員防護",9:"FIREFIGHTING 消防",10:"LIFESAVING 救生",11:"ENVIRONMENTAL PROTECTION 環境保護",12:"SECURITY 船舶保安",13:"HULL AND SUPERSTRUCTURE 船殼及上層建築",14:"ACCOMMODATION 居住艙室"};
 const PSC_CHAPTERS={1:"證書及文件 Certificates and Documentation",2:"結構狀況 Structural Conditions",3:"船殼外觀 Ship's Hull Appearance",4:"應急系統 Emergency Systems",5:"無線電通信 Radio Communications",6:"貨物操作包括設備 Cargo Operations Including Equipment",7:"消防安全 Fire Safety",8:"警報 Alarms",9:"工作及生活條件 Working and Living Conditions",10:"航行安全 Navigation Safety",11:"救生設備 Life-saving Appliances",12:"危險品 Dangerous Goods",13:"主機及輔機 Main and Auxiliary Machinery",14:"預防污染 Pollution Prevention",15:"ISM International Safety Management (ISM) Code",16:"ISPS International Ship and Port Facility Security (ISPS) Code",18:"船員生活品質 Seafarers' Living Conditions and Welfare",99:"其他 Others"};
 const RIGHTSHIP_CHAPTERS={1:"一般資訊 General Information",2:"證書及人員管理 Certification and Personnel Management",3:"航行 Navigation",4:"安全管理系統 ISM System",5:"汙染預防管控 Pollution Prevention and Control",6:"船體結構 Ship's Structure",7:"油料管理 Fuel Management",8:"貨物作業 Cargo Operation - Solid Bulk Cargo other than Grain",9:"艙蓋及吊具 Hatch Cover and Lifting Appliances",10:"纜繩作業 Mooring Operations",11:"雷達通訊 Radio and Communication",12:"船舶保安 Security",13:"機艙 Machinery Space",14:"船殼外觀 General Appearance - Hull and Superstructure",15:"人員健康及福利 Health and Welfare of Seafarers",16:"冰區或極區作業 Ice or Polar Water Operations",17:"船對船作業 Ship To Ship Operation"};
@@ -4253,7 +4300,7 @@ const Defs={
     const arrow=k=>this.sortKey===k?(this.sortAsc?" ▲":" ▼"):" ⇅";
     const widths=this.loadColWidths();
     const _rows=this.filtered();
-    const _allSel=_rows.length>0&&_rows.every(d=>this.selected.has(d.id));
+    const _allSel=_rows.length>0&&_rows.every(d=>this.selected.has(String(d.id)));
     let html=`<th><input type="checkbox" id="f-selall" ${_allSel?"checked":""} onchange="Defs.toggleAll(this.checked)"></th>
       <th>操作</th>
       <th title="勾選後各輪自查時將特別標示" style="color:#ffd9b3">🆕注意</th>`;
@@ -4474,9 +4521,9 @@ const Defs={
     });
   },
   sort(k){if(this.sortKey===k)this.sortAsc=!this.sortAsc;else{this.sortKey=k;this.sortAsc=true;}this.render();},
-  toggleAll(on){const rows=this.filtered();if(on)rows.forEach(d=>this.selected.add(d.id));else this.selected.clear();this.render();},
+  toggleAll(on){const rows=this.filtered();if(on)rows.forEach(d=>this.selected.add(String(d.id)));else this.selected.clear();this.render();},
   clearSel(){this.selected.clear();this.render();toast("✓ 已清除所有勾選");},
-  toggleSel(id,on){on?this.selected.add(id):this.selected.delete(id);this.refreshStat();},
+  toggleSel(id,on){id=String(id);on?this.selected.add(id):this.selected.delete(id);this.refreshStat();},
   refreshStat(){$("#f-stat").innerHTML=`篩選結果 <b>${this._lastCount||0}</b> 筆 · 勾選 <b>${this.selected.size}</b> 筆`;},
   render(){
     let rows=this.filtered();
@@ -4492,7 +4539,7 @@ const Defs={
     $("#f-tbody").innerHTML=pg.map(d=>{
       const tds=cols.map(c=>c.cell(d)).join("");
       return `<tr class="${this.selected.has(d.id)?"sel":""} ${d.attn?"attn-row":""}">
-      <td><input type="checkbox" ${this.selected.has(d.id)?"checked":""} onchange="Defs.toggleSel(${d.id},this.checked)"></td>
+      <td><input type="checkbox" ${this.selected.has(String(d.id))?"checked":""} onchange="Defs.toggleSel('${d.id}',this.checked)"></td>
       <td style="white-space:nowrap"><button class="btn sm" onclick="Defs.openEdit(${d.id})">✎</button></td>
       <td style="text-align:center"><input type="checkbox" ${d.attn?"checked":""} onchange="Defs.setAttn(${d.id},this.checked)" title="新缺失須注意" style="accent-color:var(--signal)"></td>
       ${tds}
@@ -4716,7 +4763,7 @@ const Defs={
   async openBatchEdit(){
     if(!await Guard.require())return; // 僅維護者
     if(!this.selected.size){toast("⚠ 請先在清單左側勾選要批量編輯的缺失紀錄");return;}
-    const targets=App.defs.filter(d=>this.selected.has(d.id));
+    const targets=App.defs.filter(d=>this.selected.has(String(d.id)));
     $("#defbe-count").textContent=targets.length;
     const tb=$("#defbe-tbody");tb.innerHTML="";
     if(!this.beMs)this.beMs={};else this.beMs={};
@@ -4761,8 +4808,8 @@ const Defs={
     if(!rows.length){toast("⚠ 沒有可套用的紀錄");this.closeBatchEdit();return;}
     let n=0;
     rows.forEach(tr=>{
-      const id=+tr.dataset.id;
-      const d=App.defs.find(x=>x.id===id);
+      const id=tr.dataset.id;
+      const d=App.defs.find(x=>String(x.id)===id);
       if(!d)return;
       const ms=(this.beMs&&this.beMs[id])||{};
       Object.assign(d,{
@@ -5127,6 +5174,141 @@ const SirePos={
 
 /* ════════ After Inspection Review ════════ */
 const Air={
+  /* ── 匯出 / 下載模板 / 匯入（Excel，3個工作表：基本資料／缺失改善明細／正向評論明細） ── */
+  exportTemplate(){
+    if(!hasXLSX())return;
+    const wb=XLSX.utils.book_new();
+    const instr=[
+      ["After Inspection Review 匯入範本 — 填寫說明"],[""],
+      ["1. 本範本共3個工作表：「基本資料」「缺失改善明細」「正向評論明細」，請依序填寫；不需要的工作表可留空白（僅留標題列）。"],
+      ["2. 「序號」為連結用代號：請替每筆 After Inspection Review（每次檢查）填一個序號(1,2,3...)，並在「缺失改善明細」「正向評論明細」對應的列填上同一個序號，系統匯入時會依序號自動歸併。"],
+      ["3. 「正向評論明細」若同一筆評論有多位受訪人員，請另外複製一列，序號／CODE／評論項目／正向評論內容皆相同，僅職稱／姓名不同即可。"],
+      ["4. 問題別請填「设备问题」或「作业问题」；大類、具體名稱請參考「分類選項參考」工作表（依問題別查對應的大類與具體名稱）；三要素填 人員因素／設備因素／系統因素／其他因素（可填多個，用「、」分隔）；重要程度填 高／中／低；重點關注填 是／否；風險填 1（低）／2（中）／3（高）。"],
+      ["5. PSC Action Taken 僅 PSC 檢查需填，請填代碼（可多個以逗號分隔，如 10,17）。代碼意義：10 deficiency rectified／15 rectify at next port／16 within 14 days／17 before departure／18 within 3 months／30 detainable deficiency／46 rectify detainable at agreed repair port／48 as agreed flag State condition／49 as agreed RAP／99 other。"],
+      ["6. CODE 欄請依「檢查來源」填入章節代碼數字，系統匯入後可於線上頁面看到自動帶出的章節名稱（適用 CDI／PSC／RIGHTSHIP）。"],
+      ["7. 填寫完成後，請交由系統「維護者」匯入；新建與匯入功能僅限維護者操作，其他角色僅可查看與匯出 Excel。"]
+    ];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(instr),"填寫說明");
+    const baseHdr=["序號","船名","船型","檢查來源","檢查日期","檢查地點","檢查單位/油公司","檢查員","缺失數","正面評論數"];
+    const baseSample=[
+      [1,"F31","tanker","PSC","2026/1/15","Kaohsiung, Taiwan","","王檢查官",2,1],
+      [2,"B105","bulk","SIRE","2026/2/3","Singapore, Singapore","P66","Capt. Lee",1,1]
+    ];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([baseHdr,...baseSample]),"基本資料");
+    const defHdr=["序號","PSC Action Taken","CODE","實際情況","缺失詳情","改善措施","根本原因","預防措施","問題別","大類","具體名稱","三要素","重要程度","重點關注","檢查員意見/BP","風險","責任人職位","責任人姓名"];
+    const defSample=[
+      [1,"17","17","已補正並加強督導","航行當值記錄不完整","針對程序進行修正","體系文件不足及上船前培訓針對性有待加強","公司修正管理體系文件內容及上船前培訓","作业问题","","","人員因素","中","否","建議加強當值人員訓練","2","",""],
+      [2,"","","通知岸基安排檢修","雷達顯示異常","","","","设备问题","","","設備因素","高","是","Nil","3","",""]
+    ];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([defHdr,...defSample]),"缺失改善明細");
+    const posHdr=["序號","CODE（章節）","評論項目","正向評論內容","職稱","姓名"];
+    const posSample=[
+      [1,"5.5 Permits to Work｜工作許可","Were permits to work properly used?","訪談後發現工作許可制度執行確實，紀錄完整。","2/O","王小明"],
+      [1,"5.5 Permits to Work｜工作許可","Were permits to work properly used?","訪談後發現工作許可制度執行確實，紀錄完整。","C/O","李大同"],
+      [2,"4.4 Communications Equipment｜通訊設備與程序","Were the Master and officers familiar with GMDSS?","OP 充滿自信地說明應變動作。","3/O","林佳宏"]
+    ];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([posHdr,...posSample]),"正向評論明細");
+    const optRows=[["問題別","大類","具體名稱"]];
+    try{
+      ["设备问题","作业问题"].forEach(p=>{
+        const arr=p==="设备问题"?NCDB.equip:NCDB.ops;
+        (arr||[]).forEach(([m,l])=>optRows.push([p,m,l]));
+      });
+    }catch(e){}
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(optRows),"分類選項參考");
+    XLSX.writeFile(wb,"AfterInspectionReview_匯入範本.xlsx");
+    toast("✓ 已下載 After Inspection Review 匯入範本（含填寫說明與分類選項參考）");
+  },
+  exportXlsx(){
+    if(!hasXLSX())return;
+    const wb=XLSX.utils.book_new();
+    const baseRows=App.air.map((d,i)=>({序號:i+1,船名:d.ship,船型:d.vtype,檢查來源:d.itype,檢查日期:d.date,檢查地點:d.place,"檢查單位/油公司":d.oilco,檢查員:d.inspector,缺失數:d.ndef??0,正面評論數:d.npos??0,督導確認:d.reviewed?"已確認":"尚未確認",已轉檢查紀錄:d.usedInsp?"是":"否",已轉缺失紀錄:d.usedDef?"是":"否",已轉正向評論:d.usedPos?"是":"否"}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(baseRows),"基本資料");
+    const defRows=[];
+    App.air.forEach((d,i)=>{(d.defects||[]).forEach(df=>{defRows.push({序號:i+1,"PSC Action Taken":df.psc||"",CODE:df.code||"",實際情況:df.actual||"",缺失詳情:df.detail||"",改善措施:df.corrective||"",根本原因:df.rootCause||"",預防措施:df.preventive||"",問題別:df.ncProb||"",大類:df.ncMain||"",具體名稱:df.ncLeaf||"",三要素:df.ncFactor||"",重要程度:df.ncImp||"",重點關注:df.ncFocus||"","檢查員意見/BP":df.ncOpinion||"",風險:df.risk||"",責任人職位:df.rank||"",責任人姓名:df.person||""});});});
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(defRows),"缺失改善明細");
+    const posRows=[];
+    App.air.forEach((d,i)=>{(d.posComments||[]).forEach(pc=>{
+      const people=(pc.people&&pc.people.length)?pc.people:[{rank:pc.rank||"",person:pc.person||""}];
+      people.forEach(p=>{posRows.push({序號:i+1,"CODE（章節）":pc.code||"",評論項目:pc.item||"",正向評論內容:pc.comment||"",職稱:p.rank||"",姓名:p.person||""});});
+    });});
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(posRows),"正向評論明細");
+    XLSX.writeFile(wb,`AfterInspectionReview_匯出_${todayStr()}.xlsx`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","AIR",`匯出 ${App.air.length} 筆`);
+    toast(`✓ 已匯出 ${App.air.length} 筆 After Inspection Review`);
+  },
+  async importFile(){
+    if(!hasXLSX())return;
+    if(!await Guard.require()){toast("⚠ 匯入 After Inspection Review 僅限維護者操作");return;}
+    const fp=$("#filepick");
+    fp.accept=".xlsx,.xls";
+    fp.value="";
+    fp.onchange=()=>{if(fp.files[0])this._readImportFile(fp.files[0]);};
+    fp.click();
+  },
+  _readImportFile(file){
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const wb=XLSX.read(r.result,{type:"array"});
+        const findSheet=names=>{for(const n of names){if(wb.Sheets[n])return wb.Sheets[n];}return null;};
+        const wsBase=findSheet(["基本資料"])||wb.Sheets[wb.SheetNames[0]];
+        const wsDef=findSheet(["缺失改善明細","缺失明細"]);
+        const wsPos=findSheet(["正向評論明細"]);
+        if(!wsBase){toast("⚠ 找不到「基本資料」工作表");return;}
+        const baseRows=XLSX.utils.sheet_to_json(wsBase,{defval:""});
+        const defRows=wsDef?XLSX.utils.sheet_to_json(wsDef,{defval:""}):[];
+        const posRows=wsPos?XLSX.utils.sheet_to_json(wsPos,{defval:""}):[];
+        const g=(o,...keys)=>{for(const k of keys){if(o[k]!==undefined&&String(o[k]).trim()!=="")return String(o[k]).trim();}return "";};
+        const truthy=v=>["是","Y","y","1","true","TRUE","✓"].includes(String(v).trim());
+        const records=baseRows.filter(o=>g(o,"序號")&&g(o,"船名","船舶","Ship")).map(o=>{
+          const seq=g(o,"序號");
+          const ship=g(o,"船名","船舶","Ship");
+          const defs=defRows.filter(x=>g(x,"序號")===seq).map(x=>({
+            psc:g(x,"PSC Action Taken","PSC"),code:g(x,"CODE","代碼"),actual:g(x,"實際情況"),detail:g(x,"缺失詳情"),
+            corrective:g(x,"改善措施"),rootCause:g(x,"根本原因"),preventive:g(x,"預防措施"),
+            ncProb:g(x,"問題別"),ncMain:g(x,"大類"),ncLeaf:g(x,"具體名稱"),ncFactor:g(x,"三要素"),
+            ncImp:g(x,"重要程度"),ncFocus:truthy(g(x,"重點關注"))?"是":(g(x,"重點關注")?"否":""),
+            ncOpinion:g(x,"檢查員意見/BP","檢查員意見","Best Practice"),risk:g(x,"風險"),
+            rank:g(x,"責任人職位"),person:g(x,"責任人姓名")
+          })).filter(d=>d.detail||d.corrective||d.rootCause||d.preventive||d.code||d.actual||d.ncProb||d.ncMain);
+          const posMap=new Map();
+          posRows.filter(x=>g(x,"序號")===seq).forEach(x=>{
+            const code=g(x,"CODE（章節）","CODE","章節");
+            const item=g(x,"評論項目");
+            const comment=g(x,"正向評論內容","評論內容");
+            const rank=g(x,"職稱");
+            const person=g(x,"姓名","名字");
+            const key=code+"‖"+item+"‖"+comment;
+            if(!posMap.has(key))posMap.set(key,{code,item,comment,people:[]});
+            if(rank||person)posMap.get(key).people.push({rank,person});
+          });
+          const posComments=[...posMap.values()].map(p=>({...p,people:p.people.length?p.people:[{rank:"",person:""}]}));
+          return {
+            ship,vtype:g(o,"船型")||vtypeOfShip(ship)||"tanker",
+            itype:g(o,"檢查來源","缺失來源"),date:g(o,"檢查日期","日期","Date"),
+            place:g(o,"檢查地點","地點"),oilco:g(o,"檢查單位/油公司","油公司/單位"),
+            inspector:g(o,"檢查員"),
+            ndef:g(o,"缺失數")||String(defs.length),npos:g(o,"正面評論數")||String(posComments.length),
+            defects:defs,posComments,
+            usedInsp:false,usedDef:false,usedPos:false,reviewed:false
+          };
+        });
+        if(!records.length){toast("⚠ 未讀到有效紀錄（請確認「基本資料」工作表含序號與船名）");return;}
+        const nDef=records.reduce((s,rc)=>s+rc.defects.length,0),nPos=records.reduce((s,rc)=>s+rc.posComments.length,0);
+        if(!confirm(`讀取到 ${records.length} 筆 After Inspection Review（共 ${nDef} 筆缺失明細、${nPos} 筆正向評論），確定要匯入嗎？`))return;
+        records.forEach(rec=>{
+          rec.id=this.nextId();rec.createdAt=Date.now();rec.createdBy=(typeof Audit!=="undefined")?Audit.user():"";
+          App.air.push(rec);
+        });
+        App.saveAll();if(App.refreshMeta)App.refreshMeta();
+        if(typeof Audit!=="undefined")Audit.log("匯入","AIR",`匯入 ${records.length} 筆（缺失${nDef}／正向評論${nPos}）`);
+        this.renderList();
+        toast(`✓ 已匯入 ${records.length} 筆 After Inspection Review`);
+      }catch(e){toast("⚠ Excel 檔解析失敗："+e.message);}
+    };
+    r.readAsArrayBuffer(file);
+  },
   ms:{},page:1,PER:30,selected:new Set(),editId:null,defRows:[],defSeq:0,posRows:[],posSeq:0,defMs:{},defSel:new Set(),posSel:new Set(),_lastCount:0,
   init(){
     this.ms.ship=MSel("ms-air-ship","船舶",()=>[...new Set(App.air.map(d=>d.ship))].filter(Boolean).sort(),()=>{this.page=1;this.renderList();});
@@ -5166,6 +5348,10 @@ const Air={
   isPSC(){
     const v=($("#air-itype")?$("#air-itype").value:"")||"";
     return v.toUpperCase()==="PSC";
+  },
+  async newForm(){
+    if(!await Guard.require()){toast("⚠ 新建 After Inspection Review 僅限維護者操作，其他角色僅可查看與匯出");return;}
+    this.showForm(null);
   },
   showForm(id){
     this.editId=id;
@@ -5507,8 +5693,8 @@ const Air={
     if(typeof Audit!=="undefined")Audit.log("轉入","SIRE正向評論記錄",`由AIR#${d.id}轉入 ${n} 筆`);
     toast(`✓ 已轉入 ${n} 筆正向評論`);
   },
-  toggleAll(on){this.selected=on?new Set(this.filtered().map(d=>d.id)):new Set();this.renderList();},
-  toggleSel(id,on){on?this.selected.add(id):this.selected.delete(id);this.refreshStat();},
+  toggleAll(on){this.selected=on?new Set(this.filtered().map(d=>String(d.id))):new Set();this.renderList();},
+  toggleSel(id,on){id=String(id);on?this.selected.add(id):this.selected.delete(id);this.refreshStat();},
   refreshStat(){const el=$("#air-stat");if(el)el.textContent=`共 ${this._lastCount} 筆 · 勾選 ${this.selected.size} 筆`;},
   async delAir(id){
     if(!await Guard.requireDelete())return;
@@ -5528,8 +5714,8 @@ const Air={
     else tb.innerHTML=pg.map(d=>{
       const st=this.statusText(d);
       const stColor=st==="待處理"?"#c0392b":(st==="已轉兩者"?"#2e8b57":"#1e7f8c");
-      return `<tr class="${this.selected.has(d.id)?'sel':''}">
-        <td><input type="checkbox" ${this.selected.has(d.id)?"checked":""} onchange="Air.toggleSel(${d.id},this.checked)"></td>
+      return `<tr class="${this.selected.has(String(d.id))?'sel':''}">
+        <td><input type="checkbox" ${this.selected.has(String(d.id))?"checked":""} onchange="Air.toggleSel('${d.id}',this.checked)"></td>
         <td style="white-space:nowrap">
           <button class="btn sm" onclick="Air.showForm(${d.id})">✎</button>
           <button class="btn sm danger" onclick="Air.delAir(${d.id})">🗑</button>
@@ -5552,7 +5738,7 @@ const Air={
   async pushSelected(target){
     if(!await Guard.require())return;
     if(!this.selected.size){toast("⚠ 請先勾選要轉入的項目");return;}
-    const items=App.air.filter(d=>this.selected.has(d.id));
+    const items=App.air.filter(d=>this.selected.has(String(d.id)));
     const usedKey=target==="insp"?"usedInsp":target==="defs"?"usedDef":"usedPos";
     const dupCount=items.filter(d=>d[usedKey]).length;
     const labelMap={insp:"檢查紀錄",defs:"缺失紀錄總表",sirepos:"SIRE正向評論記錄"};
@@ -6841,6 +7027,112 @@ const DM={
     if(typeof Audit!=="undefined")Audit.log("匯出","資料管理","一鍵匯出所有資料（含6個工作表）");
     toast("✓ 已匯出所有資料（檢查紀錄／缺失紀錄／SIRE正向評論／AIR／船舶資料／缺失自檢任務，共6個工作表）");
   },
+  async importAllXlsx(){
+    if(!hasXLSX())return;
+    if(!await Guard.require()){toast("⚠ 一鍵匯入所有資料僅限維護者操作");return;}
+    const fp=$("#filepick");
+    fp.accept=".xlsx,.xls";
+    fp.value="";
+    fp.onchange=()=>{if(fp.files[0])this._readImportAll(fp.files[0]);};
+    fp.click();
+  },
+  _readImportAll(file){
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const wb=XLSX.read(r.result,{type:"array"});
+        const wsInsp=wb.Sheets["檢查紀錄"]||null;
+        const wsDef=wb.Sheets["缺失紀錄"]||null;
+        const wsSire=wb.Sheets["SIRE正向評論"]||null;
+        const wsShip=wb.Sheets["船舶資料"]||null;
+        if(!wsInsp&&!wsDef&&!wsSire&&!wsShip){toast("⚠ 找不到任何可匯入的工作表，請確認此檔案是用「⬇一鍵匯出所有資料」產生的");return;}
+        let newInsp=null,newDefs=null,newSire=null,newShips=null;
+        if(wsInsp){
+          newInsp=XLSX.utils.sheet_to_json(wsInsp,{defval:""}).filter(o=>String(o["船名"]||"").trim()).map(o=>({
+            ship:String(o["船名"]||"").trim(),vtype:String(o["船型"]||"").trim(),itype:String(o["檢查來源"]||"").trim(),
+            date:String(o["檢查日期"]||"").trim(),loc:String(o["檢查地點"]||"").trim(),inspector:String(o["檢查員"]||"").trim(),
+            unit:String(o["檢查單位/油公司"]||"").trim(),ndef:String(o["缺失數"]??"0").trim(),npos:String(o["正面評論數"]??"0").trim(),
+            flagType:String(o["FLAG項目"]||"").trim(),detain:String(o["扣船"]||"").trim()
+          }));
+        }
+        if(wsDef){
+          const aoa=XLSX.utils.sheet_to_json(wsDef,{header:1,defval:""});
+          newDefs=aoa.slice(1).filter(row=>row.some(c=>String(c).trim())).map(row=>{
+            const o={};
+            DEF_COLS.forEach((c,i)=>{o[c[0]]=String(row[i]??"").trim();});
+            o.attn=["是","Y","y","1","true","TRUE","✓"].includes(o.attn);
+            o.ncFocus=o.ncFocus||"";
+            return o;
+          }).filter(o=>o.ship);
+        }
+        if(wsSire){
+          const aoa=XLSX.utils.sheet_to_json(wsSire,{header:1,defval:""});
+          const cols=["ship","date","code","item","comment","rank","person"];
+          newSire=aoa.slice(1).filter(row=>row.some(c=>String(c).trim())).map(row=>{
+            const o={};cols.forEach((k,i)=>{o[k]=String(row[i]??"").trim();});
+            o.ym=ymOf(o.date);
+            return o;
+          }).filter(o=>o.ship);
+        }
+        if(wsShip){
+          newShips=XLSX.utils.sheet_to_json(wsShip,{defval:""}).filter(o=>String(o["代碼"]||o["船名"]||"").trim()).map(o=>({
+            code:String(o["代碼"]||"").trim(),name:String(o["Vessel Name"]||"").trim(),zh:String(o["船名"]||"").trim(),
+            vtype:String(o["船型"]||"").trim(),type1:String(o["Type"]||"").trim(),delivery:String(o["交船日"]||"").trim(),
+            imo:String(o["IMO No."]||"").trim(),cs:String(o["C/S"]||"").trim(),dwt:String(o["DWT"]||"").trim(),grt:String(o["GRT"]||"").trim(),
+            loa:String(o["LOA"]||"").trim(),breadth:String(o["Breadth"]||"").trim(),yard:String(o["船廠"]||"").trim(),yardLoc:String(o["船廠地點"]||"").trim(),
+            flag:String(o["FLAG"]||"").trim(),cls:String(o["Class"]||"").trim(),registry:String(o["登記公司"]||"").trim(),mgr:String(o["海技經管"]||"").trim(),note:String(o["備註"]||"").trim()
+          }));
+        }
+        this._pendingImportAll={insp:newInsp,defs:newDefs,sire:newSire,ships:newShips,fname:file.name};
+        const parts=[];
+        if(newInsp)parts.push(`檢查紀錄 ${newInsp.length} 筆`);
+        if(newDefs)parts.push(`缺失紀錄 ${newDefs.length} 筆`);
+        if(newSire)parts.push(`SIRE正向評論 ${newSire.length} 筆`);
+        if(newShips)parts.push(`船舶資料 ${newShips.length} 艘`);
+        $("#dmia-fname").textContent=file.name;
+        $("#dmia-summary").innerHTML=parts.map(p=>`<li>${esc(p)}</li>`).join("")+
+          `<li style="color:var(--ink-3)">After Inspection Review、缺失自檢任務：因含巢狀明細資料，<b>不包含</b>在此一鍵匯入範圍內（AIR請另用「AIR匯入Excel」功能還原完整明細）</li>`;
+        $("#dmia-confirm-cb").checked=false;
+        $("#dmia-confirm-btn").disabled=true;
+        $("#dmImportAllModal").classList.add("show");
+      }catch(e){toast("⚠ Excel 檔解析失敗："+e.message);}
+    };
+    r.readAsArrayBuffer(file);
+  },
+  closeImportAll(){$("#dmImportAllModal").classList.remove("show");this._pendingImportAll=null;},
+  confirmImportAll(){
+    const p=this._pendingImportAll;
+    if(!p){this.closeImportAll();return;}
+    if(!$("#dmia-confirm-cb").checked){toast("⚠ 請先勾選確認方塊");return;}
+    if(!confirm("再次確認：此動作將「覆蓋」目前資料庫中對應的資料表（檢查紀錄／缺失紀錄／SIRE正向評論／船舶資料，僅針對檔案中有提供的工作表），匯入前系統會自動建立一份安全備份，確定要繼續嗎？"))return;
+    // 匯入前自動建立安全備份(獨立於使用者自訂的「預設備份」)，可用「↩ 回復至上次匯入前」還原
+    try{
+      const safety={insp:JSON.parse(JSON.stringify(App.insp)),defs:JSON.parse(JSON.stringify(App.defs)),sirePos:JSON.parse(JSON.stringify(App.sirePos)),ships:JSON.parse(JSON.stringify(SHIPINFO)),savedAt:Date.now(),savedBy:(typeof Audit!=="undefined")?Audit.user():""};
+      localStorage.setItem("vsm_pre_importall_backup_v1",JSON.stringify(safety));
+    }catch(e){}
+    let n=0;
+    if(p.insp){App.insp=p.insp.map(r=>({...r,id:0}));App.insp.forEach((d,i)=>d.id=i+1);n++;}
+    if(p.defs){App.defs=p.defs.map(r=>({...r,id:0}));App.defs.forEach((d,i)=>d.id=i+1);n++;}
+    if(p.sire){App.sirePos=p.sire.map(r=>({...r,id:0}));App.sirePos.forEach((d,i)=>d.id=i+1);n++;}
+    if(p.ships&&typeof SHIPINFO!=="undefined"){SHIPINFO.length=0;p.ships.forEach(s=>SHIPINFO.push(s));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}n++;}
+    App.saveAll();if(App.refreshMeta)App.refreshMeta();
+    ["Dash","Ov","Sp","Defs","Recur","Ref","SirePos"].forEach(name=>{try{if(typeof window[name]!=="undefined"){window[name].init&&window[name].init();window[name].render&&window[name].render();}}catch(e){}});
+    if(typeof Audit!=="undefined")Audit.log("匯入","資料管理",`一鍵匯入所有資料（來源檔：${p.fname}，共更新 ${n} 個資料表）`);
+    this.closeImportAll();
+    $("#dmia-restore-wrap")&&($("#dmia-restore-wrap").style.display="");
+    toast(`✓ 已匯入並覆蓋 ${n} 個資料表，已自動建立匯入前安全備份`);
+  },
+  restorePreImportAll(){
+    let s=null;try{s=JSON.parse(localStorage.getItem("vsm_pre_importall_backup_v1")||"null");}catch(e){}
+    if(!s){toast("⚠ 找不到匯入前的安全備份");return;}
+    if(!confirm(`確定要回復至上次「一鍵匯入所有資料」之前的狀態嗎？（備份時間：${new Date(s.savedAt).toLocaleString()}）\n此動作會覆蓋目前的檢查紀錄／缺失紀錄／SIRE正向評論／船舶資料。`))return;
+    App.insp=s.insp||[];App.defs=s.defs||[];App.sirePos=s.sirePos||[];
+    if(typeof SHIPINFO!=="undefined"&&s.ships){SHIPINFO.length=0;s.ships.forEach(x=>SHIPINFO.push(x));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}}
+    App.saveAll();if(App.refreshMeta)App.refreshMeta();
+    ["Dash","Ov","Sp","Defs","Recur","Ref","SirePos"].forEach(name=>{try{if(typeof window[name]!=="undefined"){window[name].init&&window[name].init();window[name].render&&window[name].render();}}catch(e){}});
+    if(typeof Audit!=="undefined")Audit.log("還原","資料管理","回復至上次一鍵匯入所有資料前的安全備份");
+    toast("✓ 已回復至匯入前的狀態");
+  },
   async switchTab(which){
     const oper=$("#dm-oper-page"),maint=$("#dm-maint-page");
     if(!oper||!maint)return;
@@ -7424,7 +7716,49 @@ const SelfCheck={
   /* ───── 任務列表 ───── */
   filteredTasks(){return App.tasks.filter(t=>this.msT.ship.pass(t.ship)&&this.msT.ym.pass((t.date||"").slice(0,7)));},
   clearTaskFilters(){Object.values(this.msT).forEach(m=>m.clear());this.renderTasks();},
+  renderStats(){
+    const el=$("#sc-stats-body");if(!el)return;
+    const tasks=App.tasks||[];
+    // 依船名彙整：可能同一艘船有多個任務，採「全部任務項目合併計算」整體完成度
+    const byShip=new Map();
+    tasks.forEach(t=>{
+      const key=t.ship||"(未填船名)";
+      if(!byShip.has(key))byShip.set(key,{ship:key,n:0,done:0,sim:0,tasks:0,latest:""});
+      const o=byShip.get(key);
+      o.n+=t.items.length;
+      o.done+=t.items.filter(i=>i.status!=="pending").length;
+      o.sim+=t.items.filter(i=>i.status==="similar").length;
+      o.tasks++;
+      if(!o.latest||(t.date||"")>o.latest)o.latest=t.date||"";
+    });
+    const rows=[...byShip.values()].map(o=>({...o,pct:o.n?Math.round(o.done/o.n*100):0})).sort((a,b)=>a.pct-b.pct);
+    const allShips=(typeof SHIPINFO!=="undefined"?SHIPINFO.map(s=>s.code).filter(Boolean):[]);
+    const doneShips=new Set(tasks.map(t=>t.ship).filter(Boolean));
+    const noTaskShips=allShips.filter(s=>!doneShips.has(s));
+    let html=`<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">`;
+    html+=`<div style="flex:2;min-width:340px"><b style="font-size:12.5px;color:var(--ink-2)">各船查核完成度（依完成度由低到高排序，點列可開啟最近任務）</b>
+      <div class="tblwrap" style="max-height:300px;margin-top:6px"><table class="tbl"><thead><tr><th>船名</th><th>任務數</th><th>已查核/總項目</th><th>完成度</th><th>類似缺失</th></tr></thead><tbody>`;
+    if(!rows.length)html+=`<tr><td colspan="5" style="text-align:center;color:#8195a0">尚無任務</td></tr>`;
+    rows.forEach(r=>{
+      const color=r.pct>=100?"var(--ok)":r.pct>=50?"#d9a514":"#c0392b";
+      const t=tasks.find(x=>x.ship===r.ship&&x.date===r.latest);
+      html+=`<tr style="cursor:pointer" onclick="${t?`SelfCheck.openTask(${t.id})`:""}">
+        <td><b>${esc(r.ship)}</b></td>
+        <td style="text-align:center">${r.tasks}</td>
+        <td style="font-size:11.5px;text-align:center">${r.done}/${r.n}</td>
+        <td style="min-width:120px"><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;background:#eee;border-radius:4px;height:8px;overflow:hidden"><div style="width:${r.pct}%;height:100%;background:${color}"></div></div><span style="font-size:11px;color:${color};font-weight:700">${r.pct}%</span></div></td>
+        <td style="text-align:center">${r.sim?`<b style="color:var(--bad)">${r.sim}</b>`:"—"}</td>
+      </tr>`;
+    });
+    html+=`</tbody></table></div></div>`;
+    html+=`<div style="flex:1;min-width:240px"><b style="font-size:12.5px;color:var(--ink-2)">尚未建立任何自檢任務的船舶（${noTaskShips.length} 艘）</b>
+      <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;max-height:300px;overflow:auto">`;
+    html+= noTaskShips.length ? noTaskShips.map(s=>`<span class="code-chip" style="background:#fdecea;color:#c0392b">${esc(s)}</span>`).join("") : `<span class="hint">所有船舶皆已建立過自檢任務</span>`;
+    html+=`</div></div></div>`;
+    el.innerHTML=html;
+  },
   renderTasks(){
+    this.renderStats();
     const box=$("#sc-tasks");
     const list=this.filteredTasks();
     $("#t-stat").innerHTML=`顯示 <b>${list.length}</b> / ${App.tasks.length} 個任務`;
@@ -7614,7 +7948,8 @@ const SelfCheck={
     });
     return arr;
   },
-  createTask(){
+  async createTask(){
+    if(typeof Guard!=="undefined"&&!await Guard.require()){toast("⚠ 建立缺失自檢任務僅限維護者操作");return;}
     const rows=this.wizRows();
     if(!rows.length){toast("⚠ 無符合項目");return;}
     if(rows.length>400&&!confirm(`共 ${rows.length} 筆，項目較多，確定繼續？`))return;
