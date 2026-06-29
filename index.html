@@ -6246,7 +6246,8 @@ const InspCtrl={
     }
     this._dateEditId=id;this._dateEditField=field;
     $("#icDateModalTitle").textContent=`${d.ship} － ${d.itype} － ${label}`;
-    $("#icDateModalInput").value=this.dateInputVal(d[field]);
+    const prefill=field==="lastDate"?this.computeRow(d).lastDateCalc:d[field];
+    $("#icDateModalInput").value=this.dateInputVal(prefill);
     $("#icDateModalClear").style.display=(field==="ship"||field==="dueDate"||field==="lastDate")?"none":"";
     $("#icDateModal").classList.add("show");
   },
@@ -6427,7 +6428,7 @@ const InspCtrl={
     const itypeOptList=itypeOpts.includes(r.itype)||!r.itype?itypeOpts:[r.itype,...itypeOpts];
     const itypeInput=`<select class="ic-sched-inline" ${dis} onchange="InspCtrl.quickSetField(${r.id},'itype',this.value)" title="${canEdit?"點選直接更換檢查項目":lockTitle}">${itypeOptList.map(t=>`<option value="${esc(t)}" ${t===r.itype?"selected":""}>${esc(t)}</option>`).join("")}</select>`;
     const validInput=`<input type="text" class="ic-sched-inline" style="text-align:center" value="${esc(r.validityMonths)}" ${dis} onchange="InspCtrl.quickSetField(${r.id},'validityMonths',this.value)" title="${canEdit?"點選直接修改效期(月)":lockTitle}">`;
-    const lastInput=dateCell("lastDate",r.lastDate,"-","點選設定／修改最近一次檢查日");
+    const lastInput=dateCell("lastDate",r.lastDateCalc,"-","點選設定／修改最近一次檢查日");
     const dueInput=dateCell("dueDate",r.dueDateCalc,"無到期日");
     const schedInput=dateCell("schedDate",r.schedDate,"未排程","點選設定／修改預排檢查日");
     const ownerInput=`<input type="text" class="ic-owner-inline" list="dl-roster-names" value="${esc(r.owner)}" ${dis} onchange="InspCtrl.quickSetField(${r.id},'owner',this.value)" title="${canEdit?"點選直接重新指派海技負責人（限海技組）":lockTitle}">`;
@@ -6620,8 +6621,9 @@ const InspCtrl={
       itypeSel.value=d.itype||itypeOpts[0]||"__other";otherInp.style.display="none";otherInp.value="";
     }
     set("#ic-e-valid",d.validityMonths);
-    set("#ic-e-last",this.dateInputVal(d.lastDate));
-    set("#ic-e-due",this.dateInputVal(d.dueDate));
+    const rc=this.computeRow(d);
+    set("#ic-e-last",this.dateInputVal(rc.lastDateCalc));
+    set("#ic-e-due",this.dateInputVal(rc.dueDateCalc));
     set("#ic-e-sched",this.dateInputVal(d.schedDate));
     set("#ic-e-midactual",this.dateInputVal(d.midDate));
     let ownerVal=d.owner;
