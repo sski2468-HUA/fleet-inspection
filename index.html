@@ -115,6 +115,8 @@ table.tbl tbody tr.sel{background:#fdf1e4}
 .ap-typebtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .ig-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .df-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
+.dr-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
+.dp-vtypebtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .df-cardlist{display:flex;flex-direction:column;gap:8px;margin-top:10px}
 .df-card{border:1px solid var(--line);border-left:4px solid var(--navy-3);border-radius:8px;background:#fff;padding:10px 12px}
 .df-card:hover{box-shadow:0 2px 8px rgba(20,40,60,.08)}
@@ -742,7 +744,8 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
     <div class="nav-group" data-group="tools">
       <div class="nav-group-label">工具與參考</div>
       <div class="nav-item" data-tab="pdfx"><span class="num">7</span>PDF報告識別</div>
-      <div class="nav-item" data-tab="refdocs"><span class="num">🔗</span>檢查資料參考</div>
+      <div class="nav-item" data-tab="refdocs"><span class="num">🔗</span>船隊通報單</div>
+      <div class="nav-item" data-tab="refdocs2"><span class="num">📖</span>海技參考資料</div>
     </div>
     <div class="nav-item" data-tab="data"><span class="num">⚙</span>資料管理</div>
   </nav>
@@ -1222,20 +1225,53 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
       </div>
     </div>
 
-    <div class="modal-bg" id="rdEditModal">
+    <div class="modal-bg" id="rd2EditModal">
       <div class="modal" style="max-width:480px">
-        <div class="mh"><h3>編輯參考連結</h3><button class="x" onclick="RefDocs.closeEdit()">✕</button></div>
+        <div class="mh"><h3>編輯參考連結</h3><button class="x" onclick="RefDocs2.closeEdit()">✕</button></div>
         <div class="mb">
           <div class="fgrid">
-            <label class="fw">標題<input type="text" id="rd-e-title"></label>
-            <label class="fw">連結網址<input type="text" id="rd-e-url"></label>
+            <label class="fw">標題<input type="text" id="rd2-e-title"></label>
+            <label class="fw">連結網址<input type="text" id="rd2-e-url"></label>
           </div>
         </div>
         <div class="mf">
-          <button class="btn danger" onclick="RefDocs.delCurrent()">刪除此筆</button>
+          <button class="btn danger" onclick="RefDocs2.delCurrent()">刪除此筆</button>
           <span style="flex:1"></span>
-          <button class="btn" onclick="RefDocs.closeEdit()">取消</button>
-          <button class="btn primary" onclick="RefDocs.saveEdit()">儲存</button>
+          <button class="btn" onclick="RefDocs2.closeEdit()">取消</button>
+          <button class="btn primary" onclick="RefDocs2.saveEdit()">儲存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 批量新增操演紀錄 -->
+    <div class="modal-bg" id="drBatchModal">
+      <div class="modal" style="max-width:1080px">
+        <div class="mh"><h3>批量新增操演紀錄</h3><button class="x" onclick="DrillRecord.closeBatch()">✕</button></div>
+        <div class="mb" style="max-height:80vh;overflow:auto">
+          <p class="hint" style="margin-bottom:8px">每列一筆操演紀錄，可為不同船舶／不同操演類型。僅 Owner 或指定人員可使用本功能。船舶、操演類型、操演項目、操演日期為必填。</p>
+          <div style="margin:6px 0;display:flex;align-items:center;gap:10px">
+            <b>操演紀錄明細</b>
+            <span style="flex:1"></span>
+            <button class="btn sm" onclick="DrillRecord.batchAddRow()">＋ 增加一列</button>
+            <button class="btn sm" onclick="DrillRecord.batchAddRow(5)">＋ 增加5列</button>
+          </div>
+          <div class="tblwrap" style="max-height:56vh">
+            <table class="tbl bt-table"><thead><tr>
+              <th style="width:28px">#</th>
+              <th style="width:110px">船舶 *</th>
+              <th style="width:150px">操演類型 *</th>
+              <th style="width:190px">操演項目 *</th>
+              <th style="width:130px">操演日期 *</th>
+              <th style="min-width:220px">參與人員／說明</th>
+              <th style="width:34px"></th>
+            </tr></thead><tbody id="drbt-tbody"></tbody></table>
+          </div>
+        </div>
+        <div class="mf">
+          <span class="hint" id="drbt-count">0 列</span>
+          <span style="flex:1"></span>
+          <button class="btn" onclick="DrillRecord.closeBatch()">取消</button>
+          <button class="btn primary" onclick="DrillRecord.saveBatch()">儲存全部</button>
         </div>
       </div>
     </div>
@@ -1484,6 +1520,12 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
           <h3>👁 缺失紀錄查看
             <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
               <span class="hint" id="dfv-stat"></span>
+              <span style="display:flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:6px;padding:2px" title="調整本頁顯示字體大小">
+                <button class="btn sm" style="padding:2px 8px" onclick="Defs.setFontScale(-1)">A-</button>
+                <span class="hint" id="dfv-fontpct" style="min-width:38px;text-align:center">100%</span>
+                <button class="btn sm" style="padding:2px 8px" onclick="Defs.setFontScale(1)">A+</button>
+                <button class="btn sm" style="padding:2px 6px" onclick="Defs.setFontScale(0)" title="重設字體大小">⟲</button>
+              </span>
               <button class="btn sm" id="dfv-field-btn" onclick="Defs.openViewFieldPicker()" title="Owner／管理員可調整此頁顯示欄位，設定後全公司皆套用">⚙ 顯示欄位設定</button>
             </span>
           </h3>
@@ -1609,6 +1651,7 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
           <button class="btn sm ig-tabbtn active" data-p="plan" onclick="InspGroup.setPage('plan')">🔔 檢查管控</button>
           <button class="btn sm ig-tabbtn" data-p="audit" onclick="InspGroup.setPage('audit')">📋 內稽動態</button>
           <button class="btn sm ig-tabbtn" data-p="annual" onclick="InspGroup.setPage('annual')">📅 年度計畫暨執行情形</button>
+          <button class="btn sm ig-tabbtn" data-p="drill" onclick="InspGroup.setPage('drill')">🧯 操演計畫表</button>
           <span class="spacer" style="flex:1"></span>
           <button class="btn" onclick="InspGroup.openGuide()">📖 操作說明</button>
         </div>
@@ -1831,6 +1874,113 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
           <li>本頁不提供線上簽核，請用「匯出 Excel／PDF」下載後，交由 DPA／主管線下簽名留存（版面已比照紙本 CAEM-FM01／演習計畫格式，含簽名欄）。</li>
         </ul>
       </div>
+      </div>
+
+      <!-- ════════ 操演計畫表：ISPS操演計畫／船岸緊急應變計畫／操演紀錄 ════════ -->
+      <div id="ig-page-drill" class="ig-subpage" style="display:none">
+        <div class="card" style="margin-bottom:14px">
+          <div class="toolbar" style="margin-bottom:0">
+            <button class="btn sm dr-tabbtn active" data-dp="isps" onclick="DrillGroup.setPage('isps')">🛡 ISPS操演計畫</button>
+            <button class="btn sm dr-tabbtn" data-dp="cepfm" onclick="DrillGroup.setPage('cepfm')">🚨 船岸緊急應變計畫</button>
+            <button class="btn sm dr-tabbtn" data-dp="record" onclick="DrillGroup.setPage('record')">📝 操演紀錄</button>
+          </div>
+        </div>
+
+        <!-- ── ISPS操演計畫／船岸緊急應變計畫：共用同一套呈現方式，比照「年度計畫暨執行情形」表單模式，僅唯讀（執行情形資料來源為「操演紀錄」） ── -->
+        <div id="dp-page-isps" class="dr-subpage">
+          <div class="card" style="margin-bottom:14px">
+            <div class="toolbar" style="margin-bottom:4px">
+              <button class="btn sm dp-vtypebtn active" data-vt="all" onclick="DrillPlan.setVtype('isps','all')">全部船型</button>
+              <button class="btn sm dp-vtypebtn" data-vt="tanker" onclick="DrillPlan.setVtype('isps','tanker')">Tanker</button>
+              <button class="btn sm dp-vtypebtn" data-vt="bulk" onclick="DrillPlan.setVtype('isps','bulk')">Non-Tanker／Bulk</button>
+              <span class="spacer" style="flex:1"></span>
+              <span class="hint" style="font-weight:600">年度：</span>
+              <select id="dp-isps-year-sel" onchange="DrillPlan.setYear('isps',this.value)" style="padding:5px 8px"></select>
+            </div>
+            <p class="hint" style="line-height:1.7">格子顯示該船該項目本年度<b>最近一次操演紀錄</b>日期，資料來源為「操演紀錄」子頁籤，非本頁手動輸入；如需登記操演，請至「📝 操演紀錄」新增。點擊格子可查看該船該項目的歷史操演紀錄。</p>
+            <div class="toolbar" style="margin-top:8px">
+              <button class="btn" onclick="DrillPlan.exportXlsx('isps')">⬇ 匯出 Excel（比照紙本格式）</button>
+              <button class="btn" onclick="DrillPlan.exportPdf('isps')">🖨 列印／PDF</button>
+            </div>
+          </div>
+          <div class="card">
+            <div id="dp-isps-heading" style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--navy-3)"></div>
+            <div id="dp-isps-grid" style="overflow-x:auto"></div>
+          </div>
+        </div>
+
+        <div id="dp-page-cepfm" class="dr-subpage" style="display:none">
+          <div class="card" style="margin-bottom:14px">
+            <div class="toolbar" style="margin-bottom:4px">
+              <button class="btn sm dp-vtypebtn active" data-vt="all" onclick="DrillPlan.setVtype('cepfm','all')">全部船型</button>
+              <button class="btn sm dp-vtypebtn" data-vt="tanker" onclick="DrillPlan.setVtype('cepfm','tanker')">Tanker</button>
+              <button class="btn sm dp-vtypebtn" data-vt="bulk" onclick="DrillPlan.setVtype('cepfm','bulk')">Bulk</button>
+              <span class="spacer" style="flex:1"></span>
+              <span class="hint" style="font-weight:600">年度：</span>
+              <select id="dp-cepfm-year-sel" onchange="DrillPlan.setYear('cepfm',this.value)" style="padding:5px 8px"></select>
+            </div>
+            <p class="hint" style="line-height:1.7">格子顯示該船該項目本年度<b>最近一次操演紀錄</b>日期，資料來源為「操演紀錄」子頁籤，非本頁手動輸入；如需登記操演，請至「📝 操演紀錄」新增。點擊格子可查看該船該項目的歷史操演紀錄。</p>
+            <div class="toolbar" style="margin-top:8px">
+              <button class="btn" onclick="DrillPlan.exportXlsx('cepfm')">⬇ 匯出 Excel（比照紙本格式）</button>
+              <button class="btn" onclick="DrillPlan.exportPdf('cepfm')">🖨 列印／PDF</button>
+            </div>
+          </div>
+          <div class="card">
+            <div id="dp-cepfm-heading" style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--navy-3)"></div>
+            <div id="dp-cepfm-grid" style="overflow-x:auto"></div>
+          </div>
+        </div>
+
+        <!-- ── 操演紀錄：實際操演情形登記表單，串接 Supabase 存檔 ── -->
+        <div id="dp-page-record" class="dr-subpage" style="display:none">
+          <div class="card" style="margin-bottom:14px" id="dr-addcard">
+            <h3>＋ 新增操演紀錄</h3>
+            <p class="hint" style="margin-bottom:10px;line-height:1.7">新增／編輯／刪除僅限 Owner 或「資料管理→維護者」指定的人員操作，其他人僅能查看與匯出。</p>
+            <div class="fgrid">
+              <label class="fw">船舶
+                <select id="dr-e-ship" onchange="DrillRecord.onShipOrTypeChange()"></select>
+              </label>
+              <label class="fw">操演類型
+                <select id="dr-e-plantype" onchange="DrillRecord.onShipOrTypeChange()">
+                  <option value="isps">ISPS操演計畫</option>
+                  <option value="cepfm">船岸緊急應變計畫</option>
+                </select>
+              </label>
+              <label class="fw">操演項目
+                <select id="dr-e-category"></select>
+              </label>
+              <label class="fw">操演日期<input type="date" id="dr-e-date"></label>
+              <label class="fw full">參與人員／操演情形說明<textarea id="dr-e-note" rows="3" placeholder="例：由大副主持，全船船員參與，模擬情境為……"></textarea></label>
+            </div>
+            <div class="toolbar" style="margin-top:8px">
+              <button class="btn primary" id="dr-save-btn" onclick="DrillRecord.save()">💾 新增紀錄</button>
+              <button class="btn" id="dr-cancel-btn" style="display:none" onclick="DrillRecord.cancelEdit()">取消編輯</button>
+              <span class="spacer" style="flex:1"></span>
+              <button class="btn sm" onclick="DrillRecord.openBatch()">＋＋ 批量新增</button>
+              <button class="btn sm" onclick="DrillRecord.exportTemplate()">📋 下載匯入模板</button>
+              <button class="btn sm dark" onclick="DrillRecord.importFile()">⬆ 匯入 Excel</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>操演紀錄清單
+              <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <span class="hint" id="dr-stat"></span>
+                <button class="btn sm" onclick="DrillRecord.exportXlsx()">⬇ 匯出 Excel</button>
+              </span>
+            </h3>
+            <div class="toolbar" style="margin-bottom:8px">
+              <select id="dr-f-ship" onchange="DrillRecord.render()" style="padding:5px 8px"><option value="">全部船舶</option></select>
+              <select id="dr-f-plantype" onchange="DrillRecord.onFilterTypeChange()" style="padding:5px 8px">
+                <option value="">全部操演類型</option>
+                <option value="isps">ISPS操演計畫</option>
+                <option value="cepfm">船岸緊急應變計畫</option>
+              </select>
+              <select id="dr-f-category" onchange="DrillRecord.render()" style="padding:5px 8px"><option value="">全部操演項目</option></select>
+              <button class="btn sm" onclick="DrillRecord.clearFilters()">清除篩選</button>
+            </div>
+            <div id="dr-list" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -2134,7 +2284,7 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
       <!-- 資料流向與同步方式 -->
       <div class="card" style="margin-bottom:14px">
         <h3>🔄 資料如何同步 — 編輯即自動同步</h3>
-        <p class="hint" style="margin-bottom:8px">檢查紀錄、缺失紀錄總表、船舶資料、After Inspection Review、SIRE正向評論、檢查管控、年度計畫暨執行情形、內稽動態、檢查資料參考 — <b>這些資料現在都是編輯即自動同步</b>，不需手動按「發布到雲端」：</p>
+        <p class="hint" style="margin-bottom:8px">檢查紀錄、缺失紀錄總表、船舶資料、After Inspection Review、SIRE正向評論、檢查管控、年度計畫暨執行情形、內稽動態、操演計畫表（操演紀錄）、船隊通報單、海技參考資料 — <b>這些資料現在都是編輯即自動同步</b>，不需手動按「發布到雲端」：</p>
         <div class="gd-flow">
           <div class="gd-block maint">
             <div class="gd-t">編輯者</div>
@@ -2208,6 +2358,7 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
         <ul style="margin:0;padding-left:20px;font-size:12.5px;line-height:1.9;color:var(--ink-2)">
           <li><b>內稽動態</b>：比照公司紙本格式，彙整每艘 FPMC 自營船的內部稽核排程與執行進度。「上次稽核日」為固定基準（不會自動跳動），「實際檢查日」預設空白，出現更新的稽核紀錄時才自動帶入；兩者皆可點選開啟近3次紀錄挑選，或手動輸入。同一艘船若一年做兩次（加強稽核），可按「➕」複製一列獨立追蹤。備註過長可點「✎／👁」開視窗查看與編輯完整內容，匯出時一律完整顯示不截斷。</li>
           <li><b>年度計畫暨執行情形</b>：分內稽／訪船／隨船／ISPS AUDIT 四個子頁籤，各自可「自動產生建議排程」（依檢查紀錄推算）與「核對完成狀態」；同時帶入「檢查管控」目前預排的日期方便對照。表格上方會清楚標示目前的年度與類型。「公司」「勞務公司」「公司高層訪船」這幾個非船舶列，因為檢查紀錄不會特別記錄，改為直接在表格上點格子手動標記完成日期。</li>
+          <li><b>操演計畫表</b>（新）：分「ISPS操演計畫」「船岸緊急應變計畫」「操演紀錄」三個子頁籤。前兩者為船舶×操演項目的年度計畫表（呈現方式比照上述年度計畫暨執行情形），格子為<b>唯讀</b>，內容自動抓取「操演紀錄」子頁籤中本年度該船該項目最近一次的紀錄日期；「操演紀錄」則是實際登記操演情形的表單，新增／編輯／刪除僅限 <b>Owner 或「資料管理→維護者」指定的人員</b>操作（指定方式為先選部門再選人員，可指定多人），其他人（含管理員、督導、船舶帳號）僅能查看與匯出，資料同樣同步至雲端。</li>
         </ul>
       </div>
 
@@ -2231,7 +2382,7 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
           <div class="gd-page"><b>After Inspection Review</b>船上填報檢查結果，督導審核後可勾選轉入「檢查紀錄」與「缺失紀錄總表」；新建與匯入僅限Owner／管理員，內容編輯與督導確認限Owner／管理員／督導。</div>
           <div class="gd-page"><b>船舶缺失自查</b>逐項查核回報，所有人皆可執行查核；建立／匯入／匯出任務限Owner／管理員／督導。</div>
           <div class="gd-page"><b>PDF報告識別</b>上傳檢查報告 PDF，自動辨識欄位與缺失，確認後匯入。</div>
-          <div class="gd-page"><b>檢查資料參考</b>常用外部連結清單（如法規、各船級社網站等），維護者可新增/編輯連結，編輯即自動同步雲端。</div>
+          <div class="gd-page"><b>船隊通報單</b>常用外部連結清單（如公司通報、公告等），維護者可新增/編輯連結，編輯即自動同步雲端。左側選單另有獨立的<b>海技參考資料</b>頁面（功能與權限相同，用途為船隊技術參考資料，與通報單分開管理）。</div>
           <div class="gd-page"><b>資料管理</b>分「操作者」與「維護者」兩個子頁：操作者頁可測試雲端連線、載入最新資料；維護者頁含各資料表的匯入匯出/下載模板（已支援 Excel 下拉選單，見下方使用須知）、雲端發布/載入、人員名單管理、AI提示詞、檢查分類定義、篩選清單、缺失代碼對照表、操作紀錄查詢、內稽動態與年度計畫的指定編輯者設定，並可設定／還原預設資料備份。</div>
         </div>
       </div>
@@ -2241,10 +2392,10 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
         <h3>💡 使用須知</h3>
         <ul style="margin:0;padding-left:20px;font-size:12.5px;line-height:1.9;color:var(--ink-2)">
           <li>固定使用<b>同一台電腦、同一瀏覽器</b>，勿用無痕模式；需網路連線（圖表、Excel 與雲端同步功能）。</li>
-          <li>檢查紀錄／缺失紀錄總表／船舶資料／After Inspection Review／SIRE正向評論／檢查管控／年度計畫／內稽動態／檢查資料參考 — <b>編輯後皆自動同步雲端，不需手動按「發布到雲端」</b>；「⬆ 發布到雲端」「⬇ 從雲端載入」僅作為連線異常時的手動備援（僅Owner／管理員可見）。</li>
+          <li>檢查紀錄／缺失紀錄總表／船舶資料／After Inspection Review／SIRE正向評論／檢查管控／年度計畫／內稽動態／操演計畫表（操演紀錄）／船隊通報單／海技參考資料 — <b>編輯後皆自動同步雲端，不需手動按「發布到雲端」</b>；「⬆ 發布到雲端」「⬇ 從雲端載入」僅作為連線異常時的手動備援（僅Owner／管理員可見）。</li>
           <li>檢查管控的「檢查安排人」欄位請務必填寫正確姓名（須與登入名冊上的姓名完全一致；可為海技組／甲板督導／機艙督導），否則該負責人將無法編輯自己的排程，需請Owner／管理員協助修正。</li>
           <li>內稽動態與年度計畫暨執行情形僅開放<b>一位指定編輯者＋Owner</b>編輯，其他人（含督導、管理員）唯讀；如需變更指定編輯者，由 Owner 至「資料管理→維護者」設定。</li>
-          <li>維護者請定期至資料管理「設為預設（備份）」，以防誤覆蓋；資料被誤改時可用「還原預設」快速恢復，此備份已涵蓋<b>全部資料表</b>（含檢查管控、年度計畫、內稽動態、AIR、檢查資料參考）。</li>
+          <li>維護者請定期至資料管理「設為預設（備份）」，以防誤覆蓋；資料被誤改時可用「還原預設」快速恢復，此備份已涵蓋<b>全部資料表</b>（含檢查管控、年度計畫、內稽動態、操演計畫表（操演紀錄）、AIR、船隊通報單、海技參考資料）。</li>
           <li>各頁「下載匯入模板」已支援 Excel 下拉選單：船名、船型、檢查來源、問題別／大類／具體名稱（連動篩選）、重要程度、風險、系統管理階級等欄位皆為下拉選單，避免填寫格式跟系統不符；日期欄位請維持文字格式（YYYY/M/D），勿用 Excel 內建日期選取器。</li>
           <li>下載匯入模板時，欄位會自動對齊<b>目前畫面顯示的欄位</b>（缺失紀錄總表、船舶資料可自訂顯示欄位與順序）。</li>
           <li>左側導覽選單可拖曳調整<b>同一區塊內</b>的順序（跨區塊無法拖曳），排序會記錄在本機瀏覽器，不影響其他人。</li>
@@ -2253,7 +2404,7 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
       </div>
     </section>
 
-    <!-- ════════ 檢查資料參考（外部連結）════════ -->
+    <!-- ════════ 船隊通報單（原：海技參考資料，外部連結）════════ -->
     <section id="tab-refdocs" class="tabpage">
       <div class="card" style="margin-bottom:14px" id="rd-addcard">
         <h3>＋ 新增參考連結</h3>
@@ -2265,7 +2416,7 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
         </div>
       </div>
       <div class="card">
-        <h3>📚 參考資料清單
+        <h3>📨 通報單連結
           <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span class="hint" style="font-size:12px">排序：</span>
             <select id="rd-sort" onchange="RefDocs.setSort(this.value)" style="font-size:12.5px;padding:5px 8px">
@@ -2278,6 +2429,34 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
         </h3>
         <p class="hint" style="margin:4px 0 8px">📌 置頂的項目永遠排在最前面，不受排序方式影響；僅 Owner／管理員可置頂／取消置頂。</p>
         <div id="rd-list" style="display:flex;flex-direction:column;gap:8px;margin-top:6px"></div>
+      </div>
+    </section>
+
+    <!-- ════════ 海技參考資料（獨立於船隊通報單，功能／權限比照原本設計）════════ -->
+    <section id="tab-refdocs2" class="tabpage">
+      <div class="card" style="margin-bottom:14px" id="rd2-addcard">
+        <h3>＋ 新增參考連結</h3>
+        <p class="hint" style="margin-bottom:10px;line-height:1.7">輸入標題與雲端文件／網站連結網址後儲存，下方清單即會出現該標題；點擊標題即可直接開啟連結，方便提供給需要查閱資料的同事。僅 Owner／管理員可新增、編輯、刪除。</p>
+        <div class="toolbar">
+          <input type="text" id="rd2-title" placeholder="標題，例如：2026年船舶檢查管控表" style="flex:1;min-width:200px">
+          <input type="text" id="rd2-url" placeholder="連結網址，例如：https://docs.google.com/..." style="flex:2;min-width:260px">
+          <button class="btn primary" onclick="RefDocs2.add()">＋ 新增</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>📖 海技參考資料清單
+          <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span class="hint" style="font-size:12px">排序：</span>
+            <select id="rd2-sort" onchange="RefDocs2.setSort(this.value)" style="font-size:12.5px;padding:5px 8px">
+              <option value="createdAt_desc">發布日期（新→舊）</option>
+              <option value="createdAt_asc">發布日期（舊→新）</option>
+              <option value="title_asc">標題（A→Z）</option>
+              <option value="createdBy_asc">發布人</option>
+            </select>
+          </span>
+        </h3>
+        <p class="hint" style="margin:4px 0 8px">📌 置頂的項目永遠排在最前面，不受排序方式影響；僅 Owner／管理員可置頂／取消置頂。</p>
+        <div id="rd2-list" style="display:flex;flex-direction:column;gap:8px;margin-top:6px"></div>
       </div>
     </section>
 
@@ -2486,13 +2665,37 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
           </div>
           <div class="card">
             <h3>📊 缺失專案分析 — 使用權限（Owner）</h3>
-            <p class="hint" style="margin-bottom:10px;line-height:1.7">「缺失紀錄總表→專案分析」子頁籤僅開放 Owner 與下方指定的人員使用（可指定多人，以頓號或逗號分隔），其他人完全看不到此子頁籤。此設定為全公司統一設定，儲存後同步給所有人。</p>
+            <p class="hint" style="margin-bottom:10px;line-height:1.7">「缺失紀錄總表→專案分析」子頁籤僅開放 Owner 與下方指定的人員使用（可指定多人），其他人完全看不到此子頁籤。此設定為全公司統一設定，儲存後同步給所有人。</p>
             <div class="toolbar">
-              <label style="font-size:12.5px;color:var(--ink-2)">指定人員：</label>
-              <input type="text" id="dfp-members-input" list="dl-roster-names" placeholder="例：陳思樺、余双（可多人，頓號分隔）" style="max-width:280px">
+              <label style="font-size:12.5px;color:var(--ink-2)">部門：</label>
+              <select id="dfp-dept-select" style="max-width:160px" onchange="DefsProj.onDeptChange()"></select>
+              <label style="font-size:12.5px;color:var(--ink-2)">人員：</label>
+              <select id="dfp-person-select" style="max-width:200px"></select>
+              <button class="btn primary" onclick="DefsProj.addMember()">＋ 加入</button>
+            </div>
+            <div id="dfp-members-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+            <input type="hidden" id="dfp-members-input">
+            <div class="toolbar" style="margin-top:10px">
               <button class="btn primary" onclick="DefsProj.saveMembers()">💾 儲存</button>
             </div>
             <p class="hint" id="dfp-members-cur" style="margin-top:8px"></p>
+          </div>
+          <div class="card">
+            <h3>🧯 操演紀錄 — 新增／編輯權限（Owner）</h3>
+            <p class="hint" style="margin-bottom:10px;line-height:1.7">「操演計畫表→操演紀錄」的新增、編輯、刪除（含批量新增／匯入 Excel）僅開放 Owner 與下方指定的人員操作（可指定多人），其他人（含管理員、督導、船舶帳號）僅能查看與匯出。此設定為全公司統一設定，儲存後同步給所有人。</p>
+            <div class="toolbar">
+              <label style="font-size:12.5px;color:var(--ink-2)">部門：</label>
+              <select id="dre-dept-select" style="max-width:160px" onchange="DrillRecord.onDeptChange()"></select>
+              <label style="font-size:12.5px;color:var(--ink-2)">人員：</label>
+              <select id="dre-person-select" style="max-width:200px"></select>
+              <button class="btn primary" onclick="DrillRecord.addEditor()">＋ 加入</button>
+            </div>
+            <div id="dre-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+            <input type="hidden" id="dre-input">
+            <div class="toolbar" style="margin-top:10px">
+              <button class="btn primary" onclick="DrillRecord.saveEditors()">💾 儲存</button>
+            </div>
+            <p class="hint" id="dre-cur" style="margin-top:8px"></p>
           </div>
           <div class="card">
             <h3>缺失代碼對照表（RightShip／CDI／SIRE／PSC）</h3>
@@ -3908,8 +4111,8 @@ function applyTM(rec){ // 補齊單筆紀錄的TM欄位
 
 /* ───── 資料層 ───── */
 const App={
-  insp:[], defs:[], tasks:[], curTaskId:null, sirePos:[], air:[], chapterOverrides:{}, inspCtrl:[], refDocs:[], annualPlan:[], auditDash:[], defsProjects:[], projectMembers:[],
-  LSK:{i:"vsm_insp_v8",d:"vsm_defs_v8",s:"vsm_tasks_v2",sp:"vsm_sirepos_v1",air:"vsm_air_v1",ch:"vsm_chapter_overrides_v1",ic:"vsm_inspctrl_v1",rd:"vsm_refdocs_v1",ap:"vsm_annualplan_v1",ad:"vsm_auditdash_v1",dp:"vsm_defsprojects_v1",pm:"vsm_projectmembers_v1"},
+  insp:[], defs:[], tasks:[], curTaskId:null, sirePos:[], air:[], chapterOverrides:{}, inspCtrl:[], refDocs:[], refDocs2:[], annualPlan:[], auditDash:[], defsProjects:[], projectMembers:[], drillRecords:[], drillRecordEditors:[],
+  LSK:{i:"vsm_insp_v8",d:"vsm_defs_v8",s:"vsm_tasks_v2",sp:"vsm_sirepos_v1",air:"vsm_air_v1",ch:"vsm_chapter_overrides_v1",ic:"vsm_inspctrl_v1",rd:"vsm_refdocs_v1",rd2:"vsm_refdocs2_v1",ap:"vsm_annualplan_v1",ad:"vsm_auditdash_v1",dp:"vsm_defsprojects_v1",pm:"vsm_projectmembers_v1",dr:"vsm_drillrecords_v1",dre:"vsm_drillrecordeditors_v1"},
   /* 一次性資料修補：把 2026/7/1 CSO 名單併入現有船舶資料的 CSO 欄位，只在該船 cso 欄位目前是空的時候才帶入，
      不會覆蓋任何已存在的資料；只執行一次（用 localStorage flag 記錄），之後有異動一律以「船舶資料」頁面手動維護為準。*/
   migrateCsoData(){
@@ -3970,6 +4173,9 @@ const App={
       if(lic)this.inspCtrl=JSON.parse(lic);
       else{try{this.inspCtrl=JSON.parse(document.getElementById("inspctrl-seed").textContent);}catch(e){this.inspCtrl=[];}}
       const lrd=localStorage.getItem(this.LSK.rd);this.refDocs=lrd?JSON.parse(lrd):[];
+      const lrd2=localStorage.getItem(this.LSK.rd2);this.refDocs2=lrd2?JSON.parse(lrd2):[];
+      const ldr=localStorage.getItem(this.LSK.dr);this.drillRecords=ldr?JSON.parse(ldr):[];
+      const ldre=localStorage.getItem(this.LSK.dre);this.drillRecordEditors=ldre?JSON.parse(ldre):[];
       const lap=localStorage.getItem(this.LSK.ap);this.annualPlan=lap?JSON.parse(lap):[];
       const lad=localStorage.getItem(this.LSK.ad);this.auditDash=lad?JSON.parse(lad):[];
       const ldp=localStorage.getItem(this.LSK.dp);this.defsProjects=ldp?JSON.parse(ldp):[];
@@ -4018,6 +4224,9 @@ const App={
       localStorage.setItem(this.LSK.ch,JSON.stringify(this.chapterOverrides));
       localStorage.setItem(this.LSK.ic,JSON.stringify(this.inspCtrl));
       localStorage.setItem(this.LSK.rd,JSON.stringify(this.refDocs));
+      localStorage.setItem(this.LSK.rd2,JSON.stringify(this.refDocs2));
+      localStorage.setItem(this.LSK.dr,JSON.stringify(this.drillRecords));
+      localStorage.setItem(this.LSK.dre,JSON.stringify(this.drillRecordEditors));
       localStorage.setItem(this.LSK.ap,JSON.stringify(this.annualPlan));
       localStorage.setItem(this.LSK.ad,JSON.stringify(this.auditDash));
       localStorage.setItem(this.LSK.dp,JSON.stringify(this.defsProjects));
@@ -4105,6 +4314,8 @@ const Snap={
       defsProjects:JSON.parse(JSON.stringify(App.defsProjects)),
       air:JSON.parse(JSON.stringify(App.air)),
       refDocs:JSON.parse(JSON.stringify(App.refDocs)),
+      refDocs2:JSON.parse(JSON.stringify(App.refDocs2)),
+      drillRecords:JSON.parse(JSON.stringify(App.drillRecords)),
       chapterOverrides:JSON.parse(JSON.stringify(App.chapterOverrides)),
       savedAt:Date.now(),savedBy:usr
     };
@@ -4152,6 +4363,8 @@ const Snap={
     App.defsProjects=JSON.parse(JSON.stringify(snap.defsProjects||[]));
     App.air=JSON.parse(JSON.stringify(snap.air||[]));
     App.refDocs=JSON.parse(JSON.stringify(snap.refDocs||[]));
+    App.refDocs2=JSON.parse(JSON.stringify(snap.refDocs2||[]));
+    App.drillRecords=JSON.parse(JSON.stringify(snap.drillRecords||[]));
     App.chapterOverrides=JSON.parse(JSON.stringify(snap.chapterOverrides||{}));
     SHIPINFO.length=0;(snap.ships||[]).forEach(s=>SHIPINFO.push(s));
     try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}
@@ -4536,7 +4749,7 @@ const NavConfig={
 };
 
 /* ───── 導航 ───── */
-const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["船舶缺失自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["SIRE正向評論","SIRE Positive Comments"],air:["After Inspection Review","船上填報 → 維護者審核轉入"],refdocs:["檢查資料參考","Reference Links"]};
+const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["船舶缺失自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["SIRE正向評論","SIRE Positive Comments"],air:["After Inspection Review","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"]};
 $$(".nav-item").forEach(n=>n.onclick=()=>{
   $$(".nav-item").forEach(x=>x.classList.remove("active"));n.classList.add("active");
   $$(".tabpage").forEach(p=>p.classList.remove("show"));
@@ -4554,6 +4767,7 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
   if(n.dataset.tab==="air")Air.showList();
   if(n.dataset.tab==="inspctrl"&&typeof InspGroup!=="undefined")InspGroup.init();
   if(n.dataset.tab==="refdocs"&&typeof RefDocs!=="undefined")RefDocs.render();
+  if(n.dataset.tab==="refdocs2"&&typeof RefDocs2!=="undefined")RefDocs2.render();
 });
 
 
@@ -5634,6 +5848,7 @@ const DEF_COLS=[["ship","船名"],["vtype","船型"],["itype","檢查類型"],["
 const Defs={
   ms:{},sortKey:"date",sortAsc:false,page:1,PER:30,selected:new Set(),editId:null,
   subTab:"view",
+  FONTSCALE_KEY:"vsm_defs_viewfontscale_v1",
   VIEW_FIELDS:[
     {k:"ship",t:"船名"},{k:"itype",t:"檢查來源"},{k:"icat",t:"檢查類型"},{k:"date",t:"檢查日期"},
     {k:"inspector",t:"檢查員"},{k:"ncImp",t:"重要程度"},{k:"ncFocus",t:"關注度"},{k:"risk",t:"風險"},
@@ -6019,8 +6234,25 @@ const Defs={
     </tr>`;}).join("")||`<tr><td colspan="${totalCols}"><div class="empty"><div class="big">⚓</div>無符合篩選條件之缺失紀錄</div></td></tr>`;
     $("#f-pager").innerHTML=pagerHtml(this.page,pages,total,"Defs");
   },
+  /* ── 查看模式字體大小調整（僅本機記憶，個人化設定） ── */
+  fontScale(){
+    try{const v=+localStorage.getItem(this.FONTSCALE_KEY);if(v&&v>=70&&v<=160)return v;}catch(e){}
+    return 100;
+  },
+  setFontScale(delta){
+    let v=delta===0?100:this.fontScale()+delta*10;
+    v=Math.max(70,Math.min(160,v));
+    try{localStorage.setItem(this.FONTSCALE_KEY,String(v));}catch(e){}
+    this.applyFontScale();
+  },
+  applyFontScale(){
+    const v=this.fontScale();
+    const box=$("#dfv-list");if(box)box.style.fontSize=(v/100)+"em";
+    const pct=$("#dfv-fontpct");if(pct)pct.textContent=v+"%";
+  },
   /* ── 查看模式：卡片式，不需左右滑動；顯示哪些欄位由 loadViewFields() 決定（全公司統一設定） ── */
   renderViewMode(pg,total,pages){
+    this.applyFontScale();
     const vis=new Set(this.loadViewFields());
     const stat=$("#dfv-stat");if(stat)stat.textContent=`共 ${total} 筆`;
     const box=$("#dfv-list");if(!box)return;
@@ -6858,12 +7090,13 @@ const InspGroup={
   setPage(p,skipInit){
     this.curPage=p;
     $$(".ig-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.p===p));
-    const map={plan:"ig-page-plan",audit:"ig-page-audit",annual:"ig-page-annual"};
+    const map={plan:"ig-page-plan",audit:"ig-page-audit",annual:"ig-page-annual",drill:"ig-page-drill"};
     Object.entries(map).forEach(([k,id])=>{const el=$("#"+id);if(el)el.style.display=(k===p)?"":"none";});
     if(skipInit)return; // 首次載入：InspGroup.init() 已呼叫過 InspCtrl.init()，這裡不必重複
     if(p==="plan")InspCtrl.render();
     else if(p==="audit"&&typeof AuditDash!=="undefined")AuditDash.init();
     else if(p==="annual"&&typeof AnnualPlan!=="undefined")AnnualPlan.init();
+    else if(p==="drill"&&typeof DrillGroup!=="undefined")DrillGroup.init();
   },
   openGuide(){
     const html=`
@@ -6876,6 +7109,10 @@ const InspGroup={
       <p>比照公司紙本《內稽動態表》格式，彙整每艘船的內部稽核排程與執行進度：上次稽核日期、實際檢查日抓「檢查紀錄」、計畫檢查日抓「檢查管控」的預排日期、CSO 抓「船舶資料」、稽核員由清單指派。建議每兩週點一次「🔄 更新進度」重新整理資料。若該船在「檢查管控」勾選了「加強稽核」，此表會以底色／星號特別標示。</p>
       <h3>③ 年度計畫暨執行情形</h3>
       <p>分為 內稽／訪船／隨船／ISPS AUDIT 四個獨立子頁籤，各自可依「檢查紀錄」歷史資料自動建議下一年度排程月份，並在實際發生後自動核對完成狀態；同時會帶入「檢查管控」目前設定的預排檢查日對照顯示。ISPS AUDIT 主要用於追蹤執行情形（供督導參考排程），不強制排程週期。本頁僅開放一位指定人員可編輯，其餘唯讀，指定人員於「資料管理→維護者」設定。</p>
+      <h3>④ 操演計畫表</h3>
+      <p>分為 ISPS操演計畫／船岸緊急應變計畫／操演紀錄 三個子頁籤：</p>
+      <p><b>ISPS操演計畫、船岸緊急應變計畫</b>：船舶 × 操演項目的年度計畫表，呈現方式比照上方「年度計畫暨執行情形」的表格樣式，但格子為<b>唯讀</b>——內容不是手動排程，而是自動抓取「操演紀錄」子頁籤中該船、該項目<b>本年度最近一次</b>的操演日期；點擊格子可查看該船該項目本年度的歷史紀錄，若尚無紀錄會詢問是否直接跳轉「操演紀錄」新增。上方可切換「全部船型／Tanker／Bulk（或 Non-Tanker）」與年度，並提供「匯出 Excel（比照紙本格式）」「列印／PDF」，版面含岸上指派人員／D.P.A.、主管、規劃者簽名列，供下載後線下簽核留存。</p>
+      <p><b>操演紀錄</b>：實際登記操演情形的表單，也是這兩張年度計畫表資料的唯一來源。欄位包含船舶、操演類型（ISPS／船岸）、操演項目（依所選類型自動帶出對應選項）、操演日期、參與人員／操演情形說明。<b>新增／編輯／刪除（含批量新增／匯入）僅限 Owner 或「資料管理→維護者」指定的人員操作</b>（指定方式為先選部門、再選人員，可指定多人），其他人（含管理員、督導、船舶帳號）僅能查看與匯出，畫面上會顯示「🔒 唯讀」提示。下方清單可依船舶／操演類型／操演項目篩選、可匯出 Excel；新增或修改後會即時反映到上方兩張年度計畫表的格子。資料同「檢查紀錄」等其他資料表，編輯即自動同步雲端。除了逐筆新增，也提供「＋＋ 批量新增」（在頁面內一次填寫多列，每列可為不同船舶／不同操演類型）與「📋 下載匯入模板／⬆ 匯入 Excel」（模板船舶／操演類型／操演項目皆為下拉選單，操演項目依操演類型連動篩選，離線填好整批資料後一次匯入）。</p>
       <p class="hint">如有任何規則需要調整（例如效期、提醒門檻、加強稽核判定），請至「資料管理→維護者」或各頁面右上角的設定按鈕調整。</p>`;
     const w=window.open("","_blank","width=780,height=820,scrollbars=yes");
     if(!w){toast("⚠ 瀏覽器封鎖了新視窗，請允許彈出視窗後再試");return;}
@@ -8334,7 +8571,657 @@ const AnnualPlan={
   }
 };
 
-/* ════════ 🔗 檢查資料參考（外部連結）════════ */
+/* ════════ 🧯 操演計畫表：ISPS操演計畫／船岸緊急應變計畫／操演紀錄 ════════ */
+const DrillGroup={
+  curPage:"isps",
+  init(){
+    DrillPlan.init();
+    DrillRecord.init();
+    this.setPage(this.curPage,true);
+  },
+  setPage(p,skipInit){
+    this.curPage=p;
+    $$(".dr-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.dp===p));
+    const map={isps:"dp-page-isps",cepfm:"dp-page-cepfm",record:"dp-page-record"};
+    Object.entries(map).forEach(([k,id])=>{const el=$("#"+id);if(el)el.style.display=(k===p)?"":"none";});
+    if(skipInit)return;
+    if(p==="isps"||p==="cepfm")DrillPlan.render(p);
+    else if(p==="record")DrillRecord.render();
+  }
+};
+
+/* ── ISPS操演計畫／船岸緊急應變計畫：呈現方式比照「年度計畫暨執行情形」表單模式；
+     格子為唯讀，執行情形資料來源改為抓取自「操演紀錄」（App.drillRecords），而非「檢查紀錄」 ── */
+const DrillPlan={
+  TYPES:{
+    isps:{label:"防恐保全緊急應變操演計劃 Shipboard Security Emergency Response Exercise Plan",short:"ISPS操演計畫",
+      categories:[
+        {k:"bomb",label:"炸彈威脅反應",en:"Bomb threat reaction"},
+        {k:"hijack",label:"恐怖分子劫持/海盜/武裝搶劫",en:"Terrorist Hijacking / Piracy & Armed Robbery"},
+        {k:"unidentified",label:"不明物體/炸藥在船上",en:"Unidentified Object / Explosive on Board"},
+        {k:"hostage",label:"劫持人質事件的行動",en:"Action on Hostage Situation"},
+        {k:"stowaway",label:"未經授權進入/偷渡者",en:"Unauthorized access or presence of stowaways"}
+      ]},
+    cepfm:{label:"船岸緊急應變演習計劃表 Ship-Shore Emergency Exercise Plan",short:"船岸緊急應變計畫",
+      categories:[
+        {k:"fire",label:"火災／爆炸",en:"Fire / Explosion"},
+        {k:"machinery",label:"關鍵機器故障",en:"Critical machinery failure"},
+        {k:"mob",label:"人員落海及搜救",en:"Man Overboard and Search & Rescue"},
+        {k:"grounding",label:"擱淺／觸礁／坐底",en:"Grounding / Stranding / Wrecking"},
+        {k:"medical",label:"封閉艙間醫療救助",en:"Medical Rescue for Enclosed Spaces"},
+        {k:"flooding",label:"泛水／傾斜／沉沒",en:"Flooding"},
+        {k:"stowaway",label:"偷渡、毒品、走私",en:"Stowaways, Drugs, Smuggle"},
+        {k:"collision",label:"碰撞與船體結構受損",en:"Collision & Hull Structural Damage"},
+        {k:"spill",label:"管路／油櫃溢油",en:"Pipeline / Oil Tank Overflow"},
+        {k:"vapor",label:"危險揮發氣之釋放",en:"Hazardous Vapor Release"},
+        {k:"sts",label:"船對船駁送",en:"Ship-to-Ship Transfers"},
+        {k:"salvage",label:"海難救助",en:"Salvage"},
+        {k:"heli",label:"直升機／船舶作業",en:"Helicopter/Ship Operations"},
+        {k:"towing",label:"緊急拖帶設備",en:"Emergency towing arrangement"},
+        {k:"weather",label:"惡劣天候損害",en:"Heavy weather damage"}
+      ]}
+  },
+  vtype:{isps:"all",cepfm:"all"},
+  year:{isps:null,cepfm:null},
+  init(){
+    const base=new Date().getFullYear();
+    ["isps","cepfm"].forEach(pt=>{
+      if(!this.year[pt])this.year[pt]=base;
+      const ysel=$("#dp-"+pt+"-year-sel");
+      if(ysel&&!ysel.options.length){
+        const years=[base-1,base,base+1,base+2];
+        ysel.innerHTML=years.map(y=>`<option value="${y}" ${y===this.year[pt]?"selected":""}>${y}</option>`).join("");
+      }
+    });
+    this.render("isps");
+    this.render("cepfm");
+  },
+  setVtype(pt,vt){
+    this.vtype[pt]=vt;
+    $$(`#dp-page-${pt} .dp-vtypebtn`).forEach(b=>b.classList.toggle("active",b.dataset.vt===vt));
+    this.render(pt);
+  },
+  setYear(pt,y){this.year[pt]=+y;this.render(pt);},
+  rowsFor(pt){
+    const vt=this.vtype[pt];
+    let ships=SHIPINFO.slice();
+    if(vt==="tanker")ships=ships.filter(s=>s.vtype==="tanker");
+    else if(vt==="bulk")ships=ships.filter(s=>s.vtype==="bulk"||s.vtype==="container");
+    return ships.sort((a,b)=>a.code.localeCompare(b.code));
+  },
+  recordsFor(pt,shipCode,catKey,year){
+    return (App.drillRecords||[]).filter(r=>r.planType===pt&&r.ship===shipCode&&r.category===catKey&&r.date&&r.date.slice(0,4)===String(year));
+  },
+  latestRecordDate(pt,shipCode,catKey,year){
+    const recs=this.recordsFor(pt,shipCode,catKey,year).map(r=>r.date).sort();
+    return recs.length?recs[recs.length-1]:null;
+  },
+  render(pt){
+    const box=$("#dp-"+pt+"-grid");if(!box)return;
+    const cfg=this.TYPES[pt];
+    const rows=this.rowsFor(pt);
+    const year=this.year[pt]||new Date().getFullYear();
+    const heading=$("#dp-"+pt+"-heading");
+    if(heading)heading.innerHTML=`🧯 <span style="font-size:19px">${year} 年度</span>　－　${esc(cfg.short)}`;
+    const head=`<tr><th style="min-width:150px;text-align:left;position:sticky;left:0;background:var(--paper);z-index:2">船舶</th>${cfg.categories.map(c=>`<th style="min-width:88px;font-size:11px" title="${esc(c.en)}">${esc(c.label)}</th>`).join("")}</tr>`;
+    const body=rows.map(s=>{
+      const cells=cfg.categories.map(c=>{
+        const d=this.latestRecordDate(pt,s.code,c.k,year);
+        const cnt=this.recordsFor(pt,s.code,c.k,year).length;
+        const cls=d?"ap-cell ap-done":"ap-cell ap-readonly";
+        const title=d?`最近一次：${d}（本年度共 ${cnt} 筆）點選查看`:"本年度尚無操演紀錄";
+        return `<td class="${cls}" onclick="DrillPlan.viewCell('${pt}','${s.code}','${c.k}',${year})" title="${esc(title)}">${d?esc(d.slice(5)):"-"}</td>`;
+      }).join("");
+      return `<tr><td style="text-align:left;font-weight:600;position:sticky;left:0;background:#fff;white-space:nowrap">${esc(s.zh||s.name)} <span class="hint" style="font-weight:400">${esc(s.name)}</span></td>${cells}</tr>`;
+    }).join("");
+    box.innerHTML=`<table class="ap-tbl"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  },
+  viewCell(pt,ship,catKey,year){
+    const recs=this.recordsFor(pt,ship,catKey,year).sort((a,b)=>a.date<b.date?1:-1);
+    const cfg=this.TYPES[pt];
+    const cat=cfg.categories.find(c=>c.k===catKey);
+    if(!recs.length){
+      const canEdit=typeof DrillRecord!=="undefined"&&DrillRecord.canEdit();
+      if(canEdit&&confirm(`${ship}／${cat?cat.label:catKey}　本年度尚無操演紀錄。\n\n是否前往「操演紀錄」新增一筆？`)){
+        DrillGroup.setPage("record");
+        DrillRecord.prefillNew(ship,pt,catKey);
+      }else if(!canEdit){
+        toast(`${ship}／${cat?cat.label:catKey}　本年度尚無操演紀錄`);
+      }
+      return;
+    }
+    const lines=recs.map(r=>`${r.date}｜${r.note?r.note.slice(0,50):"（無說明）"}｜記錄人：${r.recordedBy||"-"}`).join("\n");
+    alert(`${ship}　${cat?cat.label:catKey}（${year}年度，共 ${recs.length} 筆）\n\n${lines}`);
+  },
+  exportXlsx(pt){
+    if(!hasXLSX())return;
+    const cfg=this.TYPES[pt];
+    const rows=this.rowsFor(pt);
+    const year=this.year[pt];
+    const hdr=["項次","船名",...cfg.categories.map(c=>c.label+"\n"+c.en)];
+    const aoa=[
+      [cfg.label],
+      [`年度 Year：${year}`],[],
+      hdr,
+      ...rows.map((s,i)=>[i+1,`${s.zh||s.name} ${s.name||""}`,...cfg.categories.map(c=>this.latestRecordDate(pt,s.code,c.k,year)||"")]),
+      [],
+      ["備註：日期取自「操演紀錄」子頁籤本年度最近一次紀錄。"],
+      [],
+      ["岸上指派人員／D.P.A.：__________________","主管/Approved by：__________________","規劃者／Prepared by：__________________"]
+    ];
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"]=[{wch:5},{wch:22},...cfg.categories.map(()=>({wch:14}))];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,cfg.short+year);
+    XLSX.writeFile(wb,`${cfg.short}_${year}.xlsx`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","操演計畫",`${cfg.short} ${year}年 匯出 Excel`);
+  },
+  exportPdf(pt){
+    const cfg=this.TYPES[pt];
+    const rows=this.rowsFor(pt);
+    const year=this.year[pt];
+    const bodyRows=rows.map((s,i)=>{
+      const cells=cfg.categories.map(c=>{
+        const d=this.latestRecordDate(pt,s.code,c.k,year);
+        return `<td style="text-align:center;${d?"color:#1e7f4a;font-weight:700":""}">${d?esc(d):""}</td>`;
+      }).join("");
+      return `<tr><td>${i+1}</td><td style="text-align:left">${esc(s.zh||s.name)} ${esc(s.name||"")}</td>${cells}</tr>`;
+    }).join("");
+    $("#printArea").innerHTML=`
+      <h1>${esc(cfg.label)}</h1>
+      <div class="pmeta">年度 Year：${year}　匯出：${todayStr()}</div>
+      <table class="ap-print-tbl" style="width:100%;border-collapse:collapse;font-size:10px;margin-top:10px">
+        <thead><tr><th>No.</th><th style="text-align:left">Ship Name</th>${cfg.categories.map(c=>`<th>${esc(c.label)}</th>`).join("")}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+      <div style="margin-top:10px;font-size:11px">備註：日期取自「操演紀錄」子頁籤本年度最近一次紀錄。</div>
+      <div style="margin-top:30px;font-size:12px;display:flex;justify-content:space-between">
+        <span>岸上指派人員／D.P.A.：＿＿＿＿＿＿＿＿</span>
+        <span>主管/Approved by：＿＿＿＿＿＿＿＿</span>
+        <span>規劃者／Prepared by：＿＿＿＿＿＿＿＿</span>
+      </div>`;
+    doPrint();
+    if(typeof Audit!=="undefined")Audit.log("匯出","操演計畫",`${cfg.short} ${year}年 列印/PDF`);
+  }
+};
+
+/* ── 操演紀錄：實際操演情形登記表單，串接 Supabase 存檔；
+     新增／編輯／刪除（含批量新增／匯入）僅限 Owner 或「資料管理→維護者」指定的人員操作，其他人（含管理員、督導、船舶帳號）僅能查看與匯出 ── */
+const DrillRecord={
+  editId:null,
+  CLOUD_KEY:"drillRecords",
+  async pushCloud(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const usr=(typeof Audit!=="undefined")?Audit.user():"";
+      const row={k:this.CLOUD_KEY,updated:Date.now(),by:usr,payload:App.drillRecords};
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([row])});
+    }catch(e){console.warn("drillRecords cloud push failed",e);toast("⚠ 操演紀錄同步至雲端失敗，其他裝置暫時看不到此變更（"+e.message+"）");}
+  },
+  async loadCloud(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api("app_db?select=payload&k=eq."+this.CLOUD_KEY);
+      const p=rows&&rows[0]&&rows[0].payload;
+      if(p&&Array.isArray(p)){
+        App.drillRecords=p;
+        try{localStorage.setItem(App.LSK.dr,JSON.stringify(App.drillRecords));}catch(e){}
+        this.render();DrillPlan.render("isps");DrillPlan.render("cepfm");
+      }
+    }catch(e){console.warn("drillRecords cloud load failed",e);}
+  },
+  EDITORS_CLOUD_KEY:"drillRecordEditors",
+  canEdit(){
+    if(typeof Role==="undefined")return true;
+    if(Role.isOwner())return true;
+    return !!(Role.cur&&Role.cur.name&&(App.drillRecordEditors||[]).includes(Role.cur.name));
+  },
+  requireEdit(msg){
+    if(this.canEdit())return true;
+    toast(`⚠ ${msg||"僅 Owner 或指定人員可操作"}，您目前僅能查看`);
+    return false;
+  },
+  async pullEditorsCloud(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api("app_db?select=payload&k=eq."+this.EDITORS_CLOUD_KEY);
+      const p=rows&&rows[0]&&rows[0].payload;
+      if(p&&Array.isArray(p)){App.drillRecordEditors=p;try{localStorage.setItem(App.LSK.dre,JSON.stringify(p));}catch(e){}}
+    }catch(e){/* 離線或讀取失敗：維持本機快取值 */}
+    this.refreshTabVisibility();
+    this.refreshEditorsUI();
+  },
+  refreshEditorsUI(){
+    const el=$("#dre-cur");if(el)el.textContent="目前指定："+((App.drillRecordEditors||[]).length?App.drillRecordEditors.join("、"):"（尚未指定，僅 Owner 可用）");
+    const inp=$("#dre-input");if(inp)inp.value=(App.drillRecordEditors||[]).join("、");
+    this.renderEditorChips();
+    this.populateDeptSelect();
+  },
+  renderEditorChips(){
+    const box=$("#dre-chips");if(!box)return;
+    const list=App.drillRecordEditors||[];
+    box.innerHTML=list.length?list.map(n=>`<span style="display:inline-flex;align-items:center;gap:6px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:4px 10px;font-size:12.5px">${esc(n)}<span style="cursor:pointer;color:var(--bad);font-weight:700" onclick="DrillRecord.removeEditor('${esc(n).replace(/'/g,"\\'")}')">✕</span></span>`).join(""):`<span class="hint">（尚未指定人員）</span>`;
+  },
+  populateDeptSelect(){
+    const sel=$("#dre-dept-select");if(!sel)return;
+    const roster=(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[])||[];
+    // 排除船舶帳號（tier=op2，部門即船名）：此設定僅適用於岸上人員
+    const depts=[...new Set(roster.filter(r=>r.tier!=="op2").map(r=>r.dept).filter(Boolean))].sort();
+    const keep=sel.value;
+    sel.innerHTML=depts.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join("");
+    if(depts.includes(keep))sel.value=keep;
+    this.populatePersonSelect();
+  },
+  populatePersonSelect(){
+    const deptSel=$("#dre-dept-select"),personSel=$("#dre-person-select");if(!deptSel||!personSel)return;
+    const roster=(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[])||[];
+    const dept=deptSel.value;
+    const names=roster.filter(r=>r.dept===dept&&r.tier!=="op2").map(r=>r.name).filter(Boolean);
+    personSel.innerHTML=names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")||`<option value="">（此部門無人員）</option>`;
+  },
+  onDeptChange(){this.populatePersonSelect();},
+  addEditor(){
+    if(!Role.isOwner()){toast("⚠ 僅 Owner 可調整此設定");return;}
+    const personSel=$("#dre-person-select");
+    const name=personSel?personSel.value:"";
+    if(!name){toast("⚠ 請先選擇人員");return;}
+    const list=App.drillRecordEditors||[];
+    if(list.includes(name)){toast("⚠ 此人員已在名單中");return;}
+    list.push(name);
+    App.drillRecordEditors=list;
+    const inp=$("#dre-input");if(inp)inp.value=list.join("、");
+    this.renderEditorChips();
+  },
+  removeEditor(name){
+    if(!Role.isOwner()){toast("⚠ 僅 Owner 可調整此設定");return;}
+    App.drillRecordEditors=(App.drillRecordEditors||[]).filter(n=>n!==name);
+    const inp=$("#dre-input");if(inp)inp.value=App.drillRecordEditors.join("、");
+    this.renderEditorChips();
+  },
+  async saveEditors(){
+    if(!Role.isOwner()){toast("⚠ 僅 Owner 可調整此設定");return;}
+    const list=App.drillRecordEditors||[];
+    try{localStorage.setItem(App.LSK.dre,JSON.stringify(list));}catch(e){}
+    this.refreshTabVisibility();this.refreshEditorsUI();this.init();
+    if(typeof Audit!=="undefined")Audit.log("編輯","操演紀錄設定",`指定人員改為：${list.join("、")||"（無）"}`);
+    if(typeof Cloud!=="undefined"&&Cloud.enabled()){
+      try{
+        const usr=(typeof Audit!=="undefined")?Audit.user():"";
+        await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.EDITORS_CLOUD_KEY,updated:Date.now(),by:usr,payload:list}])});
+        toast("✓ 已更新操演紀錄指定人員名單，已同步給所有人");
+      }catch(e){toast("⚠ 已儲存本機，但同步雲端失敗："+e.message);}
+    }else toast("✓ 已更新指定人員名單（單機模式，僅本機）");
+  },
+  refreshTabVisibility(){}, // 保留擴充用（目前操演紀錄頁籤本身對所有人可見，僅新增/編輯/刪除受限）
+  nextId(){return (App.drillRecords||[]).reduce((m,x)=>Math.max(m,x.id||0),0)+1;},
+  shipOptionsHtml(selected){
+    return SHIPINFO.slice().sort((a,b)=>a.code.localeCompare(b.code)).map(s=>`<option value="${esc(s.code)}" ${s.code===selected?"selected":""}>${esc(s.zh||s.name)} ${esc(s.name||"")}</option>`).join("");
+  },
+  init(){
+    const canEdit=this.canEdit();
+    const sel=$("#dr-e-ship");
+    if(sel)sel.innerHTML=this.shipOptionsHtml();
+    const fsel=$("#dr-f-ship");
+    if(fsel)fsel.innerHTML=`<option value="">全部船舶</option>`+SHIPINFO.slice().sort((a,b)=>a.code.localeCompare(b.code)).map(s=>`<option value="${esc(s.code)}">${esc(s.zh||s.name)} ${esc(s.name||"")}</option>`).join("");
+    this.refreshCategoryOptions("#dr-e-category",$("#dr-e-plantype")?$("#dr-e-plantype").value:"isps");
+    this.refreshFilterCategoryOptions();
+    const addcard=$("#dr-addcard");
+    if(addcard)addcard.style.display=canEdit?"":"none";
+    this.refreshEditorsUI();
+    this.render();
+  },
+  onShipOrTypeChange(){
+    const pt=$("#dr-e-plantype")?$("#dr-e-plantype").value:"isps";
+    this.refreshCategoryOptions("#dr-e-category",pt);
+  },
+  refreshCategoryOptions(selId,pt){
+    const sel=$(selId);if(!sel)return;
+    const cfg=DrillPlan.TYPES[pt]||DrillPlan.TYPES.isps;
+    const keep=sel.value;
+    sel.innerHTML=cfg.categories.map(c=>`<option value="${esc(c.k)}">${esc(c.label)}</option>`).join("");
+    if(cfg.categories.some(c=>c.k===keep))sel.value=keep;
+  },
+  onFilterTypeChange(){this.refreshFilterCategoryOptions();this.render();},
+  refreshFilterCategoryOptions(){
+    const pt=$("#dr-f-plantype")?$("#dr-f-plantype").value:"";
+    const sel=$("#dr-f-category");if(!sel)return;
+    if(!pt){sel.innerHTML=`<option value="">全部操演項目</option>`;return;}
+    const cfg=DrillPlan.TYPES[pt];
+    sel.innerHTML=`<option value="">全部操演項目</option>`+cfg.categories.map(c=>`<option value="${esc(c.k)}">${esc(c.label)}</option>`).join("");
+  },
+  clearFilters(){["dr-f-ship","dr-f-plantype","dr-f-category"].forEach(id=>{const el=$("#"+id);if(el)el.value="";});this.render();},
+  prefillNew(ship,pt,catKey){
+    if(!this.requireEdit("僅 Owner 或指定人員可新增操演紀錄"))return;
+    const shipSel=$("#dr-e-ship");if(shipSel)shipSel.value=ship;
+    const ptSel=$("#dr-e-plantype");if(ptSel)ptSel.value=pt;
+    this.refreshCategoryOptions("#dr-e-category",pt);
+    const catSel=$("#dr-e-category");if(catSel)catSel.value=catKey;
+    const dateEl=$("#dr-e-date");if(dateEl)dateEl.focus();
+  },
+  save(){
+    if(!this.requireEdit())return;
+    const shipSel=$("#dr-e-ship"),ptSel=$("#dr-e-plantype"),catSel=$("#dr-e-category"),dateEl=$("#dr-e-date"),noteEl=$("#dr-e-note");
+    const ship=shipSel?shipSel.value:"";
+    const planType=ptSel?ptSel.value:"isps";
+    const category=catSel?catSel.value:"";
+    const date=dateEl?dateEl.value:"";
+    const note=noteEl?noteEl.value.trim():"";
+    if(!ship||!category||!date){toast("⚠ 請選擇船舶／操演項目並填寫操演日期");return;}
+    const recordedBy=(typeof Role!=="undefined"&&Role.personName)?Role.personName():((typeof Audit!=="undefined")?Audit.user():"未具名");
+    if(this.editId){
+      const rec=App.drillRecords.find(x=>x.id===this.editId);
+      if(!rec){toast("⚠ 找不到此筆紀錄");return;}
+      Object.assign(rec,{ship,planType,category,date,note});
+      if(typeof Audit!=="undefined")Audit.log("編輯","操演紀錄",`#${rec.id} ${ship} ${date}`);
+      toast("✓ 已更新操演紀錄");
+    }else{
+      App.drillRecords=App.drillRecords||[];
+      App.drillRecords.push({id:this.nextId(),ship,planType,category,date,note,recordedBy,createdBy:recordedBy,createdAt:Date.now()});
+      if(typeof Audit!=="undefined")Audit.log("新增","操演紀錄",`${ship} ${date}`);
+      toast("✓ 已新增操演紀錄");
+    }
+    App.saveAll();
+    this.pushCloud();
+    this.cancelEdit();
+    this.render();
+    DrillPlan.render("isps");DrillPlan.render("cepfm");
+  },
+  openEdit(id){
+    if(!this.requireEdit("僅 Owner 或指定人員可編輯"))return;
+    const rec=(App.drillRecords||[]).find(x=>x.id===id);if(!rec)return;
+    this.editId=id;
+    const s=$("#dr-e-ship");if(s)s.value=rec.ship;
+    const pt=$("#dr-e-plantype");if(pt)pt.value=rec.planType;
+    this.refreshCategoryOptions("#dr-e-category",rec.planType);
+    const cat=$("#dr-e-category");if(cat)cat.value=rec.category;
+    const d=$("#dr-e-date");if(d)d.value=rec.date;
+    const n=$("#dr-e-note");if(n)n.value=rec.note||"";
+    const saveBtn=$("#dr-save-btn");if(saveBtn)saveBtn.textContent="💾 更新紀錄";
+    const cancelBtn=$("#dr-cancel-btn");if(cancelBtn)cancelBtn.style.display="";
+    window.scrollTo({top:0,behavior:"smooth"});
+  },
+  cancelEdit(){
+    this.editId=null;
+    const n=$("#dr-e-note");if(n)n.value="";
+    const d=$("#dr-e-date");if(d)d.value="";
+    const saveBtn=$("#dr-save-btn");if(saveBtn)saveBtn.textContent="💾 新增紀錄";
+    const cancelBtn=$("#dr-cancel-btn");if(cancelBtn)cancelBtn.style.display="none";
+  },
+  async delRec(id){
+    if(!this.requireEdit("僅 Owner 或指定人員可刪除"))return;
+    const rec=(App.drillRecords||[]).find(x=>x.id===id);if(!rec)return;
+    if(!await Guard.requireDelete())return;
+    App.drillRecords=App.drillRecords.filter(x=>x.id!==id);
+    App.saveAll();
+    this.pushCloud();
+    if(typeof Audit!=="undefined")Audit.log("刪除","操演紀錄",`#${id}`);
+    toast("已刪除");
+    this.render();
+    DrillPlan.render("isps");DrillPlan.render("cepfm");
+  },
+  filtered(){
+    const fship=$("#dr-f-ship")?$("#dr-f-ship").value:"";
+    const fpt=$("#dr-f-plantype")?$("#dr-f-plantype").value:"";
+    const fcat=$("#dr-f-category")?$("#dr-f-category").value:"";
+    return (App.drillRecords||[]).filter(r=>(!fship||r.ship===fship)&&(!fpt||r.planType===fpt)&&(!fcat||r.category===fcat))
+      .slice().sort((a,b)=>b.date<a.date?-1:b.date>a.date?1:0);
+  },
+  catLabel(planType,catKey){
+    const cfg=DrillPlan.TYPES[planType];if(!cfg)return catKey;
+    const c=cfg.categories.find(x=>x.k===catKey);
+    return c?c.label:catKey;
+  },
+  render(){
+    const box=$("#dr-list");if(!box)return;
+    const list=this.filtered();
+    const editable=this.canEdit();
+    const stat=$("#dr-stat");if(stat)stat.textContent=`共 ${list.length} 筆${editable?"":"　🔒 唯讀（僅 Owner 或指定人員可新增／編輯／刪除）"}`;
+    box.innerHTML=list.length?list.map(r=>{
+      const shipInfo=SHIPINFO.find(s=>s.code===r.ship);
+      const shipTxt=shipInfo?`${shipInfo.zh||shipInfo.name} ${shipInfo.name||""}`:r.ship;
+      const ptLabel=r.planType==="isps"?"ISPS操演計畫":"船岸緊急應變計畫";
+      return `<div style="border:1px solid var(--line);border-radius:6px;padding:10px 12px">
+        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+          <b style="color:var(--navy)">${esc(shipTxt)}</b>
+          <span class="hint">${esc(ptLabel)}／${esc(this.catLabel(r.planType,r.category))}</span>
+          <span style="font-family:var(--mono);font-weight:700">${esc(r.date)}</span>
+          <span style="margin-left:auto;display:flex;gap:6px">
+            ${editable?`<button class="btn sm" onclick="DrillRecord.openEdit(${r.id})">✎</button>`:""}
+            ${editable?`<button class="btn sm danger" onclick="DrillRecord.delRec(${r.id})">🗑</button>`:""}
+          </span>
+        </div>
+        ${r.note?`<div style="font-size:12.5px;margin-top:6px;white-space:pre-wrap">${esc(r.note)}</div>`:""}
+        <div class="hint" style="font-size:11px;margin-top:4px">記錄人：${esc(r.recordedBy)||"-"}</div>
+      </div>`;
+    }).join(""):`<div class="hint">目前尚無符合篩選條件的操演紀錄</div>`;
+  },
+  exportXlsx(){
+    if(!hasXLSX())return;
+    const list=this.filtered();
+    const aoa=[
+      ["操演紀錄"],[],
+      ["船舶","操演類型","操演項目","操演日期","參與人員／說明","記錄人"],
+      ...list.map(r=>{
+        const shipInfo=SHIPINFO.find(s=>s.code===r.ship);
+        const shipTxt=shipInfo?`${shipInfo.zh||shipInfo.name} ${shipInfo.name||""}`:r.ship;
+        return [shipTxt,r.planType==="isps"?"ISPS操演計畫":"船岸緊急應變計畫",this.catLabel(r.planType,r.category),r.date,r.note||"",r.recordedBy||""];
+      })
+    ];
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"]=[{wch:20},{wch:16},{wch:22},{wch:12},{wch:40},{wch:12}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"操演紀錄");
+    XLSX.writeFile(wb,`操演紀錄_${todayStr()}.xlsx`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","操演紀錄",`匯出 Excel，共 ${list.length} 筆`);
+  },
+  /* ───── 批量新增（表單內多列一次送出） ───── */
+  openBatch(){
+    if(!this.requireEdit("僅 Owner 或指定人員可批量新增"))return;
+    $("#drbt-tbody").innerHTML="";
+    this.batchAddRow(3);
+    $("#drBatchModal").classList.add("show");
+  },
+  closeBatch(){$("#drBatchModal").classList.remove("show");},
+  batchShipOptionsHtml(){
+    return typeof shipOptionsHtml==="function"?shipOptionsHtml(""):"";
+  },
+  batchCategoryOptionsHtml(pt){
+    const cfg=DrillPlan.TYPES[pt]||DrillPlan.TYPES.isps;
+    return cfg.categories.map(c=>`<option value="${esc(c.k)}">${esc(c.label)}</option>`).join("");
+  },
+  batchAddRow(n){
+    n=(typeof n==="number"&&n>0)?n:1;
+    const tb=$("#drbt-tbody");if(!tb)return;
+    for(let k=0;k<n;k++){
+      const tr=document.createElement("tr");
+      tr.innerHTML=`
+        <td class="drbt-idx"></td>
+        <td><select class="drbt-ship">${this.batchShipOptionsHtml()}</select></td>
+        <td><select class="drbt-plantype" onchange="DrillRecord.onBatchTypeChange(this)">
+          <option value="isps">ISPS操演計畫</option>
+          <option value="cepfm">船岸緊急應變計畫</option>
+        </select></td>
+        <td><select class="drbt-category">${this.batchCategoryOptionsHtml("isps")}</select></td>
+        <td><input type="date" class="drbt-date"></td>
+        <td><input type="text" class="drbt-note" placeholder="參與人員／操演情形說明"></td>
+        <td style="text-align:center"><button class="bt-rm" onclick="this.closest('tr').remove();DrillRecord.batchRenum()">✕</button></td>`;
+      tb.appendChild(tr);
+    }
+    this.batchRenum();
+  },
+  onBatchTypeChange(selectEl){
+    const tr=selectEl.closest("tr");if(!tr)return;
+    const catSel=tr.querySelector(".drbt-category");
+    if(catSel)catSel.innerHTML=this.batchCategoryOptionsHtml(selectEl.value);
+  },
+  batchRenum(){
+    [...$("#drbt-tbody").children].forEach((tr,i)=>{const idx=tr.querySelector(".drbt-idx");if(idx)idx.textContent=i+1;});
+    const cnt=$("#drbt-count");if(cnt)cnt.textContent=$("#drbt-tbody").children.length+" 列";
+  },
+  saveBatch(){
+    if(!this.requireEdit("僅 Owner 或指定人員可批量新增"))return;
+    const rows=[...$("#drbt-tbody").children];
+    const recs=[];const errs=[];
+    const recordedBy=(typeof Role!=="undefined"&&Role.personName)?Role.personName():((typeof Audit!=="undefined")?Audit.user():"未具名");
+    rows.forEach((tr,idx)=>{
+      const ship=tr.querySelector(".drbt-ship").value.trim();
+      const planType=tr.querySelector(".drbt-plantype").value;
+      const category=tr.querySelector(".drbt-category").value;
+      const date=tr.querySelector(".drbt-date").value;
+      const note=tr.querySelector(".drbt-note").value.trim();
+      if(!ship&&!date&&!note)return; // 完全未填寫視為未使用列，跳過
+      if(!ship){errs.push(`第${idx+1}列缺船舶`);return;}
+      if(!category){errs.push(`第${idx+1}列缺操演項目`);return;}
+      if(!date){errs.push(`第${idx+1}列缺操演日期`);return;}
+      recs.push({ship,planType,category,date,note,recordedBy,createdBy:recordedBy});
+    });
+    if(errs.length){toast("⚠ "+errs.slice(0,3).join("；")+(errs.length>3?" …":""));return;}
+    if(!recs.length){toast("⚠ 請至少填寫一列（船舶＋操演項目＋操演日期）");return;}
+    recs.forEach(r=>{r.id=this.nextId();r.createdAt=Date.now();App.drillRecords.push(r);});
+    App.saveAll();
+    this.pushCloud();
+    if(typeof Audit!=="undefined")Audit.log("新增","操演紀錄",`批量新增 ${recs.length} 筆`);
+    this.closeBatch();
+    this.render();
+    DrillPlan.render("isps");DrillPlan.render("cepfm");
+    toast(`✓ 已批量新增 ${recs.length} 筆操演紀錄`);
+  },
+  /* ───── 下載匯入模板（含下拉選單，操演項目依操演類型連動）───── */
+  async exportTemplate(){
+    if(!this.requireEdit("僅 Owner 或指定人員可下載匯入模板"))return;
+    if(!hasExcelJS())return;
+    toast("⏳ 產生範本中（含下拉選單），請稍候…");
+    const wb=new ExcelJS.Workbook();
+    const ws=wb.addWorksheet("操演紀錄");
+    ws.addRow(["船舶","操演類型","操演項目","操演日期","參與人員／說明"]);
+    const sampleShip=(SHIPINFO[0]&&SHIPINFO[0].code)||"F27";
+    ws.addRow([sampleShip,"ISPS操演計畫","炸彈威脅反應","2026/6/12","由大副主持，全船船員參與"]);
+    ws.addRow([sampleShip,"船岸緊急應變計畫","人員落海及搜救","2026/6/20","由船長主持，模擬夜間人員落海"]);
+    ws.getColumn(1).width=14;ws.getColumn(2).width=18;ws.getColumn(3).width=26;ws.getColumn(4).width=14;ws.getColumn(5).width=40;
+    ws.getColumn(4).numFmt="@";
+
+    const wsList=wb.addWorksheet("下拉選單資料");wsList.state="veryHidden";
+    let cc=1;
+    const namedRange=(name,values)=>{values.forEach((v,i)=>{wsList.getRow(i+1).getCell(cc).value=v;});const letter=wsList.getColumn(cc).letter;wb.definedNames.add(`'下拉選單資料'!$${letter}$1:$${letter}$${values.length}`,name);cc++;};
+    const shipList=SHIPINFO.slice().sort((a,b)=>a.code.localeCompare(b.code)).map(s=>s.code);
+    namedRange("lst_ship",shipList);
+    const typeLabels=[DrillPlan.TYPES.isps.short,DrillPlan.TYPES.cepfm.short];
+    namedRange("lst_plantype",typeLabels);
+    namedRange("cat_isps",DrillPlan.TYPES.isps.categories.map(c=>c.label));
+    namedRange("cat_cepfm",DrillPlan.TYPES.cepfm.categories.map(c=>c.label));
+    const typeTableCol=cc;
+    wsList.getColumn(cc).values=typeLabels;
+    wsList.getColumn(cc+1).values=["cat_isps","cat_cepfm"];
+    const typeTableRange=`'下拉選單資料'!$${wsList.getColumn(typeTableCol).letter}$1:$${wsList.getColumn(typeTableCol+1).letter}$${typeLabels.length}`;
+    cc+=2;
+
+    const LAST_ROW=200,helperCol="ZZ";
+    ws.getCell(`${helperCol}1`).value="(輔助-勿刪)";
+    for(let r=2;r<=LAST_ROW;r++){
+      ws.getCell(`A${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ship"]};
+      ws.getCell(`B${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_plantype"]};
+      ws.getCell(`${helperCol}${r}`).value={formula:`IFERROR(VLOOKUP(B${r},${typeTableRange},2,FALSE),"")`};
+      ws.getCell(`C${r}`).dataValidation={type:"list",allowBlank:true,formulae:[`=INDIRECT($${helperCol}$${r})`]};
+    }
+
+    const wsInstr=wb.addWorksheet("填寫說明");
+    [["操演紀錄 匯入範本 — 填寫說明"],[""],
+     ["1. 船舶／操演類型／操演項目請用下拉選單選擇，不要手動輸入；操演項目會依操演類型自動篩選，請務必先選操演類型，再選操演項目。"],
+     ["2. 操演日期請維持「YYYY/M/D」文字格式（例如 2026/6/12），不要用 Excel 內建的日期選取器。"],
+     ["3. 船舶、操演類型、操演項目、操演日期為必填欄位。"],
+     ["4. 本表新增／編輯／刪除僅限 Owner 或「資料管理→維護者」指定的人員操作。"]
+    ].forEach(r=>wsInstr.addRow(r));
+    wsInstr.getColumn(1).width=100;
+
+    try{
+      const buf=await wb.xlsx.writeBuffer();
+      dl(new Blob([buf],{type:"application/octet-stream"}),"操演紀錄_匯入模板.xlsx");
+      toast("✓ 已下載匯入模板（船舶／操演類型／操演項目皆為下拉選單，操演項目會依操演類型連動篩選）");
+      if(typeof Audit!=="undefined")Audit.log("匯出","操演紀錄","下載匯入模板");
+    }catch(e){toast("⚠ 範本產生失敗："+e.message);}
+  },
+  /* ───── 匯入 Excel（讀取上方模板填好的檔案，批次建立） ───── */
+  importFile(){
+    if(!this.requireEdit("僅 Owner 或指定人員可匯入"))return;
+    const fp=$("#filepick");
+    fp.accept=".xlsx,.xls";
+    fp.value="";
+    fp.onchange=()=>{const f=fp.files[0];if(f)this.readImportFile(f);};
+    fp.click();
+  },
+  readImportFile(file){
+    if(!hasXLSX())return;
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const wb=XLSX.read(r.result,{type:"array"});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+        if(aoa.length<2){toast("⚠ 檔案無資料列");return;}
+        this.stageImport(aoa);
+      }catch(e){toast("⚠ Excel 檔解析失敗："+e.message);}
+    };
+    r.readAsArrayBuffer(file);
+  },
+  resolveShipCell(v){
+    const s=String(v||"").trim();if(!s)return"";
+    const byCode=SHIPINFO.find(x=>x.code===s);if(byCode)return byCode.code;
+    const byName=SHIPINFO.find(x=>x.zh===s||x.name===s);if(byName)return byName.code;
+    const guess=typeof resolveShipCode==="function"?resolveShipCode(s):"";
+    // resolveShipCode 找不到時會原樣回傳輸入字串，這裡務必再次確認確實存在於船舶清單，避免誤植船名被當成有效紀錄匯入
+    return (guess&&SHIPINFO.some(x=>x.code===guess))?guess:"";
+  },
+  resolvePlanTypeCell(v){
+    const s=String(v||"").trim();
+    if(!s)return"";
+    if(s===DrillPlan.TYPES.isps.short||/isps/i.test(s))return"isps";
+    if(s===DrillPlan.TYPES.cepfm.short||/船岸|緊急應變|cep/i.test(s))return"cepfm";
+    return"";
+  },
+  resolveCategoryCell(pt,v){
+    const s=String(v||"").trim();if(!s||!pt)return"";
+    const cfg=DrillPlan.TYPES[pt];if(!cfg)return"";
+    const hit=cfg.categories.find(c=>c.label===s||c.k===s||c.en===s);
+    return hit?hit.k:"";
+  },
+  stageImport(aoa){
+    const hdr=aoa[0].map(h=>String(h).trim());
+    const idx={
+      ship:hdr.findIndex(h=>/船舶|船名/.test(h)),
+      plantype:hdr.findIndex(h=>/操演類型/.test(h)),
+      category:hdr.findIndex(h=>/操演項目/.test(h)),
+      date:hdr.findIndex(h=>/日期/.test(h)),
+      note:hdr.findIndex(h=>/參與人員|說明/.test(h))
+    };
+    const recordedBy=(typeof Role!=="undefined"&&Role.personName)?Role.personName():((typeof Audit!=="undefined")?Audit.user():"未具名");
+    const recs=[];const skipped=[];
+    aoa.slice(1).forEach((row,i)=>{
+      if(!row.some(c=>String(c).trim()))return;
+      const shipRaw=idx.ship>=0?row[idx.ship]:"";
+      const ship=this.resolveShipCell(shipRaw);
+      const planType=this.resolvePlanTypeCell(idx.plantype>=0?row[idx.plantype]:"");
+      const category=this.resolveCategoryCell(planType,idx.category>=0?row[idx.category]:"");
+      const date=(typeof InspCtrl!=="undefined")?InspCtrl.normDate(idx.date>=0?row[idx.date]:""):String(idx.date>=0?row[idx.date]:"").trim();
+      const note=idx.note>=0?String(row[idx.note]||"").trim():"";
+      if(!ship){skipped.push(`第${i+2}列：找不到船舶「${shipRaw}」`);return;}
+      if(!planType){skipped.push(`第${i+2}列：操演類型無法辨識`);return;}
+      if(!category){skipped.push(`第${i+2}列：操演項目無法辨識`);return;}
+      if(!date){skipped.push(`第${i+2}列：操演日期無法辨識`);return;}
+      recs.push({ship,planType,category,date,note,recordedBy,createdBy:recordedBy});
+    });
+    if(!recs.length){toast(`⚠ 沒有可匯入的有效資料列${skipped.length?`（${skipped.length} 列有問題，例如：${skipped[0]}）`:""}`);return;}
+    const msg=`確定匯入 ${recs.length} 筆操演紀錄？${skipped.length?`\n（另有 ${skipped.length} 列因故略過，例如：${skipped.slice(0,3).join("；")}）`:""}`;
+    if(!confirm(msg))return;
+    recs.forEach(r=>{r.id=this.nextId();r.createdAt=Date.now();App.drillRecords.push(r);});
+    App.saveAll();
+    this.pushCloud();
+    if(typeof Audit!=="undefined")Audit.log("匯入","操演紀錄",`匯入 ${recs.length} 筆`);
+    this.render();
+    DrillPlan.render("isps");DrillPlan.render("cepfm");
+    toast(`✓ 已匯入 ${recs.length} 筆操演紀錄${skipped.length?`（略過 ${skipped.length} 列）`:""}`);
+  }
+};
+
 /* ════════ 📋 內稽動態表（比照紙本《內稽動態表》，每2週人工更新一次進度） ════════ */
 const AuditDash={
   AUDITORS:["肖紅林","余双","秦冰","華中辦事處","林建志","吳易安","黃燕華","陳宜斌","潘獻波","船籍國","海技組"],
@@ -8734,7 +9621,7 @@ const RefDocs={
     App.refDocs.push({id,title,url,pinned:false,createdAt:Date.now(),createdBy:this.curUserName()});
     App.saveAll();
     this.pushCloud();
-    if(typeof Audit!=="undefined")Audit.log("新增","檢查資料參考",`${title}：${url}`);
+    if(typeof Audit!=="undefined")Audit.log("新增","船隊通報單",`${title}：${url}`);
     $("#rd-title").value="";$("#rd-url").value="";
     toast("✓ 已新增參考連結");
     this.render();
@@ -8746,7 +9633,7 @@ const RefDocs={
     d.pinned=!d.pinned;
     App.saveAll();
     this.pushCloud();
-    if(typeof Audit!=="undefined")Audit.log("編輯","檢查資料參考",`${d.pinned?"置頂":"取消置頂"}：${d.title}`);
+    if(typeof Audit!=="undefined")Audit.log("編輯","船隊通報單",`${d.pinned?"置頂":"取消置頂"}：${d.title}`);
     toast(d.pinned?"📌 已置頂":"已取消置頂");
     this.render();
   },
@@ -8797,7 +9684,7 @@ const RefDocs={
     d.title=title;d.url=url;
     App.saveAll();
     this.pushCloud();
-    if(typeof Audit!=="undefined")Audit.log("編輯","檢查資料參考",`#${this.editId} ${title}`);
+    if(typeof Audit!=="undefined")Audit.log("編輯","船隊通報單",`#${this.editId} ${title}`);
     toast("✓ 已更新");
     this.closeEdit();this.render();
   },
@@ -8806,7 +9693,127 @@ const RefDocs={
     App.refDocs=App.refDocs.filter(x=>x.id!==this.editId);
     App.saveAll();
     this.pushCloud();
-    if(typeof Audit!=="undefined")Audit.log("刪除","檢查資料參考",`#${this.editId}`);
+    if(typeof Audit!=="undefined")Audit.log("刪除","船隊通報單",`#${this.editId}`);
+    toast("已刪除");
+    this.closeEdit();this.render();
+  }
+};
+
+/* ════════ 海技參考資料（獨立於船隊通報單，功能／權限比照 RefDocs 設計）════════ */
+const RefDocs2={
+  editId:null,sortKey:"createdAt_desc",
+  CLOUD_KEY:"refDocs2",
+  async pushCloud(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const usr=(typeof Audit!=="undefined")?Audit.user():"";
+      const row={k:this.CLOUD_KEY,updated:Date.now(),by:usr,payload:App.refDocs2};
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([row])});
+    }catch(e){console.warn("refDocs2 cloud push failed",e);toast("⚠ 海技參考資料同步至雲端失敗，其他裝置暫時看不到此變更（"+e.message+"）");}
+  },
+  async loadCloud(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api("app_db?select=payload&k=eq."+this.CLOUD_KEY);
+      const p=rows&&rows[0]&&rows[0].payload;
+      if(p&&Array.isArray(p)){
+        App.refDocs2=p;
+        try{localStorage.setItem(App.LSK.rd2,JSON.stringify(App.refDocs2));}catch(e){}
+        this.render();
+      }
+    }catch(e){console.warn("refDocs2 cloud load failed",e);}
+  },
+  normUrl(u){
+    u=(u||"").trim();
+    if(!u)return"";
+    if(!/^https?:\/\//i.test(u))u="https://"+u;
+    return u;
+  },
+  curUserName(){
+    try{return (typeof Role!=="undefined"&&Role.cur&&Role.cur.name)?Role.cur.name:(localStorage.getItem(Audit.NAMEKEY)||"未具名");}catch(e){return"未具名";}
+  },
+  add(){
+    if(!Role.isAdmin()){toast("⚠ 僅限 Owner／管理員可新增參考連結");return;}
+    const title=($("#rd2-title")?$("#rd2-title").value:"").trim();
+    const url=this.normUrl($("#rd2-url")?$("#rd2-url").value:"");
+    if(!title||!url){toast("⚠ 請輸入標題與連結網址");return;}
+    const id=App.refDocs2.length?Math.max(...App.refDocs2.map(x=>x.id||0))+1:1;
+    App.refDocs2.push({id,title,url,pinned:false,createdAt:Date.now(),createdBy:this.curUserName()});
+    App.saveAll();
+    this.pushCloud();
+    if(typeof Audit!=="undefined")Audit.log("新增","海技參考資料",`${title}：${url}`);
+    $("#rd2-title").value="";$("#rd2-url").value="";
+    toast("✓ 已新增參考連結");
+    this.render();
+  },
+  setSort(v){this.sortKey=v;this.render();},
+  togglePin(id){
+    if(!Role.isAdmin()){toast("⚠ 僅限 Owner／管理員可置頂／取消置頂");return;}
+    const d=App.refDocs2.find(x=>x.id===id);if(!d)return;
+    d.pinned=!d.pinned;
+    App.saveAll();
+    this.pushCloud();
+    if(typeof Audit!=="undefined")Audit.log("編輯","海技參考資料",`${d.pinned?"置頂":"取消置頂"}：${d.title}`);
+    toast(d.pinned?"📌 已置頂":"已取消置頂");
+    this.render();
+  },
+  sortedDocs(){
+    const [key,dir]=this.sortKey.split("_");
+    const sign=dir==="asc"?1:-1;
+    return App.refDocs2.slice().sort((a,b)=>{
+      const ap=a.pinned?1:0,bp=b.pinned?1:0;
+      if(ap!==bp)return bp-ap; // 置頂永遠在最前面，不受排序影響
+      let av=a[key],bv=b[key];
+      if(key==="createdAt"){av=av||0;bv=bv||0;return sign*(av-bv);}
+      av=String(av||"").toLowerCase();bv=String(bv||"").toLowerCase();
+      return sign*av.localeCompare(bv);
+    });
+  },
+  render(){
+    const box=$("#rd2-list");if(!box)return;
+    const editable=Role.isAdmin();
+    const card=$("#rd2-addcard");if(card)card.style.display=editable?"":"none";
+    const sortSel=$("#rd2-sort");if(sortSel)sortSel.value=this.sortKey;
+    const list=this.sortedDocs();
+    box.innerHTML=list.length?list.map(d=>{
+      const dateStr=d.createdAt?new Date(d.createdAt).toLocaleDateString():"-";
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;${d.pinned?"background:#fff8ec;border-color:#e0a93a":""}">
+        ${d.pinned?'<span title="已置頂" style="font-size:14px">📌</span>':""}
+        <div style="flex:1;min-width:0">
+          <a href="${esc(d.url)}" target="_blank" rel="noopener" style="font-weight:600;color:var(--teal);text-decoration:none">🔗 ${esc(d.title)}</a>
+          <div class="hint" style="font-size:11px;margin-top:2px">發布日期：${dateStr}　發布人：${esc(d.createdBy)||"-"}</div>
+        </div>
+        ${editable?`<button class="btn sm" onclick="RefDocs2.togglePin(${d.id})" title="${d.pinned?"取消置頂":"置頂"}">${d.pinned?"📌 取消置頂":"📌 置頂"}</button>`:""}
+        ${editable?`<button class="btn sm" onclick="RefDocs2.openEdit(${d.id})">✎</button>`:""}
+      </div>`;
+    }).join(""):`<div class="hint">目前尚無參考連結${editable?"，請於上方新增":""}</div>`;
+  },
+  openEdit(id){
+    if(!Role.isAdmin()){toast("⚠ 僅限 Owner／管理員可編輯");return;}
+    this.editId=id;
+    const d=App.refDocs2.find(x=>x.id===id)||{};
+    $("#rd2-e-title").value=d.title||"";
+    $("#rd2-e-url").value=d.url||"";
+    $("#rd2EditModal").classList.add("show");
+  },
+  closeEdit(){$("#rd2EditModal").classList.remove("show");},
+  saveEdit(){
+    const d=App.refDocs2.find(x=>x.id===this.editId);if(!d)return;
+    const title=$("#rd2-e-title").value.trim(),url=this.normUrl($("#rd2-e-url").value);
+    if(!title||!url){toast("⚠ 請輸入標題與連結網址");return;}
+    d.title=title;d.url=url;
+    App.saveAll();
+    this.pushCloud();
+    if(typeof Audit!=="undefined")Audit.log("編輯","海技參考資料",`#${this.editId} ${title}`);
+    toast("✓ 已更新");
+    this.closeEdit();this.render();
+  },
+  async delCurrent(){
+    if(!await Guard.requireDelete())return;
+    App.refDocs2=App.refDocs2.filter(x=>x.id!==this.editId);
+    App.saveAll();
+    this.pushCloud();
+    if(typeof Audit!=="undefined")Audit.log("刪除","海技參考資料",`#${this.editId}`);
     toast("已刪除");
     this.closeEdit();this.render();
   }
@@ -11819,9 +12826,12 @@ const Cloud={
     if(this.enabled()){setTimeout(()=>{if(typeof Snap!=="undefined")Snap.loadCloudInfo();},1500);}
     if(this.enabled()){setTimeout(()=>{if(typeof NavConfig!=="undefined")NavConfig.loadCloud();},1700);}
     if(this.enabled()){setTimeout(()=>{if(typeof RefDocs!=="undefined")RefDocs.loadCloud();},1900);}
+    if(this.enabled()){setTimeout(()=>{if(typeof RefDocs2!=="undefined")RefDocs2.loadCloud();},1950);}
+    if(this.enabled()){setTimeout(()=>{if(typeof DrillRecord!=="undefined")DrillRecord.loadCloud();},2000);}
     if(this.enabled()){setTimeout(()=>{if(typeof AnnualPlan!=="undefined")AnnualPlan.pullEditorCloud();},2100);}
     if(this.enabled()){setTimeout(()=>{if(typeof Defs!=="undefined")Defs.pullViewFieldsCloud();},2300);}
     if(this.enabled()){setTimeout(()=>{if(typeof DefsProj!=="undefined")DefsProj.pullMembersCloud();},2500);}
+    if(this.enabled()){setTimeout(()=>{if(typeof DrillRecord!=="undefined")DrillRecord.pullEditorsCloud();},2700);}
   },
   AUTO_SETTING_KEY:"sync_settings",
   async loadAutoSetting(){
@@ -12002,6 +13012,8 @@ const Cloud={
         {k:"inspctrl",updated:now,by:usr,payload:App.inspCtrl},
         {k:"roster",updated:now,by:usr,payload:(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[])},
         {k:"refDocs",updated:now,by:usr,payload:App.refDocs},
+        {k:"refDocs2",updated:now,by:usr,payload:App.refDocs2},
+        {k:"drillRecords",updated:now,by:usr,payload:App.drillRecords},
         {k:"annualPlan",updated:now,by:usr,payload:App.annualPlan},
         {k:"auditDash",updated:now,by:usr,payload:App.auditDash},
         {k:"defsProjects",updated:now,by:usr,payload:App.defsProjects}
@@ -12016,7 +13028,7 @@ const Cloud={
     if(!this.enabled()){if(!silent)toast("⚠ 請先完成雲端設定");return;}
     this.dbState("⬇ 載入中…");
     try{
-      const rows=await this.api("app_db?select=k,updated,by,payload&k=in.(inspections,deficiencies,ships,sirePositive,airReviews,inspctrl,roster,refDocs,annualPlan,auditDash,defsProjects)");
+      const rows=await this.api("app_db?select=k,updated,by,payload&k=in.(inspections,deficiencies,ships,sirePositive,airReviews,inspctrl,roster,refDocs,refDocs2,annualPlan,auditDash,defsProjects,drillRecords)");
       if(!rows||!rows.length){this.dbState("雲端尚無資料庫");if(!silent)toast("⚠ 雲端尚無已發布的資料庫，請維護者先「發布到雲端」");return;}
       const map={};rows.forEach(r=>map[r.k]=r);
       let info=[];
@@ -12028,6 +13040,8 @@ const Cloud={
       if(map.ships&&typeof SHIPINFO!=="undefined"){SHIPINFO.length=0;(map.ships.payload||[]).forEach(s=>SHIPINFO.push(s));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}info.push("船舶 "+SHIPINFO.length);}
       if(map.roster&&typeof GateIdentity!=="undefined"&&Array.isArray(map.roster.payload)){GateIdentity.saveRosterFromCloud(map.roster.payload);info.push("人員名單 "+map.roster.payload.length);if(typeof RosterMgr!=="undefined")RosterMgr.refreshCount();}
       if(map.refDocs&&Array.isArray(map.refDocs.payload)){App.refDocs=map.refDocs.payload;try{localStorage.setItem(App.LSK.rd,JSON.stringify(App.refDocs));}catch(e){}info.push("參考連結 "+App.refDocs.length);if(typeof RefDocs!=="undefined")RefDocs.render();}
+      if(map.refDocs2&&Array.isArray(map.refDocs2.payload)){App.refDocs2=map.refDocs2.payload;try{localStorage.setItem(App.LSK.rd2,JSON.stringify(App.refDocs2));}catch(e){}info.push("海技參考資料 "+App.refDocs2.length);if(typeof RefDocs2!=="undefined")RefDocs2.render();}
+      if(map.drillRecords&&Array.isArray(map.drillRecords.payload)){App.drillRecords=map.drillRecords.payload;try{localStorage.setItem(App.LSK.dr,JSON.stringify(App.drillRecords));}catch(e){}info.push("操演紀錄 "+App.drillRecords.length);if(typeof DrillRecord!=="undefined"){DrillRecord.render();}if(typeof DrillPlan!=="undefined"){DrillPlan.render("isps");DrillPlan.render("cepfm");}}
       if(map.annualPlan&&Array.isArray(map.annualPlan.payload)){App.annualPlan=map.annualPlan.payload;try{localStorage.setItem(App.LSK.ap,JSON.stringify(App.annualPlan));}catch(e){}info.push("年度計畫 "+App.annualPlan.length);if(typeof AnnualPlan!=="undefined")AnnualPlan.render();}
       if(map.auditDash&&Array.isArray(map.auditDash.payload)){App.auditDash=map.auditDash.payload;try{localStorage.setItem(App.LSK.ad,JSON.stringify(App.auditDash));}catch(e){}info.push("內稽動態紀錄 "+App.auditDash.length);if(typeof AuditDash!=="undefined")AuditDash.render();}
       if(map.defsProjects&&Array.isArray(map.defsProjects.payload)){App.defsProjects=map.defsProjects.payload;try{localStorage.setItem(App.LSK.dp,JSON.stringify(App.defsProjects));}catch(e){}info.push("缺失專案分析 "+App.defsProjects.length);if(typeof DefsProj!=="undefined")DefsProj.render();}
@@ -12103,7 +13117,48 @@ const DefsProj={
   },
   refreshMembersUI(){
     const el=$("#dfp-members-cur");if(el)el.textContent="目前指定："+((App.projectMembers||[]).length?App.projectMembers.join("、"):"（尚未指定，僅 Owner 可用）");
-    const inp=$("#dfp-members-input");if(inp&&!inp.value)inp.value=(App.projectMembers||[]).join("、");
+    const inp=$("#dfp-members-input");if(inp)inp.value=(App.projectMembers||[]).join("、");
+    this.renderMemberChips();
+    this.populateDeptSelect();
+  },
+  renderMemberChips(){
+    const box=$("#dfp-members-chips");if(!box)return;
+    const list=App.projectMembers||[];
+    box.innerHTML=list.length?list.map(n=>`<span style="display:inline-flex;align-items:center;gap:6px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:4px 10px;font-size:12.5px">${esc(n)}<span style="cursor:pointer;color:var(--bad);font-weight:700" onclick="DefsProj.removeMember('${esc(n).replace(/'/g,"\\'")}')">✕</span></span>`).join(""):`<span class="hint">（尚未指定人員）</span>`;
+  },
+  populateDeptSelect(){
+    const sel=$("#dfp-dept-select");if(!sel)return;
+    const roster=(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[])||[];
+    // 排除船舶帳號（tier=op2，部門即船名）：此設定僅適用於岸上人員
+    const depts=[...new Set(roster.filter(r=>r.tier!=="op2").map(r=>r.dept).filter(Boolean))].sort();
+    const keep=sel.value;
+    sel.innerHTML=depts.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join("");
+    if(depts.includes(keep))sel.value=keep;
+    this.populatePersonSelect();
+  },
+  populatePersonSelect(){
+    const deptSel=$("#dfp-dept-select"),personSel=$("#dfp-person-select");if(!deptSel||!personSel)return;
+    const roster=(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[])||[];
+    const dept=deptSel.value;
+    const names=roster.filter(r=>r.dept===dept&&r.tier!=="op2").map(r=>r.name).filter(Boolean);
+    personSel.innerHTML=names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")||`<option value="">（此部門無人員）</option>`;
+  },
+  onDeptChange(){this.populatePersonSelect();},
+  addMember(){
+    const personSel=$("#dfp-person-select");
+    const name=personSel?personSel.value:"";
+    if(!name){toast("⚠ 請先選擇人員");return;}
+    const list=App.projectMembers||[];
+    if(list.includes(name)){toast("⚠ 此人員已在名單中");return;}
+    list.push(name);
+    App.projectMembers=list;
+    const inp=$("#dfp-members-input");if(inp)inp.value=list.join("、");
+    this.renderMemberChips();
+  },
+  removeMember(name){
+    App.projectMembers=(App.projectMembers||[]).filter(n=>n!==name);
+    const inp=$("#dfp-members-input");if(inp)inp.value=App.projectMembers.join("、");
+    this.renderMemberChips();
   },
   async saveMembers(){
     if(typeof Role!=="undefined"&&!Role.isOwner()){toast("⚠ 僅 Owner 可調整此設定");return;}
@@ -13181,8 +14236,7 @@ ${factorLines||"（無三要素資料）"}
           查核狀態：${it.status==="pending"?"☐":"☑"} ${esc(this.statusText(it))}
           ${it.status==="similar"?`　處理情形：<u>${esc(it.note)||"　　　　　　　　　　　　　　"}</u>　${it.closed?"☑":"☐"} 結案`:""}
         </div>
-      </div>`).join("")}
-      <div style="margin-top:20px;font-size:11px">自查人（${esc(t.inspector)||"　　　"}）簽名：＿＿＿＿＿＿＿＿　　船長簽名：＿＿＿＿＿＿＿＿　　督導覆核：＿＿＿＿＿＿＿＿</div>`;
+      </div>`).join("")}`;
     doPrint();
   },
 
