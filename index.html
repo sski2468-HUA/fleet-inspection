@@ -2369,6 +2369,20 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       </div>
     </div>
 
+    <div class="modal-bg" id="airPushPosModal">
+      <div class="modal" style="max-width:440px">
+        <div class="mh"><h3>➜ 轉入正面評價/優秀案例記錄</h3><button class="x" onclick="Air.closePushPosModal()">✕</button></div>
+        <div class="mb">
+          <p class="hint" id="airPushPosMsg" style="margin-bottom:14px;line-height:1.7;white-space:pre-line"></p>
+          <div class="modal-actions" style="flex-direction:column;gap:8px;align-items:stretch">
+            <button class="btn primary" onclick="Air.confirmPushPos('overwrite')">🔁 覆蓋先前轉入的紀錄（建議）</button>
+            <button class="btn dark" onclick="Air.confirmPushPos('add')">➕ 另外新增（會產生重複）</button>
+            <button class="btn" onclick="Air.closePushPosModal()">取消</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-bg" id="icVisitSummaryModal">
       <div class="modal" style="max-width:560px">
         <div class="mh"><h3>👤 訪船總覽（依檢查安排人分組）</h3><button class="x" onclick="InspCtrl.closeVisitSummary()">✕</button></div>
@@ -2846,6 +2860,9 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       <div class="toolbar" style="margin-bottom:14px">
         <button class="btn" id="ic-devs-toggle" onclick="InspCtrl.toggleDevsPanel()">⚠ 督導間隔警示</button>
         <button class="btn" id="ic-enh-toggle" onclick="InspCtrl.toggleEnhPanel()">🔺 加強管理船舶</button>
+        <span class="spacer" style="flex:1"></span>
+        <button class="btn" onclick="InspCtrl.filterMyOwner()" title="依登入身份，只顯示「檢查安排人」是我的項目">🙋 只看我負責的</button>
+        <button class="btn" onclick="InspCtrl.filterMySupervised()" title="依登入身份，只顯示我擔任甲板或機艙督導的船">🧭 只看我督導的船</button>
       </div>
 
       <div class="card" id="ic-devs-card" style="margin-bottom:14px;display:none">
@@ -11567,6 +11584,33 @@ const InspCtrl={
     this.quickStatus=(this.quickStatus===s)?"all":s;
     this.page=1;this.render();
   },
+  /* 快捷篩選：依登入身份自動比對「檢查安排人」或「甲板／機艙督導」欄位 ── */
+  myName(){
+    return (typeof Role!=="undefined"&&Role.cur&&Role.cur.name)?Role.cur.name:"";
+  },
+  filterMyOwner(){
+    const me=this.myName();
+    if(!me){toast("⚠ 目前登入身份沒有對應姓名，無法自動篩選");return;}
+    Object.values(this.ms).forEach(m=>m.clear&&m.clear());
+    const owners=[...new Set(App.inspCtrl.map(d=>d.owner))].filter(Boolean);
+    if(!owners.includes(me)){
+      toast(`⚠「${me}」目前不是任何一筆的檢查安排人，篩選已清空`);
+      this.page=1;this.render();return;
+    }
+    this.ms.owner.set([me]);
+    this.page=1;this.render();
+    toast(`✓ 只顯示檢查安排人為「${me}」的項目`);
+  },
+  filterMySupervised(){
+    const me=this.myName();
+    if(!me){toast("⚠ 目前登入身份沒有對應姓名，無法自動篩選");return;}
+    const ships=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>s.deckSup===me||s.engineSup===me).map(s=>s.code);
+    if(!ships.length){toast(`⚠「${me}」目前不是任何船舶的甲板或機艙督導，篩選已清空`);Object.values(this.ms).forEach(m=>m.clear&&m.clear());this.page=1;this.render();return;}
+    Object.values(this.ms).forEach(m=>m.clear&&m.clear());
+    this.ms.ship.set(ships);
+    this.page=1;this.render();
+    toast(`✓ 只顯示「${me}」擔任甲板／機艙督導的 ${ships.length} 艘船`);
+  },
   clearFilters(){Object.values(this.ms).forEach(m=>m.clear&&m.clear());this.quickStatus="all";this.page=1;this.render();},
   toggleUnsched(){
     this.onlyUnsched=!this.onlyUnsched;
@@ -15146,7 +15190,7 @@ const Air={
       // 因為很多檢查（如純紀錄性質）本來就沒有缺失，下方明細卡片會依此自動隱藏。
       this.posRows=(d.posComments||[]).map(x=>{
         const people=Array.isArray(x.people)&&x.people.length?x.people:[{rank:x.rank||"",person:x.person||""}];
-        return {id:this.posSeq++,code:x.code||"",item:x.item||"",comment:x.comment||"",people:people.map(p=>({rank:p.rank||"",person:p.person||""}))};
+        return {id:this.posSeq++,code:x.code||"",item:x.item||"",comment:x.comment||"",people:people.map(p=>({rank:p.rank||"",person:p.person||""})),pushedPosIds:Array.isArray(x.pushedPosIds)?x.pushedPosIds:null};
       });
       if(!this.posRows.length&&(+d.npos||0)>0){
         for(let i=0;i<(+d.npos||0);i++)this.posRows.push(this.blankPos());
@@ -15618,7 +15662,7 @@ const Air={
       ndef:+$("#air-ndef").value||0,npos:+$("#air-npos").value||0,
       flagType:_airFlagVal2,
       defects:this.rowsToDefectsPayload(this.defRows),
-      posComments:this.posRows.filter(r=>r.code||r.item||r.comment||(r.people||[]).some(p=>p.rank||p.person)).map(r=>({code:r.code||"",item:r.item||"",comment:r.comment||"",people:(r.people||[{rank:"",person:""}]).map(p=>({rank:p.rank||"",person:p.person||""}))}))
+      posComments:this.posRows.filter(r=>r.code||r.item||r.comment||(r.people||[]).some(p=>p.rank||p.person)).map(r=>({code:r.code||"",item:r.item||"",comment:r.comment||"",people:(r.people||[{rank:"",person:""}]).map(p=>({rank:p.rank||"",person:p.person||""})),pushedPosIds:Array.isArray(r.pushedPosIds)?r.pushedPosIds:null}))
     };
     const old=App.air.find(x=>x.id===this.editId);
     Object.assign(old,rec);old.updatedAt=Date.now();
@@ -15656,7 +15700,7 @@ const Air={
       ndef:+$("#air-ndef").value||0,npos:+$("#air-npos").value||0,
       flagType:_airFlagVal3,
       defects:this.rowsToDefectsPayload(this.defRows),
-      posComments:this.posRows.filter(r=>r.code||r.item||r.comment||(r.people||[]).some(p=>p.rank||p.person)).map(r=>({code:r.code||"",item:r.item||"",comment:r.comment||"",people:(r.people||[{rank:"",person:""}]).map(p=>({rank:p.rank||"",person:p.person||""}))}))
+      posComments:this.posRows.filter(r=>r.code||r.item||r.comment||(r.people||[]).some(p=>p.rank||p.person)).map(r=>({code:r.code||"",item:r.item||"",comment:r.comment||"",people:(r.people||[{rank:"",person:""}]).map(p=>({rank:p.rank||"",person:p.person||""})),pushedPosIds:Array.isArray(r.pushedPosIds)?r.pushedPosIds:null}))
     };
     const old=App.air.find(x=>x.id===this.editId);
     if(!old)return;
@@ -15707,6 +15751,7 @@ const Air={
     d.usedInsp=true;
     App.saveAll();if(App.refreshMeta)App.refreshMeta();
     if(typeof Ov!=="undefined"){Ov.init();Ov.render();}
+    if(typeof InspCtrl!=="undefined")InspCtrl.render();
   },
   async pushDefRowsToDefs(){
     if(!await Guard.require())return;
@@ -15783,25 +15828,55 @@ const Air={
     if(selScope)rows=rows.filter(r=>this.posSel.has(r.id));
     if(!rows.length){toast(selScope?"⚠ 已勾選的列中沒有可轉入的正面評價明細":"⚠ 沒有可轉入的正面評價明細");return;}
     let total=0;rows.forEach(r=>{total+=(r.people&&r.people.length?r.people.filter(p=>p.rank||p.person).length||1:1);});
-    const msg=(d.usedPos
-      ?`⚠ 此筆填單先前已轉入過「正面評價/優秀案例記錄」，再次轉入將會重複新增 ${total} 筆評論，確定要繼續？`
-      :`確定要將${selScope?"已勾選的 ":""} ${rows.length} 列正面評價明細（共 ${total} 筆，含多位受訪人員）轉入「正面評價/優秀案例記錄」？`);
-    if(!confirm(msg))return;
-    let n=0;
+    this._pendingPushPosRows=rows;
+    if(!d.usedPos){
+      // 第一次轉入，沒有先前紀錄可覆蓋，直接新增即可
+      if(!confirm(`確定要將${selScope?"已勾選的 ":""} ${rows.length} 列正面評價明細（共 ${total} 筆，含多位受訪人員）轉入「正面評價/優秀案例記錄」？`))return;
+      this._doPushPos(rows,"add");
+      return;
+    }
+    const msg=`此筆填單先前已轉入過「正面評價/優秀案例記錄」。\n\n建議選「覆蓋」：系統會依上次轉入時的對應關係，直接更新原本那幾筆正面評價紀錄的內容（找不到對應舊紀錄——例如已被手動刪除——的會視為新增一筆）；若您是刻意要另外多留一份，才選「另外新增」，會產生 ${total} 筆全新的重複紀錄。`;
+    $("#airPushPosMsg").textContent=msg;
+    $("#airPushPosModal").classList.add("show");
+  },
+  closePushPosModal(){$("#airPushPosModal").classList.remove("show");this._pendingPushPosRows=null;},
+  confirmPushPos(mode){
+    const rows=this._pendingPushPosRows;
+    this.closePushPosModal();
+    if(!rows||!rows.length)return;
+    this._doPushPos(rows,mode);
+  },
+  _doPushPos(rows,mode){
+    const d=App.air.find(x=>x.id===this.editId);if(!d)return;
+    let added=0,updated=0;
     rows.forEach(r=>{
       const people=(r.people||[]).filter(p=>p.rank||p.person);
       const list=people.length?people:[{rank:"",person:""}];
-      list.forEach(p=>{
-        App.sirePos.push({id:(typeof SirePos!=="undefined"?SirePos.nextId():(App.sirePos.reduce((m,x)=>Math.max(m,+x.id||0),0)+1)),
-          ship:d.ship,date:d.date,ym:ymOf(d.date),code:r.code||"",item:r.item||"",comment:r.comment||"",rank:p.rank||"",person:p.person||""});
-        n++;
+      const prevIds=Array.isArray(r.pushedPosIds)?r.pushedPosIds:[];
+      const newIds=[];
+      list.forEach((p,i)=>{
+        const payload={ship:d.ship,date:d.date,ym:ymOf(d.date),code:r.code||"",item:r.item||"",comment:r.comment||"",rank:p.rank||"",person:p.person||""};
+        const existing=(mode==="overwrite"&&prevIds[i]!=null)?App.sirePos.find(x=>x.id===prevIds[i]):null;
+        if(existing){
+          Object.assign(existing,payload);
+          newIds.push(existing.id);
+          updated++;
+        }else{
+          const id=(typeof SirePos!=="undefined"?SirePos.nextId():(App.sirePos.reduce((m,x)=>Math.max(m,+x.id||0),0)+1));
+          App.sirePos.push({id,...payload});
+          newIds.push(id);
+          added++;
+        }
       });
+      r.pushedPosIds=newIds; // 記住這次轉入對應的正面評價紀錄id，供下次覆蓋比對
     });
     d.usedPos=true;
+    d.posComments=this.posRows.filter(r=>r.code||r.item||r.comment||(r.people||[]).some(p=>p.rank||p.person)).map(r=>({code:r.code||"",item:r.item||"",comment:r.comment||"",people:(r.people||[{rank:"",person:""}]).map(p=>({rank:p.rank||"",person:p.person||""})),pushedPosIds:Array.isArray(r.pushedPosIds)?r.pushedPosIds:null})); // 把更新後的 pushedPosIds 寫回持久化的 posComments
     App.saveAll();if(App.refreshMeta)App.refreshMeta();
     if(typeof SirePos!=="undefined")SirePos.init();
-    if(typeof Audit!=="undefined")Audit.log("轉入","正面評價/優秀案例記錄",`由AIR#${d.id}轉入 ${n} 筆`);
-    toast(`✓ 已轉入 ${n} 筆正面評價`);
+    const msg=mode==="overwrite"?`✓ 已覆蓋更新 ${updated} 筆、新增 ${added} 筆正面評價`:`✓ 已新增 ${added} 筆正面評價`;
+    if(typeof Audit!=="undefined")Audit.log("轉入","正面評價/優秀案例記錄",`由AIR#${d.id}${mode==="overwrite"?"覆蓋轉入":"轉入"}（更新${updated}／新增${added}）`);
+    toast(msg);
   },
   toggleAll(on){this.selected=on?new Set(this.filtered().map(d=>String(d.id))):new Set();this.renderList();},
   toggleSel(id,on){id=String(id);on?this.selected.add(id):this.selected.delete(id);this.refreshStat();},
@@ -15889,6 +15964,7 @@ const Air={
       });
       if(typeof Audit!=="undefined")Audit.log("轉入","檢查紀錄",`由AIR轉入／同步 ${n} 筆`);
       if(typeof Ov!=="undefined"){Ov.init();Ov.render();}
+      if(typeof InspCtrl!=="undefined")InspCtrl.render();
     }else if(target==="defs"){
       items.forEach(d=>{
         const defects=(d.defects&&d.defects.length)?d.defects:[{psc:"",code:"",actual:"",detail:"",corrective:"",rootCause:"",preventive:"",rank:"",person:""}];
