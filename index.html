@@ -707,6 +707,10 @@ table.tbl tbody tr.sel:hover>td{background:#fbe8d4}
 .df-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .dr-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .dp-vtypebtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
+.spg-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
+.sup-rolebtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
+.sup-viewbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
+.fv-pagebtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .df-cardlist{display:flex;flex-direction:column;gap:8px;margin-top:10px}
 .df-card{border:1px solid var(--line);border-left:4px solid var(--navy-3);border-radius:8px;background:#fff;padding:10px 12px}
 .df-card:hover{box-shadow:0 2px 8px rgba(20,40,60,.08)}
@@ -2007,9 +2011,11 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
           <button onclick="Ov.setScope('ext',this)">外部檢查</button>
           <button onclick="Ov.setScope('int',this)">內部檢查</button>
         </span>
+        <button class="btn sm" onclick="AdvFilterEngine.open('ov')">🔎 進階篩選<span id="ov-adv-filter-count"></span></button>
         <button class="btn sm" onclick="Ov.clearFilters()">清除全部</button>
         <span class="spacer" style="flex:1"></span>
         <span class="statline" id="ov-period">全部期間</span>
+        <div id="ov-adv-filter-chips" class="toolbar" style="flex-basis:100%;margin:6px 0 0;display:none"></div>
         <div id="ov-months" class="ov-months" style="flex-basis:100%;margin:6px 0 0"></div>
       </div>
 
@@ -2053,14 +2059,23 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
 
     <!-- ════════ 1.7 船舶資料 ════════ -->
     <section id="tab-sp" class="tabpage">
+      <div class="card" style="margin-bottom:14px">
+        <div class="toolbar" style="margin-bottom:0">
+          <button class="btn sm spg-tabbtn active" data-p="info" onclick="ShipGroup.setPage('info')">🚢 船舶資料</button>
+          <button class="btn sm spg-tabbtn" data-p="super" onclick="ShipGroup.setPage('super')">🧭 海技/督導經管船清單</button>
+        </div>
+      </div>
+      <div id="spg-page-info" class="spg-subpage">
       <div class="filterbar">
         <span class="lbl">篩選</span>
         <div class="msel" id="ms-s2-vtype"></div>
         <div class="msel" id="ms-s2-ship"></div>
         <div class="msel" id="ms-s2-operator"></div>
+        <button class="btn sm" onclick="AdvFilterEngine.open('sp')">🔎 進階篩選<span id="sp-adv-filter-count"></span></button>
         <button class="btn sm" onclick="Sp.clearFilters()">清除</button>
         <span class="spacer" style="flex:1"></span>
         <span class="statline" id="sp-stat"></span>
+        <div id="sp-adv-filter-chips" class="toolbar" style="flex-basis:100%;margin-top:6px;display:none"></div>
       </div>
       <div class="kpis" id="sp-kpis"></div>
       <div class="grid2">
@@ -2081,6 +2096,27 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         </h3>
         <div class="tblwrap" style="max-height:480px">
           <table class="tbl"><thead><tr id="sp-thead"></tr></thead><tbody id="sp-tbody"></tbody></table>
+        </div>
+      </div>
+      </div>
+      <div id="spg-page-super" class="spg-subpage" style="display:none">
+        <div class="banner">依「海技經管／甲板督導／機艙督導／CSO」分組，一次看出每位負責哪些船；<b>所有人皆可查看這份清單</b>，但督導調動（例如某位船長換管另一批船，可整批改派，不用逐艘船進「船舶資料」編輯）<b>僅限 Owner 操作</b>——這裡改完，系統其他地方（檢查管控的甲板/機艙督導欄位、督導間隔警示等）會自動跟著更新，因為都是即時讀「船舶資料」這份主檔。</div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="toolbar" style="margin-bottom:0">
+            <span class="lbl">角色</span>
+            <button class="btn sm sup-rolebtn active" data-r="mgr" onclick="SupMgmt.setRole('mgr')">海技經管</button>
+            <button class="btn sm sup-rolebtn" data-r="deckSup" onclick="SupMgmt.setRole('deckSup')">甲板督導</button>
+            <button class="btn sm sup-rolebtn" data-r="engineSup" onclick="SupMgmt.setRole('engineSup')">機艙督導</button>
+            <button class="btn sm sup-rolebtn" data-r="cso" onclick="SupMgmt.setRole('cso')">CSO</button>
+            <span class="spacer" style="flex:1"></span>
+            <span class="lbl">檢視</span>
+            <button class="btn sm sup-viewbtn active" data-v="card" onclick="SupMgmt.setView('card')">🗂 卡片</button>
+            <button class="btn sm sup-viewbtn" data-v="list" onclick="SupMgmt.setView('list')">📋 列表</button>
+          </div>
+        </div>
+        <div id="sup-cards"></div>
+        <div id="sup-list-wrap" class="card" style="display:none">
+          <div class="tblwrap" style="max-height:600px"><table class="tbl" id="sup-list"></table></div>
         </div>
       </div>
     </section>
@@ -2262,6 +2298,10 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
                 <input type="checkbox" id="ic-e-enhance" onchange="InspCtrl.onEnhanceToggle()" style="width:16px;height:16px"> 加強稽核（原因需填寫；勾選後效期自動改為6個月一次，且建議至少維持一年）
               </span>
               <input type="text" id="ic-e-enhance-reason" placeholder="加強稽核原因（例：PSC滯留／缺失偏多，需提高頻率觀察）" style="margin-top:6px">
+              <span style="display:flex;align-items:center;gap:6px;margin-top:6px">
+                <span style="font-size:12px;color:#9a5a1a;white-space:nowrap">起算日</span>
+                <input type="text" id="ic-e-enhance-since" placeholder="2026/7/10" style="flex:1" oninput="InspCtrl.onEnhanceSinceInput()">
+              </span>
               <span class="hint" id="ic-e-enhance-hint" style="font-size:10.5px;display:block;margin-top:4px"></span>
             </label>
             <label class="fw">備註<textarea id="ic-e-note"></textarea></label>
@@ -2683,8 +2723,10 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <div class="msel" id="ms-f-ncfocus"></div>
         <div class="msel" id="ms-f-risk"></div>
         <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="f-attn" onchange="Defs.page=1;Defs.render()" style="accent-color:var(--signal)"> 僅顯示🆕新缺失須注意</label>
+        <button class="btn sm" onclick="AdvFilterEngine.open('defs')">🔎 進階篩選<span id="adv-filter-count"></span></button>
         <button class="btn sm" onclick="Defs.clearFilters()">清除篩選</button>
       </div>
+      <div class="toolbar" id="adv-filter-chips" style="flex-basis:100%;margin-top:6px;display:none"></div>
       <div class="toolbar" style="margin-bottom:0">
         <button class="btn sm df-tabbtn active" data-p="view" onclick="Defs.setSubTab('view')">👁 查看模式</button>
         <button class="btn sm df-tabbtn" data-p="list" onclick="Defs.setSubTab('list')">📋 列表模式</button>
@@ -2832,6 +2874,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
           <button class="btn sm ig-tabbtn" data-p="audit" onclick="InspGroup.setPage('audit')">📋 內稽動態</button>
           <button class="btn sm ig-tabbtn" data-p="annual" onclick="InspGroup.setPage('annual')">📅 年度計畫暨執行情形</button>
           <button class="btn sm ig-tabbtn" data-p="drill" onclick="InspGroup.setPage('drill')">🧯 操演計畫表</button>
+          <button class="btn sm ig-tabbtn" data-p="enhlog" onclick="InspGroup.setPage('enhlog')">📜 加強管理歷史</button>
           <span class="spacer" style="flex:1"></span>
           <button class="btn" onclick="InspGroup.openGuide()">📖 操作說明</button>
         </div>
@@ -2902,12 +2945,14 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
           <div id="ms-ic-owner"></div>
           <div id="ms-ic-decksup"></div>
           <div id="ms-ic-enginesup"></div>
+          <button class="btn sm" onclick="AdvFilterEngine.open('inspctrl')">🔎 進階篩選<span id="ic-adv-filter-count"></span></button>
           <button class="btn sm" onclick="InspCtrl.clearFilters()">清除篩選</button>
           <span class="spacer" style="flex:1"></span>
           <button class="btn primary" onclick="InspCtrl.openEdit(null)">＋ 新增管控紀錄</button>
           <button class="btn" onclick="InspCtrl.openVisitSummary()" title="依「檢查安排人」分組，一目了然看出誰最近沒有訪船紀錄">👤 訪船總覽</button>
           <button class="btn" onclick="InspCtrl.openImportModal()">⬆ 匯入</button>
           <button class="btn" onclick="InspCtrl.openDownloadModal()">⬇ 匯出</button>
+          <div id="ic-adv-filter-chips" style="flex-basis:100%;margin-top:6px;display:none"></div>
         </div>
         <div class="toolbar" style="margin-bottom:10px;border-top:1px solid var(--line);padding-top:10px">
           <span class="hint" style="font-weight:600">排序：</span>
@@ -3220,6 +3265,29 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             </div>
             <div id="dr-list" style="display:flex;flex-direction:column;gap:8px"></div>
           </div>
+        </div>
+      </div>
+
+      <div id="ig-page-enhlog" class="ig-subpage" style="display:none">
+        <div class="banner">記錄每一次船舶被列入或解除「加強稽核」的事件，即使日後取消勾選也不會消失——想查某艘船以前是否曾被加強管理過、原因是什麼、維持了多久，來這裡查。這份紀錄由系統自動產生，不需手動新增。<b>此功能上線前就已經被列為加強稽核的船舶，請按右方「🔄 回填現有加強名單」補登一次即可，之後就會自動記錄。</b></div>
+        <div class="card">
+          <div class="toolbar" style="margin-bottom:10px">
+            <div id="ms-el-ship"></div>
+            <div id="ms-el-itype"></div>
+            <div id="ms-el-event"></div>
+            <button class="btn sm" onclick="EnhAuditLog.clearFilters()">清除篩選</button>
+            <span class="spacer" style="flex:1"></span>
+            <span class="hint" id="el-count"></span>
+            <button class="btn sm" onclick="EnhAuditLog.backfillExisting()" title="把目前已勾選加強稽核、但還沒有歷史紀錄的船舶補登一筆「開始」事件">🔄 回填現有加強名單</button>
+            <button class="btn sm" onclick="EnhAuditLog.exportXlsx()">⬇ 匯出 Excel</button>
+          </div>
+          <div class="tblwrap" style="max-height:520px">
+            <table class="tbl">
+              <thead><tr><th>船舶</th><th>檢查項目</th><th>事件</th><th>日期</th><th>原因／備註</th><th>記錄人／時間</th></tr></thead>
+              <tbody id="el-tbody"></tbody>
+            </table>
+          </div>
+          <div class="pager" id="el-pager" style="margin-top:10px"></div>
         </div>
       </div>
     </section>
@@ -4382,13 +4450,14 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         </div>
       </div>
 
-      <!-- ═══ 缺失彙總表篩選欄位顯示設定 ═══ -->
+      <!-- ═══ 各頁面篩選欄位顯示設定 ═══ -->
       <div class="card" style="margin-bottom:14px;border-left:4px solid var(--teal)">
-        <h3>👁 缺失彙總表 — 篩選欄位顯示設定</h3>
+        <h3>👁 各頁面篩選欄位顯示設定</h3>
         <p class="hint" style="margin-bottom:10px;line-height:1.7">
-          選擇「缺失紀錄總表」上方篩選列要顯示哪些欄位（例如平常用不到某個篩選欄位，可先隱藏、需要時再打開）；取消勾選＝隱藏，全系統所有人看到的畫面一起變。<b>僅 Owner 可調整此設定</b>。
+          選擇每個頁面上方篩選列要顯示哪些「快捷篩選按鈕」（例如平常用不到某個篩選欄位，可先隱藏、需要時再打開）；取消勾選＝隱藏該按鈕，全系統所有人看到的畫面一起變，<b>但該欄位仍可透過該頁的「🔎 進階篩選」臨時篩選，不會因為隱藏就完全篩不到</b>。<b>僅 Owner 可調整此設定</b>。
         </p>
-        <div id="defs-filter-vis-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 14px"></div>
+        <div class="toolbar" id="filter-vis-tabs" style="margin-bottom:10px"></div>
+        <div id="filter-vis-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 14px"></div>
       </div>
 
       <!-- ═══ 外部/內部檢查、檢查類型對應定義 ═══ -->
@@ -4667,7 +4736,44 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
   </div>
 </div>
 
+<div class="modal-bg" id="advFilterModal">
+  <div class="modal" style="max-width:520px">
+    <div class="mh"><h3>🔎 進階篩選</h3><button class="x" onclick="AdvFilterEngine.close()">✕</button></div>
+    <div class="mb">
+      <p class="hint" style="margin-bottom:12px;line-height:1.7">選一個欄位，用「清單選擇」精準比對既有值，或用「關鍵字」做包含比對（例如找 CODE 為 5.8.1 的缺失）；可疊加多條件，彼此為「同時符合」。</p>
+      <div class="fgrid">
+        <label>欄位<select id="adv-field" onchange="AdvFilterEngine.onFieldChange()"></select></label>
+        <label>比對方式
+          <select id="adv-mode" onchange="AdvFilterEngine.onModeChange()">
+            <option value="list">清單選擇（精準比對）</option>
+            <option value="kw">關鍵字（包含比對）</option>
+          </select>
+        </label>
+      </div>
+      <div id="adv-value-list-wrap">
+        <label style="display:block;margin-top:8px">值<select id="adv-value-list" style="width:100%"></select></label>
+      </div>
+      <div id="adv-value-kw-wrap" style="display:none">
+        <label style="display:block;margin-top:8px">關鍵字<input type="text" id="adv-value-kw" placeholder="輸入要包含比對的文字，例如 5.8.1" style="width:100%" onkeydown="if(event.key==='Enter'){event.preventDefault();AdvFilterEngine.addFilter();}"></label>
+      </div>
+      <div class="toolbar" style="margin-top:10px">
+        <button class="btn primary" onclick="AdvFilterEngine.addFilter()">＋ 新增這條篩選</button>
+      </div>
+      <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
+        <p class="hint" style="margin-bottom:6px">目前已套用</p>
+        <div id="adv-active-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn" onclick="AdvFilterEngine.clearAll(AdvFilterEngine.curKey)">清空全部進階篩選</button>
+      <span style="flex:1"></span>
+      <button class="btn primary" onclick="AdvFilterEngine.close()">完成</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="adDateModal">
+
   <div class="modal" style="max-width:420px">
     <div class="mh"><h3 id="ad-date-title">選擇日期</h3><button class="x" onclick="AuditDash.closeDatePick()">✕</button></div>
     <div class="mb">
@@ -4866,6 +4972,25 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       <span style="flex:1"></span>
       <button class="btn" onclick="Sp.closeEdit()">取消</button>
       <button class="btn primary" onclick="Sp.saveEdit()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 督導調動 -->
+<div class="modal-bg" id="supReassignModal">
+  <div class="modal" style="max-width:520px">
+    <div class="mh"><h3>🔁 調動督導</h3><button class="x" onclick="SupMgmt.closeReassignModal()">✕</button></div>
+    <div class="mb">
+      <p class="hint" style="margin-bottom:10px;line-height:1.7">角色：<b id="sup-reassign-role"></b>　　原本：<b id="sup-reassign-from"></b></p>
+      <label style="display:block;margin-bottom:10px">改派給
+        <input type="text" id="sup-reassign-to" list="dl-supervisor-names" placeholder="輸入或從清單選擇新負責人姓名" style="width:100%;margin-top:4px">
+      </label>
+      <p class="hint" style="margin-bottom:6px">適用船舶（可取消勾選排除特定船）</p>
+      <div id="sup-reassign-ships" style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:8px"></div>
+    </div>
+    <div class="mf">
+      <button class="btn" onclick="SupMgmt.closeReassignModal()">取消</button>
+      <button class="btn primary" onclick="SupMgmt.confirmReassign()">確定調動</button>
     </div>
   </div>
 </div>
@@ -5767,7 +5892,7 @@ const DataHub={
      cards:["資料庫管理","缺失紀錄總表","檢查紀錄資料庫","檢查管控（含排程）","船舶資料管理",
             "SIRE正向評論","填單","船舶缺失自查","缺失代碼對照表"]},
     {id:"cfg",   icon:"⚙️", name:"系統設定",
-     cards:["側邊欄項目管理","篩選清單管理","缺失分類階層管理","缺失彙總表 — 篩選欄位顯示設定","外部/內部檢查、檢查類型對應定義"]},
+     cards:["側邊欄項目管理","篩選清單管理","缺失分類階層管理","各頁面篩選欄位顯示設定","外部/內部檢查、檢查類型對應定義"]},
     {id:"backup",icon:"📦", name:"備份與還原",
      cards:["一鍵下載全部備份","預設資料／備份還原","全部歸零"]},
     {id:"audit", icon:"📜", name:"操作紀錄",
@@ -7212,8 +7337,8 @@ function applyTM(rec){ // 補齊單筆紀錄的TM欄位
 
 /* ───── 資料層 ───── */
 const App={
-  insp:[], defs:[], tasks:[], curTaskId:null, sirePos:[], air:[], chapterOverrides:{}, inspCtrl:[], refDocs:[], refDocs2:[], annualPlan:[], auditDash:[], defsProjects:[], projectMembers:[], drillRecords:[], drillRecordEditors:[], defsGridEditors:[], taskCreators:[], exporters:[], deletedTaskGids:[], recycleBin:[], airHaijiConfirmers:[],
-  LSK:{i:"vsm_insp_v8",d:"vsm_defs_v8",s:"vsm_tasks_v2",sp:"vsm_sirepos_v1",air:"vsm_air_v1",ch:"vsm_chapter_overrides_v1",ic:"vsm_inspctrl_v1",rd:"vsm_refdocs_v1",rd2:"vsm_refdocs2_v1",ap:"vsm_annualplan_v1",ad:"vsm_auditdash_v1",dp:"vsm_defsprojects_v1",pm:"vsm_projectmembers_v1",dr:"vsm_drillrecords_v1",dre:"vsm_drillrecordeditors_v1",dge:"vsm_defsgrideditors_v1",tcr:"vsm_taskcreators_v1",exp:"vsm_exporters_v1",dtg:"vsm_deletedtaskgids_v1",rb:"vsm_recyclebin_v1",ahc:"vsm_air_haiji_confirmers_v1"},
+  insp:[], defs:[], tasks:[], curTaskId:null, sirePos:[], air:[], chapterOverrides:{}, inspCtrl:[], refDocs:[], refDocs2:[], annualPlan:[], auditDash:[], defsProjects:[], projectMembers:[], drillRecords:[], drillRecordEditors:[], defsGridEditors:[], taskCreators:[], exporters:[], deletedTaskGids:[], recycleBin:[], airHaijiConfirmers:[], enhAuditLog:[],
+  LSK:{i:"vsm_insp_v8",d:"vsm_defs_v8",s:"vsm_tasks_v2",sp:"vsm_sirepos_v1",air:"vsm_air_v1",ch:"vsm_chapter_overrides_v1",ic:"vsm_inspctrl_v1",rd:"vsm_refdocs_v1",rd2:"vsm_refdocs2_v1",ap:"vsm_annualplan_v1",ad:"vsm_auditdash_v1",dp:"vsm_defsprojects_v1",pm:"vsm_projectmembers_v1",dr:"vsm_drillrecords_v1",dre:"vsm_drillrecordeditors_v1",dge:"vsm_defsgrideditors_v1",tcr:"vsm_taskcreators_v1",exp:"vsm_exporters_v1",dtg:"vsm_deletedtaskgids_v1",rb:"vsm_recyclebin_v1",ahc:"vsm_air_haiji_confirmers_v1",el:"vsm_enhauditlog_v1"},
   /* 一次性資料修補：把 2026/7/1 CSO 名單併入現有船舶資料的 CSO 欄位，只在該船 cso 欄位目前是空的時候才帶入，
      不會覆蓋任何已存在的資料；只執行一次（用 localStorage flag 記錄），之後有異動一律以「船舶資料」頁面手動維護為準。*/
   migrateCsoData(){
@@ -7291,6 +7416,7 @@ const App={
       const lexp=LZGet(this.LSK.exp);this.exporters=lexp?JSON.parse(lexp):[];
       const ldtg=LZGet(this.LSK.dtg);this.deletedTaskGids=ldtg?JSON.parse(ldtg):[];
       const lrb=LZGet(this.LSK.rb);this.recycleBin=lrb?JSON.parse(lrb):[];
+      const lel=LZGet(this.LSK.el);this.enhAuditLog=lel?JSON.parse(lel):[];
       const lap=LZGet(this.LSK.ap);this.annualPlan=lap?JSON.parse(lap):[];
       const lad=LZGet(this.LSK.ad);this.auditDash=lad?JSON.parse(lad):[];
       const ldp=LZGet(this.LSK.dp);this.defsProjects=ldp?JSON.parse(ldp):[];
@@ -7322,7 +7448,7 @@ const App={
     this.defs.forEach(d=>{if(d.inspector)d.inspector=canonInspector(d.inspector);if(d.oilco)d.oilco=canonUnit(d.oilco);});
     if(typeof Classify!=="undefined")Classify.init();
     if(typeof NCTree!=="undefined")NCTree.init();
-    Dash.init();Ov.init();Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();
+    Dash.init();Ov.init();if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();
     refreshInspectorList();
     this.refreshMeta();
     NavConfig.apply();
@@ -7388,6 +7514,7 @@ const App={
         [this.LSK.exp,()=>JSON.stringify(this.exporters),null],
         [this.LSK.dtg,()=>JSON.stringify(this.deletedTaskGids),null],
         [this.LSK.rb ,()=>JSON.stringify(this.recycleBin),null],
+        [this.LSK.el ,()=>JSON.stringify(this.enhAuditLog),null],
         [this.LSK.ap,()=>JSON.stringify(this.annualPlan),"annualPlan"],
         [this.LSK.ad,()=>JSON.stringify(this.auditDash),"auditDash"],
         [this.LSK.dp,()=>JSON.stringify(this.defsProjects),"defsProjects"],
@@ -8363,7 +8490,7 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
   if(n.dataset.tab==="ov")Ov.render();
   if(n.dataset.tab==="data"&&typeof EditorList!=="undefined")EditorList.renderAll();
   if(n.dataset.tab==="guide"&&typeof GuideRole!=="undefined")GuideRole.init();
-  if(n.dataset.tab==="sp")Sp.render();
+  if(n.dataset.tab==="sp"&&typeof ShipGroup!=="undefined")ShipGroup.setPage(ShipGroup.curPage);
   if(n.dataset.tab==="recur")Recur.render();
   if(n.dataset.tab==="ref")Ref.render();
   if(n.dataset.tab==="self")SelfCheck.render();
@@ -8493,7 +8620,7 @@ const Ov={
     s1.innerHTML=opts;s2.innerHTML=opts;
   },
   detVal(i){return (i.detain||"").toUpperCase().startsWith("Y")?"⚑ 扣船":"未扣船";},
-  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());this.sel.clear();this.scope="all";$("#ov-kw").value="";if($("#ov-ymfrom"))$("#ov-ymfrom").value="";if($("#ov-ymto"))$("#ov-ymto").value="";const sc=$("#ov-scope");if(sc){[...sc.children].forEach((b,i)=>b.className=i===0?"on-pend":"");}this.render();},
+  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());this.sel.clear();this.scope="all";$("#ov-kw").value="";if($("#ov-ymfrom"))$("#ov-ymfrom").value="";if($("#ov-ymto"))$("#ov-ymto").value="";const sc=$("#ov-scope");if(sc){[...sc.children].forEach((b,i)=>b.className=i===0?"on-pend":"");}if(typeof AdvFilterEngine!=="undefined")AdvFilterEngine.clearAll("ov",true);this.render();},
   openYears:new Set(),
   monthsOf(y){return [...new Set(App.insp.map(i=>ymOf(i.date)))].filter(m=>m.startsWith(y+"-")).sort();},
   expand(y){this.openYears.has(y)?this.openYears.delete(y):this.openYears.add(y);this.render();},
@@ -8597,6 +8724,7 @@ const Ov={
       if(!this.ms.icat.pass(icatOf(i.itype)))return false;
       if(!this.ms.detain.pass(this.detVal(i))||!this.ms.insp.pass(i.inspector)||!this.ms.loc.pass(i.loc)||!this.ms.unit.pass(i.unit))return false;
       if(terms.length){const hay=`${i.ship} ${i.loc} ${i.inspector} ${i.unit} ${i.flagType}`.toLowerCase();if(!terms.every(t=>hay.includes(t)))return false;}
+      if(typeof AdvFilterEngine!=="undefined"&&!AdvFilterEngine.pass("ov",i))return false;
       return true;
     });
   },
@@ -8895,8 +9023,8 @@ const Sp={
       dl.innerHTML=names.map(n=>`<option value="${esc(n)}">`).join("");
     }catch(e){}
   },
-  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());this.render();},
-  filtered(){return SHIPINFO.filter(s=>this.ms.vtype.pass(s.vtype)&&this.ms.ship.pass(s.code)&&this.ms.operator.pass(s.operator));},
+  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());if(typeof AdvFilterEngine!=="undefined")AdvFilterEngine.clearAll("sp",true);this.render();},
+  filtered(){return SHIPINFO.filter(s=>this.ms.vtype.pass(s.vtype)&&this.ms.ship.pass(s.code)&&this.ms.operator.pass(s.operator)&&(typeof AdvFilterEngine==="undefined"||AdvFilterEngine.pass("sp",s)));},
   sort(k){if(this.sortKey===k)this.sortAsc=!this.sortAsc;else{this.sortKey=k;this.sortAsc=true;}this.render();},
   render(){
     const rows=this.filtered();
@@ -9094,6 +9222,143 @@ const Sp={
     try{if(typeof InspCtrl!=="undefined")InspCtrl.refreshRosterNames();}catch(e){}
     toast(`✓ 已匯入 ${this._pendingImport.length} 筆船舶資料（${mode==="overwrite"?"覆蓋":"新增"}）`);
     this._pendingImport=null;
+  }
+};
+
+/* ════════ 船舶資料頁的子頁籤切換（船舶資料明細／督導經管船） ════════ */
+const ShipGroup={
+  curPage:"info",
+  init(){
+    Sp.init();
+    this.setPage(this.curPage,true);
+  },
+  setPage(p,skipInit){
+    this.curPage=p;
+    $$(".spg-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.p===p));
+    const map={info:"spg-page-info",super:"spg-page-super"};
+    Object.entries(map).forEach(([k,id])=>{const el=$("#"+id);if(el)el.style.display=(k===p)?"":"none";});
+    if(skipInit)return;
+    if(p==="info")Sp.render();
+    else if(p==="super"&&typeof SupMgmt!=="undefined")SupMgmt.init();
+  }
+};
+
+/* ════════ 督導經管船：依海技經管／甲板督導／機艙督導／CSO 分組檢視，並支援整批調動 ════════
+   直接讀寫 SHIPINFO（船舶資料主檔），不另存一份複本，所以調動後系統其他地方
+  （檢查管控的甲板/機艙督導欄位、督導間隔警示、船舶資料主表…）都會自動跟著更新。 */
+const SupMgmt={
+  role:"mgr",view:"card",
+  ROLE_LABELS:{mgr:"海技經管",deckSup:"甲板督導",engineSup:"機艙督導",cso:"CSO"},
+  VKEY:"vsm_supmgmt_view_v1",
+  _reassignShips:[],_reassignRole:"mgr",
+  init(){
+    try{const v=localStorage.getItem(this.VKEY);if(v==="card"||v==="list")this.view=v;}catch(e){}
+    this.render();
+  },
+  setRole(r){this.role=r;this.render();},
+  setView(v){this.view=v;try{localStorage.setItem(this.VKEY,v);}catch(e){}this.render();},
+  groups(){
+    const role=this.role;
+    const map=new Map();
+    (typeof SHIPINFO!=="undefined"?SHIPINFO:[]).forEach(s=>{
+      const name=String(s[role]||"").trim();
+      const key=name||"（未指派）";
+      if(!map.has(key))map.set(key,[]);
+      map.get(key).push(s);
+    });
+    const keys=[...map.keys()].sort((a,b)=>{
+      if(a==="（未指派）")return 1;
+      if(b==="（未指派）")return -1;
+      return String(a).localeCompare(String(b),"zh-Hant");
+    });
+    return keys.map(k=>({name:k,ships:map.get(k).slice().sort((x,y)=>String(x.code).localeCompare(String(y.code)))}));
+  },
+  render(){
+    $$(".sup-rolebtn").forEach(b=>b.classList.toggle("active",b.dataset.r===this.role));
+    $$(".sup-viewbtn").forEach(b=>b.classList.toggle("active",b.dataset.v===this.view));
+    const isOwner=typeof Role!=="undefined"&&Role.isOwner();
+    const cardsEl=$("#sup-cards"),listWrap=$("#sup-list-wrap");
+    if(cardsEl)cardsEl.style.display=this.view==="card"?"":"none";
+    if(listWrap)listWrap.style.display=this.view==="list"?"":"none";
+    const groups=this.groups();
+    const roleLabel=this.ROLE_LABELS[this.role];
+    if(cardsEl){
+      cardsEl.innerHTML=groups.map(g=>{
+        const unassigned=g.name==="（未指派）";
+        return `<div class="card" style="margin-bottom:12px">
+          <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span>${unassigned?`<span style="color:var(--bad)">⚠ 未指派</span>`:esc(g.name)}</span>
+            <span class="tag">${g.ships.length} 艘</span>
+            <span class="spacer" style="flex:1"></span>
+            ${(unassigned||!isOwner)?"":`<button class="btn sm" onclick="SupMgmt.openReassign('${esc(g.name)}')">🔁 整批調動這位的船</button>`}
+          </h3>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${g.ships.map(s=>`<span style="display:inline-flex;align-items:center;gap:4px;background:#f2f5f7;border:1px solid var(--line);border-radius:4px;padding:3px 4px 3px 8px;font-size:12px">
+              <b>${esc(s.code)}</b> ${esc(s.zh||s.name||"")}
+              ${isOwner?`<button class="btn sm" style="padding:0 4px;line-height:1.4" onclick="SupMgmt.quickChangeOne('${esc(s.code)}')" title="單獨改這艘船的${esc(roleLabel)}">✎</button>`:""}
+            </span>`).join("")}
+          </div>
+        </div>`;
+      }).join("")||`<div class="hint">尚無船舶資料</div>`;
+    }
+    if(listWrap){
+      const rows=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code)));
+      const tbl=$("#sup-list");
+      if(tbl)tbl.innerHTML=`<thead><tr><th>代碼</th><th>船名</th><th>${esc(roleLabel)}</th>${isOwner?'<th style="width:90px">操作</th>':""}</tr></thead><tbody>
+        ${rows.map(s=>`<tr><td><b>${esc(s.code)}</b></td><td>${esc(s.zh||s.name||"")}</td>
+          <td>${s[this.role]?esc(s[this.role]):`<span style="color:var(--bad)">未指派</span>`}</td>
+          ${isOwner?`<td><button class="btn sm" onclick="SupMgmt.quickChangeOne('${esc(s.code)}')">✎ 改派</button></td>`:""}</tr>`).join("")}
+      </tbody>`;
+    }
+  },
+  renderReassignShipList(){
+    const box=$("#sup-reassign-ships");if(!box)return;
+    box.innerHTML=this._reassignShips.map(s=>`<label style="display:flex;align-items:center;gap:6px;font-size:13px;padding:3px 0">
+      <input type="checkbox" class="sup-reassign-chk" value="${esc(s.code)}" checked> <b>${esc(s.code)}</b> ${esc(s.zh||s.name||"")}
+    </label>`).join("")||`<span class="hint">（無）</span>`;
+  },
+  openReassign(fromName){
+    if(typeof Role!=="undefined"&&!Role.isOwner()){toast("⚠ 督導經管船的調動僅限 Owner 操作");return;}
+    this._reassignShips=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>String(s[this.role]||"").trim()===fromName);
+    this._reassignRole=this.role;
+    $("#sup-reassign-role").textContent=this.ROLE_LABELS[this.role];
+    $("#sup-reassign-from").textContent=fromName;
+    $("#sup-reassign-to").value="";
+    this.renderReassignShipList();
+    $("#supReassignModal").classList.add("show");
+  },
+  quickChangeOne(code){
+    if(typeof Role!=="undefined"&&!Role.isOwner()){toast("⚠ 督導經管船的調動僅限 Owner 操作");return;}
+    const s=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(x=>x.code===code);if(!s)return;
+    this._reassignShips=[s];
+    this._reassignRole=this.role;
+    $("#sup-reassign-role").textContent=this.ROLE_LABELS[this.role];
+    $("#sup-reassign-from").textContent=s[this.role]||"（未指派）";
+    $("#sup-reassign-to").value="";
+    this.renderReassignShipList();
+    $("#supReassignModal").classList.add("show");
+  },
+  closeReassignModal(){$("#supReassignModal").classList.remove("show");},
+  async confirmReassign(){
+    if(typeof Role!=="undefined"&&!Role.isOwner()){toast("⚠ 督導經管船的調動僅限 Owner 操作");return;}
+    const to=($("#sup-reassign-to").value||"").trim();
+    if(!to){toast("⚠ 請填寫要改派給誰");return;}
+    const checked=new Set([...document.querySelectorAll(".sup-reassign-chk:checked")].map(c=>c.value));
+    if(!checked.size){toast("⚠ 請至少勾選一艘船");return;}
+    const role=this._reassignRole;
+    const roleLabel=this.ROLE_LABELS[role];
+    let n=0;
+    (typeof SHIPINFO!=="undefined"?SHIPINFO:[]).forEach(s=>{
+      if(checked.has(s.code)){s[role]=to;n++;}
+    });
+    if(typeof Sp!=="undefined")Sp.persist();
+    if(typeof Cloud!=="undefined"&&Cloud.queueAutoPublish)Cloud.queueAutoPublish("ships");
+    if(typeof InspCtrl!=="undefined")InspCtrl.refreshRosterNames();
+    if(typeof Audit!=="undefined")Audit.log("調動",roleLabel,`${[...checked].join("、")} → ${to}`);
+    this.closeReassignModal();
+    this.render();
+    if(typeof Sp!=="undefined")Sp.render();
+    toast(`✓ 已將 ${n} 艘船的${roleLabel}改派給「${to}」`);
   }
 };
 
@@ -9847,55 +10112,231 @@ function pscChipsHtml(s){const a=pscArr(s);if(!a.length)return "";return a.map(c
 function pscBoxHtml(s,idPrefix){const sel=new Set(pscArr(s));return PSC_ACTION_CODES.map(([c,label])=>`<label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:400;white-space:nowrap"><input type="checkbox" id="${idPrefix}-${c}" value="${c}" ${sel.has(c)?"checked":""} style="width:14px;height:14px"> <span title="${esc(label)}">${c}</span></label>`).join("");}
 function pscBoxRead(idPrefix){return PSC_ACTION_CODES.map(([c])=>c).filter(c=>{const el=document.getElementById(`${idPrefix}-${c}`);return el&&el.checked;}).join(",");}
 const DEF_COLS=[["ship","船名"],["vtype","船型"],["itype","檢查類型"],["ym","年月"],["date","檢查日期"],["place","地點"],["inspector","檢查員"],["oilco","油公司/單位"],["psc","PSC action"],["code","缺失代碼"],["attn","重點關注"],["detail","缺失詳情"],["actual","實際情況"],["corrective","改善措施"],["rootCause","根本原因"],["preventive","預防措施"],["rank","職級-責任人"],["person","姓名-責任人"],["risk","風險(1低2中3高)"],["ncProb","問題別"],["ncMain","大類"],["ncLeaf","具體名稱"],["ncFactor","三要素"],["ncImp","重要程度"],["ncFocus","重點關注"],["ncMethod","分類方法"],["ncOpinion","檢查員意見/Best Practice"]];
-/* ════════ 缺失彙總表篩選欄位顯示設定（僅 Owner 可調整）════════
-   控制「缺失紀錄總表」篩選列裡，船名/船型/檢查地點…等各欄位是否顯示；
-   隱藏的欄位其篩選條件本身視同「不限制」，不影響資料本身，只是不顯示在畫面上。 */
-const DefsFilterVis={
-  KEY:"vsm_defs_filter_vis_v1",
-  CLOUD_KEY:"defs_filter_visibility",
-  FIELDS:[["ship","船名"],["vtype","船型"],["place","檢查地點"],["insp","檢查員"],["icat","檢查類型"],["itype","檢查來源"],
-    ["rank","責任人職位"],["person","責任人姓名"],
-    ["ncprob","問題別"],["ncmain","大類"],["ncleaf","具體名稱"],["ncfactor","三要素"],
-    ["ncimp","重要程度"],["ncfocus","重要關注"],["risk","風險"]],
-  hidden:new Set(),
-  load(){try{const s=localStorage.getItem(this.KEY);if(s)this.hidden=new Set(JSON.parse(s));}catch(e){}},
-  save(){try{localStorage.setItem(this.KEY,JSON.stringify([...this.hidden]));}catch(e){}},
-  async loadCloud(){
-    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
-    try{
-      const rows=await Cloud.api("app_db?select=payload&k=eq."+this.CLOUD_KEY);
-      if(rows&&rows[0]&&rows[0].payload&&Array.isArray(rows[0].payload.hidden)){this.hidden=new Set(rows[0].payload.hidden);this.save();}
-    }catch(e){console.warn("defs filter vis cloud load failed",e);}
-    this.apply();this.renderSettingsUI();
+
+/* ════════ 通用：頁面篩選欄位顯示設定（僅 Owner 可調整）════════
+   任何頁面都可用 FilterVisEngine.register(key,{...}) 註冊，決定該頁篩選列上
+   哪些「快捷篩選按鈕」要顯示；隱藏的欄位其篩選條件視同「不限制」，不影響資料本身，
+   只是不顯示在畫面上——想篩選隱藏的欄位，改用「🔎 進階篩選」。 */
+const FilterVisEngine={
+  registry:{},curPage:"defs",
+  register(key,cfg){
+    const c={label:cfg.label,fields:cfg.fields,hidden:new Set(),
+      KEY:"vsm_filtervis_"+key+"_v1",CLOUD_KEY:cfg.cloudKey||("filtervis_"+key)};
+    this.registry[key]=c;
+    try{const s=localStorage.getItem(c.KEY);if(s)c.hidden=new Set(JSON.parse(s));}catch(e){}
   },
-  async pushCloud(){
+  save(key){const c=this.registry[key];if(!c)return;try{localStorage.setItem(c.KEY,JSON.stringify([...c.hidden]));}catch(e){}},
+  async loadCloud(key){
     if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    const c=this.registry[key];if(!c)return;
+    try{
+      const rows=await Cloud.api("app_db?select=payload&k=eq."+c.CLOUD_KEY);
+      if(rows&&rows[0]&&rows[0].payload&&Array.isArray(rows[0].payload.hidden)){c.hidden=new Set(rows[0].payload.hidden);this.save(key);}
+    }catch(e){console.warn("filtervis cloud load failed",key,e);}
+    this.apply(key);
+    if(this.curPage===key)this.renderSettingsUI();
+  },
+  async loadCloudAll(){for(const key of Object.keys(this.registry))await this.loadCloud(key);},
+  async pushCloud(key){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    const c=this.registry[key];if(!c)return;
     try{
       const usr=(typeof Audit!=="undefined")?Audit.user():"";
-      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.CLOUD_KEY,updated:Date.now(),by:usr,payload:{hidden:[...this.hidden]}}])});
-    }catch(e){console.warn("defs filter vis cloud push failed",e);}
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:c.CLOUD_KEY,updated:Date.now(),by:usr,payload:{hidden:[...c.hidden]}}])});
+    }catch(e){console.warn("filtervis cloud push failed",key,e);}
   },
-  apply(){
-    this.FIELDS.forEach(([k])=>{
-      const el=document.getElementById("ms-f-"+k);
-      if(el)el.style.display=this.hidden.has(k)?"none":"";
+  apply(key){
+    const c=this.registry[key];if(!c)return;
+    c.fields.forEach(([k,label,elId])=>{
+      const el=document.getElementById(elId);
+      if(el)el.style.display=c.hidden.has(k)?"none":"";
     });
   },
-  async toggle(k,visible){
+  applyAll(){Object.keys(this.registry).forEach(k=>this.apply(k));},
+  async toggle(key,k,visible){
     if(typeof Role!=="undefined"&&!Role.isOwner()){toast("⚠ 僅 Owner 可調整此設定");this.renderSettingsUI();return;}
-    if(visible)this.hidden.delete(k);else this.hidden.add(k);
-    this.save();this.apply();await this.pushCloud();
-    if(typeof Audit!=="undefined")Audit.log(visible?"顯示":"隱藏","缺失彙總篩選欄位設定",k);
+    const c=this.registry[key];if(!c)return;
+    if(visible)c.hidden.delete(k);else c.hidden.add(k);
+    this.save(key);this.apply(key);await this.pushCloud(key);
+    if(typeof Audit!=="undefined")Audit.log(visible?"顯示":"隱藏",c.label+"篩選欄位設定",k);
+  },
+  selectPage(key){
+    this.curPage=key;
+    $$(".fv-pagebtn").forEach(b=>b.classList.toggle("active",b.dataset.p===key));
+    this.renderSettingsUI();
   },
   renderSettingsUI(){
-    const box=$("#defs-filter-vis-list");if(!box)return;
+    const tabWrap=$("#filter-vis-tabs");
+    if(tabWrap&&!tabWrap.dataset.built){
+      tabWrap.innerHTML=Object.entries(this.registry).map(([key,c])=>`<button class="btn sm fv-pagebtn${key===this.curPage?" active":""}" data-p="${key}" onclick="FilterVisEngine.selectPage('${key}')">${esc(c.label)}</button>`).join("");
+      tabWrap.dataset.built="1";
+    }
+    const box=$("#filter-vis-list");if(!box)return;
+    const c=this.registry[this.curPage];if(!c){box.innerHTML="";return;}
     const isOwner=typeof Role==="undefined"||Role.isOwner();
-    box.innerHTML=this.FIELDS.map(([k,label])=>`<label style="display:flex;align-items:center;gap:6px;padding:4px 0;${isOwner?"cursor:pointer":"cursor:not-allowed;opacity:.6"}">
-        <input type="checkbox" ${this.hidden.has(k)?"":"checked"} ${isOwner?"":"disabled"} onchange="DefsFilterVis.toggle('${k}',this.checked)"> ${esc(label)}
+    box.innerHTML=c.fields.map(([k,label])=>`<label style="display:flex;align-items:center;gap:6px;padding:4px 0;${isOwner?"cursor:pointer":"cursor:not-allowed;opacity:.6"}">
+        <input type="checkbox" ${c.hidden.has(k)?"":"checked"} ${isOwner?"":"disabled"} onchange="FilterVisEngine.toggle('${this.curPage}','${k}',this.checked)"> ${esc(label)}
       </label>`).join("");
   }
 };
-DefsFilterVis.load();
+
+/* ════════ 通用：進階篩選（任何頁面都可用 AdvFilterEngine.register(key,{...}) 註冊，
+   共用同一顆彈窗；可挑選該頁任一欄位，用清單精準比對或關鍵字包含比對，可疊加多條件）════════ */
+const AdvFilterEngine={
+  registry:{},curKey:null,
+  register(key,cfg){this.registry[key]={active:[],...cfg};},
+  cfg(key){return this.registry[key||this.curKey];},
+  open(key){
+    this.curKey=key;
+    const c=this.cfg();if(!c)return;
+    const sel=$("#adv-field");
+    if(sel)sel.innerHTML=c.fieldsFn().map(f=>`<option value="${f.k}">${esc(f.t)}</option>`).join("");
+    this.onFieldChange();this.onModeChange();this.renderActive();
+    $("#advFilterModal").classList.add("show");
+  },
+  close(){$("#advFilterModal").classList.remove("show");},
+  onFieldChange(){this.populateValueList();},
+  onModeChange(){
+    const mode=$("#adv-mode").value;
+    $("#adv-value-list-wrap").style.display=mode==="list"?"":"none";
+    $("#adv-value-kw-wrap").style.display=mode==="kw"?"":"none";
+  },
+  populateValueList(){
+    const c=this.cfg();if(!c)return;
+    const field=$("#adv-field").value;
+    const getter=c.getVal||((d,f)=>d[f]);
+    const vals=[...new Set(c.dataFn().map(d=>String(getter(d,field)??"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+    const sel=$("#adv-value-list");
+    if(sel)sel.innerHTML=vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("")||`<option value="">（無資料）</option>`;
+  },
+  addFilter(){
+    const c=this.cfg();if(!c)return;
+    const field=$("#adv-field").value;
+    const fieldObj=c.fieldsFn().find(f=>f.k===field);
+    const mode=$("#adv-mode").value;
+    let value;
+    if(mode==="kw"){
+      value=($("#adv-value-kw").value||"").trim();
+      if(!value){toast("⚠ 請輸入關鍵字");return;}
+      $("#adv-value-kw").value="";
+    }else{
+      value=$("#adv-value-list").value;
+      if(!value){toast("⚠ 請選擇值");return;}
+    }
+    c.active.push({field,label:fieldObj?fieldObj.t:field,mode,value});
+    this.renderActive();this.syncChips(this.curKey);
+    c.onChange&&c.onChange();
+    toast(`✓ 已加入篩選：${fieldObj?fieldObj.t:field} ${mode==="kw"?"包含":"＝"}「${value}」`);
+  },
+  removeFilter(i){
+    const key=this.curKey;const c=this.cfg();if(!c)return;
+    c.active.splice(i,1);
+    this.renderActive();this.syncChips(key);
+    c.onChange&&c.onChange();
+  },
+  removeFilterFor(key,i){
+    const c=this.registry[key];if(!c)return;
+    c.active.splice(i,1);
+    this.syncChips(key);
+    if(this.curKey===key)this.renderActive();
+    c.onChange&&c.onChange();
+  },
+  clearAll(key,silent){
+    const c=this.registry[key];if(!c)return;
+    c.active=[];
+    if(this.curKey===key)this.renderActive();
+    this.syncChips(key);
+    if(!silent)c.onChange&&c.onChange();
+  },
+  renderActive(){
+    const c=this.cfg();const box=$("#adv-active-list");if(!box||!c)return;
+    box.innerHTML=c.active.map((f,i)=>`<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;background:#f2f5f7;border:1px solid var(--line);border-radius:5px;padding:5px 8px">
+      <b>${esc(f.label)}</b> ${f.mode==="kw"?"包含":"＝"}「${esc(f.value)}」
+      <span style="flex:1"></span>
+      <button class="btn sm" onclick="AdvFilterEngine.removeFilter(${i})">✕ 移除</button>
+    </div>`).join("")||`<span class="hint">尚未新增任何進階篩選</span>`;
+  },
+  syncChips(key){
+    const c=this.registry[key];if(!c)return;
+    const wrap=document.getElementById(c.chipsElId),cnt=document.getElementById(c.countElId);
+    if(cnt)cnt.textContent=c.active.length?`（${c.active.length}）`:"";
+    if(!wrap)return;
+    if(!c.active.length){wrap.style.display="none";wrap.innerHTML="";return;}
+    wrap.style.display="";
+    wrap.innerHTML=c.active.map((f,i)=>`<span style="display:inline-flex;align-items:center;gap:4px;background:#fff4e5;border:1px solid var(--orange);border-radius:4px;padding:3px 8px;font-size:12px">
+      🔎 ${esc(f.label)} ${f.mode==="kw"?"包含":"＝"}「${esc(f.value)}」
+      <button class="btn sm" style="padding:0 4px" onclick="AdvFilterEngine.removeFilterFor('${key}',${i})">✕</button>
+    </span>`).join("");
+  },
+  pass(key,d){
+    const c=this.registry[key];if(!c||!c.active.length)return true;
+    const getter=c.getVal||((d,f)=>d[f]);
+    return c.active.every(f=>{
+      const raw=String(getter(d,f.field)??"");
+      if(f.mode==="kw")return raw.toLowerCase().includes(f.value.toLowerCase());
+      return raw===f.value;
+    });
+  }
+};
+
+/* ── 各頁面註冊：缺失紀錄總表／檢查紀錄／檢查管控／船舶資料 ── */
+FilterVisEngine.register("defs",{label:"缺失紀錄總表",fields:[
+  ["ship","船名","ms-f-ship"],["vtype","船型","ms-f-vtype"],["place","檢查地點","ms-f-place"],["insp","檢查員","ms-f-insp"],["icat","檢查類型","ms-f-icat"],["itype","檢查來源","ms-f-itype"],
+  ["rank","責任人職位","ms-f-rank"],["person","責任人姓名","ms-f-person"],
+  ["ncprob","問題別","ms-f-ncprob"],["ncmain","大類","ms-f-ncmain"],["ncleaf","具體名稱","ms-f-ncleaf"],["ncfactor","三要素","ms-f-ncfactor"],
+  ["ncimp","重要程度","ms-f-ncimp"],["ncfocus","重要關注","ms-f-ncfocus"],["risk","風險","ms-f-risk"]],
+  cloudKey:"defs_filter_visibility"});
+AdvFilterEngine.register("defs",{
+  label:"缺失紀錄總表",
+  fieldsFn(){return (typeof Defs!=="undefined"?Defs.ALL_COLS:[]).map(c=>({k:c.k,t:c.t}));},
+  dataFn(){return (typeof App!=="undefined"?App.defs:[]);},
+  getVal(d,field){return field==="icat"?icatOf(d.itype):d[field];},
+  chipsElId:"adv-filter-chips",countElId:"adv-filter-count",
+  onChange(){if(typeof Defs!=="undefined"){Defs.page=1;Defs.render();}}
+});
+const DefsFilterVis={apply(){FilterVisEngine.apply("defs");},loadCloud(){return FilterVisEngine.loadCloud("defs");},renderSettingsUI(){FilterVisEngine.renderSettingsUI();}};
+const DefsAdvFilter={
+  open(){AdvFilterEngine.open("defs");},close(){AdvFilterEngine.close();},
+  onFieldChange(){AdvFilterEngine.onFieldChange();},onModeChange(){AdvFilterEngine.onModeChange();},
+  addFilter(){AdvFilterEngine.addFilter();},removeFilter(i){AdvFilterEngine.removeFilter(i);},
+  pass(d){return AdvFilterEngine.pass("defs",d);},clearAll(silent){AdvFilterEngine.clearAll("defs",silent);}
+};
+
+FilterVisEngine.register("ov",{label:"檢查紀錄",fields:[
+  ["ship","船名","ms-o-ship"],["vtype","船型","ms-o-vtype"],["icat","檢查類型","ms-o-icat"],["itype","檢查來源","ms-o-itype"],
+  ["loc","檢查地點","ms-o-loc"],["insp","檢查員","ms-o-insp"],["unit","檢查單位/油公司","ms-o-unit"],["detain","扣船","ms-o-detain"]],
+  cloudKey:"ov_filter_visibility"});
+AdvFilterEngine.register("ov",{
+  label:"檢查紀錄",
+  fieldsFn(){return [{k:"ship",t:"船名"},{k:"vtype",t:"船型"},{k:"itype",t:"檢查來源"},{k:"icat",t:"檢查類型"},{k:"date",t:"檢查日期"},{k:"loc",t:"檢查地點"},{k:"inspector",t:"檢查員"},{k:"unit",t:"檢查單位/油公司"},{k:"flagType",t:"FLAG項目"},{k:"detain",t:"扣船"},{k:"ndef",t:"缺失數"},{k:"npos",t:"正面評論數"}];},
+  dataFn(){return (typeof App!=="undefined"?App.insp:[]);},
+  getVal(d,field){return field==="icat"?icatOf(d.itype):d[field];},
+  chipsElId:"ov-adv-filter-chips",countElId:"ov-adv-filter-count",
+  onChange(){if(typeof Ov!=="undefined")Ov.render();}
+});
+
+FilterVisEngine.register("inspctrl",{label:"檢查管控",fields:[
+  ["ship","船舶","ms-ic-ship"],["item","檢查項目","ms-ic-item"],["owner","檢查安排人","ms-ic-owner"],["deckSup","甲板督導","ms-ic-decksup"],["engineSup","機艙督導","ms-ic-enginesup"]],
+  cloudKey:"inspctrl_filter_visibility"});
+AdvFilterEngine.register("inspctrl",{
+  label:"檢查管控",
+  fieldsFn(){return [{k:"ship",t:"船舶"},{k:"itype",t:"檢查項目"},{k:"owner",t:"檢查安排人"},{k:"note",t:"備註"},{k:"validityMonths",t:"效期(月)"}];},
+  dataFn(){return (typeof App!=="undefined"?App.inspCtrl:[]);},
+  chipsElId:"ic-adv-filter-chips",countElId:"ic-adv-filter-count",
+  onChange(){if(typeof InspCtrl!=="undefined"){InspCtrl.page=1;InspCtrl.render();}}
+});
+
+FilterVisEngine.register("sp",{label:"船舶資料",fields:[
+  ["vtype","船型","ms-s2-vtype"],["ship","船舶","ms-s2-ship"],["operator","operator","ms-s2-operator"]],
+  cloudKey:"sp_filter_visibility"});
+AdvFilterEngine.register("sp",{
+  label:"船舶資料",
+  fieldsFn(){return (typeof Sp!=="undefined"?Sp.ALL_COLS:[]).map(c=>({k:c.k,t:c.t})).filter(f=>f.k!=="age");},
+  dataFn(){return (typeof SHIPINFO!=="undefined"?SHIPINFO:[]);},
+  chipsElId:"sp-adv-filter-chips",countElId:"sp-adv-filter-count",
+  onChange(){if(typeof Sp!=="undefined")Sp.render();}
+});
+
 const Defs={
   ms:{},sortKey:"date",sortAsc:false,page:1,PER:30,selected:new Set(),editId:null,
   subTab:"view",
@@ -10164,7 +10605,7 @@ const Defs={
     this.ms.rank=MSel("ms-f-rank","責任人職位",()=>[...new Set(App.defs.map(d=>d.rank))].filter(Boolean).sort(),rerun);
     this.ms.person=MSel("ms-f-person","責任人姓名",()=>TagLists.withExtras("person",App.defs.map(d=>d.person)),rerun);
     this.loadViewFields();
-    if(typeof DefsFilterVis!=="undefined")DefsFilterVis.apply();
+    if(typeof FilterVisEngine!=="undefined")FilterVisEngine.applyAll();else if(typeof DefsFilterVis!=="undefined")DefsFilterVis.apply();
     this.setSubTab(this.subTab,true);
     this.render();
   },
@@ -10228,7 +10669,7 @@ const Defs={
     const opts="<option value=''>不限</option>"+yms.map(m=>`<option value="${m}">${m}</option>`).join("");
     s1.innerHTML=opts;s2.innerHTML=opts;
   },
-  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());$("#f-kw").value="";$("#f-ymfrom").value="";$("#f-ymto").value="";this.page=1;this.render();},
+  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());$("#f-kw").value="";$("#f-ymfrom").value="";$("#f-ymto").value="";if(typeof DefsAdvFilter!=="undefined")DefsAdvFilter.clearAll(true);this.page=1;this.render();},
   filtered(){
     ncPruneCascade(this.ms.ncprob,this.ms.ncmain,this.ms.ncleaf);
     this.populateYm();
@@ -10262,6 +10703,7 @@ const Defs={
         const hay=`${d.ship} ${d.itype} ${icatOf(d.itype)} ${d.date} ${d.place} ${d.inspector} ${d.oilco} ${d.code} ${d.ncProb||""} ${d.ncMain||""} ${d.ncLeaf||""} ${d.detail} ${d.actual} ${d.preventive} ${d.ncOpinion||""}`.toLowerCase();
         if(!terms.every(t=>hay.includes(t)))return false;
       }
+      if(typeof DefsAdvFilter!=="undefined"&&!DefsAdvFilter.pass(d))return false;
       return true;
     });
   },
@@ -11437,6 +11879,111 @@ const SirePos={
 
 /* ════════ 🔔 檢查管控（到期追蹤）════════ */
 /* ════════ 🔔📅 檢查計劃及管控表：統一子頁籤控制器（檢查管控／內稽動態／年度計畫暨執行情形） ════════ */
+/* ════════ 加強管理歷史紀錄（EnhAuditLog）════════
+   InspCtrl 的「加強稽核」勾選/取消時，若不記錄下來，一旦取消勾選 enhancedReason/enhancedSince
+   就被清空，之後完全查不到「這艘船以前也曾經被列為加強管理」。這裡另外存一份不可被覆蓋的歷史清單，
+   由 InspCtrl.saveEdit() 在偵測到「開始」或「結束」的狀態轉換時自動寫入一筆，使用者不需手動操作。 */
+const EnhAuditLog={
+  ms:{},page:1,PER:30,
+  CLOUD_KEY:"enhAuditLog",
+  nextId(){return (App.enhAuditLog||[]).reduce((m,x)=>Math.max(m,x.id||0),0)+1;},
+  /* event: "start"｜"end"；由 InspCtrl.saveEdit() 偵測到狀態轉換時呼叫 */
+  record(ship,itype,event,date,reason,note){
+    if(!App.enhAuditLog)App.enhAuditLog=[];
+    App.enhAuditLog.push({
+      id:this.nextId(),ship,itype,event,date:date||todayStr(),reason:reason||"",note:note||"",
+      loggedBy:(typeof Audit!=="undefined")?Audit.user():"",loggedAt:Date.now()
+    });
+    App.saveAll();
+    this.pushCloud();
+  },
+  /* 回填：這個功能上線前，已經被勾選「加強稽核」的船舶不會有歷史紀錄（因為狀態轉換發生在功能存在之前）。
+     這裡掃描目前所有 enhancedAudit=true 的檢查管控紀錄，凡是還查不到對應「start」事件的，補登一筆，
+     用該筆目前的 enhancedSince／enhancedReason 當作起算資料；已經登過的不會重複新增，可放心重複執行。 */
+  backfillExisting(){
+    if(typeof Role!=="undefined"&&!Role.can("inspctrl_edit")){toast("⚠ 您的權限僅可查看，無法執行回填");return;}
+    if(!App.enhAuditLog)App.enhAuditLog=[];
+    const current=(App.inspCtrl||[]).filter(d=>d.enhancedAudit);
+    if(!current.length){toast("目前沒有任何船舶被列為加強稽核，無需回填");return;}
+    let n=0;
+    current.forEach(d=>{
+      const already=App.enhAuditLog.some(l=>l.event==="start"&&l.ship===d.ship&&l.itype===d.itype&&l.date===(d.enhancedSince||todayStr()));
+      if(already)return;
+      this.record(d.ship,d.itype,"start",d.enhancedSince||todayStr(),d.enhancedReason||"","（系統回填：功能上線前既有的加強稽核狀態）");
+      n++;
+    });
+    this.render();
+    toast(n?`✓ 已回填 ${n} 筆目前加強稽核中的船舶`:"目前所有加強稽核船舶都已有歷史紀錄，無需回填");
+  },
+  async pushCloud(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const usr=(typeof Audit!=="undefined")?Audit.user():"";
+      const row={k:this.CLOUD_KEY,updated:Date.now(),by:usr,payload:App.enhAuditLog};
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([row])});
+    }catch(e){console.warn("enhAuditLog cloud push failed",e);}
+  },
+  async loadCloud(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api("app_db?select=payload&k=eq."+this.CLOUD_KEY);
+      const p=rows&&rows[0]&&rows[0].payload;
+      if(Array.isArray(p)){
+        App.enhAuditLog=p;
+        try{LZSet(App.LSK.el,JSON.stringify(App.enhAuditLog));}catch(e){}
+        if(this._inited)this.render();
+      }
+    }catch(e){console.warn("enhAuditLog cloud load failed",e);}
+  },
+  init(){
+    this._inited=true;
+    const rerun=()=>{this.page=1;this.render();};
+    this.ms.ship=MSel("ms-el-ship","船舶",()=>[...new Set((App.enhAuditLog||[]).map(d=>d.ship))].filter(Boolean).sort(),rerun);
+    this.ms.itype=MSel("ms-el-itype","檢查項目",()=>[...new Set((App.enhAuditLog||[]).map(d=>d.itype))].filter(Boolean).sort(),rerun);
+    this.ms.event=MSel("ms-el-event","事件",()=>["start","end"],rerun);
+    this.render();
+  },
+  clearFilters(){Object.values(this.ms).forEach(m=>m.clear&&m.clear());this.page=1;this.render();},
+  filtered(){
+    return (App.enhAuditLog||[]).filter(d=>{
+      if(!this.ms.ship.pass(d.ship))return false;
+      if(!this.ms.itype.pass(d.itype))return false;
+      if(!this.ms.event.pass(d.event))return false;
+      return true;
+    }).sort((a,b)=>b.loggedAt-a.loggedAt);
+  },
+  eventLabel(e){return e==="start"?`<span style="color:var(--bad);font-weight:700">🔺 列入加強</span>`:`<span style="color:var(--ok);font-weight:700">✓ 解除加強</span>`;},
+  render(){
+    const list=this.filtered();
+    const cnt=$("#el-count");if(cnt)cnt.textContent=`共 ${list.length} 筆`;
+    const PER=this.PER,pages=Math.max(1,Math.ceil(list.length/PER));
+    if(this.page>pages)this.page=pages;
+    const pageRows=list.slice((this.page-1)*PER,this.page*PER);
+    const tb=$("#el-tbody");
+    if(tb){
+      tb.innerHTML=pageRows.map(d=>`<tr>
+        <td><b>${esc(d.ship)}</b></td>
+        <td>${esc(d.itype)}</td>
+        <td>${this.eventLabel(d.event)}</td>
+        <td style="font-family:var(--mono);white-space:nowrap">${esc(d.date)}</td>
+        <td style="max-width:320px;white-space:pre-wrap">${esc(d.reason||"")}</td>
+        <td style="white-space:nowrap">${esc(d.loggedBy||"")}<br><span class="hint">${d.loggedAt?new Date(d.loggedAt).toLocaleString("zh-TW",{hour12:false}):""}</span></td>
+      </tr>`).join("")||`<tr><td colspan="6" class="hint" style="text-align:center;padding:14px">目前沒有加強管理歷史紀錄</td></tr>`;
+    }
+    const pager=$("#el-pager");
+    if(pager)pager.innerHTML=`<button class="btn sm" ${this.page<=1?"disabled":""} onclick="EnhAuditLog.page--;EnhAuditLog.render()">‹ 上一頁</button>
+      <span class="hint" style="margin:0 8px">第 ${this.page}／${pages} 頁</span>
+      <button class="btn sm" ${this.page>=pages?"disabled":""} onclick="EnhAuditLog.page++;EnhAuditLog.render()">下一頁 ›</button>`;
+  },
+  exportXlsx(){
+    if(!hasXLSX())return;
+    const rows=this.filtered().map(d=>({船舶:d.ship,檢查項目:d.itype,事件:d.event==="start"?"列入加強":"解除加強",日期:d.date,原因:d.reason||"",備註:d.note||"",記錄人:d.loggedBy||"",記錄時間:d.loggedAt?new Date(d.loggedAt).toLocaleString("zh-TW",{hour12:false}):""}));
+    const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"加強管理歷史紀錄");
+    XLSX.writeFile(wb,`加強管理歷史紀錄_${todayStr()}.xlsx`);
+  }
+};
+
 const InspGroup={
   curPage:"plan",
   init(){
@@ -11446,13 +11993,14 @@ const InspGroup={
   setPage(p,skipInit){
     this.curPage=p;
     $$(".ig-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.p===p));
-    const map={plan:"ig-page-plan",audit:"ig-page-audit",annual:"ig-page-annual",drill:"ig-page-drill"};
+    const map={plan:"ig-page-plan",audit:"ig-page-audit",annual:"ig-page-annual",drill:"ig-page-drill",enhlog:"ig-page-enhlog"};
     Object.entries(map).forEach(([k,id])=>{const el=$("#"+id);if(el)el.style.display=(k===p)?"":"none";});
     if(skipInit)return; // 首次載入：InspGroup.init() 已呼叫過 InspCtrl.init()，這裡不必重複
     if(p==="plan")InspCtrl.render();
     else if(p==="audit"&&typeof AuditDash!=="undefined")AuditDash.init();
     else if(p==="annual"&&typeof AnnualPlan!=="undefined")AnnualPlan.init();
     else if(p==="drill"&&typeof DrillGroup!=="undefined")DrillGroup.init();
+    else if(p==="enhlog"&&typeof EnhAuditLog!=="undefined")EnhAuditLog.init();
   },
   openGuide(){
     const html=`
@@ -11611,7 +12159,7 @@ const InspCtrl={
     this.page=1;this.render();
     toast(`✓ 只顯示「${me}」擔任甲板／機艙督導的 ${ships.length} 艘船`);
   },
-  clearFilters(){Object.values(this.ms).forEach(m=>m.clear&&m.clear());this.quickStatus="all";this.page=1;this.render();},
+  clearFilters(){Object.values(this.ms).forEach(m=>m.clear&&m.clear());this.quickStatus="all";if(typeof AdvFilterEngine!=="undefined")AdvFilterEngine.clearAll("inspctrl",true);this.page=1;this.render();},
   toggleUnsched(){
     this.onlyUnsched=!this.onlyUnsched;
     const b=$("#ic-unsched-toggle");if(b)b.classList.toggle("primary",this.onlyUnsched);
@@ -11758,6 +12306,7 @@ const InspCtrl={
         if(this.ms.engineSup&&!this.ms.engineSup.pass(shipRef&&shipRef.engineSup))return false;
       }
       if(this.onlyUnsched&&r.schedDate)return false;
+      if(typeof AdvFilterEngine!=="undefined"&&!AdvFilterEngine.pass("inspctrl",r))return false;
       return true;
     });
     if(this.quickStatus==="attention")rows=rows.filter(r=>r.status==="逾期"||r.status==="即將到期(紅)"||r.status==="即將到期(黃)");
@@ -12739,6 +13288,8 @@ const InspCtrl={
     $("#ic-e-enhance").checked=!!d.enhancedAudit;
     $("#ic-e-enhance-reason").value=d.enhancedReason||"";
     this._enhanceSinceEdit=d.enhancedSince||"";
+    $("#ic-e-enhance-since").value=this._enhanceSinceEdit;
+    bindDatePicker("ic-e-enhance-since");
     this.refreshEnhanceUI();
     $("#icEditModal").classList.add("show");
   },
@@ -12780,7 +13331,10 @@ const InspCtrl={
       // 讓畫面上看到的效期跟實際用來算到期日的週期一致，不會讓人誤會還是原本的12個月。
       const validInp=$("#ic-e-valid");
       if(validInp&&validInp.value!=="6")validInp.value="6";
-      hint.textContent=this._enhanceSinceEdit?`加強稽核自 ${this._enhanceSinceEdit} 生效`:"儲存後即日生效，效期改為6個月一次";
+      const sinceInp=$("#ic-e-enhance-since");
+      if(!this._enhanceSinceEdit){this._enhanceSinceEdit=todayStr();}
+      if(sinceInp&&!sinceInp.value.trim())sinceInp.value=this._enhanceSinceEdit;
+      hint.textContent=`加強稽核自 ${this._enhanceSinceEdit} 生效（可調整左側「起算日」欄位）`;
     }else{
       if(this._enhanceSinceEdit&&!skipWarn){
         const days=Math.round((new Date(todayStr())-new Date(this._enhanceSinceEdit+"T00:00:00"))/86400000);
@@ -12793,6 +13347,12 @@ const InspCtrl={
       }
       hint.textContent="";
     }
+  },
+  /* 手動調整加強稽核「起算日」時即時同步，並更新提示文字（不觸發取消確認對話框） */
+  onEnhanceSinceInput(){
+    const v=($("#ic-e-enhance-since").value||"").trim();
+    this._enhanceSinceEdit=v;
+    this.onEnhanceToggle(true);
   },
   refreshOwnerShipHint(){
     const code=$("#ic-e-ship")?$("#ic-e-ship").value:"";
@@ -12828,6 +13388,8 @@ const InspCtrl={
       const existing=App.inspCtrl.find(x=>x.id===this.editId);
       if(!this.canEditRow(existing)){toast("⚠ 僅該筆「檢查安排人」本人或管理員可編輯此筆紀錄");this.closeEdit();this.render();return;}
     }
+    const wasEnhanced=this.editId!=null&&!!(App.inspCtrl.find(x=>x.id===this.editId)||{}).enhancedAudit;
+    const wasSince=this.editId!=null?((App.inspCtrl.find(x=>x.id===this.editId)||{}).enhancedSince||""):"";
     const g=i=>$(i).value.trim();
     let itype=$("#ic-e-itype-sel").value;
     if(itype==="__other")itype=g("#ic-e-itype-other");
@@ -12837,7 +13399,7 @@ const InspCtrl={
     if(enhanceOn&&!g("#ic-e-enhance-reason")){toast("⚠ 勾選「加強稽核」需填寫原因");return;}
     rec.enhancedAudit=enhanceOn;
     rec.enhancedReason=enhanceOn?g("#ic-e-enhance-reason"):"";
-    rec.enhancedSince=enhanceOn?(this._enhanceSinceEdit||todayStr()):"";
+    rec.enhancedSince=enhanceOn?(($("#ic-e-enhance-since")&&$("#ic-e-enhance-since").value.trim())||this._enhanceSinceEdit||todayStr()):"";
     // 內部稽核的「到期日」輸入框是顯示/覆寫用，實際覆寫值存到獨立的 dueDateOverride：
     // 若使用者填的到期日和系統依「最近一次檢查日＋效期」自動算出的預設值不同，視為手動覆寫；
     // 若相同（或留空，或檢查項目已不是內部稽核），視為沒有覆寫，清空舊值、之後改用自動算出的到期日。
@@ -12851,6 +13413,15 @@ const InspCtrl={
     }
     if(this.editId==null){rec.id=this.nextId();App.inspCtrl.push(rec);toast("✓ 已新增");if(typeof Audit!=="undefined")Audit.log("新增","檢查管控",`${rec.ship} ${rec.itype}`);}
     else{const d=App.inspCtrl.find(x=>x.id===this.editId);Object.assign(d,rec);toast("✓ 已更新");if(typeof Audit!=="undefined")Audit.log("編輯","檢查管控",`#${this.editId} ${rec.ship} ${rec.itype}${enhanceOn?"（加強稽核）":""}`);}
+    // 加強稽核狀態轉換（開始／結束）另外寫一筆不可被清空的歷史紀錄，供「加強管理歷史」子頁查詢
+    if(typeof EnhAuditLog!=="undefined"){
+      if(!wasEnhanced&&enhanceOn){
+        EnhAuditLog.record(rec.ship,rec.itype,"start",rec.enhancedSince,rec.enhancedReason);
+      }else if(wasEnhanced&&!enhanceOn){
+        const days=wasSince?Math.round((new Date(todayStr())-new Date(this.normDate(wasSince)+"T00:00:00"))/86400000):null;
+        EnhAuditLog.record(rec.ship,rec.itype,"end",todayStr(),"",days!=null?`原自 ${wasSince} 起列入加強，共 ${days} 天`:"");
+      }
+    }
     App.saveAll();this.closeEdit();this.render();
     if(typeof Cloud!=="undefined")Cloud.queueAutoPublish("inspctrl");
   },
@@ -19074,7 +19645,8 @@ const Cloud={
       ()=>typeof Perms!=="undefined"&&Perms.pullCloud(),
       ()=>typeof ReadOnlyMode!=="undefined"&&ReadOnlyMode.loadCloud(),
       ()=>typeof EvidenceUpload!=="undefined"&&EvidenceUpload.loadCloud(),
-      ()=>typeof DefsFilterVis!=="undefined"&&DefsFilterVis.loadCloud()
+      ()=>typeof FilterVisEngine!=="undefined"&&FilterVisEngine.loadCloudAll(),
+      ()=>typeof EnhAuditLog!=="undefined"&&EnhAuditLog.loadCloud()
     ];
     for(const job of jobs){try{await Promise.resolve(job());}catch(e){console.warn("aux cloud load",e);}}
   },
