@@ -2507,6 +2507,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
                 <input type="text" id="air-itype-other" placeholder="請說明檢查來源" style="display:none;flex:1;min-width:120px" oninput="Air.scheduleFormAutoSave()">
               </div></label>
             <label>檢查類型（自動）<input type="text" id="air-icat" readonly style="background:#f4f6f7;color:#52656f"></label>
+            <div class="fw fld" id="air-flag-wrap" style="display:none">FLAG項目（檢查來源為 FLAG 時必填，可多選）<div id="air-flag-box" style="display:flex;flex-wrap:wrap;gap:10px;border:1px solid var(--line);border-radius:6px;padding:8px;background:#fafbfb"></div></div>
             <label>檢查日期 *<input type="text" id="air-date" placeholder="2026/6/24" oninput="Air.scheduleFormAutoSave()"></label>
             <label>檢查地點 *<input type="text" id="air-place" placeholder="Port, Country" oninput="Air.scheduleFormAutoSave()"></label>
             <label>油公司/單位<input type="text" id="air-oilco" list="dl-units" oninput="Air.scheduleFormAutoSave()"></label>
@@ -2831,7 +2832,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <div id="ic-thresh-body" style="display:none;margin-top:10px">
           <p class="hint" style="margin-bottom:10px;line-height:1.7">
             到期日前 <b>第一個欄位</b> 天內標示「即將到期（黃）」，到期前 <b>第二個欄位</b> 天內標示「即將到期（紅）」，超過到期日則標示「逾期」。
-            <b>RightShip／SIRE／ASI／CDI</b> 四項的「最近一次檢查日」會自動抓「檢查紀錄」與「缺失紀錄總表」中同船同檢查來源的最新一筆日期，並以效期(月)重新試算到期日；其餘項目（PSC、LRIT、SMC、ISSC、MLC、IHM、onboard visit、Internal audit）到期日需手動維護。
+            <b>RightShip／SIRE／CDI／PSC／onboard visit／Internal audit</b> 及 <b>FLAG 底下的 ASI／SMC／ISSC／MLC／IHM／Preemptive／Special</b> 這些項目的「最近一次檢查日」會自動抓「檢查紀錄」（FLAG 項目則另比對檢查紀錄中勾選的 FLAG項目）與「缺失紀錄總表」中同船同檢查來源的最新一筆日期，並以效期(月)重新試算到期日；其餘項目（LRIT）到期日需手動維護。
           </p>
           <div class="toolbar">
             <label style="display:flex;align-items:center;gap:4px;font-size:12px">黃色提醒：到期前<input type="number" id="ic-yellow" style="width:64px;margin:0 4px">天</label>
@@ -11464,7 +11465,11 @@ const InspCtrl={
   ms:{},editId:null,page:1,PER:50,sortKey:"daysLeft",sortDir:"asc",viewMode:"calendar",onlyUnsched:false,selected:new Set(),shipCols:3,
   monthCols:3,monthSpan:12,fontScale:1,
   MONTH_SPAN_OPTIONS:[6,12,24,36,"all"],
-  AUTO_ITYPES:["SIRE","CDI","RIGHTSHIP","ASI","ONBOARDVISIT","INTERNALAUDIT","PSC","IHM"],
+  AUTO_ITYPES:["SIRE","CDI","RIGHTSHIP","ASI","ONBOARDVISIT","INTERNALAUDIT","PSC","IHM","SMC","ISSC","MLC","PREEMPTIVE","SPECIAL"],
+  /* 這些項目在「檢查紀錄」裡不是獨立的檢查來源，而是 itype="FLAG" 底下用 flagType 勾選的細項
+     （對照後台「FLAG_OPTS」），所以比對「最近一次檢查日」時要改成比對 flagType 是否包含該細項，
+     而不是直接比對 itype。 */
+  FLAG_SUB_ITYPES:(typeof FLAG_OPTS!=="undefined"?FLAG_OPTS:["ASI","Preemptive","SMC","ISSC","MLC","Special","iHM"]).map(f=>String(f||"").toUpperCase().replace(/[^A-Z0-9]/g,"")),
   THRESH_KEY:"vsm_inspctrl_thresh_v1",
   thresh(){try{const j=JSON.parse(localStorage.getItem(this.THRESH_KEY));if(j&&j.yellow&&j.red)return j;}catch(e){}return {yellow:90,red:30};},
   saveThreshFromUI(){
@@ -11586,6 +11591,7 @@ const InspCtrl={
   },
   autoLastDate(ship,itype,owner){
     const target=this.normItype(itype);
+    const isFlagSub=this.FLAG_SUB_ITYPES.includes(target);
     // Onboard visit 比較特別：船上常常好幾位督導輪流去訪，光比對「船名＋檢查項目」
     // 只會抓到「這艘船最近一次有人去訪」，不代表是「這位被指派的督導本人」去訪的。
     // 所以這裡額外比對「檢查紀錄」的檢查員欄位是否等於這筆管控紀錄的檢查安排人，
@@ -11595,7 +11601,14 @@ const InspCtrl={
     let best=null;
     [...App.insp,...App.defs].forEach(r=>{
       if(r.ship!==ship)return;
-      if(this.normItype(r.itype)!==target)return;
+      if(isFlagSub){
+        // ASI／SMC／ISSC／MLC／Preemptive／Special：檢查紀錄本身 itype 固定寫 FLAG，
+        // 實際勾選的細項存在 flagType 欄位（可能同時勾多項，以空白分隔），缺失紀錄無此欄位故不參與比對。
+        if(this.normItype(r.itype)!=="FLAG")return;
+        if(!flagArr(r.flagType||"").some(f=>this.normItype(f)===target))return;
+      }else{
+        if(this.normItype(r.itype)!==target)return;
+      }
       if(matchInspector&&String(r.inspector||"").trim()!==ownerNorm)return;
       const d=this.normDate(r.date);
       if(!d)return;
@@ -15104,6 +15117,8 @@ const Air={
     $("#air-itype-other").value=(rawI&&!known)?rawI:"";
     $("#air-itype-other").style.display=$("#air-itype").value==="其他"?"":"none";
     this.refreshIcat();
+    const _airFlagBox=$("#air-flag-box");if(_airFlagBox)_airFlagBox.innerHTML=flagBoxHtml(d.flagType||"","air-flag");
+    this.toggleFlagBox();
     $("#air-date").value=d.date||"";
     bindDatePicker("air-date");
     $("#air-place").value=d.place||"";
@@ -15275,7 +15290,12 @@ const Air={
   onItypeChange(){
     $("#air-itype-other").style.display=$("#air-itype").value==="其他"?"":"none";
     this.refreshIcat();
+    this.toggleFlagBox();
     if(this.editId!=null)this.renderDefectRows(); // 切換檢查來源時，PSC Action Taken欄位顯示/隱藏需同步更新
+  },
+  toggleFlagBox(){
+    const isFlag=$("#air-itype").value==="FLAG";
+    const wrap=$("#air-flag-wrap");if(wrap)wrap.style.display=isFlag?"":"none";
   },
   refreshIcat(){const t=$("#air-itype").value;$("#air-icat").value=icatOf(t)||"（未分類）";},
   /* ── 缺失改善明細 ── */
@@ -15555,11 +15575,14 @@ const Air={
     if(!ship){toast("⚠ 請選擇船名");return;}
     if(!date){toast("⚠ 請填寫檢查日期");return;}
     const itype=$("#air-itype").value==="其他"?($("#air-itype-other").value.trim()||"其他"):$("#air-itype").value;
+    const _airFlagVal=flagBoxRead("air-flag");
+    if(itype==="FLAG"&&!_airFlagVal){toast("⚠ 檢查來源為 FLAG 時，請至少勾選一項 FLAG項目");return;}
     const rec={
       ship,vtype:$("#air-vtype").value,itype,date,
       place:$("#air-place").value.trim(),oilco:$("#air-oilco").value.trim(),
       inspector:$("#air-inspector").value.trim(),
       ndef:+$("#air-ndef").value||0,npos:+$("#air-npos").value||0,
+      flagType:_airFlagVal,
       defects:[],posComments:[],
       id:this.nextId(),createdAt:Date.now(),createdBy:(typeof Audit!=="undefined")?Audit.user():"",
       usedInsp:false,usedDef:false,usedPos:false
@@ -15586,11 +15609,14 @@ const Air={
     if(!ship){toast("⚠ 請選擇船名");return;}
     if(!date){toast("⚠ 請填寫檢查日期");return;}
     const itype=$("#air-itype").value==="其他"?($("#air-itype-other").value.trim()||"其他"):$("#air-itype").value;
+    const _airFlagVal2=flagBoxRead("air-flag");
+    if(itype==="FLAG"&&!_airFlagVal2){toast("⚠ 檢查來源為 FLAG 時，請至少勾選一項 FLAG項目");return;}
     const rec={
       ship,vtype:$("#air-vtype").value,itype,date,
       place:$("#air-place").value.trim(),oilco:$("#air-oilco").value.trim(),
       inspector:$("#air-inspector").value.trim(),
       ndef:+$("#air-ndef").value||0,npos:+$("#air-npos").value||0,
+      flagType:_airFlagVal2,
       defects:this.rowsToDefectsPayload(this.defRows),
       posComments:this.posRows.filter(r=>r.code||r.item||r.comment||(r.people||[]).some(p=>p.rank||p.person)).map(r=>({code:r.code||"",item:r.item||"",comment:r.comment||"",people:(r.people||[{rank:"",person:""}]).map(p=>({rank:p.rank||"",person:p.person||""}))}))
     };
@@ -15621,11 +15647,14 @@ const Air={
     if(!ship||!date)return; // 必填欄位還沒填完，先不自動存，避免存進不完整的資料
     if(!Role.can('air_edit_content'))return;
     const itype=$("#air-itype").value==="其他"?($("#air-itype-other").value.trim()||"其他"):$("#air-itype").value;
+    const _airFlagVal3=flagBoxRead("air-flag");
+    if(itype==="FLAG"&&!_airFlagVal3)return; // FLAG項目尚未勾選，暫緩自動存檔，等使用者勾選或手動按更新時再驗證提示
     const rec={
       ship,vtype:$("#air-vtype").value,itype,date,
       place:$("#air-place").value.trim(),oilco:$("#air-oilco").value.trim(),
       inspector:$("#air-inspector").value.trim(),
       ndef:+$("#air-ndef").value||0,npos:+$("#air-npos").value||0,
+      flagType:_airFlagVal3,
       defects:this.rowsToDefectsPayload(this.defRows),
       posComments:this.posRows.filter(r=>r.code||r.item||r.comment||(r.people||[]).some(p=>p.rank||p.person)).map(r=>({code:r.code||"",item:r.item||"",comment:r.comment||"",people:(r.people||[{rank:"",person:""}]).map(p=>({rank:p.rank||"",person:p.person||""}))}))
     };
@@ -15654,16 +15683,30 @@ const Air={
     if(!await Guard.require())return;
     if(this.editId==null){toast("⚠ 請先儲存基本資料");return;}
     const d=App.air.find(x=>x.id===this.editId);if(!d)return;
-    const msg=d.usedInsp
-      ?`⚠ 此筆填單先前已轉入過「檢查紀錄」，再次轉入將會重複新增一筆檢查紀錄，確定要繼續？`
-      :`確定要將此筆基本資料轉入「檢查紀錄」？`;
-    if(!confirm(msg))return;
-    App.insp.push({id:App.nextInspId(),ship:d.ship,vtype:d.vtype,itype:d.itype,date:d.date,loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:"",detain:""});
+    let existing=d.pushedInspId!=null?App.insp.find(x=>x.id===d.pushedInspId):null;
+    if(!existing&&d.usedInsp){
+      // 舊資料在此次修正前轉入的，沒有記錄對應的檢查紀錄 id；用船名＋檢查來源＋日期回溯比對，
+      // 找到就視為「原本那一筆」直接同步，避免又多轉出一筆重複紀錄。
+      existing=App.insp.find(x=>x.ship===d.ship&&x.itype===d.itype&&x.date===d.date)||null;
+    }
+    const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:d.date,loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:d.flagType||""};
+    if(existing){
+      if(!confirm(`此筆填單先前已轉入過「檢查紀錄」，要用目前的基本資料（含缺失數／正面評論數／FLAG項目等最新內容）覆蓋更新那一筆嗎？`))return;
+      Object.assign(existing,payload);
+      d.pushedInspId=existing.id;
+      if(typeof Audit!=="undefined")Audit.log("更新","檢查紀錄",`由AIR#${d.id}同步更新`);
+      toast("✓ 已同步更新對應的檢查紀錄");
+    }else{
+      if(!confirm("確定要將此筆基本資料轉入「檢查紀錄」？"))return;
+      const newId=App.nextInspId();
+      App.insp.push({id:newId,...payload,detain:""});
+      d.pushedInspId=newId;
+      if(typeof Audit!=="undefined")Audit.log("轉入","檢查紀錄",`由AIR#${d.id}轉入`);
+      toast("✓ 已轉入檢查紀錄");
+    }
     d.usedInsp=true;
     App.saveAll();if(App.refreshMeta)App.refreshMeta();
     if(typeof Ov!=="undefined"){Ov.init();Ov.render();}
-    if(typeof Audit!=="undefined")Audit.log("轉入","檢查紀錄",`由AIR#${d.id}轉入`);
-    toast("✓ 已轉入檢查紀錄");
   },
   async pushDefRowsToDefs(){
     if(!await Guard.require())return;
@@ -15829,16 +15872,22 @@ const Air={
     const dupCount=items.filter(d=>d[usedKey]).length;
     const labelMap={insp:"檢查紀錄",defs:"缺失紀錄總表",sirepos:"正面評價/優秀案例記錄"};
     const confirmMsg=dupCount
-      ?`⚠ 勾選的項目中有 ${dupCount} 筆先前已轉入過「${labelMap[target]}」，再次轉入將會重複新增，確定要繼續？`
+      ?(target==="insp"
+        ?`⚠ 勾選的項目中有 ${dupCount} 筆先前已轉入過「檢查紀錄」，這些會直接同步更新原本那一筆（含缺失數／正面評論數／FLAG項目等最新內容），其餘 ${items.length-dupCount} 筆會新增，確定要繼續？`
+        :`⚠ 勾選的項目中有 ${dupCount} 筆先前已轉入過「${labelMap[target]}」，再次轉入將會重複新增，確定要繼續？`)
       :`確定要將勾選的 ${items.length} 筆轉入「${labelMap[target]}」？`;
     if(!confirm(confirmMsg))return;
     let n=0,m=0;
     if(target==="insp"){
       items.forEach(d=>{
-        App.insp.push({id:App.nextInspId(),ship:d.ship,vtype:d.vtype,itype:d.itype,date:d.date,loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:"",detain:""});
+        const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:d.date,loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:d.flagType||""};
+        let existing=d.pushedInspId!=null?App.insp.find(x=>x.id===d.pushedInspId):null;
+        if(!existing&&d.usedInsp)existing=App.insp.find(x=>x.ship===d.ship&&x.itype===d.itype&&x.date===d.date)||null;
+        if(existing){Object.assign(existing,payload);d.pushedInspId=existing.id;}
+        else{const newId=App.nextInspId();App.insp.push({id:newId,...payload,detain:""});d.pushedInspId=newId;}
         d.usedInsp=true;n++;
       });
-      if(typeof Audit!=="undefined")Audit.log("轉入","檢查紀錄",`由AIR轉入 ${n} 筆`);
+      if(typeof Audit!=="undefined")Audit.log("轉入","檢查紀錄",`由AIR轉入／同步 ${n} 筆`);
       if(typeof Ov!=="undefined"){Ov.init();Ov.render();}
     }else if(target==="defs"){
       items.forEach(d=>{
