@@ -5487,9 +5487,15 @@ const DefsGrid={
         `<div class="dg-opt dg-ok" onclick="DefsGrid.closeEd()">✓ 完成</div>`;
     }else{
       this.edHi=Math.max(0,opts.indexOf(d[k]));
+      const canAddNew=(k==="ncMain"&&d.ncProb)||(k==="ncLeaf"&&d.ncProb&&d.ncMain);
+      const addNewHtml=canAddNew?`<div class="dg-opt dg-addnew" style="border-top:1px solid var(--line);padding-top:6px;cursor:default" onclick="event.stopPropagation()">
+        <input type="text" id="dg-new-val" placeholder="輸入新的${esc(col.t)}…" style="width:100%;box-sizing:border-box;margin-bottom:4px" onkeydown="if(event.key==='Enter'){event.preventDefault();DefsGrid.addNewOpt();}else if(event.key==='Escape'){DefsGrid.closeEd();}">
+        <button class="btn sm primary" style="width:100%" onclick="DefsGrid.addNewOpt()">＋ 新增到「${esc(k==="ncMain"?d.ncProb:d.ncMain)}」下面</button>
+      </div>`:"";
       box.innerHTML=`<div class="dg-eh">${col.t}　↑↓ 選擇 · Enter 確定 · Esc 取消 · Tab 下一欄</div>`+
         opts.map((o,j)=>`<div class="dg-opt ${j===this.edHi?"hi":""}" data-j="${j}" onclick="DefsGrid.pick(${j})">${esc(o)}</div>`).join("")+
-        (d[k]?`<div class="dg-opt dg-clear" onclick="DefsGrid.pick(-1)">✕ 清除此欄</div>`:"");
+        (d[k]?`<div class="dg-opt dg-clear" onclick="DefsGrid.pick(-1)">✕ 清除此欄</div>`:"")+
+        addNewHtml;
     }
     document.body.appendChild(box);
     this.ed=box;
@@ -5499,6 +5505,35 @@ const DefsGrid={
   closeEd(){
     if(this.ed){this.ed.remove();this.ed=null;}
     $$("td.dg-active").forEach(t=>t.classList.remove("dg-active"));
+  },
+  /* 在快速分類下拉選單中直接新增大類／具體名稱（會同步進 NCTree，維持連動關係） */
+  async addNewOpt(){
+    const input=document.getElementById("dg-new-val");
+    const v=(input&&input.value||"").trim();
+    if(!v){toast("⚠ 請輸入名稱");return;}
+    const d=App.defs.find(x=>String(x.id)===String(this.ar));if(!d)return;
+    const col=this.COLS[this.ac];
+    if(typeof NCTree==="undefined"){toast("⚠ 分類階層模組未載入");return;}
+    let res;
+    if(col.k==="ncMain"){
+      if(!d.ncProb){toast("⚠ 請先選擇問題別");return;}
+      res=await NCTree.quickAdd(d.ncProb,v,null);
+    }else if(col.k==="ncLeaf"){
+      if(!d.ncMain){toast("⚠ 請先選擇大類");return;}
+      res=await NCTree.quickAdd(d.ncProb,d.ncMain,v);
+    }else{return;}
+    if(!res||!res.ok){toast("⚠ "+(res&&res.msg?res.msg:"新增失敗"));return;}
+    toast(`✓ 已新增「${v}」`);
+    this.pickByValue(col.k,v);
+  },
+  /* 新增完成後直接選取剛新增的項目（沿用 pick() 的存檔／連動清空下層／自動跳下一欄邏輯） */
+  pickByValue(k,v){
+    const d=App.defs.find(x=>String(x.id)===String(this.ar));if(!d)return;
+    const ci=this.COLS.findIndex(c=>c.k===k);
+    const opts=this.COLS[ci].opts(d);
+    const j=opts.indexOf(v);
+    if(j<0){this.openEd(this.ar,k);return;}
+    this.pick(j);
   },
   pick(j){
     const d=App.defs.find(x=>String(x.id)===String(this.ar));if(!d)return;
@@ -9547,6 +9582,29 @@ const NCTree={
   leavesOf(prob,main){
     const key=this.arrKey(prob);if(!key)return [];
     return NCDB[key].filter(x=>x[0]===main).map(x=>x[1]);
+  },
+  /* 供「缺失總表 → 快速分類」下拉選單直接新增用（不依賴後台設定頁的輸入框）。
+     leafOrNull 為 null＝新增大類（自動附一個同名的「一般」具體名稱）；
+     leafOrNull 有值＝在既有大類下新增具體名稱。 */
+  async quickAdd(prob,main,leafOrNull){
+    const key=this.arrKey(prob);
+    if(!key)return {ok:false,msg:"問題別未知，請先選擇問題別"};
+    main=(main||"").trim();
+    if(!main)return {ok:false,msg:"大類名稱不可為空"};
+    if(leafOrNull==null){
+      if(this.mainsOf(prob).includes(main))return {ok:false,msg:`此大類已存在於「${prob}」之下`};
+      this.custom[key].push([main,main]);
+    }else{
+      const leaf=(leafOrNull||"").trim();
+      if(!leaf)return {ok:false,msg:"具體名稱不可為空"};
+      if(this.leavesOf(prob,main).includes(leaf))return {ok:false,msg:`此具體名稱已存在於「${main}」之下`};
+      this.custom[key].push([main,leaf]);
+    }
+    this._saveLocal();this.apply();
+    if(typeof Audit!=="undefined")Audit.log("新增","分類階層",leafOrNull==null?`${prob}：新增大類「${main}」（快速分類）`:`${prob}／${main}：新增具體名稱「${leafOrNull}」（快速分類）`);
+    if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
+    if(this.open)this.render();
+    return {ok:true};
   },
   async addMain(){
     const prob=this.curProb;
