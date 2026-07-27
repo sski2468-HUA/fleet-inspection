@@ -4392,7 +4392,8 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       <div class="card" style="margin-bottom:14px;border-left:4px solid var(--navy-3)">
         <h3>🧭 側邊欄項目管理</h3>
         <p class="hint" style="margin-bottom:10px;line-height:1.7">
-          調整左側導覽選單各區塊內的<b>順序</b>與<b>顯示名稱</b>（不可跨區塊移動、不可新增或刪除項目）。設定僅 Owner／管理員可調整，儲存後會同步給<b>所有人</b>，一般使用者無法自行拖曳調整。
+          調整左側導覽選單各分類內的<b>順序</b>、<b>顯示名稱</b>與<b>是否對操作者顯示</b>，也可以把項目<b>搬到別的分類</b>、
+          <b>新增或刪除分類</b>（分類要先清空才能刪除）。設定僅 Owner／管理員可調整，儲存後會同步給<b>所有人</b>，一般使用者無法自行拖曳調整。
         </p>
         <div class="toolbar">
           <button class="btn dark" id="navcfg-toggle-btn" onclick="NavConfig.toggleAdmin()">📂 顯示／編輯側邊欄設定</button>
@@ -8306,7 +8307,7 @@ function SSel(elId,getOptions,placeholder,onPick){
 const NavConfig={
   KEY:"vsm_navconfig_v1",
   CLOUD_KEY:"nav_config",
-  cfg:{labels:{},order:{}},
+  cfg:{labels:{},order:{},hidden:{},itemGroup:{crewmatrix:"crewmgmt"},groups:null,groupLabels:{}},
   /* 這個頁面對「目前這位使用者」是否已隱藏。
      Owner／管理員即使設為隱藏仍看得到（標為 adminonly），因此不算隱藏。
      待辦事項會用這個判斷 —— 功能都隱藏了還一直催人去做，是自相矛盾的。 */
@@ -8325,14 +8326,84 @@ const NavConfig={
     });
     return map;
   },
+  /* ── 分類（類別／區塊）系統 ──
+     分類清單與每個項目所屬的分類都可由 Owner／管理員在「側邊欄項目管理」調整。
+     未經任何調整前，套用系統預設：4 個原有分類＋獨立的「船員管理」分類（放 Crew Matrix）。
+     _native 記錄每個項目「原始寫在 HTML 裡」的分類，只在第一次套用時擷取一次，
+     之後即使項目被搬到別的分類，也不會誤把 _native 洗掉，作為「還原預設」時的依據。 */
+  _native:null,
+  _captureNative(){
+    if(this._native)return;
+    this._native={};
+    document.querySelectorAll("#sidebarNav .nav-group").forEach(grp=>{
+      const gk=grp.dataset.group;
+      grp.querySelectorAll(":scope > .nav-item").forEach(it=>{ this._native[it.dataset.tab]=gk; });
+    });
+  },
+  DEFAULT_GROUPS_SEED(){
+    return [["analysis","分析總覽"],["datatables","資料總表"],["forms","填單"],["tools","工具與參考"],["crewmgmt","船員管理"]];
+  },
+  effectiveGroups(){
+    if(this.cfg.groups&&this.cfg.groups.length)return this.cfg.groups;
+    return this.DEFAULT_GROUPS_SEED();
+  },
+  groupLabelOf(key,fallback){
+    return (this.cfg.groupLabels&&this.cfg.groupLabels[key])||fallback;
+  },
+  effectiveItemGroup(tab){
+    if(this.cfg.itemGroup&&this.cfg.itemGroup[tab])return this.cfg.itemGroup[tab];
+    this._captureNative();
+    return this._native[tab]||(this.effectiveGroups()[0]||["tools"])[0];
+  },
+  ALL_TABS(){
+    return [...document.querySelectorAll("#sidebarNav .nav-item[data-tab]")]
+      .map(el=>el.dataset.tab)
+      .filter(t=>t!=="data"&&t!=="guide");
+  },
   loadLocal(){
-    try{const s=localStorage.getItem(this.KEY);if(s)this.cfg=JSON.parse(s);}catch(e){}
+    const DEF={labels:{},order:{},hidden:{},itemGroup:{crewmatrix:"crewmgmt"},groups:null,groupLabels:{}};
+    try{
+      const s=localStorage.getItem(this.KEY);
+      if(s){
+        this.cfg=Object.assign({},DEF,JSON.parse(s));
+        if(!this.cfg.itemGroup)this.cfg.itemGroup={crewmatrix:"crewmgmt"};
+        else if(!("crewmatrix" in this.cfg.itemGroup))this.cfg.itemGroup.crewmatrix="crewmgmt";
+      }
+    }catch(e){}
   },
   saveLocal(){try{localStorage.setItem(this.KEY,JSON.stringify(this.cfg));}catch(e){}},
   apply(){
     this.loadLocal();
-    // 套用各區塊內的順序
-    document.querySelectorAll("#sidebar .nav-group").forEach(grp=>{
+    this._captureNative();
+    const groups=this.effectiveGroups();
+    const nav=document.querySelector("#sidebarNav");
+    const dataItem=document.querySelector('#sidebarNav > .nav-item[data-tab="data"]');
+    // 確保每個分類都有對應的側欄容器，沒有的話（例如新建立的分類）就建立一個，
+    // 固定插在「資料管理」之前。
+    groups.forEach(([key,label])=>{
+      let grp=document.querySelector(`#sidebarNav .nav-group[data-group="${key}"]`);
+      if(!grp){
+        grp=document.createElement("div");
+        grp.className="nav-group";
+        grp.dataset.group=key;
+        const lbl=document.createElement("div");
+        lbl.className="nav-group-label";
+        grp.appendChild(lbl);
+        nav.insertBefore(grp,dataItem||null);
+      }
+      const lblEl=grp.querySelector(".nav-group-label");
+      if(lblEl)lblEl.textContent=this.groupLabelOf(key,label);
+    });
+    // 依設定把每個項目搬到它所屬的分類容器（「操作說明」與「資料管理」固定不參與分類）
+    document.querySelectorAll("#sidebarNav .nav-item[data-tab]").forEach(it=>{
+      const tab=it.dataset.tab;
+      if(tab==="data"||tab==="guide")return;
+      const gk=this.effectiveItemGroup(tab);
+      const grp=document.querySelector(`#sidebarNav .nav-group[data-group="${gk}"]`);
+      if(grp&&it.parentElement!==grp)grp.appendChild(it);
+    });
+    // 套用各分類內的順序
+    document.querySelectorAll("#sidebarNav .nav-group").forEach(grp=>{
       const groupKey=grp.dataset.group;
       const order=(this.cfg.order&&this.cfg.order[groupKey])||null;
       if(!order)return;
@@ -8362,6 +8433,12 @@ const NavConfig={
       if(isAdmin){it.style.display="";it.classList.add("nav-item-adminonly");it.title="此項目已對一般操作者隱藏（僅Owner／管理員可見）";}
       else{it.style.display="none";}
     });
+    // 分類底下如果目前一個項目都沒有（或裡面的項目全部被隱藏），就把整個分類標題也一併隱藏，
+    // 避免出現一個空空的標題卻沒有內容。
+    document.querySelectorAll("#sidebarNav .nav-group").forEach(grp=>{
+      const visible=[...grp.querySelectorAll(".nav-item")].some(it=>it.style.display!=="none");
+      grp.style.display=visible?"":"none";
+    });
     this.renumber();
   },
   renumber(){
@@ -8376,7 +8453,13 @@ const NavConfig={
     try{
       const rows=await Cloud.api("app_db?select=payload&k=eq."+encodeURIComponent(this.CLOUD_KEY));
       const p=rows&&rows[0]&&rows[0].payload;
-      if(p){this.cfg=p;this.saveLocal();this.apply();this.renderAdmin();}
+      if(p){
+        const DEF={labels:{},order:{},hidden:{},itemGroup:{crewmatrix:"crewmgmt"},groups:null,groupLabels:{}};
+        this.cfg=Object.assign({},DEF,p);
+        if(!this.cfg.itemGroup)this.cfg.itemGroup={crewmatrix:"crewmgmt"};
+        else if(!("crewmatrix" in this.cfg.itemGroup))this.cfg.itemGroup.crewmatrix="crewmgmt";
+        this.saveLocal();this.apply();this.renderAdmin();
+      }
     }catch(e){console.warn("nav config cloud load failed",e);}
   },
   async pushCloud(){
@@ -8400,22 +8483,29 @@ const NavConfig={
   renderAdmin(){
     const box=$("#navcfg-body");if(!box)return;
     const defaults=this.DEFAULT_LABELS();
-    const groups=[["analysis","分析總覽"],["datatables","資料總表"],["forms","填單"],["tools","工具與參考"]];
+    const groups=this.effectiveGroups();
+    const allTabs=this.ALL_TABS();
     box.innerHTML=groups.map(([key,defGroupLabel])=>{
-      const tabs=[...document.querySelectorAll(`#sidebar .nav-group[data-group="${key}"] .nav-item`)].map(el=>el.dataset.tab);
+      const tabs=allTabs.filter(tab=>this.effectiveItemGroup(tab)===key);
       const order=(this.cfg.order&&this.cfg.order[key])||tabs;
       const orderedTabs=[...order.filter(t=>tabs.includes(t)),...tabs.filter(t=>!order.includes(t))];
+      const curLabel=this.groupLabelOf(key,defGroupLabel);
       const rows=orderedTabs.map((tab,i)=>{
         const def=defaults[tab]||tab;
         const cur=(this.cfg.labels&&this.cfg.labels[tab])||"";
         const isHidden=!!(this.cfg.hidden&&this.cfg.hidden[tab]);
-        return `<tr data-tab="${esc(tab)}" data-group="${key}">
+        return `<tr data-tab="${esc(tab)}" data-group="${esc(key)}">
           <td style="width:50px;text-align:center">
-            <button class="btn sm" ${i===0?"disabled":""} onclick="NavConfig.moveItem('${key}','${tab}',-1)" title="上移">▲</button>
-            <button class="btn sm" ${i===orderedTabs.length-1?"disabled":""} onclick="NavConfig.moveItem('${key}','${tab}',1)" title="下移">▼</button>
+            <button class="btn sm" ${i===0?"disabled":""} onclick="NavConfig.moveItem('${esc(key)}','${esc(tab)}',-1)" title="上移">▲</button>
+            <button class="btn sm" ${i===orderedTabs.length-1?"disabled":""} onclick="NavConfig.moveItem('${esc(key)}','${esc(tab)}',1)" title="下移">▼</button>
           </td>
           <td style="font-size:12px;color:var(--ink-3);width:90px">${esc(def)}</td>
           <td><input type="text" class="navcfg-label" data-tab="${esc(tab)}" placeholder="自訂顯示名稱（留空＝預設「${esc(def)}」）" value="${esc(cur)}" style="width:100%"></td>
+          <td style="width:150px">
+            <select class="navcfg-group" data-tab="${esc(tab)}">
+              ${groups.map(([gk,gl])=>`<option value="${esc(gk)}" ${gk===key?"selected":""}>${esc(this.groupLabelOf(gk,gl))}</option>`).join("")}
+            </select>
+          </td>
           <td style="width:70px;text-align:center">
             <label style="display:flex;align-items:center;gap:4px;justify-content:center;font-size:11px;cursor:pointer">
               <input type="checkbox" class="navcfg-visible" data-tab="${esc(tab)}" ${isHidden?"":"checked"}>顯示
@@ -8423,14 +8513,22 @@ const NavConfig={
           </td>
         </tr>`;
       }).join("");
+      const canDelete=orderedTabs.length===0;
       return `<div style="margin-bottom:14px">
-        <h4 style="margin:6px 0;font-size:13px">${esc(defGroupLabel)}</h4>
-        <div class="tblwrap"><table class="tbl"><thead><tr><th style="width:50px">順序</th><th style="width:90px">預設名稱</th><th>自訂顯示名稱</th><th style="width:70px">對操作者顯示</th></tr></thead><tbody>${rows}</tbody></table></div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0;flex-wrap:wrap">
+          <input type="text" class="navcfg-grouplabel" data-group="${esc(key)}" value="${esc(curLabel)}" style="font-weight:700;font-size:13px;max-width:220px">
+          ${canDelete?`<button class="btn sm danger" onclick="NavConfig.deleteGroup('${esc(key)}')">🗑 刪除此類別（目前無項目）</button>`:`<span class="hint" style="font-size:11px">${orderedTabs.length} 個項目</span>`}
+        </div>
+        <div class="tblwrap"><table class="tbl"><thead><tr><th style="width:50px">順序</th><th style="width:90px">預設名稱</th><th>自訂顯示名稱</th><th style="width:150px">所屬類別</th><th style="width:70px">對操作者顯示</th></tr></thead><tbody>${rows||`<tr><td colspan="5" class="hint" style="text-align:center;padding:14px">這個類別目前沒有項目，可以用其他項目那一列的「所屬類別」把它搬過來。</td></tr>`}</tbody></table></div>
       </div>`;
-    }).join("");
+    }).join("")+`
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;padding-top:10px;border-top:1px solid var(--line)">
+        <input type="text" id="navcfg-newgroup" placeholder="新類別名稱，例如「船員管理」" style="max-width:240px">
+        <button class="btn sm" onclick="NavConfig.addGroup()">＋ 新增類別</button>
+      </div>`;
   },
   moveItem(groupKey,tab,dir){
-    const tabs=[...document.querySelectorAll(`#sidebar .nav-group[data-group="${groupKey}"] .nav-item`)].map(el=>el.dataset.tab);
+    const tabs=this.ALL_TABS().filter(t=>this.effectiveItemGroup(t)===groupKey);
     const order=[...((this.cfg.order&&this.cfg.order[groupKey])||tabs)];
     const i=order.indexOf(tab);if(i<0)return;
     const j=i+dir;if(j<0||j>=order.length)return;
@@ -8439,10 +8537,37 @@ const NavConfig={
     this.cfg.order[groupKey]=order;
     this.renderAdmin();
   },
+  addGroup(){
+    const inp=$("#navcfg-newgroup");if(!inp)return;
+    const label=inp.value.trim();
+    if(!label){toast("⚠ 請輸入類別名稱");return;}
+    if(!this.cfg.groups)this.cfg.groups=this.effectiveGroups().map(g=>[...g]);
+    const key="grp_"+Date.now().toString(36);
+    this.cfg.groups.push([key,label]);
+    this.saveLocal();
+    this.apply();
+    this.renderAdmin();
+  },
+  deleteGroup(key){
+    const tabs=this.ALL_TABS().filter(t=>this.effectiveItemGroup(t)===key);
+    if(tabs.length){toast("⚠ 這個類別還有項目，請先把項目移到其他類別再刪除");return;}
+    if(!confirm("確定要刪除這個類別？"))return;
+    if(!this.cfg.groups)this.cfg.groups=this.effectiveGroups().map(g=>[...g]);
+    this.cfg.groups=this.cfg.groups.filter(([k])=>k!==key);
+    if(this.cfg.order)delete this.cfg.order[key];
+    if(this.cfg.groupLabels)delete this.cfg.groupLabels[key];
+    this.saveLocal();
+    const grp=document.querySelector(`#sidebarNav .nav-group[data-group="${key}"]`);
+    if(grp)grp.remove();
+    this.renderAdmin();
+  },
   async saveAdmin(){
     if(typeof Guard!=="undefined"&&!await Guard.require()){toast("⚠ 僅 Owner／管理員可調整側邊欄設定");return;}
     if(!this.cfg.labels)this.cfg.labels={};
     if(!this.cfg.hidden)this.cfg.hidden={};
+    if(!this.cfg.itemGroup)this.cfg.itemGroup={};
+    if(!this.cfg.groupLabels)this.cfg.groupLabels={};
+    if(!this.cfg.groups)this.cfg.groups=this.effectiveGroups().map(g=>[...g]);
     document.querySelectorAll(".navcfg-label").forEach(inp=>{
       const tab=inp.dataset.tab,v=inp.value.trim();
       if(v)this.cfg.labels[tab]=v;else delete this.cfg.labels[tab];
@@ -8451,23 +8576,32 @@ const NavConfig={
       const tab=cb.dataset.tab;
       if(!cb.checked)this.cfg.hidden[tab]=true;else delete this.cfg.hidden[tab];
     });
+    document.querySelectorAll(".navcfg-group").forEach(sel=>{
+      this.cfg.itemGroup[sel.dataset.tab]=sel.value;
+    });
+    document.querySelectorAll(".navcfg-grouplabel").forEach(inp=>{
+      const gk=inp.dataset.group,v=inp.value.trim();
+      const seedDef=(this.DEFAULT_GROUPS_SEED().find(([k])=>k===gk)||[])[1];
+      const curDef=(this.cfg.groups.find(([k])=>k===gk)||[])[1]||seedDef||gk;
+      if(v&&v!==curDef)this.cfg.groupLabels[gk]=v;else delete this.cfg.groupLabels[gk];
+    });
     this.saveLocal();
     this.apply();
     this.renderAdmin();
     /* 隱藏/顯示頁面會改變待辦事項的範圍，立即重算徽章與清單 */
     try{if(typeof Todo!=="undefined")Todo.render();}catch(e){}
-    if(typeof Audit!=="undefined")Audit.log("編輯","側邊欄設定","調整側邊欄項目順序與顯示名稱");
+    if(typeof Audit!=="undefined")Audit.log("編輯","側邊欄設定","調整側邊欄項目順序、分類與顯示名稱");
     if(Cloud&&Cloud.enabled()){
       await this.pushCloud();
-      toast("✓ 已儲存並同步至雲端，所有人下次開啟即套用新順序");
+      toast("✓ 已儲存並同步至雲端，所有人下次開啟即套用新設定");
     }else{
       toast("✓ 已儲存（單機模式，僅本機）");
     }
   },
   async resetAdmin(){
     if(typeof Guard!=="undefined"&&!await Guard.require()){toast("⚠ 僅 Owner／管理員可調整側邊欄設定");return;}
-    if(!confirm("確定要將側邊欄順序與顯示名稱恢復為系統預設？"))return;
-    this.cfg={labels:{},order:{},hidden:{}};
+    if(!confirm("確定要將側邊欄順序、分類與顯示名稱恢復為系統預設？"))return;
+    this.cfg={labels:{},order:{},hidden:{},itemGroup:{crewmatrix:"crewmgmt"},groups:null,groupLabels:{}};
     this.saveLocal();
     this.apply();
     this.renderAdmin();
@@ -8478,6 +8612,7 @@ const NavConfig={
     else toast("✓ 已恢復預設（單機模式，僅本機）");
   }
 };
+
 
 /* ───── 導航 ───── */
 const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["船舶缺失自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["線上填單","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"],voyrecv:["航次報表收件","DCP-FM03 船上上傳 → 督導確認 → 海技歸檔"],crewmatrix:["Crew Matrix 工作站","開新分頁前往 Crew Matrix"]};
