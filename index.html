@@ -1708,6 +1708,17 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
 #air-reply-inline.fs-l .air-reply-ta{font-size:17px;line-height:1.75;min-height:76px;padding:10px}
 #air-reply-inline.fs-xl .air-reply-lbl{font-size:19px;font-weight:700}
 #air-reply-inline.fs-xl .air-reply-ta{font-size:21px;line-height:1.85;min-height:92px;padding:12px}
+
+/* 對外回覆：一次只顯示一筆缺失，左側固定顯示缺失身分資訊，右側為可編輯範圍，避免下拉時填錯格子 */
+.air-reply-split{display:flex;flex-wrap:wrap;gap:0;overflow:hidden;padding:0!important}
+.air-reply-split .air-rs-id{flex:0 0 26%;min-width:230px;max-width:360px;padding:18px;border-right:2px solid rgba(0,0,0,.08)}
+.air-reply-split .air-rs-edit{flex:1 1 320px;min-width:280px;padding:18px}
+@media(max-width:820px){
+  .air-reply-split .air-rs-id{flex:1 1 100%;max-width:none;border-right:none;border-bottom:2px solid rgba(0,0,0,.08)}
+  .air-reply-split .air-rs-edit{flex:1 1 100%}
+}
+.air-rs-tab{border:none;background:none;padding:7px 12px;cursor:pointer;font-size:12.5px;font-weight:700;white-space:nowrap}
+.air-rs-tabwrap{display:flex;align-items:center;border-radius:7px;overflow:hidden;border:1.5px solid;flex:none}
 </style>
 </head>
 <body>
@@ -2505,6 +2516,16 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       <div class="toolbar" id="air-toptabs">
         <button class="btn primary" id="air-tab-list-btn" onclick="Air.showList()">📋 填單清單</button>
         <button class="btn" id="air-tab-new-btn" onclick="Air.newForm()">＋ 新增填單</button>
+        <button class="btn" id="air-tab-followup-btn" onclick="Air.showFollowUpList()">🔖 Follow Up</button>
+      </div>
+
+      <div id="air-followup-page" style="display:none">
+        <div class="card">
+          <h3>Follow Up 追蹤清單
+            <span class="hint" style="font-weight:400;margin-left:8px">曾在對外回覆中被勾選「需要 Follow Up」的項目，包含追蹤中與已結案</span>
+          </h3>
+          <div id="air-followup-table"></div>
+        </div>
       </div>
 
       <div id="air-list-page">
@@ -9840,10 +9861,32 @@ const Todo={
     else if(tier==="op1")items=this.forSupervisor();
     else if(Role.isAdmin())items=this.forMaintainer();
     else return [];
+    items=items.concat(this.forAirAssigned());
     /* 對應頁面已被隱藏的待辦不再提示 —— 功能都看不到了還一直催人去做，
        只會讓人困惑（船上看不到「航次報表收件」，卻被提醒有表單未上傳）。 */
     if(typeof NavConfig!=="undefined")
       items=items.filter(x=>!(x.tab&&NavConfig.isHidden(x.tab)));
+    return items;
+  },
+  /* 對外回覆的「通知」與「Follow Up」指定給我的待辦，任何身份都可能被指定，故獨立於分身分計算之外 */
+  forAirAssigned(){
+    const items=[];
+    const me=(typeof Role!=="undefined"&&Role.personName)?Role.personName():"";
+    if(!me||typeof App==="undefined"||!Array.isArray(App.air))return items;
+    App.air.forEach(d=>{
+      (d.reply&&d.reply.items||[]).forEach((rp,i)=>{
+        if(rp.notify&&rp.notify.status==="pending"&&rp.notify.to===me){
+          items.push({icon:"🔔",tab:"air",text:`對外回覆通知：${d.ship} ${d.date} 缺失#${i+1}－${rp.notify.note||"請確認"}`,
+            action:()=>goToTab("air",()=>{if(typeof Air!=="undefined")Air.goToReply(d.id);})});
+        }
+      });
+      (d.defects||[]).forEach((df,i)=>{
+        if(df.followUp&&df.followUp.on&&df.followUp.status==="open"&&df.followUp.assignee===me){
+          items.push({icon:"🔖",tab:"air",text:`Follow Up 追蹤：${d.ship} ${d.date} 缺失#${i+1}（CODE ${df.code||"-"}）尚未結案`,
+            action:()=>goToTab("air",()=>{if(typeof Air!=="undefined")Air.goToReply(d.id);})});
+        }
+      });
+    });
     return items;
   },
   /* 船舶帳號：自己船的自查待查項目、航次報表尚未上傳/被退回的表單 */
@@ -15936,9 +15979,57 @@ const Air={
     if(!$("#tab-air"))return;
     $("#air-list-page").style.display="";
     $("#air-form-page").style.display="none";
+    if($("#air-followup-page"))$("#air-followup-page").style.display="none";
     $("#air-tab-list-btn").className="btn primary";
     $("#air-tab-new-btn").className="btn";
+    if($("#air-tab-followup-btn"))$("#air-tab-followup-btn").className="btn";
     this.renderList();
+  },
+  showFollowUpList(){
+    if(!$("#tab-air"))return;
+    $("#air-list-page").style.display="none";
+    $("#air-form-page").style.display="none";
+    $("#air-followup-page").style.display="";
+    $("#air-tab-list-btn").className="btn";
+    $("#air-tab-new-btn").className="btn";
+    $("#air-tab-followup-btn").className="btn primary";
+    this.renderFollowUpList();
+  },
+  renderFollowUpList(){
+    const box=$("#air-followup-table");if(!box)return;
+    const rows=[];
+    (App.air||[]).forEach(d=>{
+      (d.defects||[]).forEach((df,i)=>{
+        if(df.followUp&&df.followUp.on){
+          const fu=df.followUp;
+          const lastLog=fu.log&&fu.log.length?fu.log[fu.log.length-1]:null;
+          rows.push({ship:d.ship,date:d.date,code:df.code||"",detail:df.detail||"",
+            assignee:fu.assignee||"（尚未指定）",status:fu.status,
+            closedAt:fu.closedAt,lastNote:lastLog?lastLog.note:"",lastAt:lastLog?lastLog.at:0,
+            recId:d.id});
+        }
+      });
+    });
+    if(!rows.length){box.innerHTML=`<p class="hint" style="padding:16px 0">目前沒有任何 Follow Up 追蹤項目。可在對外回覆頁面的各筆缺失下方勾選「需要 Follow Up 追蹤」來建立。</p>`;return;}
+    rows.sort((a,b)=>(a.status===b.status?0:(a.status==="open"?-1:1)));
+    box.innerHTML=`<div class="scrollwrap" style="overflow-x:auto"><table class="tbl" style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:#f8f9fb">
+        <th style="padding:8px;text-align:left">狀態</th><th style="padding:8px;text-align:left">船名</th>
+        <th style="padding:8px;text-align:left">日期</th><th style="padding:8px;text-align:left">CODE</th>
+        <th style="padding:8px;text-align:left">缺失摘要</th><th style="padding:8px;text-align:left">指定人員</th>
+        <th style="padding:8px;text-align:left">最新更新</th><th style="padding:8px;text-align:left">操作</th>
+      </tr></thead><tbody>
+      ${rows.map(r=>`<tr style="border-bottom:1px solid var(--line)">
+        <td style="padding:8px">${r.status==="closed"?`<span style="color:#1f6b4a;font-weight:700">✅ 已結案</span>`:`<span style="color:#a0631f;font-weight:700">🔖 追蹤中</span>`}</td>
+        <td style="padding:8px;font-weight:700">${esc(r.ship)}</td>
+        <td style="padding:8px">${esc(r.date)}</td>
+        <td style="padding:8px">${esc(r.code)}</td>
+        <td style="padding:8px;max-width:280px">${esc((r.detail||"").slice(0,50))}${r.detail.length>50?"…":""}</td>
+        <td style="padding:8px">${esc(r.assignee)}</td>
+        <td style="padding:8px;font-size:12px;color:var(--sub)">${r.lastNote?esc(r.lastNote)+"（"+this.fmtTs(r.lastAt)+"）":(r.status==="closed"?"結案於 "+this.fmtTs(r.closedAt):"—")}</td>
+        <td style="padding:8px"><button class="btn sm" onclick="Air.goToReply(${r.recId})">查看</button></td>
+      </tr>`).join("")}
+      </tbody></table></div>`;
   },
   isPSC(){
     const v=($("#air-itype")?$("#air-itype").value:"")||"";
@@ -16464,7 +16555,8 @@ const Air={
      供之後「覆蓋」轉入時比對用；找不到對應（例如已被刪除）就視為要新增。 */
   rowsToDefectsPayload(rows){
     return rows.filter(r=>r.detail||r.corrective||r.rootCause||r.preventive||r.rank||r.person||r.psc||r.code||r.actual||r.ncProb||r.ncMain||r.ncLeaf)
-      .map(r=>({psc:r.psc||"",code:r.code||"",actual:r.actual||"",detail:r.detail||"",corrective:r.corrective||"",rootCause:r.rootCause||"",preventive:r.preventive||"",rank:r.rank||"",person:r.person||"",people:Array.isArray(r.people)?r.people.filter(p=>p.rank||p.person):[],ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||"",risk:r.risk||"",pushedDefId:r.pushedDefId??null}));
+      .map(r=>({psc:r.psc||"",code:r.code||"",actual:r.actual||"",detail:r.detail||"",corrective:r.corrective||"",rootCause:r.rootCause||"",preventive:r.preventive||"",rank:r.rank||"",person:r.person||"",people:Array.isArray(r.people)?r.people.filter(p=>p.rank||p.person):[],ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||"",risk:r.risk||"",pushedDefId:r.pushedDefId??null,
+        followUp:r.followUp||{on:false,assignee:"",status:"open",log:[],closedAt:0},mergedCodes:Array.isArray(r.mergedCodes)?r.mergedCodes:undefined}));
   },
   saveForm(){
     if(this.editId==null){this.saveBasic();return;}
@@ -16860,6 +16952,8 @@ const Air={
     if(!d.reply)d.reply={items:[]};
     if(!d.reply.items)d.reply.items=[];
     (d.defects||[]).forEach((df,i)=>{
+      if(!df.followUp)df.followUp={on:false,assignee:"",status:"open",log:[],closedAt:0};
+      if(!Array.isArray(df.followUp.log))df.followUp.log=[];
       if(!d.reply.items[i]){
         d.reply.items[i]={
           correctiveCn:df.corrective||"",correctiveEn:"",
@@ -16867,7 +16961,8 @@ const Air={
           rootCauseCn:df.rootCause||"",rootCauseEn:"",
           opCommentCn:"",opCommentEn:"",
           preventiveCn:df.preventive||"",preventiveEn:"",
-          hasEvidence:false,supportingMaterial:"",evidenceFiles:[]
+          hasEvidence:false,supportingMaterial:"",evidenceFiles:[],
+          notify:{to:"",note:"",from:"",at:0,status:"",ackNote:"",ackAt:0}
         };
       }else{
         if(d.reply.items[i].hasEvidence===undefined)d.reply.items[i].hasEvidence=false;
@@ -16875,6 +16970,7 @@ const Air={
         if(d.reply.items[i].immediateCauseCn===undefined)d.reply.items[i].immediateCauseCn="";
         if(d.reply.items[i].immediateCauseEn===undefined)d.reply.items[i].immediateCauseEn="";
         if(!Array.isArray(d.reply.items[i].evidenceFiles))d.reply.items[i].evidenceFiles=[];
+        if(!d.reply.items[i].notify)d.reply.items[i].notify={to:"",note:"",from:"",at:0,status:"",ackNote:"",ackAt:0};
       }
     });
   },
@@ -16890,6 +16986,13 @@ const Air={
     el.classList.remove("fs-m","fs-l","fs-xl");
     el.classList.add("fs-"+sz);
     ["m","l","xl"].forEach(s=>{const b=$("#air-fs-"+s);if(b)b.className="btn sm"+(s===sz?" primary":"");});
+  },
+  /* 從清單以外的地方（Follow Up 清單、待辦事項）導向某筆填單的對外回覆頁：
+     需先把表單頁切到可見狀態，再切到「對外回覆」子分頁，否則 openReply 只會更新
+     一個還藏著的 DOM，使用者畫面不會有變化。 */
+  goToReply(id){
+    this.showForm(id);
+    this.showFormTab("reply");
   },
   showFormTab(tab){
     if(tab==="reply"){
@@ -16912,6 +17015,7 @@ const Air={
     if(!d.defects||!d.defects.length){toast("⚠ 此筆尚無缺失明細，請先新增缺失明細後再進行回覆");return false;}
     this.ensureReply(d);
     this.replyId=id;
+    this.activeDefectIdx=0;
     this._replyDirty=false;
     if(this._replySaveTimer){clearTimeout(this._replySaveTimer);this._replySaveTimer=null;}
     $("#air-reply-context").textContent=`${d.ship}｜${d.date}｜${d.itype}${d.place?"｜"+d.place:""}`;
@@ -16927,28 +17031,63 @@ const Air={
     const wrap=$("#air-reply-defects");if(!wrap)return;
     const canEdit=typeof Role==="undefined"||Role.isAdmin();
     const ro=canEdit?"":"readonly";
+    if(!this.mergeSel)this.mergeSel=new Set();
+    const defs=d.defects||[];
+    if(this.activeDefectIdx==null||this.activeDefectIdx>=defs.length||this.activeDefectIdx<0)this.activeDefectIdx=0;
+    const CARD_PALETTE=[["#0b3a5c","#eef3f7"],["#1f6b4a","#eaf5ee"],["#a0631f","#fbf3e7"],["#6a3b8f","#f3edf8"],["#a23b3b","#faeceb"],["#1f7a8c","#e9f5f7"]];
+    const mergeBar=canEdit&&defs.length>1&&this.mergeSel.size>0?`
+      <div style="margin-top:10px;padding:8px 10px;background:#fdf6ec;border:1px solid #f1e2c4;border-radius:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="hint" style="font-size:12px">已勾選 ${this.mergeSel.size} 筆準備合併</span>
+        <button class="btn sm dark" onclick="Air.mergeSelectedReplyDefects()">🔗 合併已勾選的 ${this.mergeSel.size} 筆</button>
+        <button class="btn sm" onclick="Air.mergeSel.clear();Air.renderReplyDefects(App.air.find(x=>x.id===Air.replyId));">清除勾選</button>
+      </div>`:"";
+    /* 分頁籤：一次只顯示一筆缺失的完整編輯畫面，避免長頁面往下捲動時，
+       手滑把內容填到隔壁另一筆缺失的欄位裡；打勾則是「缺失合併」用的複選，跟切換分頁互不干擾 */
+    const tabsHtml=defs.length>1?`<div class="card" style="padding:12px;margin-bottom:14px">
+        <div class="hint" style="font-size:11.5px;margin-bottom:8px">點選下方分頁切換要填寫的缺失（一次只顯示一筆，避免填錯格子）；左側勾選框是「缺失合併」複選，跟切換分頁互不影響。</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${defs.map((df,i)=>{
+            const [bd]=CARD_PALETTE[i%CARD_PALETTE.length];
+            const on=i===this.activeDefectIdx;
+            const rp=d.reply.items[i]||{};
+            const hasContent=!!(rp.correctiveEn||rp.opCommentEn||rp.rootCauseEn);
+            const nt=rp.notify||{};
+            return `<div class="air-rs-tabwrap" style="border-color:${bd};${on?`background:${bd}`:"background:#fff"}">
+              ${canEdit&&defs.length>1?`<label style="display:flex;align-items:center;padding-left:8px;cursor:pointer" title="勾選以進行缺失合併"><input type="checkbox" ${this.mergeSel.has(i)?"checked":""} onchange="event.stopPropagation();Air.toggleMergeSel(${i},this.checked)"></label>`:""}
+              <button type="button" class="air-rs-tab" style="color:${on?"#fff":bd}" onclick="Air.setActiveDefect(${i})">
+                #${i+1}${df.code?" · CODE "+esc(df.code):""}${hasContent?" ✓":""}${nt.status==="pending"?" 🔔":""}${df.followUp&&df.followUp.on&&df.followUp.status==="open"?" 🔖":""}
+              </button>
+            </div>`;
+          }).join("")}
+        </div>
+        ${mergeBar}
+      </div>`:"";
     const row=(idx,label,key,rp)=>`
       <label class="air-reply-lbl" style="display:block;margin:10px 0 3px">${label}</label>
       <textarea class="air-reply-ta" placeholder="中文" style="width:100%" ${ro} oninput="autoResizeTA(this);Air.setReplyField(${idx},'${key}Cn',this.value)">${esc(rp[key+"Cn"]||"")}</textarea>
       <textarea class="air-reply-ta" placeholder="English" style="width:100%;margin-top:4px" ${ro} oninput="autoResizeTA(this);Air.setReplyField(${idx},'${key}En',this.value)">${esc(rp[key+"En"]||"")}</textarea>`;
-    const CARD_PALETTE=[["#0b3a5c","#eef3f7"],["#1f6b4a","#eaf5ee"],["#a0631f","#fbf3e7"],["#6a3b8f","#f3edf8"],["#a23b3b","#faeceb"],["#1f7a8c","#e9f5f7"]];
-    wrap.innerHTML=(d.defects||[]).map((df,i)=>{
+    const i=this.activeDefectIdx;
+    const df=defs[i];
+    let cardHtml="";
+    if(df){
       const rp=d.reply.items[i]||{};
       const chName=df.code?chapterNameLookup(d.itype,df.code):"";
       const [bd,bg]=CARD_PALETTE[i%CARD_PALETTE.length];
-      return `<div class="card" style="border-left:7px solid ${bd};background:${bg}">
-        <h3 class="air-reply-lbl" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:${bd}">
-          缺失 #${i+1}
-          ${df.code?`<span style="background:#fff;color:${bd};border:1px solid ${bd};border-radius:5px;padding:2px 9px;font-size:13px;font-weight:700">CODE ${esc(df.code)}</span>`:`<span class="hint" style="font-weight:400">（尚未填寫 CODE）</span>`}
-          ${chName?`<span class="hint" style="font-weight:400">${esc(chName)}</span>`:""}
-        </h3>
-        <div class="hint air-reply-lbl" style="background:#fff;padding:10px;border-radius:6px;white-space:pre-line;font-weight:400">${esc(df.detail)||"（未填寫缺失詳情）"}</div>
-        ${row(i,"Initial Operator Comment","opComment",rp)}
-        ${row(i,"Immediate Cause 直接原因","immediateCause",rp)}
-        ${row(i,"根本原因 Root Cause","rootCause",rp)}
-        ${row(i,"矯正措施 Corrective Action","corrective",rp)}
-        ${row(i,"預防措施 Preventive Measures","preventive",rp)}
-        <div style="margin-top:14px;padding:10px;background:#fff8e1;border-radius:6px">
+      cardHtml=`<div class="card air-reply-split" style="border-left:7px solid ${bd};background:${bg}">
+        <div class="air-rs-id" style="background:${bg}">
+          <div class="air-reply-lbl" style="font-weight:700;color:${bd};font-size:16px;margin-bottom:8px">缺失 #${i+1}</div>
+          ${df.code?`<div style="margin-bottom:8px"><span style="background:#fff;color:${bd};border:1px solid ${bd};border-radius:5px;padding:3px 10px;font-size:13px;font-weight:700">CODE ${esc(df.code)}</span></div>`:`<div class="hint" style="margin-bottom:8px">（尚未填寫 CODE）</div>`}
+          ${chName?`<div class="hint" style="margin-bottom:8px">${esc(chName)}</div>`:""}
+          ${df.mergedCodes&&df.mergedCodes.length?`<div class="hint" style="color:#a0631f;margin-bottom:8px">🔗 合併自 CODE ${df.mergedCodes.map(esc).join("、")}</div>`:""}
+          <div class="air-reply-lbl" style="background:#fff;padding:10px;border-radius:6px;white-space:pre-line;font-weight:400;font-size:13px;line-height:1.6">${esc(df.detail)||"（未填寫缺失詳情）"}</div>
+        </div>
+        <div class="air-rs-edit">
+          ${row(i,"Initial Operator Comment","opComment",rp)}
+          ${row(i,"Immediate Cause 直接原因","immediateCause",rp)}
+          ${row(i,"根本原因 Root Cause","rootCause",rp)}
+          ${row(i,"矯正措施 Corrective Action","corrective",rp)}
+          ${row(i,"預防措施 Preventive Measures","preventive",rp)}
+          <div style="margin-top:14px;padding:10px;background:#fff8e1;border-radius:6px">
           <div class="air-reply-lbl" style="font-weight:700;margin-bottom:6px">是否有相關證據，如有請上傳</div>
           <div style="display:flex;gap:18px;margin-bottom:4px">
             <label style="display:flex;align-items:center;gap:6px;cursor:${canEdit?"pointer":"not-allowed"}">
@@ -16962,8 +17101,12 @@ const Air={
         </div>
         <label class="air-reply-lbl" style="display:block;margin:10px 0 3px">Supporting Material（佐證資料說明，例：Photo evidence／Certificate copy，匯出 CAR 時會列在最後一欄）</label>
         <textarea class="air-reply-ta" placeholder="例：Photo evidence." style="width:100%" ${ro} oninput="autoResizeTA(this);Air.setReplyField(${i},'supportingMaterial',this.value)">${esc(rp.supportingMaterial||"")}</textarea>
+        ${this.renderNotifyBox(i,rp,canEdit)}
+          ${this.renderFollowUpBox(i,df,canEdit)}
+        </div>
       </div>`;
-    }).join("");
+    }
+    wrap.innerHTML=tabsHtml+(cardHtml||`<p class="hint" style="padding:16px 0">尚無缺失明細，請先在「線上填單」加入缺失明細。</p>`);
     initAutoResize(wrap,"textarea.air-reply-ta");
     if(!canEdit){
       const tip=document.createElement("p");
@@ -16971,6 +17114,186 @@ const Air={
       tip.textContent="🔒 唯讀：僅 Owner／管理員可編輯、調整或清除海技對外回覆內容";
       wrap.prepend(tip);
     }
+  },
+  setActiveDefect(i){
+    this.activeDefectIdx=i;
+    const d=App.air.find(x=>x.id===this.replyId);
+    if(d)this.renderReplyDefects(d);
+    const el=$("#air-reply-defects");if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"start"});
+  },
+  /* ── 通知功能：翻譯/確認流程的人員通知（例如「英文已翻譯完成，通知OO確認」）── */
+  renderNotifyBox(i,rp,canEdit){
+    const nt=rp.notify||{};
+    const isPending=nt.status==="pending";
+    const isDone=nt.status==="done";
+    const me=(typeof Role!=="undefined"&&Role.personName)?Role.personName():"";
+    const canAck=isPending&&nt.to&&(me===nt.to||(typeof Role!=="undefined"&&Role.isAdmin()));
+    return `<div style="margin-top:14px;padding:10px;background:#eef4ff;border-radius:6px;border:1px solid #cfe0f9">
+      <div class="air-reply-lbl" style="font-weight:700;margin-bottom:6px">🔔 通知</div>
+      ${isPending?`<div style="background:#fff;border:1px solid #cfe0f9;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:12.5px">
+          <b>待處理</b>：${esc(nt.from)} → ${esc(nt.to)}｜${esc(nt.note)}
+          ${canAck?`<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+            <input type="text" id="ack-note-${i}" placeholder="回覆說明（選填，例：已確認無誤）" style="flex:1;min-width:160px;padding:5px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px">
+            <button class="btn sm dark" onclick="Air.ackNotify(${i})">✓ 已確認</button>
+          </div>`:`<span class="hint">等待 ${esc(nt.to)} 確認中</span>`}
+        </div>`:""}
+      ${isDone?`<div style="background:#eaf5ee;border:1px solid #bfe3cc;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:12.5px">
+          <b>✓ 已確認</b>：${esc(nt.to)} 於 ${esc(this.fmtTs(nt.ackAt))} 確認${nt.ackNote?`，回覆：${esc(nt.ackNote)}`:""}
+        </div>`:""}
+      ${canEdit?`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="notify-to-${i}" list="dl-roster-names" placeholder="通知對象（人員姓名）" value="${esc(nt.status==="pending"?"":nt.to)}" style="flex:0 0 160px;padding:5px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px">
+          <input type="text" id="notify-note-${i}" placeholder="通知事由，例：英文內容已翻譯完成，請確認" style="flex:1;min-width:180px;padding:5px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px">
+          <button class="btn sm primary" onclick="Air.sendNotify(${i})">🔔 送出通知</button>
+        </div>`:""}
+    </div>`;
+  },
+  sendNotify(i){
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／管理員可送出通知");return;}
+    const to=($("#notify-to-"+i)?.value||"").trim();
+    const note=($("#notify-note-"+i)?.value||"").trim();
+    if(!to){toast("⚠ 請填寫通知對象");return;}
+    const d=App.air.find(x=>x.id===this.replyId);
+    if(!d||!d.reply||!d.reply.items[i])return;
+    d.reply.items[i].notify={to,note,from:(typeof Role!=="undefined"&&Role.personName)?Role.personName():"",at:Date.now(),status:"pending",ackNote:"",ackAt:0};
+    this.scheduleReplyAutoSave();this.autoSaveReply();
+    this.renderReplyDefects(d);
+    toast(`✓ 已通知 ${to}`);
+  },
+  ackNotify(i){
+    const d=App.air.find(x=>x.id===this.replyId);
+    if(!d||!d.reply||!d.reply.items[i]||!d.reply.items[i].notify)return;
+    const nt=d.reply.items[i].notify;
+    const me=(typeof Role!=="undefined"&&Role.personName)?Role.personName():"";
+    if(nt.to!==me&&!(typeof Role!=="undefined"&&Role.isAdmin())){toast("⚠ 此通知非指定給您，無法確認");return;}
+    nt.status="done";nt.ackNote=($("#ack-note-"+i)?.value||"").trim();nt.ackAt=Date.now();
+    this.autoSaveReply();
+    this.renderReplyDefects(d);
+    if(typeof Todo!=="undefined")Todo.render();
+    toast("✓ 已確認通知");
+  },
+  fmtTs(ts){if(!ts)return"";const d=new Date(ts);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;},
+
+  /* ── Follow Up 追蹤：勾選需追蹤、指定人員、更新改善情形、結案 ── */
+  renderFollowUpBox(i,df,canEdit){
+    const fu=df.followUp||{on:false,assignee:"",status:"open",log:[]};
+    const closed=fu.status==="closed";
+    return `<div style="margin-top:14px;padding:10px;background:${fu.on?(closed?"#eaf5ee":"#fff8e1"):"#f6f7f9"};border-radius:6px;border:1px solid ${fu.on?(closed?"#bfe3cc":"#f1e2c4"):"var(--line)"}">
+      <label style="display:flex;align-items:center;gap:6px;cursor:${canEdit?"pointer":"not-allowed"};font-weight:700" class="air-reply-lbl">
+        <input type="checkbox" ${fu.on?"checked":""} ${canEdit?"":"disabled"} onchange="Air.toggleFollowUp(${i},this.checked)"> 🔖 需要 Follow Up 追蹤
+        ${fu.on?`<span class="hint" style="font-weight:400">${closed?"（已結案）":"（追蹤中）"}</span>`:""}
+      </label>
+      ${fu.on?`<div style="margin-top:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+          <label class="hint" style="font-size:12px">指定追蹤人員：</label>
+          <input type="text" list="dl-roster-names" value="${esc(fu.assignee)}" ${canEdit&&!closed?"":"disabled"} placeholder="人員姓名" style="padding:5px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px" onchange="Air.setFollowUpField(${i},'assignee',this.value)">
+        </div>
+        ${fu.log.length?`<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:8px;font-size:12.5px;max-height:160px;overflow:auto">
+          ${fu.log.map(l=>`<div style="padding:4px 0;border-bottom:1px dashed var(--line)"><b>${esc(this.fmtTs(l.at))} ${esc(l.by)}</b>：${esc(l.note)}</div>`).join("")}
+        </div>`:""}
+        ${canEdit&&!closed?`<div style="display:flex;gap:6px;flex-wrap:wrap">
+          <input type="text" id="fu-note-${i}" placeholder="更新改善情形…" style="flex:1;min-width:180px;padding:5px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px">
+          <button class="btn sm" onclick="Air.addFollowUpLog(${i})">➕ 新增更新</button>
+          <button class="btn sm dark" onclick="Air.closeFollowUp(${i})">✅ 標記已結案</button>
+        </div>`:""}
+        ${canEdit&&closed?`<button class="btn sm" onclick="Air.reopenFollowUp(${i})">↺ 重新開啟追蹤</button>`:""}
+      </div>`:""}
+    </div>`;
+  },
+  toggleFollowUp(i,on){
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／管理員可設定 Follow Up");return;}
+    const d=App.air.find(x=>x.id===this.replyId);
+    if(!d||!d.defects||!d.defects[i])return;
+    if(!d.defects[i].followUp)d.defects[i].followUp={on:false,assignee:"",status:"open",log:[],closedAt:0};
+    d.defects[i].followUp.on=on;
+    if(on&&d.defects[i].followUp.status==="closed"){d.defects[i].followUp.status="open";d.defects[i].followUp.closedAt=0;}
+    this.autoSaveReply();
+    this.renderReplyDefects(d);
+    if(typeof Todo!=="undefined")Todo.render();
+  },
+  setFollowUpField(i,key,v){
+    const d=App.air.find(x=>x.id===this.replyId);
+    if(!d||!d.defects||!d.defects[i]||!d.defects[i].followUp)return;
+    d.defects[i].followUp[key]=v;
+    this.autoSaveReply();
+    if(typeof Todo!=="undefined")Todo.render();
+    toast(v?`✓ 已指定 ${v} 追蹤此項目`:"已清除指定人員");
+  },
+  addFollowUpLog(i){
+    const note=($("#fu-note-"+i)?.value||"").trim();
+    if(!note){toast("⚠ 請先填寫更新內容");return;}
+    const d=App.air.find(x=>x.id===this.replyId);
+    if(!d||!d.defects||!d.defects[i]||!d.defects[i].followUp)return;
+    d.defects[i].followUp.log.push({at:Date.now(),by:(typeof Role!=="undefined"&&Role.personName)?Role.personName():"",note});
+    this.autoSaveReply();
+    this.renderReplyDefects(d);
+    toast("✓ 已新增追蹤更新");
+  },
+  closeFollowUp(i){
+    if(!confirm("確定要將此項目標記為已結案？結案後可再點「重新開啟追蹤」恢復。"))return;
+    const d=App.air.find(x=>x.id===this.replyId);
+    if(!d||!d.defects||!d.defects[i]||!d.defects[i].followUp)return;
+    d.defects[i].followUp.status="closed";d.defects[i].followUp.closedAt=Date.now();
+    this.autoSaveReply();
+    this.renderReplyDefects(d);
+    if(typeof Todo!=="undefined")Todo.render();
+    toast("✓ 已標記結案");
+  },
+  reopenFollowUp(i){
+    const d=App.air.find(x=>x.id===this.replyId);
+    if(!d||!d.defects||!d.defects[i]||!d.defects[i].followUp)return;
+    d.defects[i].followUp.status="open";d.defects[i].followUp.closedAt=0;
+    this.autoSaveReply();
+    this.renderReplyDefects(d);
+    if(typeof Todo!=="undefined")Todo.render();
+  },
+
+  /* ── 缺失合併：把內容相似的多筆缺失合併成一案（缺失詳情/中英回覆依序合併，並記錄原CODE）── */
+  toggleMergeSel(i,on){
+    if(!this.mergeSel)this.mergeSel=new Set();
+    on?this.mergeSel.add(i):this.mergeSel.delete(i);
+    const d=App.air.find(x=>x.id===this.replyId);
+    this.renderReplyDefects(d);
+  },
+  mergeSelectedReplyDefects(){
+    const idxs=[...(this.mergeSel||[])].sort((a,b)=>a-b);
+    if(idxs.length<2){toast("⚠ 請至少勾選 2 筆要合併的缺失");return;}
+    if(!confirm(`確定要將勾選的 ${idxs.length} 筆缺失合併成同一案？\n\n缺失詳情、實際情況與各項中英文回覆內容會依序合併保留（不會遺失），原本的 CODE 會記錄在合併後的標籤上。此動作無法復原，建議先確認內容已無誤。`))return;
+    const d=App.air.find(x=>x.id===this.replyId);
+    if(!d)return;
+    this.ensureReply(d);
+    const keepI=idxs[0];
+    const mergeDfs=idxs.map(i=>d.defects[i]);
+    const mergeRps=idxs.map(i=>d.reply.items[i]);
+    const joinField=(arr,key)=>arr.map((x,n)=>x[key]?`【原CODE ${esc(mergeDfs[n].code||"?")}】${x[key]}`:"").filter(Boolean).join("\n\n");
+    const merged=Object.assign({},mergeDfs[0]);
+    merged.detail=joinField(mergeDfs,"detail");
+    merged.actual=joinField(mergeDfs,"actual");
+    merged.corrective=joinField(mergeDfs,"corrective");
+    merged.rootCause=joinField(mergeDfs,"rootCause");
+    merged.preventive=joinField(mergeDfs,"preventive");
+    merged.mergedCodes=mergeDfs.map(x=>x.code).filter(Boolean);
+    merged.followUp={on:false,assignee:"",status:"open",log:[],closedAt:0};
+    const mergedRp={};
+    ["opComment","immediateCause","rootCause","corrective","preventive"].forEach(k=>{
+      mergedRp[k+"Cn"]=joinField(mergeRps.map((r,n)=>({[k+"Cn"]:r[k+"Cn"],code:mergeDfs[n].code})),k+"Cn");
+      mergedRp[k+"En"]=joinField(mergeRps.map((r,n)=>({[k+"En"]:r[k+"En"],code:mergeDfs[n].code})),k+"En");
+    });
+    mergedRp.hasEvidence=mergeRps.some(r=>r.hasEvidence);
+    mergedRp.supportingMaterial=mergeRps.map(r=>r.supportingMaterial).filter(Boolean).join("；");
+    mergedRp.evidenceFiles=[].concat(...mergeRps.map(r=>r.evidenceFiles||[]));
+    mergedRp.notify={to:"",note:"",from:"",at:0,status:"",ackNote:"",ackAt:0};
+    const dropSet=new Set(idxs.slice(1));
+    const newDefects=[],newItems=[];
+    d.defects.forEach((df,i)=>{
+      if(i===keepI){newDefects.push(merged);newItems.push(mergedRp);}
+      else if(!dropSet.has(i)){newDefects.push(df);newItems.push(d.reply.items[i]);}
+    });
+    d.defects=newDefects;d.reply.items=newItems;d.ndef=newDefects.length;
+    this.mergeSel.clear();
+    this.activeDefectIdx=newDefects.indexOf(merged);
+    this.autoSaveReply();
+    this.renderReplyDefects(d);
+    toast(`✓ 已合併為 1 筆（原 ${idxs.length} 筆），記得確認合併後內容`);
   },
   setReplyField(i,key,v){
     if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／管理員可編輯海技對外回覆");this.renderReplyDefects(App.air.find(x=>x.id===this.replyId));return;}
