@@ -3066,8 +3066,13 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             </select>
             <div class="msel" id="ms-ad-auditor"></div>
             <div class="msel" id="ms-ad-schedmonth"></div>
+            <span class="hint" style="font-size:12px">計畫檢查日：</span>
+            <input type="month" id="ad-f-plandate-from" onchange="AuditDash.render()" style="padding:5px 6px;font-size:12px">
+            <span class="hint">～</span>
+            <input type="month" id="ad-f-plandate-to" onchange="AuditDash.render()" style="padding:5px 6px;font-size:12px">
             <button class="btn sm" onclick="AuditDash.clearFilters()">清除篩選</button>
             <span class="spacer" style="flex:1"></span>
+            <span class="hint" id="ad-result-count" style="font-weight:600"></span>
             <button class="btn sm" id="ad-addrow-btn" onclick="AuditDash.addRowPrompt()">➕ 新增一列（同船第二輪稽核）</button>
           </div>
           <div class="toolbar" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
@@ -3089,14 +3094,22 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       </div>
 
       <div class="modal-bg" id="adPrintModal">
-        <div class="modal" style="max-width:420px">
-          <div class="mh"><h3>🖨 列印／PDF － 選擇區塊</h3><button class="x" onclick="AuditDash.closePrintModal()">✕</button></div>
+        <div class="modal" style="max-width:520px">
+          <div class="mh"><h3>🖨 列印／PDF － 匯出設定</h3><button class="x" onclick="AuditDash.closePrintModal()">✕</button></div>
           <div class="mb">
-            <p class="hint" style="margin-bottom:10px;line-height:1.6">勾選要包含在這次列印/PDF中的船舶區塊。例行每兩週呈簽 DPA 時，通常只需前三項（排除已結案，避免報表被已完成的船淹沒）。</p>
+            <p class="hint" style="margin-bottom:10px;line-height:1.6">勾選要包含在這次列印/PDF中的船舶區塊（分區塊各自列印，跟畫面「分區檢視」一致）。例行每兩週呈簽 DPA 時，通常只需前三項（排除已結案，避免報表被已完成的船淹沒）。要縮小範圍可先在上方篩選列設定「計畫檢查日」區間，會一併套用。</p>
             <label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" id="ad-print-scheduled" checked> 🔴 已進入排程（未完成）</label>
             <label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" id="ad-print-unscheduled" checked> 🟡 未排程</label>
             <label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" id="ad-print-doneopen" checked> 🔵 已完成稽核未結案</label>
             <label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" id="ad-print-doneclosed"> ✅ 已完成稽核已結案</label>
+            <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
+              <label style="display:block;margin-bottom:10px">表頭年份
+                <input type="number" id="ad-print-year" style="width:100px;margin-left:8px" min="2000" max="2100">
+              </label>
+              <label style="display:block">備註（會印在表格下方，可自行編輯，內容會記住）
+                <textarea id="ad-print-note" rows="8" style="width:100%;margin-top:4px;font-size:12px;font-family:inherit"></textarea>
+              </label>
+            </div>
             <div class="modal-actions" style="margin-top:14px">
               <button class="btn" onclick="AuditDash.closePrintModal()">取消</button>
               <span class="spacer" style="flex:1"></span>
@@ -3593,7 +3606,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <li>下載匯入模板時，欄位會自動對齊<b>目前畫面顯示的欄位</b>（缺失紀錄總表、船舶資料可自訂顯示欄位與順序）。</li>
             <li>左側導覽選單可拖曳調整<b>同一區塊內</b>的順序（跨區塊無法拖曳），排序會記錄在本機瀏覽器，不影響其他人。</li>
             <li>所有操作（含批量編輯、自動同步）皆會記入<b>操作紀錄</b>，維護者可於資料管理查看全公司紀錄。</li>
-            <li><b>缺失總表「✎ 快速分類」</b>（Owner／管理員，以及 Owner 於「資料管理→維護者」指定的督導可用）：可直接在表格上編輯 7 個分類欄位——<span class="kbd2">Tab／Enter</span> 跳格、<span class="kbd2">方向鍵</span>移動、<span class="kbd2">Ctrl+D</span> 把來源列的分類向下填滿到勾選的列、<span class="kbd2">Ctrl+Z</span> 復原。工具列另有分類完成度與「🔍 只看未分類」。</li>
+            <li><b>缺失總表「✎ 快速分類」</b>（Owner／管理員，以及 Owner 於「資料管理→維護者」指定的督導可用）：可直接在表格上編輯 8 個分類欄位（含缺失性質判定）——<span class="kbd2">Tab／Enter</span> 跳格、<span class="kbd2">方向鍵</span>移動、<span class="kbd2">Ctrl+D</span> 把來源列的分類向下填滿到勾選的列、<span class="kbd2">Ctrl+Z</span> 復原。工具列另有分類完成度與「🔍 只看未分類」。</li>
             <li><b>⚡ 系統建議分類只是「建議」</b>：按「⚡ 建議未分類項的標籤」後，系統以關鍵字判定並以<b>紫色虛線</b>標示＝尚未採納。可逐格點選修改，或按「✓ 採納全部建議」一次寫入（會標記為「待人工核對*」，仍可 Ctrl+Z 復原）。<b>建議永遠不會自動覆蓋既有資料。</b></li>
             <li><b>檢查管控「📊 時間軸」</b>：以甘特圖顯示可排區間、到期日、已排日期與今天位置。按「✎ 排程模式」後<b>直接點時間軸即可設定預排檢查日</b>，且只能點在合法區間內（排在區間外會被擋下並說明原因）。權限與列表一致：<b>僅該筆「檢查安排人」本人或 Owner／管理員可排程</b>。</li>
             <li><b>表格密度</b>（緊湊／標準／寬鬆）可於缺失總表工具列切換，<b>全站表格一起生效</b>，設定只記在自己的瀏覽器、不影響他人。</li>
@@ -4270,7 +4283,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
           </div>
           <div class="card">
             <h3>填單轉入缺失紀錄總表 — 必填欄位設定</h3>
-            <p class="hint" style="margin-bottom:10px;line-height:1.7">勾選的欄位，在填單或匯入時可以先留空，<b>但按「➜ 轉入缺失紀錄總表」時，只要有任一筆缺失明細缺少勾選的欄位，就會擋下整批轉入</b>並列出還缺哪幾筆哪些欄位；未勾選的欄位不受限制。<b>系統預設已勾選「問題別／大類／具體名稱／三要素／重要程度／風險／檢查員意見(BP)」共7項</b>（分類彙總分析會用到，未分類會讓統計失真）；如需調整（含全部取消＝不限制），儲存後以本次設定為準。</p>
+            <p class="hint" style="margin-bottom:10px;line-height:1.7">勾選的欄位，在填單或匯入時可以先留空，<b>但按「➜ 轉入缺失紀錄總表」時，只要有任一筆缺失明細缺少勾選的欄位，就會擋下整批轉入</b>並列出還缺哪幾筆哪些欄位；未勾選的欄位不受限制。<b>系統預設已勾選「問題別／大類／具體名稱／三要素／重要程度／風險／缺失性質判定」共7項</b>（分類彙總分析會用到，未分類會讓統計失真）；如需調整（含全部取消＝不限制），儲存後以本次設定為準。</p>
             <div id="air-req-fields-body" style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-bottom:12px"></div>
             <div class="toolbar">
               <button class="btn primary" onclick="AirDefReq.save()">💾 儲存必填欄位設定</button>
@@ -4532,7 +4545,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <label style="flex-direction:row;align-items:center;gap:8px;align-self:end;padding-bottom:6px"><input type="checkbox" id="e-ncFocus" style="width:16px;height:16px;accent-color:var(--bad)"> 🔴 重點關注</label>
             <label id="e-ncMethod-wrap">分類方法<input type="text" id="e-ncMethod" placeholder="關鍵字對應 / 人工核對…"></label>
             <div class="fw fld">三要素（人員/設備/系統，可多選）<div class="msel" id="ms-e-ncFactor"></div></div>
-            <div class="fw fld">檢查員意見 / Best Practice（可多選）<div class="msel" id="ms-e-ncOpinion"></div></div>
+            <label class="fw">缺失性質判定<select id="e-ncOpinion"><option value="none">無</option><option value="inspector_opinion">檢查員個人意見</option><option value="best_practice">Best Practice（建議做法）</option></select></label>
           </div>
         </div>
       </div>
@@ -4586,7 +4599,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
           <th style="width:150px">三要素（可多選）</th>
           <th style="width:90px">重要程度</th>
           <th style="width:70px">重點關注</th>
-          <th style="width:140px">檢查員意見/Best Practice</th>
+          <th style="width:140px">缺失性質判定</th>
           <th style="width:70px">風險</th>
           <th style="width:40px"></th>
         </tr></thead><tbody id="bt-tbody"></tbody></table>
@@ -5482,9 +5495,10 @@ const DefsGrid={
     {k:"ncFactor",t:"三要素",  multi:true, opts:()=>{const v=(typeof TagLists!=="undefined"?TagLists.values("ncFactor"):[...new Set(App.defs.map(d=>d.ncFactor).filter(Boolean))].sort());return v.length?v:["人員因素","設備因素","系統因素"];}},
     {k:"ncImp",  t:"重要程度", opts:()=>["高","中","低"]},
     {k:"risk",   t:"風險",     opts:()=>["1","2","3"]},
-    {k:"ncFocus",t:"重要關注", opts:()=>["是","否"]}
+    {k:"ncFocus",t:"重要關注", opts:()=>["是","否"]},
+    {k:"ncOpinion",t:"缺失性質判定", opts:()=>NC_OPINION_OPTS.map(o=>o[0]), label:o=>ncOpinionLabel(o)}
   ],
-  /* ── 「已分類」的定義 ──
+  /* ── 「已分類」的定義（統計只沿用固定 7 欄，缺失性質判定屬選填標記，不計入分類完成度）──
      scope="tag" ：只看 4 個分類欄（問題別／大類／具體名稱／三要素）
      scope="all" ：再加上 3 個評級欄（重要程度／風險／重要關注）
      預設 tag：這 4 欄是分析用的核心分類；評級欄常是後續才補，
@@ -5496,7 +5510,7 @@ const DefsGrid={
     this._idx=null;Defs.page=1;Defs.render();
     toast(v==="all"?"完成度改以「全部 7 欄」計算":"完成度改以「分類 4 欄」計算");},
   scopeCols(){
-    return this.scope()==="all"?this.COLS.map(c=>c.k):this.TAG_COLS;
+    return this.scope()==="all"?["ncProb","ncMain","ncLeaf","ncFactor","ncImp","risk","ncFocus"]:this.TAG_COLS;
   },
   isClassified(d){return this.scopeCols().every(k=>d[k]);},
   missingCount(){return App.defs.filter(d=>!this.isClassified(d)).length;},
@@ -5581,6 +5595,7 @@ const DefsGrid={
     else if(k==="ncImp")   inner=`<span class="st ${v==="高"?"st-hi":v==="中"?"st-md":"st-lo"}">${esc(v)}</span>`;
     else if(k==="risk")    inner=`<span class="st ${+v>=3?"st-hi":+v===2?"st-md":"st-lo"}">${esc(v)}</span>`;
     else if(k==="ncFocus") inner=v==="是"?`<span class="st st-fc">★ 是</span>`:`<span class="st st-nu">否</span>`;
+    else if(k==="ncOpinion") inner=`<span class="st" style="background:#eef7ee;color:#2d6a4f">${esc(ncOpinionLabel(v))}</span>`;
     else inner=`<span style="font-size:11.5px">${esc(v)}</span>`;
     const cls=["cls-col"];
     if(this.on)cls.push("dg-cell");
@@ -5638,7 +5653,7 @@ const DefsGrid={
         <button class="btn sm primary" style="width:100%" onclick="DefsGrid.addNewOpt()">＋ 新增到「${esc(k==="ncMain"?d.ncProb:d.ncMain)}」下面</button>
       </div>`:"";
       box.innerHTML=`<div class="dg-eh">${col.t}　↑↓ 選擇 · Enter 確定 · Esc 取消 · Tab 下一欄</div>`+
-        opts.map((o,j)=>`<div class="dg-opt ${j===this.edHi?"hi":""}" data-j="${j}" onclick="DefsGrid.pick(${j})">${esc(o)}</div>`).join("")+
+        opts.map((o,j)=>`<div class="dg-opt ${j===this.edHi?"hi":""}" data-j="${j}" onclick="DefsGrid.pick(${j})">${esc(col.label?col.label(o):o)}</div>`).join("")+
         (d[k]?`<div class="dg-opt dg-clear" onclick="DefsGrid.pick(-1)">✕ 清除此欄</div>`:"")+
         addNewHtml;
     }
@@ -6090,7 +6105,7 @@ const EditorList={
       base:"Owner／維護者"},
     defsGrid:{key:"defsGridEditors", field:"defsGridEditors", lsk:"dge",
       title:"缺失總表 — 快速分類",
-      desc:"可在缺失紀錄總表使用「✎ 快速分類」格線編輯（直接修改問題別／大類／具體名稱／三要素／重要程度／風險／重要關注），並使用⚡系統建議分類。",
+      desc:"可在缺失紀錄總表使用「✎ 快速分類」格線編輯（直接修改問題別／大類／具體名稱／三要素／重要程度／風險／重要關注／缺失性質判定），並使用⚡系統建議分類。",
       base:"Owner／維護者"}
   },
   can(id){
@@ -6553,7 +6568,7 @@ const Perms={
      desc:"於缺失紀錄總表新增或編輯缺失內容（刪除一律僅限 Owner／維護者）。",
      def:{op1:true,op2:false,op3:false}, ppl:false},
     {id:"defs_grid_edit", g:"缺失紀錄", label:"快速分類（格線編輯）",
-     desc:"使用「✎ 快速分類」在表格上直接編輯 7 個分類欄位，並使用 ⚡ 系統建議分類。",
+     desc:"使用「✎ 快速分類」在表格上直接編輯 8 個分類欄位（含缺失性質判定），並使用 ⚡ 系統建議分類。",
      def:{op1:false,op2:false,op3:false}, ppl:true},
 
     {id:"selfcheck_create_task", g:"船舶缺失自查", label:"建立自查任務",
@@ -6879,12 +6894,18 @@ function dl(blob,name){
     setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);
   }catch(e){toast("⚠ 此瀏覽器封鎖了檔案下載,請改用電腦版 Chrome/Edge/Firefox 開啟");}
 }
-function doPrint(){
+function doPrint(landscape){
   /* 列印／另存 PDF 同樣是把資料帶出系統的途徑，因此適用相同的匯出權限 */
   if(!requireExport())return;
   if(typeof window.print!=="function"){toast("⚠ 此瀏覽器不支援列印/另存PDF,請改用 Excel 匯出");return;}
+  let styleTag=document.getElementById("printOrientStyle");
+  if(!styleTag){styleTag=document.createElement("style");styleTag.id="printOrientStyle";document.head.appendChild(styleTag);}
+  styleTag.textContent=landscape?"@page{size:A4 landscape}":"";
   // 延遲確保列印內容完成排版(部分瀏覽器立即print會印到空白)
-  setTimeout(()=>{try{window.print();}catch(e){toast("⚠ 無法開啟列印視窗,請使用瀏覽器選單的「列印」");}},120);
+  setTimeout(()=>{
+    try{window.print();}catch(e){toast("⚠ 無法開啟列印視窗,請使用瀏覽器選單的「列印」");}
+    styleTag.textContent=""; // 印完立即還原成直式，避免影響其他頁面的列印/PDF
+  },120);
 }
 // 導覽跳轉：借用既有的側邊欄點擊邏輯（含頁面切換、各模組 render），避免另外維護一套跳轉規則。
 // after 可傳入一個函式，在頁面切換完成、該模組 render 完後執行（例如切換到某個子頁籤或套用篩選）。
@@ -10255,7 +10276,19 @@ function pscArr(s){return (s||"").split(",").map(x=>x.trim()).filter(Boolean);}
 function pscChipsHtml(s){const a=pscArr(s);if(!a.length)return "";return a.map(c=>{const f=PSC_ACTION_CODES.find(x=>x[0]===c);return `<span class="code-chip" title="${esc(f?f[1]:"")}">${esc(c)}</span>`;}).join(" ");}
 function pscBoxHtml(s,idPrefix){const sel=new Set(pscArr(s));return PSC_ACTION_CODES.map(([c,label])=>`<label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:400;white-space:nowrap"><input type="checkbox" id="${idPrefix}-${c}" value="${c}" ${sel.has(c)?"checked":""} style="width:14px;height:14px"> <span title="${esc(label)}">${c}</span></label>`).join("");}
 function pscBoxRead(idPrefix){return PSC_ACTION_CODES.map(([c])=>c).filter(c=>{const el=document.getElementById(`${idPrefix}-${c}`);return el&&el.checked;}).join(",");}
-const DEF_COLS=[["ship","船名"],["vtype","船型"],["itype","檢查類型"],["ym","年月"],["date","檢查日期"],["place","地點"],["inspector","檢查員"],["oilco","油公司/單位"],["psc","PSC action"],["code","缺失代碼"],["attn","重點關注"],["detail","缺失詳情"],["actual","實際情況"],["corrective","改善措施"],["rootCause","根本原因"],["preventive","預防措施"],["rank","職級-責任人"],["person","姓名-責任人"],["risk","風險(1低2中3高)"],["ncProb","問題別"],["ncMain","大類"],["ncLeaf","具體名稱"],["ncFactor","三要素"],["ncImp","重要程度"],["ncFocus","重點關注"],["ncMethod","分類方法"],["ncOpinion","檢查員意見/Best Practice"]];
+/* ════════ 缺失性質判定（固定值下拉選單，取代舊版「檢查員意見/Best Practice」自由文字/多選）════════ */
+const NC_OPINION_OPTS=[["none","無"],["inspector_opinion","檢查員個人意見"],["best_practice","Best Practice（建議做法）"]];
+function ncOpinionNormalize(v){
+  if(v==="none"||v==="inspector_opinion"||v==="best_practice")return v;
+  if(!v)return "none";
+  const s=String(v);
+  if(/best\s*practice/i.test(s))return "best_practice";
+  if(s.indexOf("檢查員")>-1)return "inspector_opinion";
+  return "none";
+}
+function ncOpinionLabel(v){const hit=NC_OPINION_OPTS.find(o=>o[0]===ncOpinionNormalize(v));return hit?hit[1]:"無";}
+function ncOpinionOptsHtml(v){const cur=ncOpinionNormalize(v);return NC_OPINION_OPTS.map(([val,label])=>`<option value="${val}"${cur===val?" selected":""}>${label}</option>`).join("");}
+const DEF_COLS=[["ship","船名"],["vtype","船型"],["itype","檢查類型"],["ym","年月"],["date","檢查日期"],["place","地點"],["inspector","檢查員"],["oilco","油公司/單位"],["psc","PSC action"],["code","缺失代碼"],["attn","重點關注"],["detail","缺失詳情"],["actual","實際情況"],["corrective","改善措施"],["rootCause","根本原因"],["preventive","預防措施"],["rank","職級-責任人"],["person","姓名-責任人"],["risk","風險(1低2中3高)"],["ncProb","問題別"],["ncMain","大類"],["ncLeaf","具體名稱"],["ncFactor","三要素"],["ncImp","重要程度"],["ncFocus","重點關注"],["ncMethod","分類方法"],["ncOpinion","缺失性質判定"]];
 
 /* ════════ 通用：頁面篩選欄位顯示設定（僅 Owner 可調整）════════
    任何頁面都可用 FilterVisEngine.register(key,{...}) 註冊，決定該頁篩選列上
@@ -10510,7 +10543,7 @@ const Defs={
     {k:"ncLeaf",t:"具體名稱",sort:true,cell:d=>DefsGrid.cell(d,"ncLeaf")},
     {k:"ncFactor",t:"三要素",sort:true,cell:d=>DefsGrid.cell(d,"ncFactor")},
     {k:"risk",t:"風險",sort:true,cell:d=>DefsGrid.cell(d,"risk")},
-    {k:"ncOpinion",t:"檢查員意見/Best Practice",sort:true,cell:d=>`<td class="cell-wide" style="white-space:pre-line;background:#f0f9f0">${esc(d.ncOpinion||"")}</td>`},
+    {k:"ncOpinion",t:"缺失性質判定",sort:true,cell:d=>DefsGrid.cell(d,"ncOpinion")},
 
     {k:"icat",t:"檢查類型",sort:true,def:false,cell:d=>`<td>${icatChip(icatOf(d.itype))}</td>`},
     {k:"psc",t:"PSC Action Taken",sort:false,def:false,cell:d=>`<td style="white-space:nowrap">${pscChipsHtml(d.psc)}</td>`},
@@ -11045,7 +11078,7 @@ const Defs={
         <td><div class="msel" id="ms-bt-factor-${rid}"></div></td>
         <td><select class="bt-ncimp"><option value="">（未設定）</option><option>低</option><option>中</option><option>高</option></select></td>
         <td style="text-align:center"><input type="checkbox" class="bt-ncfocus" style="width:16px;height:16px;accent-color:var(--bad)"></td>
-        <td><div class="msel" id="ms-bt-opinion-${rid}"></div></td>
+        <td><select class="bt-opinion"><option value="none">無</option><option value="inspector_opinion">檢查員個人意見</option><option value="best_practice">Best Practice（建議做法）</option></select></td>
         <td><select class="bt-risk"><option value=""></option><option value="1">1低</option><option value="2">2中</option><option value="3">3高</option></select></td>
         <td style="text-align:center"><button class="bt-rm" title="刪除此列" onclick="Defs.batchRmRow(this)">✕</button></td>`;
       tb.appendChild(tr);
@@ -11053,8 +11086,7 @@ const Defs={
       const main=MSel(`ms-bt-main-${rid}`,"大類",()=>ncMainsForProbs(prob.sel).sort(),()=>ncPruneCascade(prob,main,leaf));
       const leaf=MSel(`ms-bt-leaf-${rid}`,"具體名稱",()=>ncLeavesForProbsMains(prob.sel,main.sel).sort(),()=>{});
       const factor=MSel(`ms-bt-factor-${rid}`,"三要素",()=>{const v=(typeof TagLists!=="undefined"?TagLists.values("ncFactor"):[]);return v.length?v:["人員因素","設備因素","系統因素"];},()=>{});
-      const opinion=MSel(`ms-bt-opinion-${rid}`,"檢查員意見/BP",()=>["檢查員意見","Best Practice","無"],()=>{});
-      this.btMs[rid]={prob,main,leaf,factor,opinion};
+      this.btMs[rid]={prob,main,leaf,factor};
       }
     this.batchRenum();
   },
@@ -11096,7 +11128,7 @@ const Defs={
       const ncFactor=ms.factor?[...ms.factor.sel].join("、"):"";
       const ncImp=tr.querySelector(".bt-ncimp").value;
       const ncFocus=tr.querySelector(".bt-ncfocus").checked?"是":"否";
-      const ncOpinion=ms.opinion?[...ms.opinion.sel].join("、"):"";
+      const ncOpinion=ncOpinionNormalize(tr.querySelector(".bt-opinion")?tr.querySelector(".bt-opinion").value:"");
       const risk=tr.querySelector(".bt-risk").value;
       let rec={id:App.nextId()+recs.length,ship,vtype,itype,date,ym,place,inspector,oilco,
         code,detail,actual:actual,preventive:"",rank:"",person:"",risk,
@@ -11185,8 +11217,7 @@ const Defs={
     if($("#e-ncFocus"))$("#e-ncFocus").checked=(d.ncFocus==="是");
     set("#e-ncMethod",d.ncMethod||"");
     const mWrap=$("#e-ncMethod-wrap");if(mWrap)mWrap.style.display=id==null?"none":"";
-    this.emOpinion=MSel("ms-e-ncOpinion","檢查員意見/Best Practice",()=>["檢查員意見","Best Practice","無"],()=>{});
-    this.emOpinion.set(splitTags(d.ncOpinion));
+    set("#e-ncOpinion",ncOpinionNormalize(d.ncOpinion));
     $("#shiplist").innerHTML=[...new Set(App.defs.map(x=>x.ship))].sort().map(s=>`<option value="${esc(s)}">`).join("");
     $("#itypelist").innerHTML=[...new Set(App.defs.map(x=>x.itype))].filter(Boolean).sort().map(s=>`<option value="${esc(s)}">`).join("");
     $("#editModal").classList.add("show");
@@ -11195,7 +11226,7 @@ const Defs={
   saveEdit(){
     const g=i=>$(i).value.trim();
     let _itype=$("#e-itype").value;if(_itype==="其他"){const _o=g("#e-itype-other");_itype=_o?"其他-"+_o:"其他";}
-    const rec={ship:g("#e-ship"),vtype:g("#e-vtype"),itype:_itype,date:g("#e-date"),ym:g("#e-ym")||ymOf(g("#e-date")),place:g("#e-place"),inspector:canonInspector(g("#e-inspector")),oilco:canonUnit(g("#e-oilco")),psc:pscBoxRead("e-psc"),code:g("#e-code"),detail:g("#e-detail"),actual:g("#e-actual"),preventive:g("#e-preventive"),corrective:g("#e-corrective"),rootCause:g("#e-rootcause"),attn:$("#e-attn").checked,rank:g("#e-rank"),person:g("#e-person"),risk:g("#e-risk"),ncProb:ncJoin(this.emProb?this.emProb.sel:[]),ncMain:ncJoin(this.emMain?this.emMain.sel:[]),ncLeaf:ncJoin(this.emLeaf?this.emLeaf.sel:[]),ncFactor:[...(this.emFactor?this.emFactor.sel:[])].join("、"),ncImp:g("#e-ncImp"),ncFocus:$("#e-ncFocus").checked?"是":"否",ncMethod:g("#e-ncMethod"),ncOpinion:[...(this.emOpinion?this.emOpinion.sel:[])].join("、")};
+    const rec={ship:g("#e-ship"),vtype:g("#e-vtype"),itype:_itype,date:g("#e-date"),ym:g("#e-ym")||ymOf(g("#e-date")),place:g("#e-place"),inspector:canonInspector(g("#e-inspector")),oilco:canonUnit(g("#e-oilco")),psc:pscBoxRead("e-psc"),code:g("#e-code"),detail:g("#e-detail"),actual:g("#e-actual"),preventive:g("#e-preventive"),corrective:g("#e-corrective"),rootCause:g("#e-rootcause"),attn:$("#e-attn").checked,rank:g("#e-rank"),person:g("#e-person"),risk:g("#e-risk"),ncProb:ncJoin(this.emProb?this.emProb.sel:[]),ncMain:ncJoin(this.emMain?this.emMain.sel:[]),ncLeaf:ncJoin(this.emLeaf?this.emLeaf.sel:[]),ncFactor:[...(this.emFactor?this.emFactor.sel:[])].join("、"),ncImp:g("#e-ncImp"),ncFocus:$("#e-ncFocus").checked?"是":"否",ncMethod:g("#e-ncMethod"),ncOpinion:ncOpinionNormalize(g("#e-ncOpinion"))};
     if(!rec.ship){toast("⚠ 請填寫船名");return;}
     if(this.editId==null){rec.id=App.nextId();App.defs.push(rec);toast("✓ 已新增");Audit.log("新增","缺失紀錄",`${rec.ship} ${rec.date}：${(rec.detail||"").slice(0,40)}`);}
     else{const d=App.defs.find(x=>x.id===this.editId);Object.assign(d,rec);toast("✓ 已更新");Audit.log("編輯","缺失紀錄",`#${this.editId} ${rec.ship}：${(rec.detail||"").slice(0,40)}`);}
@@ -11378,8 +11409,8 @@ const Defs={
     const cols=this.ALL_COLS.filter(c=>c.k!=="icat"); // 模板含所有欄位(不限於目前顯示中的欄位)；檢查類型(icat)為系統自動判定,不開放匯入填寫
     if(!cols.length){toast("⚠ 無可匯出欄位");return;}
     toast("⏳ 產生範本中（含下拉選單），請稍候…");
-    const SAMPLE1={ship:"F31",itype:"PSC",date:"2026/1/15",place:"Kaohsiung, Taiwan",inspector:"王檢查官",unit:"",ym:"2026-01",vtype:"tanker",oilco:"",code:"",detail:"航行當值記錄不完整",actual:"已補正並加強督導",preventive:"",ncProb:"作业问题",ncMain:"05.航行和通信作业",ncLeaf:"航行值班作业",ncFactor:"人員因素",ncImp:"中",ncFocus:"否",ncMethod:"",ncOpinion:"建議加強當值人員訓練",rank:"",person:"",risk:"2",psc:"17",tmMethod:"",corrective:"",rootCause:""};
-    const SAMPLE2={ship:"B105",itype:"SIRE",date:"2026/2/3",place:"Singapore, Singapore",inspector:"Capt. Lee",unit:"",ym:"2026-02",vtype:"bulk",oilco:"",code:"",detail:"雷達顯示異常",actual:"通知岸基安排檢修",preventive:"",ncProb:"设备问题",ncMain:"驾驶台设备",ncLeaf:"雷达",ncFactor:"設備因素",ncImp:"高",ncFocus:"是",ncMethod:"",ncOpinion:"Nil",rank:"",person:"",risk:"3",psc:"",tmMethod:"",corrective:"",rootCause:""};
+    const SAMPLE1={ship:"F31",itype:"PSC",date:"2026/1/15",place:"Kaohsiung, Taiwan",inspector:"王檢查官",unit:"",ym:"2026-01",vtype:"tanker",oilco:"",code:"",detail:"航行當值記錄不完整",actual:"已補正並加強督導",preventive:"",ncProb:"作业问题",ncMain:"05.航行和通信作业",ncLeaf:"航行值班作业",ncFactor:"人員因素",ncImp:"中",ncFocus:"否",ncMethod:"",ncOpinion:"檢查員個人意見",rank:"",person:"",risk:"2",psc:"17",tmMethod:"",corrective:"",rootCause:""};
+    const SAMPLE2={ship:"B105",itype:"SIRE",date:"2026/2/3",place:"Singapore, Singapore",inspector:"Capt. Lee",unit:"",ym:"2026-02",vtype:"bulk",oilco:"",code:"",detail:"雷達顯示異常",actual:"通知岸基安排檢修",preventive:"",ncProb:"设备问题",ncMain:"驾驶台设备",ncLeaf:"雷达",ncFactor:"設備因素",ncImp:"高",ncFocus:"是",ncMethod:"",ncOpinion:"無",rank:"",person:"",risk:"3",psc:"",tmMethod:"",corrective:"",rootCause:""};
     const wb=new ExcelJS.Workbook();
     const ws=wb.addWorksheet("缺失紀錄");
     const hdr=cols.map(c=>c.t);
@@ -11409,6 +11440,7 @@ const Defs={
     if(col.ncImp)namedRange("lst_ncImp",["高","中","低"]);
     if(col.ncFocus)namedRange("lst_ncFocus",["是","否"]);
     if(col.risk)namedRange("lst_risk",["1","2","3"]);
+    if(col.ncOpinion)namedRange("lst_ncOpinion",NC_OPINION_OPTS.map(o=>o[1]));
     let probTableRange=null,mainTableRange=null,mainAlias=new Map(),leafByMain=new Map();
     if(col.ncMain||col.ncLeaf){
       const mainByProb={"设备问题":[...new Set(equip.map(x=>x[0]))],"作业问题":[...new Set(ops.map(x=>x[0]))]};
@@ -11436,6 +11468,7 @@ const Defs={
       if(col.ncImp)ws.getCell(`${col.ncImp}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncImp"]};
       if(col.ncFocus)ws.getCell(`${col.ncFocus}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncFocus"]};
       if(col.risk)ws.getCell(`${col.risk}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_risk"]};
+      if(col.ncOpinion)ws.getCell(`${col.ncOpinion}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncOpinion"]};
       if(col.ncProb&&col.ncMain){
         ws.getCell(`${helperProb}${r}`).value={formula:`IFERROR(VLOOKUP(${col.ncProb}${r},${probTableRange},2,FALSE),"")`};
         ws.getCell(`${col.ncMain}${r}`).dataValidation={type:"list",allowBlank:true,formulae:[`=INDIRECT($${helperProb}$${r})`]};
@@ -11509,7 +11542,7 @@ const ImportUI={
   },
   mapHeaders(aoa){
     const hdr=aoa[0].map(h=>String(h).trim());
-    const defMap={"船名":"ship","SHIP":"ship","SHIP NAME":"ship","Name of Vessel":"ship","船型":"vtype","TYPE":"vtype","vessel type":"vtype","檢查來源":"itype","Type of Inspectio":"itype","Type of Inspection":"itype","年月":"ym","YYYY-MM":"ym","檢查日期":"date","DATE":"date","Date of Inspection":"date","地點":"place","Place":"place","Location":"place","檢查員":"inspector","Inspector":"inspector","油公司/單位":"oilco","Oil company":"oilco","檢查單位/油公司":"oilco","Inspection unit/oil company":"oilco","PSC action":"psc","缺失代碼":"code","原缺失代碼":"code","CODE":"code","新缺失須注意":"attn","注意":"attn","缺失詳情":"detail","實際情況":"actual","預防措施":"preventive","問題別":"ncProb","大類":"ncMain","具體名稱":"ncLeaf","三要素":"ncFactor","重要程度":"ncImp","重點關注(是/否)":"ncFocus","重點關注":"ncFocus","分類方法":"ncMethod","檢查員意見/Best Practice":"ncOpinion","檢查員意見":"ncOpinion","檢察官意見":"ncOpinion","Best Practice":"ncOpinion","BP":"ncOpinion","職級-責任人":"rank","姓名-責任人":"person","職稱":"rank","名字":"person","評論項目":"item","ITEM":"item","正向評論":"comment","正向評論內容":"comment","檢查員正向評論內容":"comment","POSITIVE COMMENT":"comment","風險(1低2中3高)":"risk","風險":"risk","缺失數":"ndef","Number of defiency":"ndef","FLAG項目":"flagType","FLAG INSPECTION TYPE":"flagType","扣船":"detain","detain":"detain"};
+    const defMap={"船名":"ship","SHIP":"ship","SHIP NAME":"ship","Name of Vessel":"ship","船型":"vtype","TYPE":"vtype","vessel type":"vtype","檢查來源":"itype","Type of Inspectio":"itype","Type of Inspection":"itype","年月":"ym","YYYY-MM":"ym","檢查日期":"date","DATE":"date","Date of Inspection":"date","地點":"place","Place":"place","Location":"place","檢查員":"inspector","Inspector":"inspector","油公司/單位":"oilco","Oil company":"oilco","檢查單位/油公司":"oilco","Inspection unit/oil company":"oilco","PSC action":"psc","缺失代碼":"code","原缺失代碼":"code","CODE":"code","新缺失須注意":"attn","注意":"attn","缺失詳情":"detail","實際情況":"actual","預防措施":"preventive","問題別":"ncProb","大類":"ncMain","具體名稱":"ncLeaf","三要素":"ncFactor","重要程度":"ncImp","重點關注(是/否)":"ncFocus","重點關注":"ncFocus","分類方法":"ncMethod","檢查員意見/Best Practice":"ncOpinion","缺失性質判定":"ncOpinion","檢查員意見":"ncOpinion","檢察官意見":"ncOpinion","Best Practice":"ncOpinion","BP":"ncOpinion","職級-責任人":"rank","姓名-責任人":"person","職稱":"rank","名字":"person","評論項目":"item","ITEM":"item","正向評論":"comment","正向評論內容":"comment","檢查員正向評論內容":"comment","POSITIVE COMMENT":"comment","風險(1低2中3高)":"risk","風險":"risk","缺失數":"ndef","Number of defiency":"ndef","FLAG項目":"flagType","FLAG INSPECTION TYPE":"flagType","扣船":"detain","detain":"detain"};
     // 注意：匯出檔案裡的「檢查類型」欄（icat）是由「檢查來源」（itype）自動推算出來的顯示用欄位（見 icatOf()），
     // 從來不是獨立儲存的原始資料，因此匯入時刻意不比對「檢查類型」這個表頭——先前曾誤將它也對映到 itype，
     // 兩欄同時存在時，順序在後的「檢查類型」欄會覆蓋掉正確的「檢查來源」值，導致匯入後來源資料全部跑掉。
@@ -13290,8 +13323,8 @@ const InspCtrl={
                 <div class="ic-tl-c ic-tl-f3">${stat(r)}</div>
                 ${bar(r)}`).join("");
           }).join("")}
+          ${todayPct!=null?`<div class="ic-tl-todaywrap"><div class="ic-tl-today" style="left:${todayPct}%"></div></div>`:""}
         </div>
-        ${todayPct!=null?`<div class="ic-tl-todaywrap"><div class="ic-tl-today" style="left:${todayPct}%"></div></div>`:""}
       </div>`;
   },
   tlClick(e,id){
@@ -14901,10 +14934,10 @@ const AuditDash={
     const base=row.lastAuditDate||row.actualAuditDate;
     if(!base)return"";
     if(isEnhanced){
-      // 加強稽核維持原本邏輯不變：週期6個月，再往前扣2個月前置期
+      // 加強稽核：週期6個月，再往前扣1個月前置期（2026-07 調整為1個月，原本是2個月）
       const next=this.addMonthsFwd(base,6);
       if(!next)return"";
-      const lead=this.addMonthsFwd(next,-2);
+      const lead=this.addMonthsFwd(next,-1);
       return lead?lead.slice(0,7):"";
     }
     // 一般船（非加強稽核）：直接以「上次稽核日＋1年整」為預設排程月份，不再扣前置期
@@ -14995,6 +15028,9 @@ const AuditDash={
   clearFilters(){
     const sel=$("#ad-f-closed");if(sel)sel.value="";
     const yr=$("#ad-f-year");if(yr)yr.value="";
+    const ss=$("#ad-f-schedstatus");if(ss)ss.value="";
+    const pf=$("#ad-f-plandate-from");if(pf)pf.value="";
+    const pt=$("#ad-f-plandate-to");if(pt)pt.value="";
     Object.values(this.ms).forEach(m=>m.clear&&m.clear());
     this.render();
   },
@@ -15024,6 +15060,16 @@ const AuditDash={
     if(yearF)rows=rows.filter(r=>r.actualAuditDate&&r.actualAuditDate.slice(0,4)===yearF);
     if(this.ms.auditor)rows=rows.filter(r=>this.ms.auditor.pass(r.auditor));
     if(this.ms.schedMonth)rows=rows.filter(r=>this.ms.schedMonth.pass(this.monthDisplay(r.schedMonth)));
+    const pdFrom=$("#ad-f-plandate-from")?$("#ad-f-plandate-from").value:"",pdTo=$("#ad-f-plandate-to")?$("#ad-f-plandate-to").value:"";
+    if(pdFrom||pdTo){
+      rows=rows.filter(r=>{
+        if(!r.plannedDate)return false;
+        const ym=r.plannedDate.slice(0,7);
+        if(pdFrom&&ym<pdFrom)return false;
+        if(pdTo&&ym>pdTo)return false;
+        return true;
+      });
+    }
     const k=this.sortKey,asc=this.sortAsc?1:-1;
     rows.sort((a,b)=>{
       // 管控目的是掌握「今年還沒完成的船」，已完成的（不論結案與否）一律排到最下面，
@@ -15179,8 +15225,8 @@ const AuditDash={
         <td style="font-family:var(--mono);font-size:11px;${canEdit?"cursor:pointer":""};${actCls}" onclick="AuditDash.openDatePick(${r.id},'actualAudit')" title="${canEdit?"點選挑選近3次內稽紀錄；出現比上次稽核日更新的紀錄時系統會自動帶入":"唯讀，僅指定編輯者或 Owner 可調整"}">${esc(r.actualAuditDate)||`<span class="hint">尚未完成</span>`}</td>
         <td style="text-align:center">${r.defCount||"-"}</td>
         <td style="text-align:center"><input type="checkbox" ${r.closedOut?"checked":""} ${dis} onchange="AuditDash.setField(${r.id},'closedOut',this.checked)"></td>
-        <td style="font-size:11.5px">${esc(r.cso)||"-"}</td>
-        <td><select style="font-size:11.5px" ${dis} onchange="AuditDash.setField(${r.id},'auditor',this.value)">
+        <td style="font-size:11.5px;white-space:nowrap;min-width:66px">${esc(r.cso)||"-"}</td>
+        <td><select style="font-size:11.5px;min-width:78px" ${dis} onchange="AuditDash.setField(${r.id},'auditor',this.value)">
           <option value="">—</option>${this.AUDITORS.map(a=>`<option ${a===r.auditor?"selected":""}>${esc(a)}</option>`).join("")}
         </select></td>
         <td style="text-align:left">${remarkPreview} <button class="btn sm" onclick="AuditDash.openRemark(${r.id})">${canEdit?"✎":"👁"}</button></td>
@@ -15232,6 +15278,7 @@ const AuditDash={
     }
     document.querySelectorAll(".ad-viewbtn").forEach(b=>b.classList.toggle("active",b.dataset.v===this.viewMode));
     const rows=this.filteredRows();
+    const cntEl=$("#ad-result-count");if(cntEl)cntEl.textContent=`篩選結果：${rows.length} 筆`;
     const canEdit=this.canEdit();
     const who=typeof AnnualPlan!=="undefined"?AnnualPlan.loadEditorName():"";
     $("#ad-updated").textContent="Last updated: "+(this.updatedAt?this.updatedAt.toLocaleString():"尚未手動更新（顯示為即時資料）")+(canEdit?"":`　🔒 唯讀模式（僅「${who}」或 Owner 可編輯）`);
@@ -15264,7 +15311,34 @@ const AuditDash={
     XLSX.writeFile(wb,`內稽動態表_${todayStr()}.xlsx`);
     if(typeof Audit!=="undefined")Audit.log("匯出","內稽動態","匯出 Excel");
   },
+  PRINT_NOTE_KEY:"vsm_ad_print_note_v1",
+  PRINT_YEAR_KEY:"vsm_ad_print_year_v1",
+  DEFAULT_PRINT_NOTE:`1. 依ISM Code規範，內部稽核每年至少應執行一次，且不得由經管船東督導執行。
+指派ISM稽核人員原則如下：
+(1) Taiwan Region/台灣地區：陳宣斌(Clarence Chen)、林建志(Kenry Lin)、吳易安(Ian Wu)
+(2) China Region/大陸地區：崑山辦公室：肖紅林(Xiao Honglin)、黃燕華(Huang Yanhua)、余雙(Yu Shuang)、朱世毅(Zhu Shiyi)、秦冰(Qin Bing)、潘獻波(Pan Xianbo)
+(3) Other overseas areas/其他地區：Subject to separate arrangements/另行安排
+2. This table is updated every two weeks/此稽核表每兩週更新一次。
+3. Scope of audit/稽核範圍：ISM, MLC, ISPS, ISO`,
+  loadPrintNote(){try{const v=localStorage.getItem(this.PRINT_NOTE_KEY);return v!=null?v:this.DEFAULT_PRINT_NOTE;}catch(e){return this.DEFAULT_PRINT_NOTE;}},
+  savePrintNote(v){try{localStorage.setItem(this.PRINT_NOTE_KEY,v);}catch(e){}},
+  loadPrintYear(){try{return localStorage.getItem(this.PRINT_YEAR_KEY)||String(new Date().getFullYear());}catch(e){return String(new Date().getFullYear());}},
+  savePrintYear(v){try{localStorage.setItem(this.PRINT_YEAR_KEY,v);}catch(e){}},
+  /* 掃描目前所有仍在「加強稽核」狀態的船舶，列出原因與管控期間（起算日 ~ 起算日+1年，公司規則要求至少維持一年） */
+  enhancedShipsList(){
+    return (App.inspCtrl||[]).filter(ic=>ic.enhancedAudit).map(ic=>{
+      const s=SHIPINFO.find(x=>x.code===ic.ship)||{};
+      let period="";
+      if(ic.enhancedSince){
+        const end=this.addMonthsFwd(ic.enhancedSince,12);
+        period=`${ic.enhancedSince}${end?" ~ "+end:""}`;
+      }
+      return {ship:s.name||ic.ship,reason:ic.enhancedReason||"",period};
+    });
+  },
   openPrintModal(){
+    const yEl=$("#ad-print-year");if(yEl)yEl.value=this.loadPrintYear();
+    const nEl=$("#ad-print-note");if(nEl)nEl.value=this.loadPrintNote();
     $("#adPrintModal").classList.add("show");
   },
   closePrintModal(){$("#adPrintModal").classList.remove("show");},
@@ -15275,29 +15349,58 @@ const AuditDash={
     if($("#ad-print-doneopen").checked)sel.add("done_open");
     if($("#ad-print-doneclosed").checked)sel.add("done_closed");
     if(!sel.size){toast("⚠ 請至少勾選一個區塊");return;}
+    const year=($("#ad-print-year").value||"").trim()||String(new Date().getFullYear());
+    const note=$("#ad-print-note").value||"";
+    this.savePrintYear(year);this.savePrintNote(note);
     this.closePrintModal();
-    this.exportPdf(sel);
+    this.exportPdf(sel,year,note);
   },
-  exportPdf(sectionSet){
-    let rows=this.filteredRows();
-    if(sectionSet)rows=rows.filter(r=>sectionSet.has(this.schedStatus(r)));
-    const body=rows.map(r=>`<tr${r.enhanced?' style="background:#fff3e0"':""}>
+  exportPdf(sectionSet,year,note){
+    year=year||this.loadPrintYear();
+    note=note!=null?note:this.loadPrintNote();
+    const rows=this.filteredRows();
+    const groups={scheduled:[],unscheduled:[],done_open:[],done_closed:[]};
+    rows.forEach(r=>{const k=this.schedStatus(r);if(sectionSet.has(k))groups[k].push(r);});
+    const rowHtmlFor=r=>`<tr${r.enhanced?' style="background:#fff3e0"':""}>
       <td>${esc(this.monthDisplay(r.schedMonth))}</td><td style="text-align:left">${r.enhanced?"⭐":""}${esc(r.vesselName)}</td>
       <td>${esc(r.lastAuditDate)||"-"}</td><td>${esc(r.plannedPort)||"-"}</td><td>${esc(r.plannedDate)||"未排程"}</td>
       <td>${esc(r.actualAuditDate)||"-"}</td><td>${r.defCount||"-"}</td><td>${r.closedOut?"✓":"✗"}</td>
       <td>${esc(r.cso)||"-"}</td><td>${esc(r.auditor)||"-"}</td><td style="text-align:left;white-space:pre-wrap">${esc(r.remark)||""}</td>
-    </tr>`).join("");
-    const sectionNote=sectionSet?`包含區塊：${["scheduled","unscheduled","done_open","done_closed"].filter(k=>sectionSet.has(k)).map(k=>this.GROUP_META[k].title.replace(/^[^\s]+\s/,"")).join("、")}`:"包含區塊：全部";
-    $("#printArea").innerHTML=`
-      <h1>${new Date().getFullYear()} ISM/MLC/ISO Internal Audit Status Table</h1>
-      <div class="pmeta">Last updated: ${esc((this.updatedAt||new Date()).toLocaleString())}　${esc(sectionNote)}</div>
-      <table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:10px">
+    </tr>`;
+    // 分區塊各自成一張表，跟畫面「分區檢視」一致，而不是全部混在一張大表裡
+    const sectionsHtml=["scheduled","unscheduled","done_open","done_closed"].filter(k=>sectionSet.has(k)).map(k=>{
+      const list=groups[k];
+      if(!list.length)return "";
+      const meta=this.GROUP_META[k];
+      return `<h2 style="font-size:13px;margin:16px 0 4px;padding:5px 8px;border-radius:3px;background:#f0f0f0">${esc(meta.title)}（${list.length}）</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:9.5px">
         <thead><tr><th>Sched.Month</th><th style="text-align:left">Vessel</th><th>Last Audit</th><th>Planned Port</th><th>Planned Date</th><th>Actual Date</th><th>缺失數</th><th>結案</th><th>CSO</th><th>Auditor</th><th style="text-align:left">Remark（完整內容）</th></tr></thead>
-        <tbody>${body}</tbody>
-      </table>
-      <div style="margin-top:20px;font-size:11px">⭐ 表示該船目前為加強稽核狀態。</div>`;
-    doPrint();
-    if(typeof Audit!=="undefined")Audit.log("匯出","內稽動態",`列印/PDF（${sectionNote}）`);
+        <tbody>${list.map(rowHtmlFor).join("")}</tbody>
+      </table>`;
+    }).join("");
+    const enh=this.enhancedShipsList();
+    const enhHtml=enh.length?`
+      <h2 style="font-size:13px;margin:20px 0 4px;border-left:4px solid #1e3a5f;padding-left:8px">⭐ 加強管理船舶</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:10px">
+        <thead><tr><th style="width:110px">船舶</th><th style="text-align:left">加強管理原因</th><th style="width:180px">管控期間</th></tr></thead>
+        <tbody>${enh.map(e=>`<tr><td>${esc(e.ship)}</td><td style="text-align:left">${esc(e.reason)}</td><td>${esc(e.period)}</td></tr>`).join("")}</tbody>
+      </table>`:"";
+    const noteHtml=note.trim()?`<h2 style="font-size:13px;margin:20px 0 4px;border-left:4px solid #1e3a5f;padding-left:8px">備註</h2><div style="font-size:10.5px;white-space:pre-wrap;line-height:1.8">${esc(note)}</div>`:"";
+    $("#printArea").innerHTML=`
+      <div style="text-align:center;position:relative;margin-bottom:4px">
+        <h1 style="font-size:18px;margin:0">${esc(year)} ISM/MLC/ISO Internal Audit Status Table</h1>
+        <div style="position:absolute;right:0;top:2px;font-size:11px;color:#444">出表日：${esc(todayStr())}</div>
+      </div>
+      ${sectionsHtml}
+      ${enhHtml}
+      ${noteHtml}
+      <div style="display:flex;margin-top:30px;border-top:2px solid #000;padding-top:24px">
+        <div style="flex:1;text-align:center;padding:0 10px"><div style="font-size:11.5px;font-weight:700;margin-bottom:36px">DPA</div><div style="border-top:1px solid #000;margin:0 20px"></div></div>
+        <div style="flex:1;text-align:center;padding:0 10px;border-left:1px solid #ccc"><div style="font-size:11.5px;font-weight:700;margin-bottom:36px">Manager of QMS &amp; Vetting Unit</div><div style="border-top:1px solid #000;margin:0 20px"></div></div>
+        <div style="flex:1;text-align:center;padding:0 10px;border-left:1px solid #ccc"><div style="font-size:11.5px;font-weight:700;margin-bottom:36px">Prepared by</div><div style="border-top:1px solid #000;margin:0 20px"></div></div>
+      </div>`;
+    doPrint(true); // 欄位多，橫式版面比較不會擠
+    if(typeof Audit!=="undefined")Audit.log("匯出","內稽動態",`列印/PDF（${year}年，${sectionSet.size}區塊）`);
   }
 };
 
@@ -15551,8 +15654,8 @@ const AirDefReq={
   KEY:"vsm_air_def_required_fields_v1",
   FIELDS:[["code","CODE（章節代碼）"],["rank","責任人職位"],["person","責任人姓名"],
     ["detail","缺失詳情"],["actual","實際情況"],["corrective","改善措施"],["rootCause","根本原因"],["preventive","預防措施"],
-    ["ncProb","問題別"],["ncMain","大類"],["ncLeaf","具體名稱"],["ncFactor","三要素"],["ncImp","重要程度"],["risk","風險"],["ncOpinion","檢查員意見/BP"]],
-  /* 預設必填：問題別／大類／具體名稱／三要素／重要程度／風險／檢查員意見(BP)，這7項是分類彙總分析
+    ["ncProb","問題別"],["ncMain","大類"],["ncLeaf","具體名稱"],["ncFactor","三要素"],["ncImp","重要程度"],["risk","風險"],["ncOpinion","缺失性質判定"]],
+  /* 預設必填：問題別／大類／具體名稱／三要素／重要程度／風險／缺失性質判定，這7項是分類彙總分析
      等後續統計會用到的欄位，未分類會讓統計失真，因此設為系統預設必填；管理員仍可在「資料管理→維護者」
      調整（包含清空成不限制），一旦儲存過設定（即使清空），就以儲存的設定為準，不再套用這組預設值。 */
   DEFAULT_REQUIRED:["ncProb","ncMain","ncLeaf","ncFactor","ncImp","risk","ncOpinion"],
@@ -15609,10 +15712,10 @@ const Air={
     wsBase.getColumn(5).numFmt="@"; // 檢查日期欄強制當文字格式,避免Excel把「2026/1/15」自動轉成日期序號,匯入時解析失敗
 
     const wsDef=wb.addWorksheet("缺失改善明細");
-    const defHdr=["序號","PSC Action Taken","CODE","實際情況","缺失詳情","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","三要素","重要程度","重點關注","檢查員意見/BP","風險"];
+    const defHdr=["序號","PSC Action Taken","CODE","實際情況","缺失詳情","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","三要素","重要程度","重點關注","缺失性質判定","風險"];
     wsDef.addRow(defHdr);
-    wsDef.addRow([1,"17","17","已補正並加強督導","航行當值記錄不完整","針對程序進行修正","體系文件不足及上船前培訓針對性有待加強","公司修正管理體系文件內容及上船前培訓","","","作业问题","","","人員因素","中","否","建議加強當值人員訓練","2"]);
-    wsDef.addRow([2,"","","通知岸基安排檢修","雷達顯示異常","","","","","","设备问题","","","設備因素","高","是","Nil","3"]);
+    wsDef.addRow([1,"17","17","已補正並加強督導","航行當值記錄不完整","針對程序進行修正","體系文件不足及上船前培訓針對性有待加強","公司修正管理體系文件內容及上船前培訓","","","作业问题","","","人員因素","中","否","檢查員個人意見","2"]);
+    wsDef.addRow([2,"","","通知岸基安排檢修","雷達顯示異常","","","","","","设备问题","","","設備因素","高","是","無","3"]);
     [6,14,8,22,26,22,22,22,12,12,10,16,20,12,10,10,26,6].forEach((w,i)=>{wsDef.getColumn(i+1).width=w;});
     const col={};defHdr.forEach((h,i)=>{col[h]=wsDef.getColumn(i+1).letter;});
 
@@ -15647,6 +15750,8 @@ const Air={
     namedRange("lst_ncImp",["高","中","低"]);
     namedRange("lst_ncFocus",["是","否"]);
     namedRange("lst_risk",["1","2","3"]);
+    namedRange("lst_ncOpinion",NC_OPINION_OPTS.map(o=>o[1]));
+    namedRange("lst_rank",RANK_OPTIONS);
     const shipCodes=[...SHIPINFO].sort((a,b)=>a.code.localeCompare(b.code)).map(s=>s.code);
     const vtypeList=[...new Set(SHIPINFO.map(s=>s.vtype))].filter(Boolean).sort();
     const itypeList=(typeof InspCtrl!=="undefined"?InspCtrl.itypeOptions():["PSC","SIRE","CDI","RightShip","ASI","FLAG","TERMINAL","ISPS AUDIT","Internal audit","onboard visit","LRIT","SMC","ISSC","MLC","IHM"]);
@@ -15688,6 +15793,8 @@ const Air={
       wsDef.getCell(`${col["重要程度"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncImp"]};
       wsDef.getCell(`${col["重點關注"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncFocus"]};
       wsDef.getCell(`${col["風險"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_risk"]};
+      wsDef.getCell(`${col["缺失性質判定"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncOpinion"]};
+      wsDef.getCell(`${col["責任人職位"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_rank"]};
       wsDef.getCell(`${helperProb}${r}`).value={formula:`IFERROR(VLOOKUP(${col["問題別"]}${r},${probTableRange},2,FALSE),"")`};
       wsDef.getCell(`${helperMain}${r}`).value={formula:`IFERROR(VLOOKUP(${col["大類"]}${r},${mainTableRange},2,FALSE),"")`};
       wsDef.getCell(`${col["大類"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:[`=INDIRECT($${helperProb}$${r})`]};
@@ -15704,7 +15811,7 @@ const Air={
     try{
       const buf=await wb.xlsx.writeBuffer();
       dl(new Blob([buf],{type:"application/octet-stream"}),"AfterInspectionReview_匯入範本.xlsx");
-      toast("✓ 已下載填單匯入範本（船名／船型／檢查來源／問題別／大類／具體名稱／三要素／重要程度／重點關注／風險皆為下拉選單，大類與具體名稱會依上一欄自動篩選）");
+      toast("✓ 已下載填單匯入範本（船名／船型／檢查來源／問題別／大類／具體名稱／三要素／重要程度／重點關注／風險／缺失性質判定／責任人職位皆為下拉選單，大類與具體名稱會依上一欄自動篩選）");
     }catch(e){toast("⚠ 範本產生失敗："+e.message);}
   },
   exportXlsx(){
@@ -15713,7 +15820,7 @@ const Air={
     const baseRows=App.air.map((d,i)=>({序號:i+1,船名:d.ship,船型:d.vtype,檢查來源:d.itype,檢查日期:d.date,檢查地點:d.place,"檢查單位/油公司":d.oilco,檢查員:d.inspector,缺失數:d.ndef??0,正面評論數:d.npos??0,督導確認:d.reviewed?"已確認":"尚未確認",已轉檢查紀錄:d.usedInsp?"是":"否",已轉缺失紀錄:d.usedDef?"是":"否",已轉正向評論:d.usedPos?"是":"否"}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(baseRows),"基本資料");
     const defRows=[];
-    App.air.forEach((d,i)=>{(d.defects||[]).forEach(df=>{defRows.push({序號:i+1,"PSC Action Taken":df.psc||"",CODE:df.code||"",實際情況:df.actual||"",缺失詳情:df.detail||"",改善措施:df.corrective||"",根本原因:df.rootCause||"",預防措施:df.preventive||"",責任人職位:df.rank||"",責任人姓名:df.person||"",問題別:df.ncProb||"",大類:df.ncMain||"",具體名稱:df.ncLeaf||"",三要素:df.ncFactor||"",重要程度:df.ncImp||"",重點關注:df.ncFocus||"","檢查員意見/BP":df.ncOpinion||"",風險:df.risk||""});});});
+    App.air.forEach((d,i)=>{(d.defects||[]).forEach(df=>{defRows.push({序號:i+1,"PSC Action Taken":df.psc||"",CODE:df.code||"",實際情況:df.actual||"",缺失詳情:df.detail||"",改善措施:df.corrective||"",根本原因:df.rootCause||"",預防措施:df.preventive||"",責任人職位:df.rank||"",責任人姓名:df.person||"",問題別:df.ncProb||"",大類:df.ncMain||"",具體名稱:df.ncLeaf||"",三要素:df.ncFactor||"",重要程度:df.ncImp||"",重點關注:df.ncFocus||"","缺失性質判定":ncOpinionLabel(df.ncOpinion),風險:df.risk||""});});});
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(defRows),"缺失改善明細");
     const posRows=[];
     App.air.forEach((d,i)=>{(d.posComments||[]).forEach(pc=>{
@@ -15757,7 +15864,7 @@ const Air={
             corrective:g(x,"改善措施"),rootCause:g(x,"根本原因"),preventive:g(x,"預防措施"),
             ncProb:g(x,"問題別"),ncMain:g(x,"大類"),ncLeaf:g(x,"具體名稱"),ncFactor:g(x,"三要素"),
             ncImp:g(x,"重要程度"),ncFocus:truthy(g(x,"重點關注"))?"是":(g(x,"重點關注")?"否":""),
-            ncOpinion:g(x,"檢查員意見/BP","檢查員意見","Best Practice"),risk:g(x,"風險"),
+            ncOpinion:ncOpinionNormalize(g(x,"缺失性質判定","檢查員意見/BP","檢查員意見","Best Practice")),risk:g(x,"風險"),
             rank:g(x,"責任人職位"),person:g(x,"責任人姓名")
           })).filter(d=>d.detail||d.corrective||d.rootCause||d.preventive||d.code||d.actual||d.ncProb||d.ncMain);
           const posMap=new Map();
@@ -16062,12 +16169,12 @@ const Air={
   addDefectRow(){this.defRows.push(this.blankDefect());this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
   rmDefectRow(id){this.defRows=this.defRows.filter(r=>r.id!==id);this.defSel.delete(id);this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
   syncNdefField(){const el=$("#air-ndef");if(el)el.value=this.defRows.length;},
-  DEF_XLSX_HDR:["PSC Action Taken","CODE","缺失詳情","實際情況","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","三要素","重要程度","重點關注","檢查員意見/BP","風險"],
+  DEF_XLSX_HDR:["PSC Action Taken","CODE","缺失詳情","實際情況","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","三要素","重要程度","重點關注","缺失性質判定","風險"],
   exportDefectsXlsx(){
     if(!hasXLSX())return;
     if(!this.defRows.length){toast("⚠ 目前沒有缺失明細可匯出");return;}
     const hdr=this.DEF_XLSX_HDR;
-    const rows=[hdr,...this.defRows.map(r=>[r.psc||"",r.code||"",r.detail||"",r.actual||"",r.corrective||"",r.rootCause||"",r.preventive||"",r.rank||"",r.person||"",r.ncProb||"",r.ncMain||"",r.ncLeaf||"",r.ncFactor||"",r.ncImp||"",r.ncFocus||"",r.ncOpinion||"",r.risk||""])];
+    const rows=[hdr,...this.defRows.map(r=>[r.psc||"",r.code||"",r.detail||"",r.actual||"",r.corrective||"",r.rootCause||"",r.preventive||"",r.rank||"",r.person||"",r.ncProb||"",r.ncMain||"",r.ncLeaf||"",r.ncFactor||"",r.ncImp||"",r.ncFocus||"",ncOpinionLabel(r.ncOpinion),r.risk||""])];
     const ws=XLSX.utils.aoa_to_sheet(rows);
     ws["!cols"]=hdr.map(h=>({wch:h==="CODE"?12:(h==="重要程度"||h==="重點關注"||h==="風險"?10:22)}));
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"缺失改善明細");
@@ -16087,12 +16194,13 @@ const Air={
         const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
         if(aoa.length<2){toast("⚠ 檔案內沒有資料列");return;}
         const hdr=aoa[0].map(h=>String(h).trim());
-        const mapHdr={"PSC Action Taken":"psc","CODE":"code","缺失詳情":"detail","實際情況":"actual","改善措施":"corrective","根本原因":"rootCause","預防措施":"preventive","責任人職位":"rank","責任人姓名":"person","問題別":"ncProb","大類":"ncMain","具體名稱":"ncLeaf","三要素":"ncFactor","重要程度":"ncImp","重點關注":"ncFocus","檢查員意見/BP":"ncOpinion","風險":"risk"};
+        const mapHdr={"PSC Action Taken":"psc","CODE":"code","缺失詳情":"detail","實際情況":"actual","改善措施":"corrective","根本原因":"rootCause","預防措施":"preventive","責任人職位":"rank","責任人姓名":"person","問題別":"ncProb","大類":"ncMain","具體名稱":"ncLeaf","三要素":"ncFactor","重要程度":"ncImp","重點關注":"ncFocus","缺失性質判定":"ncOpinion","檢查員意見/BP":"ncOpinion","風險":"risk"};
         const keys=hdr.map(h=>mapHdr[h]||null);
         if(!keys.some(Boolean)){toast("⚠ 找不到可對應的欄位，請確認是用本系統匯出的範本");return;}
         const newRows=aoa.slice(1).filter(row=>row.some(c=>String(c).trim())).map(row=>{
           const o=this.blankDefect();
           keys.forEach((k,i)=>{if(k)o[k]=String(row[i]??"").trim();});
+          o.ncOpinion=ncOpinionNormalize(o.ncOpinion);
           const fv=o.ncFocus;o.ncFocus=/^(是|y|yes|true|1)$/i.test(fv)?"是":(fv?"否":"");
           return o;
         });
@@ -16162,7 +16270,7 @@ const Air={
           <div class="adf-item"><label>三要素</label><div class="msel" id="ms-air-factor-${r.id}"></div><div class="adf-val" id="ms-air-factor-${r.id}-val"></div></div>
           <div class="adf-item"><label>重要程度</label><select class="air-in" id="air-def-ncimp-${r.id}" onchange="Air.setDefField(${r.id},'ncImp',this.value);Air.showSelectVal('air-def-ncimp-${r.id}')"><option value=""${r.ncImp?"":" selected"}>（未設定）</option><option${r.ncImp==="低"?" selected":""}>低</option><option${r.ncImp==="中"?" selected":""}>中</option><option${r.ncImp==="高"?" selected":""}>高</option></select><div class="adf-val" id="air-def-ncimp-${r.id}-val"></div></div>
           <div class="adf-item"><label>風險</label><select class="air-in" id="air-def-risk-${r.id}" onchange="Air.setDefField(${r.id},'risk',this.value);Air.showSelectVal('air-def-risk-${r.id}')"><option value=""${r.risk?"":" selected"}>（未設定）</option><option value="1"${r.risk==="1"?" selected":""}>1低</option><option value="2"${r.risk==="2"?" selected":""}>2中</option><option value="3"${r.risk==="3"?" selected":""}>3高</option></select><div class="adf-val" id="air-def-risk-${r.id}-val"></div></div>
-          <div class="adf-item"><label>檢查員意見/BP</label><div class="msel" id="ms-air-opinion-${r.id}"></div><div class="adf-val" id="ms-air-opinion-${r.id}-val"></div></div>
+          <div class="adf-item"><label>缺失性質判定</label><select class="air-in" id="air-def-opinion-${r.id}" onchange="Air.setDefField(${r.id},'ncOpinion',this.value);Air.showSelectVal('air-def-opinion-${r.id}')">${ncOpinionOptsHtml(r.ncOpinion)}</select><div class="adf-val" id="air-def-opinion-${r.id}-val"></div></div>
         </div>
       </div>`;}).join("");
     if(isPSC){
@@ -16192,13 +16300,12 @@ const Air={
       const main=MSel(`ms-air-main-${rid}`,"大類",()=>ncMainsForProbs(prob.sel).sort(),()=>{r.ncMain=ncJoin(main.sel);ncPruneCascade(prob,main,leaf);r.ncLeaf=ncJoin(leaf.sel);showVal(`ms-air-main-${rid}`,main);showVal(`ms-air-leaf-${rid}`,leaf);this.scheduleFormAutoSave();});
       const leaf=MSel(`ms-air-leaf-${rid}`,"具體名稱",()=>ncLeavesForProbsMains(prob.sel,main.sel).sort(),()=>{r.ncLeaf=ncJoin(leaf.sel);showVal(`ms-air-leaf-${rid}`,leaf);this.scheduleFormAutoSave();});
       const factor=MSel(`ms-air-factor-${rid}`,"三要素",()=>{const v=(typeof TagLists!=="undefined"?TagLists.values("ncFactor"):[]);return v.length?v:["人員因素","設備因素","系統因素"];},()=>{r.ncFactor=[...factor.sel].join("、");showVal(`ms-air-factor-${rid}`,factor);this.scheduleFormAutoSave();});
-      const opinion=MSel(`ms-air-opinion-${rid}`,"檢查員意見/BP",()=>["檢查員意見","Best Practice","無"],()=>{r.ncOpinion=[...opinion.sel].join("、");showVal(`ms-air-opinion-${rid}`,opinion);this.scheduleFormAutoSave();});
       prob.set(ncTags(r.ncProb));main.set(ncTags(r.ncMain));leaf.set(ncTags(r.ncLeaf));
-      factor.set(ncFactorSplit(r.ncFactor));opinion.set(ncFactorSplit(r.ncOpinion));
+      factor.set(ncFactorSplit(r.ncFactor));
       showVal(`ms-air-prob-${rid}`,prob);showVal(`ms-air-main-${rid}`,main);showVal(`ms-air-leaf-${rid}`,leaf);
-      showVal(`ms-air-factor-${rid}`,factor);showVal(`ms-air-opinion-${rid}`,opinion);
-      this.showSelectVal(`air-def-ncimp-${rid}`);this.showSelectVal(`air-def-risk-${rid}`);
-      this.defMs[rid]={prob,main,leaf,factor,opinion};
+      showVal(`ms-air-factor-${rid}`,factor);
+      this.showSelectVal(`air-def-ncimp-${rid}`);this.showSelectVal(`air-def-risk-${rid}`);this.showSelectVal(`air-def-opinion-${rid}`);
+      this.defMs[rid]={prob,main,leaf,factor};
     });
     initAutoResize(box);
     this.applyRoleLock();
