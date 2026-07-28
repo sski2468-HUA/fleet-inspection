@@ -2673,6 +2673,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
                 <button class="btn sm" id="air-fs-xl" onclick="Air.setReplyFontSize('xl')">特大</button>
                 <button class="btn sm primary" onclick="Air.openReplyExportModal()">⬇ 匯出</button>
                 <button class="btn sm" onclick="Air.importReplyDocxPick()">⬆ 匯入 Word</button>
+                <button class="btn sm" id="air-notify-btn" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10" onclick="Air.openNotifyPopover(event)">🔔 通知</button>
               </span>
             </h3>
             <p class="hint" id="air-reply-context"></p>
@@ -9877,13 +9878,13 @@ const Todo={
       (d.reply&&d.reply.items||[]).forEach((rp,i)=>{
         if(rp.notify&&rp.notify.status==="pending"&&rp.notify.to===me){
           items.push({icon:"🔔",tab:"air",text:`對外回覆通知：${d.ship} ${d.date} 缺失#${i+1}－${rp.notify.note||"請確認"}`,
-            action:()=>goToTab("air",()=>{if(typeof Air!=="undefined")Air.goToReply(d.id);})});
+            action:()=>goToTab("air",()=>{if(typeof Air!=="undefined")Air.goToReply(d.id,i,true);})});
         }
       });
       (d.defects||[]).forEach((df,i)=>{
         if(df.followUp&&df.followUp.on&&df.followUp.status==="open"&&df.followUp.assignee===me){
           items.push({icon:"🔖",tab:"air",text:`Follow Up 追蹤：${d.ship} ${d.date} 缺失#${i+1}（CODE ${df.code||"-"}）尚未結案`,
-            action:()=>goToTab("air",()=>{if(typeof Air!=="undefined")Air.goToReply(d.id);})});
+            action:()=>goToTab("air",()=>{if(typeof Air!=="undefined")Air.goToReply(d.id,i);})});
         }
       });
     });
@@ -16006,18 +16007,35 @@ const Air={
           rows.push({ship:d.ship,date:d.date,code:df.code||"",detail:df.detail||"",
             assignee:fu.assignee||"（尚未指定）",status:fu.status,
             closedAt:fu.closedAt,lastNote:lastLog?lastLog.note:"",lastAt:lastLog?lastLog.at:0,
+            lastTs:lastLog?lastLog.at:(fu.closedAt||0),
             recId:d.id});
         }
       });
     });
     if(!rows.length){box.innerHTML=`<p class="hint" style="padding:16px 0">目前沒有任何 Follow Up 追蹤項目。可在對外回覆頁面的各筆缺失下方勾選「需要 Follow Up 追蹤」來建立。</p>`;return;}
-    rows.sort((a,b)=>(a.status===b.status?0:(a.status==="open"?-1:1)));
+    if(!this.fuSort)this.fuSort={key:"status",asc:true};
+    const {key,asc}=this.fuSort;
+    const cmp=(a,b)=>{
+      let av=a[key],bv=b[key];
+      if(key==="status"){av=av==="open"?0:1;bv=bv==="open"?0:1;}
+      if(typeof av==="string")av=av.toLowerCase();
+      if(typeof bv==="string")bv=bv.toLowerCase();
+      if(av<bv)return asc?-1:1;
+      if(av>bv)return asc?1:-1;
+      return 0;
+    };
+    rows.sort(cmp);
+    const TH=(label,k)=>{
+      const on=key===k;
+      const arrow=on?(asc?" ▲":" ▼"):"";
+      return `<th style="padding:8px;text-align:left;cursor:pointer;user-select:none" onclick="Air.sortFollowUp('${k}')" title="點選以按「${label}」排序">${label}${arrow}</th>`;
+    };
     box.innerHTML=`<div class="scrollwrap" style="overflow-x:auto"><table class="tbl" style="width:100%;border-collapse:collapse">
       <thead><tr style="background:#f8f9fb">
-        <th style="padding:8px;text-align:left">狀態</th><th style="padding:8px;text-align:left">船名</th>
-        <th style="padding:8px;text-align:left">日期</th><th style="padding:8px;text-align:left">CODE</th>
-        <th style="padding:8px;text-align:left">缺失摘要</th><th style="padding:8px;text-align:left">指定人員</th>
-        <th style="padding:8px;text-align:left">最新更新</th><th style="padding:8px;text-align:left">操作</th>
+        ${TH("狀態","status")}${TH("船名","ship")}
+        ${TH("日期","date")}${TH("CODE","code")}
+        ${TH("缺失摘要","detail")}${TH("指定人員","assignee")}
+        ${TH("最新更新","lastTs")}<th style="padding:8px;text-align:left">操作</th>
       </tr></thead><tbody>
       ${rows.map(r=>`<tr style="border-bottom:1px solid var(--line)">
         <td style="padding:8px">${r.status==="closed"?`<span style="color:#1f6b4a;font-weight:700">✅ 已結案</span>`:`<span style="color:#a0631f;font-weight:700">🔖 追蹤中</span>`}</td>
@@ -16030,6 +16048,12 @@ const Air={
         <td style="padding:8px"><button class="btn sm" onclick="Air.goToReply(${r.recId})">查看</button></td>
       </tr>`).join("")}
       </tbody></table></div>`;
+  },
+  sortFollowUp(key){
+    if(!this.fuSort)this.fuSort={key:"status",asc:true};
+    if(this.fuSort.key===key)this.fuSort.asc=!this.fuSort.asc;
+    else this.fuSort={key,asc:true};
+    this.renderFollowUpList();
   },
   isPSC(){
     const v=($("#air-itype")?$("#air-itype").value:"")||"";
@@ -16257,7 +16281,7 @@ const Air={
   refreshIcat(){const t=$("#air-itype").value;$("#air-icat").value=icatOf(t)||"（未分類）";},
   /* ── 缺失改善明細 ── */
   blankDefect(){return {id:this.defSeq++,psc:"",code:"",actual:"",detail:"",corrective:"",rootCause:"",preventive:"",rank:"",person:"",people:[{rank:"",person:""}],ncProb:"",ncMain:"",ncLeaf:"",ncFactor:"",ncImp:"",ncFocus:"",ncMethod:"",ncOpinion:"",risk:""};},
-  addDefectRow(){this.defRows.push(this.blankDefect());this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
+  addDefectRow(){this.defRows.push(this.blankDefect());this.activeDefRowIdx=this.defRows.length-1;this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
   rmDefectRow(id){this.defRows=this.defRows.filter(r=>r.id!==id);this.defSel.delete(id);this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
   syncNdefField(){const el=$("#air-ndef");if(el)el.value=this.defRows.length;},
   DEF_XLSX_HDR:["PSC Action Taken","CODE","缺失詳情","實際情況","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","三要素","重要程度","重點關注","缺失性質判定","風險"],
@@ -16322,66 +16346,76 @@ const Air={
     const box=$("#air-defect-cards");if(!box)return;
     const wrap=$("#air-defcard-wrap");if(wrap)wrap.style.display=this.defRows.length?"":"none";
     const isPSC=this.isPSC();
-    box.innerHTML=this.defRows.map((r,i)=>{
-      const uid="air-psc-"+r.id;
-      if(!isPSC&&r.psc)r.psc=""; // 非PSC檢查不適用，清空已選值
-      const chapterHint=(()=>{const n=chapterNameLookup($("#air-itype")?$("#air-itype").value:"",r.code);return n?"📖 "+n:"";})();
-      if(!Array.isArray(r.people)||!r.people.length)r.people=[{rank:r.rank||"",person:r.person||""}];
-      const defPeopleHtml=r.people.map((p,pi)=>`<div style="display:flex;gap:4px;align-items:center;margin-bottom:3px">
-          <select class="air-in" style="flex:1" onchange="Air.setDefPerson(${r.id},${pi},'rank',this.value)">${rankOptionsHtml(p.rank)}</select>
-          <input class="air-in" type="text" style="flex:1" placeholder="姓名" value="${esc(p.person)}" oninput="Air.setDefPerson(${r.id},${pi},'person',this.value)">
-          <button class="btn sm" title="移除此人員" onclick="Air.rmDefPerson(${r.id},${pi})">✕</button>
-        </div>`).join("")+`<button class="btn sm" onclick="Air.addDefPerson(${r.id})">＋ 新增人員</button>`;
-      return `<div class="card air-def-card" data-id="${r.id}">
-        <div style="display:flex;align-items:center;gap:10px">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:700;cursor:pointer;margin:0">
-            <input type="checkbox" ${this.defSel.has(r.id)?"checked":""} onchange="Air.toggleDefSel(${r.id},this.checked)">
-            缺失 #${i+1}
-          </label>
-          <span style="flex:1"></span>
-          <button class="btn sm danger" onclick="Air.rmDefectRow(${r.id})">✕ 刪除此筆</button>
-        </div>
-        <div class="fgrid">
-          <label>CODE<input class="air-in" type="text" value="${esc(r.code)}" oninput="Air.setDefField(${r.id},'code',this.value);Air.refreshCodeChapter(${r.id})" placeholder="VIQ/SIR/RISQ/PSC">
+    if(this.activeDefRowIdx==null||this.activeDefRowIdx>=this.defRows.length||this.activeDefRowIdx<0)this.activeDefRowIdx=0;
+    const tabsHtml=this.defRows.length>1?`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+        ${this.defRows.map((r,i)=>{
+          const on=i===this.activeDefRowIdx;
+          return `<div class="air-rs-tabwrap" style="border-color:${on?"#0b3a5c":"var(--line)"};${on?"background:#0b3a5c":"background:#fff"}">
+            <label style="display:flex;align-items:center;padding-left:8px;cursor:pointer" title="勾選以進行批次操作（刪除／匯出等），跟切換分頁互不影響" onclick="event.stopPropagation()"><input type="checkbox" ${this.defSel.has(r.id)?"checked":""} onchange="Air.toggleDefSel(${r.id},this.checked)"></label>
+            <button type="button" class="air-rs-tab" style="color:${on?"#fff":"#0b3a5c"}" onclick="Air.setActiveDefRow(${i})">#${i+1}${r.code?" · CODE "+esc(r.code):""}</button>
+          </div>`;
+        }).join("")}
+      </div>`:"";
+    const i=this.activeDefRowIdx;
+    const r=this.defRows[i];
+    if(!r){box.innerHTML=tabsHtml+`<p class="hint" style="padding:16px 0">尚無缺失明細，請按上方「新增一筆缺失明細」。</p>`;this.defMs={};return;}
+    const uid="air-psc-"+r.id;
+    if(!isPSC&&r.psc)r.psc="";
+    const chapterHint=(()=>{const n=chapterNameLookup($("#air-itype")?$("#air-itype").value:"",r.code);return n?"📖 "+n:"";})();
+    if(!Array.isArray(r.people)||!r.people.length)r.people=[{rank:r.rank||"",person:r.person||""}];
+    const defPeopleHtml=r.people.map((p,pi)=>`<div style="display:flex;gap:4px;align-items:center;margin-bottom:3px">
+        <select class="air-in" style="flex:1" onchange="Air.setDefPerson(${r.id},${pi},'rank',this.value)">${rankOptionsHtml(p.rank)}</select>
+        <input class="air-in" type="text" style="flex:1" placeholder="姓名" value="${esc(p.person)}" oninput="Air.setDefPerson(${r.id},${pi},'person',this.value)">
+        <button class="btn sm" title="移除此人員" onclick="Air.rmDefPerson(${r.id},${pi})">✕</button>
+      </div>`).join("")+`<button class="btn sm" onclick="Air.addDefPerson(${r.id})">＋ 新增人員</button>`;
+    const cardHtml=`<div class="card air-def-card air-reply-split" data-id="${r.id}">
+        <div class="air-rs-id">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <b style="font-size:15px;color:#0b3a5c">缺失 #${i+1}</b>
+            <span style="flex:1"></span>
+            <button class="btn sm danger" onclick="Air.rmDefectRow(${r.id})">✕ 刪除此筆</button>
+          </div>
+          <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600">CODE<input class="air-in" type="text" value="${esc(r.code)}" oninput="Air.setDefField(${r.id},'code',this.value);Air.refreshCodeChapter(${r.id})" placeholder="VIQ/SIR/RISQ/PSC">
             <span class="hint" id="air-code-ch-${r.id}" style="font-size:9.5px;color:var(--teal);line-height:1.3">${chapterHint}</span>
           </label>
-          <label class="fw">責任人員（可新增多筆）${defPeopleHtml}</label>
-          ${isPSC?`<label class="fw">PSC Action Taken${pscMselHtml(r.psc,uid,false)}</label>`:""}
-          <label class="fw">缺失詳情<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'detail',this.value)">${esc(r.detail)}</textarea></label>
-          <label class="fw">實際情況<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'actual',this.value)">${esc(r.actual)}</textarea></label>
-          <label class="fw">改善措施<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'corrective',this.value)">${esc(r.corrective)}</textarea></label>
-          <label class="fw">根本原因<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'rootCause',this.value)">${esc(r.rootCause)}</textarea></label>
-          <label class="fw">預防措施<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'preventive',this.value)">${esc(r.preventive)}</textarea></label>
+          <label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">責任人員（可新增多筆）${defPeopleHtml}</label>
+          ${isPSC?`<label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">PSC Action Taken${pscMselHtml(r.psc,uid,false)}</label>`:""}
+          <label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">缺失詳情<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'detail',this.value)">${esc(r.detail)}</textarea></label>
         </div>
-        <div class="air-def-shortrow">
-          <div class="adf-item adf-chk"><label style="flex-direction:row;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${r.ncFocus==="是"?"checked":""} style="width:18px;height:18px;accent-color:var(--bad)" onchange="Air.setDefField(${r.id},'ncFocus',this.checked?'是':'否')">重點關注</label></div>
-          <div class="adf-item"><label>問題別</label><div class="msel" id="ms-air-prob-${r.id}"></div><div class="adf-val" id="ms-air-prob-${r.id}-val"></div></div>
-          <div class="adf-item"><label>大類</label><div class="msel" id="ms-air-main-${r.id}"></div><div class="adf-val" id="ms-air-main-${r.id}-val"></div></div>
-          <div class="adf-item"><label>具體名稱</label><div class="msel" id="ms-air-leaf-${r.id}"></div><div class="adf-val" id="ms-air-leaf-${r.id}-val"></div></div>
-          <div class="adf-item"><label>三要素</label><div class="msel" id="ms-air-factor-${r.id}"></div><div class="adf-val" id="ms-air-factor-${r.id}-val"></div></div>
-          <div class="adf-item"><label>重要程度</label><select class="air-in" id="air-def-ncimp-${r.id}" onchange="Air.setDefField(${r.id},'ncImp',this.value);Air.showSelectVal('air-def-ncimp-${r.id}')"><option value=""${r.ncImp?"":" selected"}>（未設定）</option><option${r.ncImp==="低"?" selected":""}>低</option><option${r.ncImp==="中"?" selected":""}>中</option><option${r.ncImp==="高"?" selected":""}>高</option></select><div class="adf-val" id="air-def-ncimp-${r.id}-val"></div></div>
-          <div class="adf-item"><label>風險</label><select class="air-in" id="air-def-risk-${r.id}" onchange="Air.setDefField(${r.id},'risk',this.value);Air.showSelectVal('air-def-risk-${r.id}')"><option value=""${r.risk?"":" selected"}>（未設定）</option><option value="1"${r.risk==="1"?" selected":""}>1低</option><option value="2"${r.risk==="2"?" selected":""}>2中</option><option value="3"${r.risk==="3"?" selected":""}>3高</option></select><div class="adf-val" id="air-def-risk-${r.id}-val"></div></div>
-          <div class="adf-item"><label>缺失性質判定</label><select class="air-in" id="air-def-opinion-${r.id}" onchange="Air.setDefField(${r.id},'ncOpinion',this.value);Air.showSelectVal('air-def-opinion-${r.id}')">${ncOpinionOptsHtml(r.ncOpinion)}</select><div class="adf-val" id="air-def-opinion-${r.id}-val"></div></div>
+        <div class="air-rs-edit">
+          <div class="fgrid">
+            <label class="fw">實際情況<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'actual',this.value)">${esc(r.actual)}</textarea></label>
+            <label class="fw">改善措施<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'corrective',this.value)">${esc(r.corrective)}</textarea></label>
+            <label class="fw">根本原因<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'rootCause',this.value)">${esc(r.rootCause)}</textarea></label>
+            <label class="fw">預防措施<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'preventive',this.value)">${esc(r.preventive)}</textarea></label>
+          </div>
+          <div class="air-def-shortrow">
+            <div class="adf-item adf-chk"><label style="flex-direction:row;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${r.ncFocus==="是"?"checked":""} style="width:18px;height:18px;accent-color:var(--bad)" onchange="Air.setDefField(${r.id},'ncFocus',this.checked?'是':'否')">重點關注</label></div>
+            <div class="adf-item"><label>問題別</label><div class="msel" id="ms-air-prob-${r.id}"></div><div class="adf-val" id="ms-air-prob-${r.id}-val"></div></div>
+            <div class="adf-item"><label>大類</label><div class="msel" id="ms-air-main-${r.id}"></div><div class="adf-val" id="ms-air-main-${r.id}-val"></div></div>
+            <div class="adf-item"><label>具體名稱</label><div class="msel" id="ms-air-leaf-${r.id}"></div><div class="adf-val" id="ms-air-leaf-${r.id}-val"></div></div>
+            <div class="adf-item"><label>三要素</label><div class="msel" id="ms-air-factor-${r.id}"></div><div class="adf-val" id="ms-air-factor-${r.id}-val"></div></div>
+            <div class="adf-item"><label>重要程度</label><select class="air-in" id="air-def-ncimp-${r.id}" onchange="Air.setDefField(${r.id},'ncImp',this.value);Air.showSelectVal('air-def-ncimp-${r.id}')"><option value=""${r.ncImp?"":" selected"}>（未設定）</option><option${r.ncImp==="低"?" selected":""}>低</option><option${r.ncImp==="中"?" selected":""}>中</option><option${r.ncImp==="高"?" selected":""}>高</option></select><div class="adf-val" id="air-def-ncimp-${r.id}-val"></div></div>
+            <div class="adf-item"><label>風險</label><select class="air-in" id="air-def-risk-${r.id}" onchange="Air.setDefField(${r.id},'risk',this.value);Air.showSelectVal('air-def-risk-${r.id}')"><option value=""${r.risk?"":" selected"}>（未設定）</option><option value="1"${r.risk==="1"?" selected":""}>1低</option><option value="2"${r.risk==="2"?" selected":""}>2中</option><option value="3"${r.risk==="3"?" selected":""}>3高</option></select><div class="adf-val" id="air-def-risk-${r.id}-val"></div></div>
+            <div class="adf-item"><label>缺失性質判定</label><select class="air-in" id="air-def-opinion-${r.id}" onchange="Air.setDefField(${r.id},'ncOpinion',this.value);Air.showSelectVal('air-def-opinion-${r.id}')">${ncOpinionOptsHtml(r.ncOpinion)}</select><div class="adf-val" id="air-def-opinion-${r.id}-val"></div></div>
+          </div>
         </div>
-      </div>`;}).join("");
+      </div>`;
+    box.innerHTML=tabsHtml+cardHtml;
     if(isPSC){
-      this.defRows.forEach(r=>{
-        const uid="air-psc-"+r.id;
-        PSC_ACTION_CODES.forEach(([c])=>{
-          const el=document.getElementById(`${uid}-${c}`);
-          if(el)el.onchange=()=>{r.psc=pscMselUpdateSummary(uid);this.scheduleFormAutoSave();};
-        });
+      const uid2="air-psc-"+r.id;
+      PSC_ACTION_CODES.forEach(([c])=>{
+        const el=document.getElementById(`${uid2}-${c}`);
+        if(el)el.onchange=()=>{r.psc=pscMselUpdateSummary(uid2);this.scheduleFormAutoSave();};
       });
     }
     this.defMs={};
-    this.defRows.forEach(r=>{
+    (()=>{
       const rid=r.id;
       const showVal=(mid,mo)=>{
         const el=document.getElementById(mid+"-val");if(!el)return;
         const arr=[...mo.sel];
         const full=arr.join("、");
-        // 選項一多，把每個名稱都接起來會撐爆版面（例如問題別勾兩大類、具體名稱連帶跑出兩三百項
-        // 可勾），改成超過3項或字太長就顯示「已選 N 項」，完整清單放在滑鼠移過去的提示裡就好。
         const summarized=(arr.length>3||full.length>26)?`已選 ${arr.length} 項`:full;
         el.textContent=summarized;
         el.title=full;
@@ -16397,10 +16431,15 @@ const Air={
       showVal(`ms-air-factor-${rid}`,factor);
       this.showSelectVal(`air-def-ncimp-${rid}`);this.showSelectVal(`air-def-risk-${rid}`);this.showSelectVal(`air-def-opinion-${rid}`);
       this.defMs[rid]={prob,main,leaf,factor};
-    });
+    })();
     initAutoResize(box);
     this.applyRoleLock();
   },
+  setActiveDefRow(i){
+    this.activeDefRowIdx=i;
+    this.renderDefectRows();
+  },
+
   setDefField(id,k,v){const r=this.defRows.find(x=>x.id===id);if(r){r[k]=v;this.scheduleFormAutoSave();}},
   /* 責任人員可能不只一位（例如同一項缺失牽涉大副與大管輪），改成跟「正面評價受訪人員」一樣的
      可新增多筆設計；r.rank／r.person 仍會自動用「、」串起所有人，保留給匯出Excel、CAR、
@@ -16990,9 +17029,13 @@ const Air={
   /* 從清單以外的地方（Follow Up 清單、待辦事項）導向某筆填單的對外回覆頁：
      需先把表單頁切到可見狀態，再切到「對外回覆」子分頁，否則 openReply 只會更新
      一個還藏著的 DOM，使用者畫面不會有變化。 */
-  goToReply(id){
+  goToReply(id,defectIdx,openNotify){
     this.showForm(id);
     this.showFormTab("reply");
+    if(defectIdx!=null)this.activeDefectIdx=defectIdx;
+    const d=App.air.find(x=>x.id===id);
+    if(d)this.renderReplyDefects(d);
+    if(openNotify)setTimeout(()=>this.openNotifyPopover(),150);
   },
   showFormTab(tab){
     if(tab==="reply"){
@@ -17101,8 +17144,7 @@ const Air={
         </div>
         <label class="air-reply-lbl" style="display:block;margin:10px 0 3px">Supporting Material（佐證資料說明，例：Photo evidence／Certificate copy，匯出 CAR 時會列在最後一欄）</label>
         <textarea class="air-reply-ta" placeholder="例：Photo evidence." style="width:100%" ${ro} oninput="autoResizeTA(this);Air.setReplyField(${i},'supportingMaterial',this.value)">${esc(rp.supportingMaterial||"")}</textarea>
-        ${this.renderNotifyBox(i,rp,canEdit)}
-          ${this.renderFollowUpBox(i,df,canEdit)}
+        ${this.renderFollowUpBox(i,df,canEdit)}
         </div>
       </div>`;
     }
@@ -17122,56 +17164,114 @@ const Air={
     const el=$("#air-reply-defects");if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"start"});
   },
   /* ── 通知功能：翻譯/確認流程的人員通知（例如「英文已翻譯完成，通知OO確認」）── */
-  renderNotifyBox(i,rp,canEdit){
+  NOTIFY_PRESETS:[
+    ["translated","英文內容已翻譯，請確認"],
+    ["final","已完成最後修改，請上傳"],
+    ["custom","自訂…"]
+  ],
+  systemPeopleOptsHtml(sel){
+    let names=[];
+    try{names=[...new Set((typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[]).map(x=>x.name).filter(Boolean))].sort();}catch(e){}
+    return `<option value="">（請選擇通知對象）</option>`+names.map(n=>`<option value="${esc(n)}"${sel===n?" selected":""}>${esc(n)}</option>`).join("");
+  },
+  closeNotifyPopover(){const el=document.getElementById("air-notify-pop");if(el)el.remove();},
+  openNotifyPopover(e){
+    if(e)e.stopPropagation();
+    this.closeNotifyPopover();
+    const d=App.air.find(x=>x.id===this.replyId);if(!d)return;
+    const i=this.activeDefectIdx;
+    const rp=(d.reply&&d.reply.items[i])||{};
     const nt=rp.notify||{};
+    const canEdit=typeof Role==="undefined"||Role.isAdmin();
     const isPending=nt.status==="pending";
     const isDone=nt.status==="done";
     const me=(typeof Role!=="undefined"&&Role.personName)?Role.personName():"";
     const canAck=isPending&&nt.to&&(me===nt.to||(typeof Role!=="undefined"&&Role.isAdmin()));
-    return `<div style="margin-top:14px;padding:10px;background:#eef4ff;border-radius:6px;border:1px solid #cfe0f9">
-      <div class="air-reply-lbl" style="font-weight:700;margin-bottom:6px">🔔 通知</div>
-      ${isPending?`<div style="background:#fff;border:1px solid #cfe0f9;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:12.5px">
-          <b>待處理</b>：${esc(nt.from)} → ${esc(nt.to)}｜${esc(nt.note)}
-          ${canAck?`<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
-            <input type="text" id="ack-note-${i}" placeholder="回覆說明（選填，例：已確認無誤）" style="flex:1;min-width:160px;padding:5px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px">
-            <button class="btn sm dark" onclick="Air.ackNotify(${i})">✓ 已確認</button>
-          </div>`:`<span class="hint">等待 ${esc(nt.to)} 確認中</span>`}
+    const box=document.createElement("div");
+    box.id="air-notify-pop";
+    box.style.cssText="position:fixed;z-index:999;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(20,30,50,.2);width:340px;max-width:92vw;padding:14px;font-size:12.5px";
+    box.innerHTML=`
+      <div style="font-weight:700;margin-bottom:8px">🔔 通知（關於：缺失 #${i+1}${(d.defects[i]&&d.defects[i].code)?" · CODE "+esc(d.defects[i].code):""}）</div>
+      ${isPending?`<div style="background:#eef4ff;border:1px solid #cfe0f9;border-radius:6px;padding:8px 10px;margin-bottom:10px">
+          <b>待處理</b>：${esc(nt.from)} → ${esc(nt.to)}<br>${esc(nt.note)}
+          ${canAck?`<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
+            <input type="text" id="np-ack-note" placeholder="回覆說明（選填，例：已確認無誤）" style="padding:6px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px">
+            <button class="btn sm dark" onclick="Air.ackNotify()">✓ 已確認</button>
+          </div>`:`<div class="hint" style="margin-top:4px">等待 ${esc(nt.to)} 確認中</div>`}
+          ${canEdit?`<button class="btn sm" style="margin-top:6px" onclick="Air.withdrawNotify()">✕ 撤銷這則通知</button>`:""}
         </div>`:""}
-      ${isDone?`<div style="background:#eaf5ee;border:1px solid #bfe3cc;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:12.5px">
+      ${isDone?`<div style="background:#eaf5ee;border:1px solid #bfe3cc;border-radius:6px;padding:8px 10px;margin-bottom:10px">
           <b>✓ 已確認</b>：${esc(nt.to)} 於 ${esc(this.fmtTs(nt.ackAt))} 確認${nt.ackNote?`，回覆：${esc(nt.ackNote)}`:""}
+          ${canEdit?`<button class="btn sm" style="margin-top:6px" onclick="Air.withdrawNotify()">✕ 清除紀錄，重新通知</button>`:""}
         </div>`:""}
-      ${canEdit?`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          <input type="text" id="notify-to-${i}" list="dl-roster-names" placeholder="通知對象（人員姓名）" value="${esc(nt.status==="pending"?"":nt.to)}" style="flex:0 0 160px;padding:5px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px">
-          <input type="text" id="notify-note-${i}" placeholder="通知事由，例：英文內容已翻譯完成，請確認" style="flex:1;min-width:180px;padding:5px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px">
-          <button class="btn sm primary" onclick="Air.sendNotify(${i})">🔔 送出通知</button>
+      ${canEdit&&!isPending?`<div style="display:flex;flex-direction:column;gap:8px">
+          <label style="font-size:11.5px;color:var(--sub)">通知對象
+            <select id="np-to" style="width:100%;padding:6px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px;margin-top:3px">${this.systemPeopleOptsHtml("")}</select>
+          </label>
+          <label style="font-size:11.5px;color:var(--sub)">通知內容
+            <select id="np-preset" style="width:100%;padding:6px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px;margin-top:3px" onchange="Air.onNotifyPresetChange()">
+              ${this.NOTIFY_PRESETS.map(([v,label])=>`<option value="${v}">${esc(label)}</option>`).join("")}
+            </select>
+          </label>
+          <input type="text" id="np-custom" placeholder="請輸入通知內容" style="display:none;padding:6px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px">
+          <button class="btn sm primary" onclick="Air.sendNotify()">🔔 送出通知</button>
         </div>`:""}
-    </div>`;
+    `;
+    document.body.appendChild(box);
+    const btn=document.getElementById("air-notify-btn");
+    const r=(e&&e.target?e.target:btn).getBoundingClientRect();
+    const w=box.offsetWidth,h=box.offsetHeight;
+    box.style.left=Math.max(6,Math.min(window.innerWidth-w-6,r.right-w))+"px";
+    box.style.top=(window.innerHeight-r.bottom<h+10?Math.max(6,r.top-h-6):r.bottom+6)+"px";
+    setTimeout(()=>document.addEventListener("click",this._notifyOutside=(ev)=>{if(!box.contains(ev.target)&&ev.target.id!=="air-notify-btn")this.closeNotifyPopover();},{once:true}),0);
   },
-  sendNotify(i){
+  onNotifyPresetChange(){
+    const v=document.getElementById("np-preset")?.value;
+    const cu=document.getElementById("np-custom");
+    if(cu)cu.style.display=v==="custom"?"":"none";
+  },
+  fmtTs(ts){if(!ts)return"";const d=new Date(ts);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;},
+  sendNotify(){
     if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／管理員可送出通知");return;}
-    const to=($("#notify-to-"+i)?.value||"").trim();
-    const note=($("#notify-note-"+i)?.value||"").trim();
-    if(!to){toast("⚠ 請填寫通知對象");return;}
+    const i=this.activeDefectIdx;
+    const to=(document.getElementById("np-to")?.value||"").trim();
+    const presetV=document.getElementById("np-preset")?.value;
+    const preset=this.NOTIFY_PRESETS.find(p=>p[0]===presetV);
+    const note=presetV==="custom"?(document.getElementById("np-custom")?.value||"").trim():(preset?preset[1]:"");
+    if(!to){toast("⚠ 請選擇通知對象");return;}
+    if(!note){toast("⚠ 請填寫通知內容");return;}
     const d=App.air.find(x=>x.id===this.replyId);
     if(!d||!d.reply||!d.reply.items[i])return;
     d.reply.items[i].notify={to,note,from:(typeof Role!=="undefined"&&Role.personName)?Role.personName():"",at:Date.now(),status:"pending",ackNote:"",ackAt:0};
     this.scheduleReplyAutoSave();this.autoSaveReply();
-    this.renderReplyDefects(d);
+    this.closeNotifyPopover();
     toast(`✓ 已通知 ${to}`);
   },
-  ackNotify(i){
+  ackNotify(){
+    const i=this.activeDefectIdx;
     const d=App.air.find(x=>x.id===this.replyId);
     if(!d||!d.reply||!d.reply.items[i]||!d.reply.items[i].notify)return;
     const nt=d.reply.items[i].notify;
     const me=(typeof Role!=="undefined"&&Role.personName)?Role.personName():"";
     if(nt.to!==me&&!(typeof Role!=="undefined"&&Role.isAdmin())){toast("⚠ 此通知非指定給您，無法確認");return;}
-    nt.status="done";nt.ackNote=($("#ack-note-"+i)?.value||"").trim();nt.ackAt=Date.now();
+    nt.status="done";nt.ackNote=(document.getElementById("np-ack-note")?.value||"").trim();nt.ackAt=Date.now();
     this.autoSaveReply();
-    this.renderReplyDefects(d);
+    this.closeNotifyPopover();
     if(typeof Todo!=="undefined")Todo.render();
     toast("✓ 已確認通知");
   },
-  fmtTs(ts){if(!ts)return"";const d=new Date(ts);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;},
+  withdrawNotify(){
+    const i=this.activeDefectIdx;
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／管理員可撤銷通知");return;}
+    if(!confirm("確定要撤銷這則通知嗎？撤銷後會直接從對方的待辦事項移除。"))return;
+    const d=App.air.find(x=>x.id===this.replyId);
+    if(!d||!d.reply||!d.reply.items[i])return;
+    d.reply.items[i].notify={to:"",note:"",from:"",at:0,status:"",ackNote:"",ackAt:0};
+    this.autoSaveReply();
+    this.closeNotifyPopover();
+    if(typeof Todo!=="undefined")Todo.render();
+    toast("✓ 已撤銷通知");
+  },
 
   /* ── Follow Up 追蹤：勾選需追蹤、指定人員、更新改善情形、結案 ── */
   renderFollowUpBox(i,df,canEdit){
