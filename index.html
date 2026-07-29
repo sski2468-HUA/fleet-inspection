@@ -16350,9 +16350,10 @@ const Air={
     const tabsHtml=this.defRows.length>1?`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
         ${this.defRows.map((r,i)=>{
           const on=i===this.activeDefRowIdx;
-          return `<div class="air-rs-tabwrap" style="border-color:${on?"#0b3a5c":"var(--line)"};${on?"background:#0b3a5c":"background:#fff"}">
+          const [bd]=this.CARD_PALETTE[i%this.CARD_PALETTE.length];
+          return `<div class="air-rs-tabwrap" style="border-color:${bd};${on?`background:${bd}`:"background:#fff"}">
             <label style="display:flex;align-items:center;padding-left:8px;cursor:pointer" title="勾選以進行批次操作（刪除／匯出等），跟切換分頁互不影響" onclick="event.stopPropagation()"><input type="checkbox" ${this.defSel.has(r.id)?"checked":""} onchange="Air.toggleDefSel(${r.id},this.checked)"></label>
-            <button type="button" class="air-rs-tab" style="color:${on?"#fff":"#0b3a5c"}" onclick="Air.setActiveDefRow(${i})">#${i+1}${r.code?" · CODE "+esc(r.code):""}</button>
+            <button type="button" class="air-rs-tab" style="color:${on?"#fff":bd}" onclick="Air.setActiveDefRow(${i})">#${i+1}${r.code?" · CODE "+esc(r.code):""}</button>
           </div>`;
         }).join("")}
       </div>`:"";
@@ -16368,10 +16369,11 @@ const Air={
         <input class="air-in" type="text" style="flex:1" placeholder="姓名" value="${esc(p.person)}" oninput="Air.setDefPerson(${r.id},${pi},'person',this.value)">
         <button class="btn sm" title="移除此人員" onclick="Air.rmDefPerson(${r.id},${pi})">✕</button>
       </div>`).join("")+`<button class="btn sm" onclick="Air.addDefPerson(${r.id})">＋ 新增人員</button>`;
-    const cardHtml=`<div class="card air-def-card air-reply-split" data-id="${r.id}">
-        <div class="air-rs-id">
+    const [bd,bg]=this.CARD_PALETTE[i%this.CARD_PALETTE.length];
+    const cardHtml=`<div class="card air-def-card air-reply-split" data-id="${r.id}" style="border-left:7px solid ${bd}">
+        <div class="air-rs-id" style="background:${bg}">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-            <b style="font-size:15px;color:#0b3a5c">缺失 #${i+1}</b>
+            <b style="font-size:15px;color:${bd}">缺失 #${i+1}</b>
             <span style="flex:1"></span>
             <button class="btn sm danger" onclick="Air.rmDefectRow(${r.id})">✕ 刪除此筆</button>
           </div>
@@ -16749,8 +16751,14 @@ const Air={
     const d=App.air.find(x=>x.id===this.editId);if(!d)return;
     let added=0,updated=0;
     rows.forEach(r=>{
+      /* 改善措施／根本原因／預防措施：優先採用「對外回覆」審閱過的中文版本（船上原始填寫的
+         只是草稿，實際對外用字以海技審過的回覆內容為準）；該筆缺失若還沒填過對外回覆，
+         才退回使用缺失明細裡船上原本填的版本，避免轉入空白。 */
+      const idx=this.defRows.indexOf(r);
+      const rp=(d.reply&&d.reply.items&&d.reply.items[idx])||{};
       const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:d.date,ym:ymOf(d.date),place:d.place,oilco:d.oilco,inspector:d.inspector,
-        psc:r.psc||"",code:r.code||"",detail:r.detail||"",actual:r.actual||"",preventive:r.preventive||"",corrective:r.corrective||"",rootCause:r.rootCause||"",
+        psc:r.psc||"",code:r.code||"",detail:r.detail||"",actual:r.actual||"",
+        preventive:rp.preventiveCn||r.preventive||"",corrective:rp.correctiveCn||r.corrective||"",rootCause:rp.rootCauseCn||r.rootCause||"",
         rank:r.rank||"",person:r.person||"",risk:r.risk||"",
         ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||""};
       const existing=(mode==="overwrite"&&r.pushedDefId!=null)?App.defs.find(x=>x.id===r.pushedDefId):null;
@@ -17077,7 +17085,7 @@ const Air={
     if(!this.mergeSel)this.mergeSel=new Set();
     const defs=d.defects||[];
     if(this.activeDefectIdx==null||this.activeDefectIdx>=defs.length||this.activeDefectIdx<0)this.activeDefectIdx=0;
-    const CARD_PALETTE=[["#0b3a5c","#eef3f7"],["#1f6b4a","#eaf5ee"],["#a0631f","#fbf3e7"],["#6a3b8f","#f3edf8"],["#a23b3b","#faeceb"],["#1f7a8c","#e9f5f7"]];
+    const CARD_PALETTE=this.CARD_PALETTE;
     const mergeBar=canEdit&&defs.length>1&&this.mergeSel.size>0?`
       <div style="margin-top:10px;padding:8px 10px;background:#fdf6ec;border:1px solid #f1e2c4;border-radius:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span class="hint" style="font-size:12px">已勾選 ${this.mergeSel.size} 筆準備合併</span>
@@ -17164,15 +17172,33 @@ const Air={
     const el=$("#air-reply-defects");if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"start"});
   },
   /* ── 通知功能：翻譯/確認流程的人員通知（例如「英文已翻譯完成，通知OO確認」）── */
+  CARD_PALETTE:[["#0b3a5c","#eef3f7"],["#1f6b4a","#eaf5ee"],["#a0631f","#fbf3e7"],["#6a3b8f","#f3edf8"],["#a23b3b","#faeceb"],["#1f7a8c","#e9f5f7"]],
   NOTIFY_PRESETS:[
     ["translated","英文內容已翻譯，請確認"],
     ["final","已完成最後修改，請上傳"],
     ["custom","自訂…"]
   ],
-  systemPeopleOptsHtml(sel){
-    let names=[];
-    try{names=[...new Set((typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[]).map(x=>x.name).filter(Boolean))].sort();}catch(e){}
-    return `<option value="">（請選擇通知對象）</option>`+names.map(n=>`<option value="${esc(n)}"${sel===n?" selected":""}>${esc(n)}</option>`).join("");
+  systemPeople(){
+    let people=[];
+    try{people=(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[]).filter(x=>x.name&&x.dept&&x.dept!==GateIdentity.GUEST_DEPT);}catch(e){}
+    const seen=new Set();
+    return people.filter(p=>{const k=p.dept+"｜"+p.name;if(seen.has(k))return false;seen.add(k);return true;});
+  },
+  systemDeptOptsHtml(sel){
+    const depts=[...new Set(this.systemPeople().map(p=>p.dept))].sort();
+    return `<option value="">全部部門</option>`+depts.map(dep=>`<option value="${esc(dep)}"${sel===dep?" selected":""}>${esc(dep)}</option>`).join("");
+  },
+  systemPeopleOptsHtml(dept,kw,sel){
+    const kwLower=(kw||"").trim().toLowerCase();
+    const list=this.systemPeople().filter(p=>(!dept||p.dept===dept)&&(!kwLower||p.name.toLowerCase().includes(kwLower))).sort((a,b)=>a.name.localeCompare(b.name));
+    if(!list.length)return `<option value="">（查無符合的人員）</option>`;
+    return `<option value="">（請選擇通知對象）</option>`+list.map(p=>`<option value="${esc(p.name)}"${sel===p.name?" selected":""}>${esc(p.name)}（${esc(p.dept)}）</option>`).join("");
+  },
+  refreshNotifyToOptions(){
+    const sel=document.getElementById("np-to");if(!sel)return;
+    const dept=document.getElementById("np-dept")?.value||"";
+    const kw=document.getElementById("np-search")?.value||"";
+    sel.innerHTML=this.systemPeopleOptsHtml(dept,kw,"");
   },
   closeNotifyPopover(){const el=document.getElementById("air-notify-pop");if(el)el.remove();},
   openNotifyPopover(e){
@@ -17206,7 +17232,11 @@ const Air={
         </div>`:""}
       ${canEdit&&!isPending?`<div style="display:flex;flex-direction:column;gap:8px">
           <label style="font-size:11.5px;color:var(--sub)">通知對象
-            <select id="np-to" style="width:100%;padding:6px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px;margin-top:3px">${this.systemPeopleOptsHtml("")}</select>
+            <div style="display:flex;gap:6px;margin-top:3px">
+              <select id="np-dept" style="flex:0 0 40%;padding:6px 4px;font-size:12.5px;border:1px solid var(--line);border-radius:5px" onchange="Air.refreshNotifyToOptions()">${this.systemDeptOptsHtml("")}</select>
+              <input type="text" id="np-search" placeholder="輸入姓名關鍵字搜尋" style="flex:1;padding:6px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px" oninput="Air.refreshNotifyToOptions()">
+            </div>
+            <select id="np-to" style="width:100%;padding:6px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px;margin-top:6px">${this.systemPeopleOptsHtml("","","")}</select>
           </label>
           <label style="font-size:11.5px;color:var(--sub)">通知內容
             <select id="np-preset" style="width:100%;padding:6px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px;margin-top:3px" onchange="Air.onNotifyPresetChange()">
@@ -17610,26 +17640,26 @@ const Air={
     const vesselName=shipObj&&shipObj.name?shipObj.name:d.ship;
     const F="font-family:Calibri,Arial,sans-serif";
     const p2=s=>esc(s||"").replace(/\n/g,"<br/>");
-    let body=`<p style="${F};font-size:16px;font-weight:bold">M.V."${esc(vesselName)}" － ${esc(d.itype)} 對外回覆／External Reply（中英對照）</p>
-      <p style="${F};font-size:12px">Port: ${esc(d.place)}　Inspection date: ${esc(d.date)}</p>
-      <p style="${F};font-size:10px;color:#999">⚠ 本檔案可用系統「⬆ 匯入 Word」讀回並回填，請勿更動方括號 [ ] 內的標籤文字，只需修改標籤下方的內容即可；若用 Word 另存為 .docx 也可以匯入。</p><hr/>`;
+    let body=`<p style="${F};font-size:18pt;font-weight:bold">M.V."${esc(vesselName)}" － ${esc(d.itype)} 對外回覆／External Reply（中英對照）</p>
+      <p style="${F};font-size:12pt">Port: ${esc(d.place)}　Inspection date: ${esc(d.date)}</p>
+      <p style="${F};font-size:10pt;color:#999">⚠ 本檔案可用系統「⬆ 匯入 Word」讀回並回填，請勿更動方括號 [ ] 內的標籤文字，只需修改標籤下方的內容即可；若用 Word 另存為 .docx 也可以匯入。</p><hr/>`;
     const field=(label,cn,en)=>{
-      body+=`<p style="${F};font-size:12px;font-weight:bold;margin-bottom:2px">[${label} - 中文]</p>
-        <p style="${F};font-size:12px;margin-top:0">${p2(cn)||"(尚未填寫)"}</p>
-        <p style="${F};font-size:12px;font-weight:bold;margin-bottom:2px">[${label} - EN]</p>
-        <p style="${F};font-size:12px;margin-top:0">${p2(en)||"(To be filled)"}</p>`;
+      body+=`<p style="${F};font-size:12pt;font-weight:bold;margin-bottom:2px">[${label} - 中文]</p>
+        <p style="${F};font-size:12pt;margin-top:0">${p2(cn)||"(尚未填寫)"}</p>
+        <p style="${F};font-size:12pt;font-weight:bold;margin-bottom:2px">[${label} - EN]</p>
+        <p style="${F};font-size:12pt;margin-top:0">${p2(en)||"(To be filled)"}</p>`;
     };
     d.defects.forEach((df,i)=>{
       const rp=d.reply.items[i]||{};
-      body+=`<p style="${F};font-size:13px;font-weight:bold;background:#eef3f7;padding:5px 8px">===DEFICIENCY ${i+1}===　${df.code?"CODE "+esc(df.code):"（未填CODE）"}</p>
-        <p style="${F};font-size:11.5px;color:#555">${p2(df.detail)}</p>`;
+      body+=`<p style="${F};font-size:14pt;font-weight:bold;background:#eef3f7;padding:5px 8px">===DEFICIENCY ${i+1}===　${df.code?"CODE "+esc(df.code):"（未填CODE）"}</p>
+        <p style="${F};font-size:12pt;color:#555">${p2(df.detail)}</p>`;
       field("INITIAL OPERATOR COMMENT",rp.opCommentCn,rp.opCommentEn);
       field("IMMEDIATE CAUSE",rp.immediateCauseCn,rp.immediateCauseEn);
       field("ROOT CAUSE",rp.rootCauseCn||df.rootCause,rp.rootCauseEn);
       field("CORRECTIVE ACTION",rp.correctiveCn||df.corrective,rp.correctiveEn);
       field("PREVENTIVE MEASURES",rp.preventiveCn||df.preventive,rp.preventiveEn);
       const evList=(Array.isArray(rp.evidenceFiles)&&rp.evidenceFiles.length)?rp.evidenceFiles.map(f=>f.name).join("、"):"";
-      body+=`<p style="${F};font-size:11px;color:#777">Supporting Material: ${p2(rp.supportingMaterial)}　｜　是否有相關證據：${rp.hasEvidence?"有":"無"}${evList?`　｜　已上傳檔案：${p2(evList)}`:""}</p><hr/>`;
+      body+=`<p style="${F};font-size:12pt;color:#777">Supporting Material: ${p2(rp.supportingMaterial)}　｜　是否有相關證據：${rp.hasEvidence?"有":"無"}${evList?`　｜　已上傳檔案：${p2(evList)}`:""}</p><hr/>`;
     });
     const html=`<html><head><meta charset="utf-8"><title>對外回覆</title></head><body>${body}</body></html>`;
     const blob=new Blob(["\ufeff",html],{type:"application/msword"});
@@ -17799,15 +17829,15 @@ const Air={
     const vesselName=shipObj&&shipObj.name?shipObj.name:d.ship;
     const nl2br=s=>esc(s||"").replace(/\n/g,"<br/>");
     const missingEnNote='<span style="color:#c0392b">（尚未填寫英文版，請至「海技對外回覆」補上後再重新匯出）</span>';
-    const labelCell=t=>`<td width="150" style="background:#f2f2f2;font-family:Calibri,Arial,sans-serif;font-size:12px"><b>${t}</b></td>`;
-    const valueCell=(v,fallbackNote)=>`<td style="font-family:Calibri,Arial,sans-serif;font-size:12px">${v?nl2br(v):(fallbackNote||"")}</td>`;
+    const labelCell=t=>`<td width="150" style="background:#f2f2f2;font-family:Calibri,Arial,sans-serif;font-size:12pt"><b>${t}</b></td>`;
+    const valueCell=(v,fallbackNote)=>`<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${v?nl2br(v):(fallbackNote||"")}</td>`;
     let body="";
     d.defects.forEach((df,i)=>{
       const rp=d.reply.items[i]||{};
       if(i>0)body+='<br clear="all" style="page-break-before:always"/>';
       body+=`
-        <p style="font-family:Calibri,Arial,sans-serif;font-size:16px;font-weight:bold;margin-bottom:2px">M.V."${esc(vesselName)}" -${esc(d.itype)}- Corrective Action Report (CAR)</p>
-        <p style="font-family:Calibri,Arial,sans-serif;font-size:12px;margin-top:0;margin-bottom:12px">Port: ${esc(d.place)}&nbsp;&nbsp;&nbsp;&nbsp;Inspection date: ${this.carDateFmt(d.date)}</p>
+        <p style="font-family:Calibri,Arial,sans-serif;font-size:18pt;font-weight:bold;margin-bottom:2px">M.V."${esc(vesselName)}" -${esc(d.itype)}- Corrective Action Report (CAR)</p>
+        <p style="font-family:Calibri,Arial,sans-serif;font-size:12pt;margin-top:0;margin-bottom:12px">Port: ${esc(d.place)}&nbsp;&nbsp;&nbsp;&nbsp;Inspection date: ${this.carDateFmt(d.date)}</p>
         <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%">
           <tr>${labelCell("Deficiency No.")}${valueCell(String(i+1))}</tr>
           <tr>${labelCell("Description")}${valueCell(df.detail)}</tr>
