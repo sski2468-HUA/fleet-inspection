@@ -2293,6 +2293,13 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <label>效期(月)<input type="text" id="ic-e-valid" placeholder="例：12，無則填 -"></label>
             <label>最近一次檢查日（手動，自動項目會被覆蓋顯示）<input type="date" id="ic-e-last"></label>
             <label>到期日<input type="date" id="ic-e-due"></label>
+            <label class="fw" id="ic-e-lritfixed-wrap" style="display:none;background:#eef4ff;border:1px solid #cfe0f9;border-radius:6px;padding:8px 10px">
+              <span style="display:flex;align-items:center;gap:6px;font-weight:700;color:#1f52c4">
+                <input type="checkbox" id="ic-e-lritfixed" onchange="InspCtrl.onLritFixedToggle()" style="width:16px;height:16px"> 固定週期（每年固定月/日到期，例如LRIT每年5/1）
+              </span>
+              <span class="hint" style="font-size:10.5px;display:block;margin:4px 0">勾選後，到期日改由下方「固定月/日」自動推算，不受「最近一次檢查日」效期加總影響；等實際完成當年度申報、更新最近一次檢查日後，才會自動推進到下一年。</span>
+              <input type="text" id="ic-e-lritfixed-mmdd" placeholder="MM-DD，例如 05-01" style="width:140px;margin-top:4px" oninput="InspCtrl.onLritFixedToggle()">
+            </label>
             <label class="fw" id="ic-e-duereset-wrap" style="display:none">
               <button type="button" class="btn sm" onclick="InspCtrl.resetDueToDefault()">↺ 恢復預設到期日（清除手動覆寫，改回自動算出）</button>
               <span class="hint" id="ic-e-duereset-hint" style="font-size:10.5px;display:block;margin-top:4px"></span>
@@ -12436,6 +12443,20 @@ const InspCtrl={
     dt.setMonth(dt.getMonth()-delta);
     return this.toLocalISO(dt);
   },
+  /* LRIT等「每年固定月/日到期」的證書：mmdd 格式 "MM-DD"。
+     算法：找出 > sinceDateStr（通常是最近一次檢查日）的最早一次該月日發生時間；
+     若尚未填最近一次檢查日，則以今年的該月日為準（若已過，就直接顯示逾期，不自動跳到明年，
+     避免掩蓋真正的逾期狀態，須使用者實際更新最近一次檢查日後才會往後推一年）。 */
+  nextFixedAnnualDate(mmdd,sinceDateStr){
+    if(!mmdd||!/^\d{2}-\d{2}$/.test(mmdd))return null;
+    const [mm,dd]=mmdd.split("-").map(Number);
+    if(mm<1||mm>12||dd<1||dd>31)return null;
+    const since=sinceDateStr?new Date(sinceDateStr+"T00:00:00"):null;
+    let year=since?since.getFullYear():new Date().getFullYear();
+    let cand=new Date(year,mm-1,dd);
+    if(since&&cand<=since){year+=1;cand=new Date(year,mm-1,dd);}
+    return this.toLocalISO(cand);
+  },
   computeRow(d){
     const t=this.thresh();
     const isAuto=this.AUTO_ITYPES.includes(this.normItype(d.itype));
@@ -12456,18 +12477,27 @@ const InspCtrl={
         dueDateCalc=this.toLocalISO(dt);
       }
     }
-    // 內部稽核（Internal audit）允許手動覆寫到期日：例如配合PSC檢查，需提前於某日期前完成稽核，
-    // 完成後主管再決定是否勾選「加強稽核」。覆寫值存在獨立的 dueDateOverride 欄位，
-    // 不影響「最近一次檢查日」的自動抓取邏輯；dueDateDefault 保留未覆寫前的自動算出值，
-    // 供「恢復預設到期日」按鈕比對/還原使用。
+    // LRIT等：勾選「固定週期」後，到期日改由「每年固定月/日」推算，不受最近一次檢查日的效期加總影響；
+    // 一旦使用者更新最近一次檢查日（完成當年度的申報／檢查），才會自動推進到下一次的固定月/日。
+    const isLritFixed=!!(this.normItype(d.itype)==="LRIT"&&d.fixedAnnualDate);
+    if(isLritFixed){
+      const fixedCalc=this.nextFixedAnnualDate(d.fixedAnnualDate,lastDateCalc||null);
+      if(fixedCalc)dueDateCalc=fixedCalc;
+    }
+    // 到期日手動覆寫：原本僅開放內部稽核（例如配合PSC需提前完成稽核），現在也開放 SMC／ISSC／MLC
+    // 與已設定「固定週期」的 LRIT——這幾種偶爾會遇到官方核發的證書到期日跟系統算出的不一致，
+    // 需要以證書實際印製的日期為準。覆寫值存在獨立的 dueDateOverride 欄位，不影響「最近一次檢查日」
+    // 的自動抓取邏輯或固定週期算法；dueDateDefault 保留未覆寫前的算出值，供「恢復預設到期日」按鈕還原。
     const dueDateDefault=dueDateCalc;
     const isInternalAudit=this.normItype(d.itype)==="INTERNALAUDIT";
-    const dueDateOverrideActive=!!(isInternalAudit&&d.dueDateOverride&&this.normDate(d.dueDateOverride));
+    const isCert60Pre=this.CERT60_TYPES.includes(String(d.itype||"").toUpperCase());
+    const canOverrideDue=isInternalAudit||isCert60Pre||isLritFixed;
+    const dueDateOverrideActive=!!(canOverrideDue&&d.dueDateOverride&&this.normDate(d.dueDateOverride));
     if(dueDateOverrideActive){
       dueDateCalc=this.normDate(d.dueDateOverride);
     }
     // SMC／ISSC／MLC（5年期證書）：中間檢驗視窗＝到期日往前推 3年～2年，全部由到期日自動算出，不需另外輸入
-    const isCert60=this.CERT60_TYPES.includes(String(d.itype||"").toUpperCase());
+    const isCert60=isCert60Pre;
     let midStartCalc=null,midEndCalc=null,midWindowOpen=false,midDone=false;
     if(isCert60&&dueDateCalc&&dueDateCalc!=="-"){
       midStartCalc=this.addMonths(dueDateCalc,36);
@@ -12513,7 +12543,8 @@ const InspCtrl={
     }
     return {...d,lastDateCalc,dueDateCalc,dueDateDefault,dueDateOverrideActive,autoLast,isAuto,status,daysLeft,
       midStatus,midDaysLeft,
-      isCert60,midStartCalc,midEndCalc,midWindowOpen,midDone,activeStage,isEnhancedAudit,enhancedLockDays};
+      isCert60,midStartCalc,midEndCalc,midWindowOpen,midDone,activeStage,isEnhancedAudit,enhancedLockDays,
+      isLritFixed,canOverrideDue};
   },
   statusClass(s){return (s==="逾期"||s==="即將到期(紅)")?"bad":s==="即將到期(黃)"?"warn":s==="正常"?"ok":"mute";},
   filtered(){
@@ -12611,15 +12642,17 @@ const InspCtrl={
     toast(d.midDate?`✓ 已記錄中間檢驗完成日：${d.midDate}`:"已清除中間檢驗完成日");
     this.render();
   },
-  FIELD_LABEL_MAP:{ship:"船名",itype:"檢查項目",validityMonths:"效期(月)",dueDate:"到期日",owner:"檢查安排人",note:"備註",lastDate:"最近一次檢查日",schedDate:"預排檢查日",midDate:"中間檢驗實際完成日",dueDateOverride:"自訂到期日（覆寫）"},
+  FIELD_LABEL_MAP:{ship:"船名",itype:"檢查項目",validityMonths:"效期(月)",dueDate:"到期日",owner:"檢查安排人",note:"備註",lastDate:"最近一次檢查日",schedDate:"預排檢查日",midDate:"中間檢驗實際完成日",dueDateOverride:"自訂到期日（覆寫）",fixedAnnualDate:"固定週期（每年月/日）"},
   openDateField(id,field){
     const d=App.inspCtrl.find(x=>x.id===id);if(!d)return;
     const label=this.FIELD_LABEL_MAP[field]||field;
     if(!this.canEditRow(d)){toast("⚠ 僅該筆「檢查安排人」本人或管理員可修改此欄位");return;}
     const isInternalAudit=this.normItype(d.itype)==="INTERNALAUDIT";
-    if(field==="dueDate"&&isInternalAudit){
-      // 內部稽核允許手動覆寫到期日（例如配合PSC檢查需提前完成稽核），寫入獨立的
-      // dueDateOverride 欄位，不影響「最近一次檢查日」自動算出的邏輯；按「清除」即可
+    const canOverrideDue=this.computeRow(d).canOverrideDue;
+    if(field==="dueDate"&&canOverrideDue){
+      // 內部稽核／SMC／ISSC／MLC／已設定固定週期的LRIT，皆允許手動覆寫到期日（例如證書實際
+      // 印製日期跟系統算出的不同、或配合PSC檢查需提前完成稽核），寫入獨立的
+      // dueDateOverride 欄位，不影響「最近一次檢查日」或固定週期自動算出的邏輯；按「清除」即可
       // 恢復為自動算出的預設到期日。
       this._dateEditId=id;this._dateEditField="dueDateOverride";
       $("#icDateModalTitle").textContent=`${d.ship} － ${d.itype} － 自訂到期日（覆寫自動算出，清除＝恢復預設）`;
@@ -12895,17 +12928,17 @@ const InspCtrl={
     const stageTag=r.activeStage?`<span class="ic-stage-tag ${r.activeStage==='intermediate'?'mid':'ren'}">${r.activeStage==='intermediate'?"中檢":"換證"}</span>`:"";
     const dateCell=(field,val,emptyTxt,extraTitle)=>{
       const shown=this.dateInputVal(val);
-      const isInternalAudit=this.normItype(r.itype)==="INTERNALAUDIT";
-      const locked=field==="dueDate"&&r.isAuto&&!isInternalAudit;
+      const canOverrideDue=!!r.canOverrideDue;
+      const locked=field==="dueDate"&&r.isAuto&&!canOverrideDue;
       const cellDis=!canEdit||locked;
       const cls2=cellDis?"ic-date-cell disabled":(shown?"ic-date-cell":"ic-date-cell empty");
       let t;
-      if(field==="dueDate"&&isInternalAudit){
-        t=canEdit?(r.dueDateOverrideActive?"手動覆寫的到期日，點選可修改或清除以恢復自動算出的預設值":"自動算出的到期日，點選可手動覆寫（例如配合PSC需提前完成稽核）"):lockTitle;
+      if(field==="dueDate"&&canOverrideDue){
+        t=canEdit?(r.dueDateOverrideActive?"手動覆寫的到期日，點選可修改或清除以恢復自動算出的預設值":"自動算出的到期日，點選可手動覆寫（例如證書實際印製日期不同）"):lockTitle;
       }else{
         t=locked?"此項目到期日由「最近一次檢查日」自動算出，請改該欄位":(canEdit?(extraTitle||"點選設定／修改"):lockTitle);
       }
-      const overrideMark=(field==="dueDate"&&isInternalAudit&&r.dueDateOverrideActive)?"✎ ":"";
+      const overrideMark=(field==="dueDate"&&canOverrideDue&&r.dueDateOverrideActive)?"✎ ":"";
       return `<span class="${cls2}" ${cellDis?"":`onclick="InspCtrl.openDateField(${r.id},'${field}')"`} title="${t}">${overrideMark}${shown||emptyTxt}</span>`;
     };
     /* 船名／檢查項目是這筆紀錄的「追蹤標的」，不是日常會變動的欄位。
@@ -13476,6 +13509,7 @@ const InspCtrl={
       if(!this.canEditRow(rec)){toast("⚠ 僅該筆「檢查安排人」本人或管理員可編輯此筆紀錄");return;}
     }
     this.editId=id;
+    this._lritFixedInit=false;
     const d=id==null?{}:App.inspCtrl.find(x=>x.id===id)||{};
     $("#ic-title").textContent=id==null?"新增檢查管控紀錄":`編輯檢查管控紀錄 #${id}`;
     $("#ic-e-del").style.display=id==null?"none":"";
@@ -13519,21 +13553,48 @@ const InspCtrl={
     const wrap=$("#ic-e-enhance-wrap");
     if(!wrap)return;
     const isInternalAudit=this.normItype(itype)==="INTERNALAUDIT";
+    const isCert60=this.CERT60_TYPES.includes(this.normItype(itype));
+    const isLrit=this.normItype(itype)==="LRIT";
     wrap.style.display=isInternalAudit?"":"none";
     this.onEnhanceToggle(true);
+    const lritWrap=$("#ic-e-lritfixed-wrap");
+    if(lritWrap){
+      lritWrap.style.display=isLrit?"":"none";
+      if(isLrit){
+        const d=this.editId==null?null:App.inspCtrl.find(x=>x.id===this.editId);
+        const cb=$("#ic-e-lritfixed"),mmdd=$("#ic-e-lritfixed-mmdd");
+        // 只在第一次切換到 LRIT 時帶入既有紀錄的值，避免使用者手動勾選/輸入後又被蓋回去
+        if(!this._lritFixedInit){
+          if(cb)cb.checked=!!(d&&d.fixedAnnualDate);
+          if(mmdd)mmdd.value=(d&&d.fixedAnnualDate)||"";
+          this._lritFixedInit=true;
+        }
+        if(mmdd)mmdd.style.display=(cb&&cb.checked)?"":"none";
+      }else{
+        this._lritFixedInit=false;
+      }
+    }
+    const canOverrideDue=isInternalAudit||isCert60||(isLrit&&$("#ic-e-lritfixed")&&$("#ic-e-lritfixed").checked&&/^\d{2}-\d{2}$/.test(($("#ic-e-lritfixed-mmdd")&&$("#ic-e-lritfixed-mmdd").value||"").trim()));
     const resetWrap=$("#ic-e-duereset-wrap"),resetHint=$("#ic-e-duereset-hint");
     if(resetWrap){
-      resetWrap.style.display=isInternalAudit?"":"none";
-      if(isInternalAudit&&resetHint){
+      resetWrap.style.display=canOverrideDue?"":"none";
+      if(canOverrideDue&&resetHint){
         const d=this.editId==null?null:App.inspCtrl.find(x=>x.id===this.editId);
         const active=!!(d&&this.computeRow(d).dueDateOverrideActive);
         resetHint.textContent=active?"目前此筆為手動覆寫的到期日，點上方按鈕可恢復為自動算出的預設值":"目前為自動算出的到期日，尚未手動覆寫";
       }
     }
   },
+  onLritFixedToggle(){
+    const cb=$("#ic-e-lritfixed"),mmdd=$("#ic-e-lritfixed-mmdd");
+    if(mmdd)mmdd.style.display=(cb&&cb.checked)?"":"none";
+    if(cb&&cb.checked&&mmdd&&/^\d{2}-\d{2}$/.test((mmdd.value||"").trim()))this.resetDueToDefault();
+    this.refreshEnhanceUI();
+  },
   resetDueToDefault(){
     const itype=this.curEditItype();
-    const probe={ship:$("#ic-e-ship")?$("#ic-e-ship").value:"",itype,validityMonths:$("#ic-e-valid")?$("#ic-e-valid").value:"",lastDate:$("#ic-e-last")?$("#ic-e-last").value:"",enhancedAudit:$("#ic-e-enhance")?$("#ic-e-enhance").checked:false,dueDateOverride:""};
+    const lritOn=$("#ic-e-lritfixed")&&$("#ic-e-lritfixed").checked;
+    const probe={ship:$("#ic-e-ship")?$("#ic-e-ship").value:"",itype,validityMonths:$("#ic-e-valid")?$("#ic-e-valid").value:"",lastDate:$("#ic-e-last")?$("#ic-e-last").value:"",enhancedAudit:$("#ic-e-enhance")?$("#ic-e-enhance").checked:false,dueDateOverride:"",fixedAnnualDate:lritOn?($("#ic-e-lritfixed-mmdd")&&$("#ic-e-lritfixed-mmdd").value||"").trim():""};
     const rc=this.computeRow(probe);
     $("#ic-e-due").value=this.dateInputVal(rc.dueDateDefault);
     const resetHint=$("#ic-e-duereset-hint");
@@ -13621,10 +13682,17 @@ const InspCtrl={
     rec.enhancedAudit=enhanceOn;
     rec.enhancedReason=enhanceOn?g("#ic-e-enhance-reason"):"";
     rec.enhancedSince=enhanceOn?(($("#ic-e-enhance-since")&&$("#ic-e-enhance-since").value.trim())||this._enhanceSinceEdit||todayStr()):"";
-    // 內部稽核的「到期日」輸入框是顯示/覆寫用，實際覆寫值存到獨立的 dueDateOverride：
-    // 若使用者填的到期日和系統依「最近一次檢查日＋效期」自動算出的預設值不同，視為手動覆寫；
-    // 若相同（或留空，或檢查項目已不是內部稽核），視為沒有覆寫，清空舊值、之後改用自動算出的到期日。
-    if(this.normItype(itype)==="INTERNALAUDIT"){
+    // LRIT「固定週期」：勾選且填妥 MM-DD 才生效，否則清空（退回完全手動維護到期日）。
+    const isLrit=this.normItype(itype)==="LRIT";
+    const lritOn=isLrit&&$("#ic-e-lritfixed")&&$("#ic-e-lritfixed").checked;
+    const lritMmdd=lritOn?g("#ic-e-lritfixed-mmdd"):"";
+    if(lritOn&&!/^\d{2}-\d{2}$/.test(lritMmdd)){toast("⚠ 固定週期的月/日請填正確格式，例如 05-01");return;}
+    rec.fixedAnnualDate=lritOn?lritMmdd:"";
+    // 到期日手動覆寫：內部稽核／SMC／ISSC／MLC／已勾選固定週期的LRIT，皆允許以輸入框內的值覆寫
+    // 自動算出的到期日（獨立存到 dueDateOverride，不影響最近一次檢查日或固定週期算法本身）；
+    // 若輸入值和自動算出的預設值相同（或留空、或此檢查項目不支援覆寫），視為沒有覆寫。
+    const canOverrideDue=this.normItype(itype)==="INTERNALAUDIT"||this.CERT60_TYPES.includes(this.normItype(itype))||lritOn;
+    if(canOverrideDue){
       const probe={...rec,dueDateOverride:""};
       const defaultDue=this.computeRow(probe).dueDateDefault;
       const typedDue=rec.dueDate||"";
