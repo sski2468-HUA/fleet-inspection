@@ -12491,7 +12491,7 @@ const InspCtrl={
     const dueDateDefault=dueDateCalc;
     const isInternalAudit=this.normItype(d.itype)==="INTERNALAUDIT";
     const isCert60Pre=this.CERT60_TYPES.includes(String(d.itype||"").toUpperCase());
-    const canOverrideDue=isInternalAudit||isCert60Pre||isLritFixed;
+    const canOverrideDue=isAuto||isLritFixed;
     const dueDateOverrideActive=!!(canOverrideDue&&d.dueDateOverride&&this.normDate(d.dueDateOverride));
     if(dueDateOverrideActive){
       dueDateCalc=this.normDate(d.dueDateOverride);
@@ -13574,7 +13574,8 @@ const InspCtrl={
         this._lritFixedInit=false;
       }
     }
-    const canOverrideDue=isInternalAudit||isCert60||(isLrit&&$("#ic-e-lritfixed")&&$("#ic-e-lritfixed").checked&&/^\d{2}-\d{2}$/.test(($("#ic-e-lritfixed-mmdd")&&$("#ic-e-lritfixed-mmdd").value||"").trim()));
+    const isAuto=this.AUTO_ITYPES.includes(this.normItype(itype));
+    const canOverrideDue=isAuto||(isLrit&&$("#ic-e-lritfixed")&&$("#ic-e-lritfixed").checked&&/^\d{2}-\d{2}$/.test(($("#ic-e-lritfixed-mmdd")&&$("#ic-e-lritfixed-mmdd").value||"").trim()));
     const resetWrap=$("#ic-e-duereset-wrap"),resetHint=$("#ic-e-duereset-hint");
     if(resetWrap){
       resetWrap.style.display=canOverrideDue?"":"none";
@@ -13691,7 +13692,7 @@ const InspCtrl={
     // 到期日手動覆寫：內部稽核／SMC／ISSC／MLC／已勾選固定週期的LRIT，皆允許以輸入框內的值覆寫
     // 自動算出的到期日（獨立存到 dueDateOverride，不影響最近一次檢查日或固定週期算法本身）；
     // 若輸入值和自動算出的預設值相同（或留空、或此檢查項目不支援覆寫），視為沒有覆寫。
-    const canOverrideDue=this.normItype(itype)==="INTERNALAUDIT"||this.CERT60_TYPES.includes(this.normItype(itype))||lritOn;
+    const canOverrideDue=this.AUTO_ITYPES.includes(this.normItype(itype))||lritOn;
     if(canOverrideDue){
       const probe={...rec,dueDateOverride:""};
       const defaultDue=this.computeRow(probe).dueDateDefault;
@@ -14072,7 +14073,8 @@ const AnnualPlan={
     return App.insp.filter(r=>r.ship===ship&&set.has(this.normItype(r.itype)));
   },
   addMonthsFwd(dateStr,n){
-    const d=new Date(dateStr+"T00:00:00");
+    const norm=(typeof InspCtrl!=="undefined"?InspCtrl.normDate(dateStr):dateStr)||"";
+    const d=new Date(norm+"T00:00:00");
     if(isNaN(d.getTime()))return null;
     d.setMonth(d.getMonth()+n);
     return InspCtrl.toLocalISO(d);
@@ -15015,7 +15017,8 @@ const AuditDash={
   fpmcShips(){return SHIPINFO.filter(s=>s.operator==="FPMC").slice().sort((a,b)=>a.code.localeCompare(b.code));},
   rowsRaw(){if(!Array.isArray(App.auditDash))App.auditDash=[];return App.auditDash;},
   addMonthsFwd(dateStr,n){
-    const d=new Date(dateStr+"T00:00:00");if(isNaN(d.getTime()))return null;
+    const norm=(typeof InspCtrl!=="undefined"?InspCtrl.normDate(dateStr):dateStr)||"";
+    const d=new Date(norm+"T00:00:00");if(isNaN(d.getTime()))return null;
     d.setMonth(d.getMonth()+n);return InspCtrl.toLocalISO(d);
   },
   monthDisplay(ym){
@@ -15363,7 +15366,7 @@ const AuditDash={
     const box=$("#ad-groupedview");if(!box)return;
     const groups={scheduled:[],unscheduled:[],done_open:[],done_closed:[]};
     rows.forEach(r=>groups[this.schedStatus(r)].push(r));
-    const theadHtml=this.COLS.map(c=>`<th style="white-space:nowrap">${esc(c.t)}</th>`).join("")+`<th>操作</th>`;
+    const theadHtml=this.COLS.map(c=>`<th class="sort" onclick="AuditDash.sort('${c.k}')" style="cursor:pointer;white-space:nowrap" title="點選依「${esc(c.t)}」排序">${esc(c.t)} ${this.sortKey===c.k?(this.sortAsc?"▲":"▼"):"⇅"}</th>`).join("")+`<th>操作</th>`;
     box.innerHTML=["scheduled","unscheduled","done_open","done_closed"].map(key=>{
       const meta=this.GROUP_META[key],list=groups[key];
       const collapsed=this.collapsedGroups.has(key);
@@ -15441,9 +15444,10 @@ const AuditDash={
     return (App.inspCtrl||[]).filter(ic=>ic.enhancedAudit).map(ic=>{
       const s=SHIPINFO.find(x=>x.code===ic.ship)||{};
       let period="";
-      if(ic.enhancedSince){
-        const end=this.addMonthsFwd(ic.enhancedSince,12);
-        period=`${ic.enhancedSince}${end?" ~ "+end:""}`;
+      const since=(typeof InspCtrl!=="undefined"?InspCtrl.normDate(ic.enhancedSince):ic.enhancedSince)||"";
+      if(since){
+        const end=this.addMonthsFwd(since,12);
+        period=`${since}${end?" ~ "+end:""}`;
       }
       return {ship:s.name||ic.ship,reason:ic.enhancedReason||"",period};
     });
@@ -15474,10 +15478,10 @@ const AuditDash={
     const groups={scheduled:[],unscheduled:[],done_open:[],done_closed:[]};
     rows.forEach(r=>{const k=this.schedStatus(r);if(sectionSet.has(k))groups[k].push(r);});
     const rowHtmlFor=r=>`<tr${r.enhanced?' style="background:#fff3e0"':""}>
-      <td>${esc(this.monthDisplay(r.schedMonth))}</td><td style="text-align:left">${r.enhanced?"⭐":""}${esc(r.vesselName)}</td>
-      <td>${esc(r.lastAuditDate)||"-"}</td><td>${esc(r.plannedPort)||"-"}</td><td>${esc(r.plannedDate)||"未排程"}</td>
-      <td>${esc(r.actualAuditDate)||"-"}</td><td>${r.defCount||"-"}</td><td>${r.closedOut?"✓":"✗"}</td>
-      <td>${esc(r.cso)||"-"}</td><td>${esc(r.auditor)||"-"}</td><td style="text-align:left;white-space:pre-wrap">${esc(r.remark)||""}</td>
+      <td style="text-align:center">${esc(this.monthDisplay(r.schedMonth))}</td><td style="text-align:left">${r.enhanced?"⭐":""}${esc(r.vesselName)}</td>
+      <td style="text-align:center">${esc(r.lastAuditDate)||"-"}</td><td style="text-align:center">${esc(r.plannedPort)||"-"}</td><td style="text-align:center">${esc(r.plannedDate)||"未排程"}</td>
+      <td style="text-align:center">${esc(r.actualAuditDate)||"-"}</td><td style="text-align:center">${r.defCount||"-"}</td><td style="text-align:center">${r.closedOut?"✓":"✗"}</td>
+      <td style="text-align:center">${esc(r.cso)||"-"}</td><td style="text-align:center">${esc(r.auditor)||"-"}</td><td style="text-align:left;white-space:pre-wrap">${esc(r.remark)||""}</td>
     </tr>`;
     // 分區塊各自成一張表，跟畫面「分區檢視」一致，而不是全部混在一張大表裡
     const sectionsHtml=["scheduled","unscheduled","done_open","done_closed"].filter(k=>sectionSet.has(k)).map(k=>{
@@ -15486,7 +15490,7 @@ const AuditDash={
       const meta=this.GROUP_META[k];
       return `<h2 style="font-size:13px;margin:16px 0 4px;padding:5px 8px;border-radius:3px;background:#f0f0f0">${esc(meta.title)}（${list.length}）</h2>
       <table style="width:100%;border-collapse:collapse;font-size:9.5px">
-        <thead><tr><th>Sched.Month</th><th style="text-align:left">Vessel</th><th>Last Audit</th><th>Planned Port</th><th>Planned Date</th><th>Actual Date</th><th>缺失數</th><th>結案</th><th>CSO</th><th>Auditor</th><th style="text-align:left">Remark（完整內容）</th></tr></thead>
+        <thead><tr><th style="text-align:center">Sched.Month</th><th style="text-align:left">Vessel</th><th style="text-align:center">Last Audit</th><th style="text-align:center">Planned Port</th><th style="text-align:center">Planned Date</th><th style="text-align:center">Actual Date</th><th style="text-align:center">缺失數</th><th style="text-align:center">結案</th><th style="text-align:center">CSO</th><th style="text-align:center">Auditor</th><th style="text-align:left">Remark（完整內容）</th></tr></thead>
         <tbody>${list.map(rowHtmlFor).join("")}</tbody>
       </table>`;
     }).join("");
@@ -15494,8 +15498,8 @@ const AuditDash={
     const enhHtml=enh.length?`
       <h2 style="font-size:13px;margin:20px 0 4px;border-left:4px solid #1e3a5f;padding-left:8px">⭐ 加強管理船舶</h2>
       <table style="width:100%;border-collapse:collapse;font-size:10px">
-        <thead><tr><th style="width:110px">船舶</th><th style="text-align:left">加強管理原因</th><th style="width:180px">管控期間</th></tr></thead>
-        <tbody>${enh.map(e=>`<tr><td>${esc(e.ship)}</td><td style="text-align:left">${esc(e.reason)}</td><td>${esc(e.period)}</td></tr>`).join("")}</tbody>
+        <thead><tr><th style="width:110px;text-align:center">船舶</th><th style="text-align:left">加強管理原因</th><th style="width:180px;text-align:center">管控期間</th></tr></thead>
+        <tbody>${enh.map(e=>`<tr><td style="text-align:center">${esc(e.ship)}</td><td style="text-align:left">${esc(e.reason)}</td><td style="text-align:center">${esc(e.period)}</td></tr>`).join("")}</tbody>
       </table>`:"";
     const noteHtml=note.trim()?`<h2 style="font-size:13px;margin:20px 0 4px;border-left:4px solid #1e3a5f;padding-left:8px">備註</h2><div style="font-size:10.5px;white-space:pre-wrap;line-height:1.8">${esc(note)}</div>`:"";
     $("#printArea").innerHTML=`
