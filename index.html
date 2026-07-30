@@ -2527,6 +2527,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <button class="btn primary" id="air-tab-list-btn" onclick="Air.showList()">📋 返回清單</button>
         <button class="btn" id="air-tab-followup-btn" onclick="Air.showFollowUpList()">🔖 Follow Up</button>
         <button class="btn dark" id="air-tab-cloudqueue-btn" onclick="AirQueue.open()">☁ 線上填單審核佇列<span id="air-cq-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:5px"></span></button>
+        <button class="btn" onclick="Air.copyIntakeLink()">🔗 複製線上填單連結（給船上）</button>
         <button class="btn" id="air-tab-new-btn" onclick="Air.newForm()" style="display:none">＋ 新增填單</button>
       </div>
 
@@ -3354,7 +3355,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
           </div>
           <div class="tblwrap" style="max-height:520px">
             <table class="tbl">
-              <thead><tr><th>船舶</th><th>檢查項目</th><th>事件</th><th>日期</th><th>原因／備註</th><th>記錄人／時間</th></tr></thead>
+              <thead><tr><th>船舶</th><th>檢查項目</th><th>列入加強日</th><th>解除加強日</th><th>狀態</th><th>原因／備註</th><th>記錄人／時間</th></tr></thead>
               <tbody id="el-tbody"></tbody>
             </table>
           </div>
@@ -12277,19 +12278,53 @@ const EnhAuditLog={
     const rerun=()=>{this.page=1;this.render();};
     this.ms.ship=MSel("ms-el-ship","船舶",()=>[...new Set((App.enhAuditLog||[]).map(d=>d.ship))].filter(Boolean).sort(),rerun);
     this.ms.itype=MSel("ms-el-itype","檢查項目",()=>[...new Set((App.enhAuditLog||[]).map(d=>d.itype))].filter(Boolean).sort(),rerun);
-    this.ms.event=MSel("ms-el-event","事件",()=>["start","end"],rerun);
+    this.ms.status=MSel("ms-el-event","狀態",()=>["🔺 加強中","✓ 已解除"],rerun);
     this.render();
   },
   clearFilters(){Object.values(this.ms).forEach(m=>m.clear&&m.clear());this.page=1;this.render();},
-  filtered(){
-    return (App.enhAuditLog||[]).filter(d=>{
+  /* 把「列入加強」「解除加強」兩筆各自獨立的事件，依船舶＋檢查項目分組後按日期配對成一列，
+     避免使用者自己對照哪筆開始對應哪筆結束。正常情況一組一對一，若資料不完整（例如只回填了
+     開始、還沒有對應結束），仍會單獨列出、不會漏掉。 */
+  pairedRows(){
+    const list=(App.enhAuditLog||[]).filter(d=>{
       if(!this.ms.ship.pass(d.ship))return false;
       if(!this.ms.itype.pass(d.itype))return false;
-      if(!this.ms.event.pass(d.event))return false;
       return true;
-    }).sort((a,b)=>b.loggedAt-a.loggedAt);
+    });
+    const groups={};
+    list.forEach(d=>{ const k=d.ship+"|"+d.itype; (groups[k]=groups[k]||[]).push(d); });
+    const paired=[];
+    Object.values(groups).forEach(evs=>{
+      evs.sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.loggedAt||0)-(b.loggedAt||0));
+      let pending=null;
+      evs.forEach(e=>{
+        if(e.event==="start"){
+          if(pending)paired.push({ship:pending.ship,itype:pending.itype,startDate:pending.date,startReason:pending.reason,startLog:pending,endDate:null,endNote:""});
+          pending=e;
+        }else{
+          if(pending){
+            paired.push({ship:pending.ship,itype:pending.itype,startDate:pending.date,startReason:pending.reason,startLog:pending,endDate:e.date,endNote:e.note||e.reason||""});
+            pending=null;
+          }else{
+            paired.push({ship:e.ship,itype:e.itype,startDate:null,startReason:"",startLog:null,endDate:e.date,endNote:e.note||e.reason||""});
+          }
+        }
+      });
+      if(pending)paired.push({ship:pending.ship,itype:pending.itype,startDate:pending.date,startReason:pending.reason,startLog:pending,endDate:null,endNote:""});
+    });
+    return paired;
   },
-  eventLabel(e){return e==="start"?`<span style="color:var(--bad);font-weight:700">🔺 列入加強</span>`:`<span style="color:var(--ok);font-weight:700">✓ 解除加強</span>`;},
+  filtered(){
+    return this.pairedRows().filter(p=>{
+      const statusTxt=p.endDate?"✓ 已解除":"🔺 加強中";
+      if(!this.ms.status.pass(statusTxt))return false;
+      return true;
+    }).sort((a,b)=>{
+      const aOn=!a.endDate,bOn=!b.endDate;
+      if(aOn!==bOn)return aOn?-1:1;
+      return (b.startDate||b.endDate||"").localeCompare(a.startDate||a.endDate||"");
+    });
+  },
   render(){
     const list=this.filtered();
     const cnt=$("#el-count");if(cnt)cnt.textContent=`共 ${list.length} 筆`;
@@ -12298,14 +12333,21 @@ const EnhAuditLog={
     const pageRows=list.slice((this.page-1)*PER,this.page*PER);
     const tb=$("#el-tbody");
     if(tb){
-      tb.innerHTML=pageRows.map(d=>`<tr>
-        <td><b>${esc(d.ship)}</b></td>
-        <td>${esc(d.itype)}</td>
-        <td>${this.eventLabel(d.event)}</td>
-        <td style="font-family:var(--mono);white-space:nowrap">${esc(d.date)}</td>
-        <td style="max-width:320px;white-space:pre-wrap">${esc(d.reason||"")}</td>
-        <td style="white-space:nowrap">${esc(d.loggedBy||"")}<br><span class="hint">${d.loggedAt?new Date(d.loggedAt).toLocaleString("zh-TW",{hour12:false}):""}</span></td>
-      </tr>`).join("")||`<tr><td colspan="6" class="hint" style="text-align:center;padding:14px">目前沒有加強管理歷史紀錄</td></tr>`;
+      tb.innerHTML=pageRows.map(p=>{
+        const days=(p.startDate&&p.endDate)?Math.round((new Date(p.endDate)-new Date(p.startDate))/86400000):null;
+        const statusHtml=p.endDate
+          ?`<span style="color:var(--ok);font-weight:700">✓ 已解除</span>${days!=null?`<br><span class="hint">共 ${days} 天</span>`:""}`
+          :`<span style="color:var(--bad);font-weight:700">🔺 加強中</span>`;
+        return `<tr>
+        <td><b>${esc(p.ship)}</b></td>
+        <td>${esc(p.itype)}</td>
+        <td style="font-family:var(--mono);white-space:nowrap">${esc(p.startDate||"（無記錄）")}</td>
+        <td style="font-family:var(--mono);white-space:nowrap">${esc(p.endDate||"—")}</td>
+        <td style="white-space:nowrap">${statusHtml}</td>
+        <td style="max-width:320px;white-space:pre-wrap">${esc(p.startReason||"")}${p.endNote?`<br><span class="hint">解除備註：${esc(p.endNote)}</span>`:""}</td>
+        <td style="white-space:nowrap">${p.startLog?esc(p.startLog.loggedBy||""):""}<br><span class="hint">${p.startLog&&p.startLog.loggedAt?new Date(p.startLog.loggedAt).toLocaleString("zh-TW",{hour12:false}):""}</span></td>
+      </tr>`;
+      }).join("")||`<tr><td colspan="7" class="hint" style="text-align:center;padding:14px">目前沒有加強管理歷史紀錄</td></tr>`;
     }
     const pager=$("#el-pager");
     if(pager)pager.innerHTML=`<button class="btn sm" ${this.page<=1?"disabled":""} onclick="EnhAuditLog.page--;EnhAuditLog.render()">‹ 上一頁</button>
@@ -12314,7 +12356,12 @@ const EnhAuditLog={
   },
   exportXlsx(){
     if(!hasXLSX())return;
-    const rows=this.filtered().map(d=>({船舶:d.ship,檢查項目:d.itype,事件:d.event==="start"?"列入加強":"解除加強",日期:d.date,原因:d.reason||"",備註:d.note||"",記錄人:d.loggedBy||"",記錄時間:d.loggedAt?new Date(d.loggedAt).toLocaleString("zh-TW",{hour12:false}):""}));
+    const rows=this.filtered().map(p=>{
+      const days=(p.startDate&&p.endDate)?Math.round((new Date(p.endDate)-new Date(p.startDate))/86400000):"";
+      return {船舶:p.ship,檢查項目:p.itype,列入加強日:p.startDate||"",解除加強日:p.endDate||"",狀態:p.endDate?"已解除":"加強中",天數:days,
+        原因:p.startReason||"",解除備註:p.endNote||"",記錄人:p.startLog?p.startLog.loggedBy||"":"",
+        記錄時間:p.startLog&&p.startLog.loggedAt?new Date(p.startLog.loggedAt).toLocaleString("zh-TW",{hour12:false}):""};
+    });
     const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"加強管理歷史紀錄");
     XLSX.writeFile(wb,`加強管理歷史紀錄_${todayStr()}.xlsx`);
@@ -17895,6 +17942,21 @@ const Air={
     }else{try{document.execCommand("copy");toast("✓ 已複製連結");}catch(e){toast("⚠ 複製失敗，請手動選取");}}
   },
   closeRecordExportModal(){$("#airRecordExportModal").classList.remove("show");},
+  copyIntakeLink(){
+    const base=this.getExternalFormBase();
+    if(!base){toast("⚠ 未設定外部網頁網址，無法複製連結");return;}
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(base).then(()=>toast("✓ 已複製線上填單連結，請傳給船上")).catch(()=>this._fallbackCopyLink(base));
+    }else this._fallbackCopyLink(base);
+  },
+  _fallbackCopyLink(text){
+    const ta=document.createElement("textarea");
+    ta.value=text;ta.style.position="fixed";ta.style.left="-9999px";
+    document.body.appendChild(ta);ta.focus();ta.select();
+    try{document.execCommand("copy");toast("✓ 已複製線上填單連結，請傳給船上");}
+    catch(e){toast("⚠ 複製失敗，請手動選取："+text);}
+    document.body.removeChild(ta);
+  },
 
   /* ── 對外回覆：中英文 Word 匯出（沿用與 AI 提示詞相同的 [標籤-中文]/[標籤-EN] 格式，
      所以匯出後可以直接用「⬆ 匯入 Word」原樣讀回，達成離線編輯→回填的完整迴圈）── */
