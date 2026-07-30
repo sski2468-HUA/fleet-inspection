@@ -1259,6 +1259,7 @@ table.tbl tbody tr.attn-row.sel:hover>td{background:#fbe8d4}
 /* 缺失總表欄寬調整 */
 #f-tbody .col-narrow{max-width:90px;word-break:break-word;white-space:normal;font-size:11.5px;line-height:1.4}
 #f-tbody .cell-wide{min-width:300px;max-width:480px;white-space:normal;word-break:break-word;line-height:1.55;font-size:12.5px;vertical-align:top}
+#f-tbody .cell-wide-inner{max-height:220px;overflow-y:auto;display:block}
 .sort-ind{display:inline-block;margin-left:3px;font-size:10px;color:var(--accent,#1e7f8c)}
 .ic-chip{padding:6px 12px;border-radius:6px;font-size:12.5px;font-weight:600;border:1px solid transparent;cursor:pointer;font-family:var(--sans)}
 .ic-chip.ic-bad{background:var(--bad-l);color:var(--bad)}
@@ -2524,8 +2525,8 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       <div class="banner">船上填妥 Excel 範本後，請交由<b>維護者匯入</b>系統；<b>新建</b>與<b>匯入 Excel</b>僅限<b>維護者</b>操作，其他角色可查看與<b>匯出 Excel</b>。維護者審核後可勾選將資料分別轉入「檢查紀錄」與「缺失紀錄總表」。</div>
       <div class="toolbar" id="air-toptabs">
         <button class="btn primary" id="air-tab-list-btn" onclick="Air.showList()">📋 返回清單</button>
-        <button class="btn" id="air-tab-new-btn" onclick="Air.newForm()">＋ 新增填單</button>
         <button class="btn" id="air-tab-followup-btn" onclick="Air.showFollowUpList()">🔖 Follow Up</button>
+        <button class="btn" id="air-tab-new-btn" onclick="Air.newForm()" style="display:none">＋ 新增填單</button>
       </div>
 
       <div id="air-followup-page" style="display:none">
@@ -2551,9 +2552,9 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <div class="card">
           <h3>填單清單
             <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-              <button class="btn sm" onclick="Air.exportXlsx()">⬇ 匯出 Excel</button>
+              <button class="btn sm" onclick="Air.exportXlsx()" title="若已勾選特定幾筆，只匯出勾選的；未勾選任何一筆則匯出全部">⬇ 匯出 Excel</button>
               <button class="btn sm" onclick="Air.exportTemplate()">📋 下載匯入模板</button>
-              <button class="btn sm dark" onclick="Air.importFile()">⬆ 匯入 Excel（維護者）</button>
+              <button class="btn sm dark" onclick="Air.openNewOrImportModal()">＋ 新增／匯入</button>
               <button class="btn sm dark" onclick="Air.openPushModal()">➜ 轉入紀錄</button>
             </span>
           </h3>
@@ -4752,6 +4753,20 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       <div class="toolbar" style="justify-content:flex-end;gap:8px">
         <button class="btn" onclick="Air.closePushModal()">取消</button>
         <button class="btn primary" onclick="Air.confirmPushSelected()">確認轉入</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 填單清單：新增填單／匯入 Excel 二選一 -->
+<div class="modal-bg" id="airNewOrImportModal">
+  <div class="modal" style="max-width:400px">
+    <div class="mh"><h3>＋ 新增／匯入</h3><button class="x" onclick="Air.closeNewOrImportModal()">✕</button></div>
+    <div class="mb">
+      <p class="hint" style="margin-bottom:10px">請選擇要進行的操作：</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.closeNewOrImportModal();Air.newForm()">＋ 新增填單<br><span style="font-weight:400;font-size:11px">在系統上直接新建一筆，逐項手動填寫</span></button>
+        <button class="btn dark" style="width:100%;text-align:left" onclick="Air.closeNewOrImportModal();Air.importFile()">⬆ 匯入 Excel（維護者）<br><span style="font-weight:400;font-size:11px">船上填妥 Excel 範本後，批次匯入多筆</span></button>
       </div>
     </div>
   </div>
@@ -10638,8 +10653,8 @@ const Defs={
     {k:"ncImp",t:"重要程度",sort:true,cell:d=>DefsGrid.cell(d,"ncImp")},
     {k:"ncFocus",t:"重要關注",sort:true,cell:d=>DefsGrid.cell(d,"ncFocus")},
     {k:"code",t:"CODE",sort:true,cell:d=>`<td>${d.code?`<span class="code-chip">${esc(d.code)}</span>`:""}</td>`},
-    {k:"detail",t:"缺失詳情",sort:true,cell:d=>`<td class="cell-wide">${esc(d.detail)}</td>`},
-    {k:"actual",t:"實際情況",sort:true,cell:d=>`<td class="cell-wide">${esc(d.actual)}</td>`},
+    {k:"detail",t:"缺失詳情",sort:true,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.detail)}</div></td>`},
+    {k:"actual",t:"實際情況",sort:true,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.actual)}</div></td>`},
     {k:"ncProb",t:"問題別",sort:true,cell:d=>DefsGrid.cell(d,"ncProb")},
     {k:"ncMain",t:"大類",sort:true,cell:d=>DefsGrid.cell(d,"ncMain")},
     {k:"ncLeaf",t:"具體名稱",sort:true,cell:d=>DefsGrid.cell(d,"ncLeaf")},
@@ -10655,9 +10670,9 @@ const Defs={
     {k:"ym",t:"年月",sort:true,def:false,cell:d=>`<td style="font-family:var(--mono);white-space:nowrap">${esc(d.ym||"")}</td>`},
     {k:"oilco",t:"油公司/單位",sort:true,def:false,cell:d=>`<td class="col-narrow">${esc(d.oilco||"")}</td>`},
 
-    {k:"preventive",t:"預防措施",sort:true,def:false,cell:d=>`<td class="cell-wide">${esc(d.preventive||"")}</td>`},
-    {k:"corrective",t:"改善措施",sort:true,def:false,cell:d=>`<td class="cell-wide">${esc(d.corrective||"")}</td>`},
-    {k:"rootCause",t:"根本原因",sort:true,def:false,cell:d=>`<td class="cell-wide">${esc(d.rootCause||"")}</td>`},
+    {k:"preventive",t:"預防措施",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.preventive||"")}</div></td>`},
+    {k:"corrective",t:"改善措施",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.corrective||"")}</div></td>`},
+    {k:"rootCause",t:"根本原因",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.rootCause||"")}</div></td>`},
     {k:"tmMethod",t:"分類方法",sort:true,def:false,cell:d=>`<td style="font-size:11px;max-width:90px;word-break:break-word">${esc(d.tmMethod||"")}</td>`},
     {k:"rank",t:"職級-責任人",sort:true,def:false,cell:d=>`<td class="col-narrow">${esc(d.rank||"")}</td>`},
     {k:"person",t:"姓名-責任人",sort:true,def:false,cell:d=>`<td class="col-narrow">${esc(d.person||"")}</td>`},
@@ -15984,20 +15999,22 @@ const Air={
   exportXlsx(){
     if(!hasXLSX())return;
     const wb=XLSX.utils.book_new();
-    const baseRows=App.air.map((d,i)=>({序號:i+1,船名:d.ship,船型:d.vtype,檢查來源:d.itype,檢查日期:d.date,檢查地點:d.place,"檢查單位/油公司":d.oilco,檢查員:d.inspector,缺失數:d.ndef??0,正面評論數:d.npos??0,督導確認:d.reviewed?"已確認":"尚未確認",已轉檢查紀錄:d.usedInsp?"是":"否",已轉缺失紀錄:d.usedDef?"是":"否",已轉正向評論:d.usedPos?"是":"否"}));
+    // 若清單上已勾選特定幾筆，匯出時只帶出勾選的那幾筆；未勾選任何一筆則維持匯出全部（跟其他頁面「已勾選只匯出勾選」的慣例一致）
+    const scope=this.selected&&this.selected.size?App.air.filter(d=>this.selected.has(String(d.id))):App.air;
+    const baseRows=scope.map((d,i)=>({序號:i+1,船名:d.ship,船型:d.vtype,檢查來源:d.itype,檢查日期:d.date,檢查地點:d.place,"檢查單位/油公司":d.oilco,檢查員:d.inspector,缺失數:d.ndef??0,正面評論數:d.npos??0,督導確認:d.reviewed?"已確認":"尚未確認",已轉檢查紀錄:d.usedInsp?"是":"否",已轉缺失紀錄:d.usedDef?"是":"否",已轉正向評論:d.usedPos?"是":"否"}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(baseRows),"基本資料");
     const defRows=[];
-    App.air.forEach((d,i)=>{(d.defects||[]).forEach(df=>{defRows.push({序號:i+1,"PSC Action Taken":df.psc||"",CODE:df.code||"",實際情況:df.actual||"",缺失詳情:df.detail||"",改善措施:df.corrective||"",根本原因:df.rootCause||"",預防措施:df.preventive||"",責任人職位:df.rank||"",責任人姓名:df.person||"",問題別:df.ncProb||"",大類:df.ncMain||"",具體名稱:df.ncLeaf||"",三要素:df.ncFactor||"",重要程度:df.ncImp||"",重點關注:df.ncFocus||"","缺失性質判定":ncOpinionLabel(df.ncOpinion),風險:df.risk||""});});});
+    scope.forEach((d,i)=>{(d.defects||[]).forEach(df=>{defRows.push({序號:i+1,"PSC Action Taken":df.psc||"",CODE:df.code||"",實際情況:df.actual||"",缺失詳情:df.detail||"",改善措施:df.corrective||"",根本原因:df.rootCause||"",預防措施:df.preventive||"",責任人職位:df.rank||"",責任人姓名:df.person||"",問題別:df.ncProb||"",大類:df.ncMain||"",具體名稱:df.ncLeaf||"",三要素:df.ncFactor||"",重要程度:df.ncImp||"",重點關注:df.ncFocus||"","缺失性質判定":ncOpinionLabel(df.ncOpinion),風險:df.risk||""});});});
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(defRows),"缺失改善明細");
     const posRows=[];
-    App.air.forEach((d,i)=>{(d.posComments||[]).forEach(pc=>{
+    scope.forEach((d,i)=>{(d.posComments||[]).forEach(pc=>{
       const people=(pc.people&&pc.people.length)?pc.people:[{rank:pc.rank||"",person:pc.person||""}];
       people.forEach(p=>{posRows.push({序號:i+1,"CODE（章節）":pc.code||"",評論項目:pc.item||"",正向評論內容:pc.comment||"",職稱:p.rank||"",姓名:p.person||""});});
     });});
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(posRows),"正向評論明細");
     XLSX.writeFile(wb,`AfterInspectionReview_匯出_${todayStr()}.xlsx`);
-    if(typeof Audit!=="undefined")Audit.log("匯出","AIR",`匯出 ${App.air.length} 筆`);
-    toast(`✓ 已匯出 ${App.air.length} 筆 填單`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","AIR",`匯出 ${scope.length} 筆`);
+    toast(`✓ 已匯出 ${scope.length} 筆 填單${(this.selected&&this.selected.size)?"（僅勾選項目）":""}`);
   },
   async importFile(){
     if(!hasXLSXLib())return;
@@ -17012,6 +17029,8 @@ const Air={
     $("#airPushModal").classList.add("show");
   },
   closePushModal(){$("#airPushModal").classList.remove("show");},
+  openNewOrImportModal(){$("#airNewOrImportModal").classList.add("show");},
+  closeNewOrImportModal(){$("#airNewOrImportModal").classList.remove("show");},
   async confirmPushSelected(){
     const targets=[];
     if($("#air-push-insp").checked)targets.push("insp");
