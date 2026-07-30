@@ -132,6 +132,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
         <button class="btn dark block" id="btnDownload" type="button">⬇ 下載成 Excel（沒有網路時用這個）</button>
       </div>
       <p class="hint" style="margin-top:10px">送出成功後，此頁資料會清空並顯示完成畫面；下載不會清空頁面內容，下載完仍可以繼續填寫或稍後再嘗試送出。</p>
+      <div style="display:flex;gap:8px;margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
+        <button class="btn ghost sm" id="btnTestCloud" type="button" style="flex:1">☁ 測試雲端連線與資料表</button>
+        <button class="btn ghost sm" id="btnClearForm" type="button" style="flex:1;color:var(--bad);border-color:#e8c3bc">🧹 清除表單（重新開始）</button>
+      </div>
+      <p class="hint" id="cloudTestResult" style="margin-top:6px"></p>
     </div>
   </div>
 
@@ -236,19 +241,9 @@ const PLACE_OPTS=[
   "Ramallo, Argentina","Muara, Brunei","Sigapore",
 ];
 const NCDB_PROB=["设备问题","作业问题"];
-const NCDB_MAIN={
-  "设备问题":["驾驶台设备","系泊和锚泊设备","动力与推进","机舱设备","救生、消防、应急及安全设备","防污染设备","货物操作设备","甲板机械","船体/结构","生活区/MLC设备","保安/保全设备"],
-  "作业问题":["01.文件、证书和管理作业","02.人员管理作业","03.培训作业","05.航行和通信作业","07.PTW和高风险作业","13.机舱作业","15.消防、救生和应急响应作业"]
-};
-const NCDB_LEAF={
-  "救生、消防、应急及安全设备":["火警探测和报警系统","固定灭火系统","救生艇和吊艇架","救生筏","手提灭火器","防火门/防火挡板"],
-  "驾驶台设备":["雷达","ECDIS电子海图系统","AIS自动识别系统","GPS/GNSS定位系统"],
-  "动力与推进":["主机","电站及配电系统","轴系/艉轴/螺旋桨"],
-  "机舱设备":["锅炉","泵浦/阀门/管系","机舱监控报警系统"],
-  "03.培训作业":["新上船熟悉和岗位专项培训","应急演习和关键程序培训","安全会议、工具箱会议和检查前专项培训"],
-  "15.消防、救生和应急响应作业":["消防、弃船和救生艇/救生筏演习","人员落水、救助艇和密闭空间救援演习"],
-};
-const TAG_FACTOR=["人員因素","設備因素","系統因素"];
+const NCDB_MAIN={"设备问题": ["驾驶台设备", "系泊和锚泊设备", "动力与推进", "机舱设备", "救生、消防、应急及安全设备", "防污染设备", "货物操作设备", "甲板机械", "船体/结构", "生活区/MLC设备", "保安/保全设备", "个人防护/作业安全设备", "医疗/急救设备", "测试/测量/校验工具", "电子管理平台/数据系统"], "作业问题": ["01.文件、证书和管理作业", "02.人员管理作业", "03.培训作业", "04.MLC和船员福利作业", "05.航行和通信作业", "06.靠离泊、系泊和锚泊作业", "07.PTW和高风险作业", "08.通用货物和压载作业", "09.散货船专项作业", "10.油化船专项作业", "11.气体船专项作业", "12.集装箱船专项作业", "13.机舱作业", "14.防污染和环保作业", "15.消防、救生和应急响应作业", "16.保安和网络安全作业", "17.船容船貌、通道和区域检查作业", "18.冰区和低温作业"]};
+const NCDB_LEAF={"驾驶台设备": ["雷达", "ECDIS电子海图系统", "驾驶台操舵系统", "陀螺/磁罗经", "测深仪", "计程仪", "AIS自动识别系统", "GMDSS全球海上遇险与安全系统", "SSAS船舶保安报警系统", "驾驶台主机遥控系统", "航行灯系统", "其他驾驶台设备", "GPS/GNSS定位系统", "VDR/S-VDR航行数据记录仪", "BNWAS驾驶台航行值班报警系统", "自动舵", "NAVTEX/EGC安全信息接收设备", "风速风向仪", "舵角/转速/推进状态指示器"], "系泊和锚泊设备": ["系泊和锚泊设备", "系泊绞车", "锚机", "锚", "其他系泊和锚泊设备", "缆绳/钢丝缆/尾缆", "导缆孔/导缆滚轮/缆桩", "绞车刹车及刹车试验装置", "锚链/止链器/制链器", "应急拖带装置"], "动力与推进": ["主机", "电站及配电系统", "机舱操舵系统", "液压动力系统", "其他动力或推进设备", "发电柴油机/辅助发动机", "主配电板/应急配电板", "轴系/艉轴/螺旋桨", "主空压机/空气瓶", "燃油供给和燃油转换设备"], "机舱设备": ["油雾探测器", "锅炉", "应急空压机", "应急照明系统", "造水机", "空调系统", "泵浦/阀门/管系", "燃油/滑油分油机", "热交换器", "机舱监控报警系统", "冷却水/锅炉水处理设备", "生活污水处理装置"], "救生、消防、应急及安全设备": ["火警探测和报警系统", "固定灭火系统", "应急消防泵", "救生艇和吊艇架", "救生筏", "EPIRB应急无线电示位标", "SART雷达应答器", "应急发电机", "应急通风和燃油切断系统", "应急舱底系统", "便携式气体检测仪", "固定式气体检测系统", "应急拖带装置", "应急照明系统", "其他救生/消防/应急/安全设备", "手提灭火器", "消防栓/水带/水枪", "防火门/防火挡板", "速闭阀/远程停止", "SCBA呼吸器/EEBD逃生呼吸装置", "救生衣/浸水保温服/救生圈", "抛绳设备", "救助艇及降落装置", "洗眼器/紧急冲淋"], "防污染设备": ["ODME排油监控设备", "油水分离器", "压载水系统", "废气清洗系统", "选择性催化还原系统", "焚烧炉", "舱底水系统", "其他防污染设备", "SOPEP/SMPEP应急器材柜", "围油栏/吸油毡/堵漏工具", "甲板排水孔堵头/集油盘", "生活污水系统", "垃圾储存和分类设施", "燃油取样和封存设备", "压载水处理系统"], "货物操作设备": ["货泵控制系统", "货泵", "货舱/货罐监控系统", "高/高高位报警", "蒸汽排放控制系统", "惰气/氮气发生系统", "货物计算机", "泵舱通风系统", "货物加热系统", "货物冷却系统", "阀门遥控系统", "UTI量舱及取样设备", "其他货物操作设备", "货物软管/管线/歧管", "P/V阀和P/V破真空器", "洗舱机/洗舱系统", "密闭取样/密闭量舱设备", "化学品防护服及防化PPE", "货物压缩机/再液化装置", "ESD紧急切断系统/ERC释放接头", "低温防护PPE", "干粉灭火/水喷淋系统", "货舱舱盖/舱盖液压系统", "货舱污水井/货舱污水报警", "甲板吊/抓斗", "集装箱导轨/绑扎桥", "扭锁/绑扎杆/花篮螺丝", "冷藏箱插座和监控系统"], "甲板机械": ["吊机", "舷梯/跳板", "其他甲板机械", "引航员软梯/组合梯", "物料吊/伙食吊", "吊索具/卸扣/吊带", "甲板绞盘/卷车"], "船体/结构": ["船体/结构", "空气管头/透气筒/关闭装置", "水密门/风雨密门", "舱口围板/舱盖密封", "甲板开口/人孔盖", "栏杆/扶手/梯道/平台", "船壳板/甲板/结构腐蚀区域"], "生活区/MLC设备": ["厨房设备和排烟系统", "食品冷藏/冷冻库", "饮用水柜/饮水机/净水器", "热水供应系统", "卫生间/淋浴/洗衣设施", "空调通风和居住照明", "病房/药品柜/急救箱", "船员娱乐设施"], "保安/保全设备": ["SSAS船舶保安报警系统", "CCTV监控系统", "门禁/锁闭装置", "舷梯值班和访客登记设备", "探照灯/保安照明", "防海盗铁丝网/水炮/物理屏障", "安全舱设备", "偷渡人员搜查工具", "网络保安设备/防火墙/路由器"], "个人防护/作业安全设备": ["安全帽/安全鞋/工作服", "防护手套/护目镜/面罩", "安全带/防坠器", "救生绳/三脚架/救援绞盘", "呼吸防护用品/防尘口罩/滤罐", "听力保护用品", "化学品防护服/防化靴/围裙", "低温防护用品"], "医疗/急救设备": ["船舶药品柜", "急救箱", "氧气复苏器", "担架/救援担架", "自动体外除颤器AED", "病房/医务室设备", "洗眼液/应急药品"], "测试/测量/校验工具": ["压力表/真空表", "温度计/测温仪", "万用表", "绝缘电阻表", "扭矩扳手", "气体检测仪校验气瓶", "CO2称重秤", "负荷试验砝码/测力计", "饮用水检测工具包", "测厚仪", "油水界面仪"], "电子管理平台/数据系统": ["PMS计划保养系统", "SMS电子文件库", "船舶证书管理系统", "电子日志/电子油类记录簿", "装载/稳性计算软件", "货物/冷藏箱监控平台"], "01.文件、证书和管理作业": ["证书和法定文件管理作业", "SMS/手册/技术资料维护作业", "缺陷、变更和证据链管理作业", "PSC/船级社/租家检查准备作业"], "02.人员管理作业": ["配员、证书和适任性核对作业", "船员上船、交接、评价和离船管理作业", "疲劳、酒精、药物和多国籍沟通管理作业"], "03.培训作业": ["新上船熟悉和岗位专项培训", "应急演习和关键程序培训", "安全会议、工具箱会议和检查前专项培训"], "04.MLC和船员福利作业": ["SEA、工资和支付证据链管理", "工时和休息时间管理", "食品、伙食、饮用水和起居卫生管理", "船员投诉、医疗照护和遣返安排"], "05.航行和通信作业": ["航次计划和ECDIS航线验证作业", "驾驶台值班、避碰和航行监控作业", "定位核对、UKC和受限水域航行作业", "引航、锚泊值班和特殊天气航行作业", "船岸/船内/应急通信作业"], "06.靠离泊、系泊和锚泊作业": ["靠泊、离泊和拖轮协作作业", "系泊布置、收放缆和缆绳张力监控作业", "锚泊、起锚和锚泊值班作业", "引航员登离船和安全通道布置作业", "STS/SPM系泊作业"], "07.PTW和高风险作业": ["热工作业", "密闭空间进入和救援准备作业", "高处/舷外作业", "起重吊装和索具作业", "电气隔离、LOTO和临时用电作业", "同时作业和承包商作业控制"], "08.通用货物和压载作业": ["货前会议、货物计划和货物信息确认作业", "装卸货和货物监控作业", "货物取样、量舱和文件交接作业", "货舱/货罐清洁和验舱作业", "稳性、强度和装载计算作业", "压载、排压载和压载水管理作业"], "09.散货船专项作业": ["散货装卸、水尺计量和货物平舱作业", "货舱清洁、舱盖和货舱污水管理作业", "IMSBC货物信息和易流态化货物控制作业", "煤炭、熏蒸、粮食和其他特殊散货作业"], "10.油化船专项作业": ["油品/化学品装卸和货物转驳作业", "惰化、驱气、除气和气体检测作业", "洗舱、放残、扫线和COW作业", "货物兼容性、抑制剂和P&A手册管理作业", "密闭取样、密闭量舱、歧管值班和回气作业", "有毒货物/H2S货物控制作业"], "11.气体船专项作业": ["冷却、置换、驱气和氮气作业", "LNG/LPG/液化气装卸作业", "货臂连接/脱离、ESD测试和紧急释放准备作业", "货物压缩机、再液化、BOG和舱压管理作业", "低温防护和货物区域消防准备作业"], "12.集装箱船专项作业": ["配载计划、VGM和装载计算核对作业", "集装箱装卸、绑扎和绑扎巡查作业", "冷藏箱接电和温度监控作业", "IMDG危险品隔离和文件核对作业", "超限箱、特殊箱和集装箱火灾应急作业"], "13.机舱作业": ["机舱值班、巡检和机械状态确认作业", "主机、发电机、锅炉和电站操作", "燃油加装、驳油和燃油转换作业", "舵机、应急发电机和应急消防泵测试作业", "舱底水、污油、污泥、OWS、生活污水和垃圾处理作业", "失电/黑船、PMS和关键设备测试作业"], "14.防污染和环保作业": ["油类、垃圾和压载水记录簿作业", "甲板/机舱防污染和溢油应急作业", "压载水、生活污水、垃圾和焚烧管理作业", "ECA、燃油转换、洗涤塔和空气排放管理作业"], "15.消防、救生和应急响应作业": ["消防、弃船和救生艇/救生筏演习", "人员落水、救助艇和密闭空间救援演习", "应急操舵、失电和堵漏应急作业", "碰撞、搁浅、货物泄漏和危险品应急作业", "医疗急救和船员伤病应急作业"], "16.保安和网络安全作业": ["船舶保安计划执行和SSAS测试作业", "舷梯值班、访客控制和偷渡人员搜查作业", "高风险区、防海盗和安全舱准备作业", "网络安全维护和网络事件应急作业"], "17.船容船貌、通道和区域检查作业": ["船体、甲板、起居处所和机舱清洁维护作业", "腐蚀、泄漏、标识和安全张贴检查作业", "舷梯、引航梯、安全通道和临边防护检查作业"], "18.冰区和低温作业": ["冰区航行和冰区作业准备", "低温救生、消防、机舱、甲板机械和货物/压载作业"]};
+const TAG_FACTOR=["人员因素","设备因素","系统因素"];
 const RANK_OPTIONS=["Master船長","C/O大副","2/O二副","3/O三副","C/E輪機長","2/E大管","3/E二管","4/E三管",
   "BSN水手長","AB幹練水手","OS普通水手","COOK廚師","FTR銅匠","OLR加油匠","PM泵匠",
   "A.Capt.見習船長","A.C/O見習大副","A.2/O見習二副","A.3/O見習三副","A.C/E見習輪機長","A.2/E見習大管","A.3/E見習二管","A.4/E見習三管",
@@ -280,6 +275,28 @@ function fillShipOpts(sel){
 }
 fillShipOpts("");
 document.getElementById("dl-places").innerHTML = PLACE_OPTS.map(p=>`<option value="${esc(p)}">`).join("");
+
+/* 船名清單改為開場時向雲端即時抓取（跟正式系統共用同一份 app_db 資料，k="ships"），
+   失敗（離線等）時保留上面的範例清單當備援，不會讓表單整個打不開。 */
+async function loadShipsFromCloud(){
+  try{
+    const res = await fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=eq.ships`,
+      { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } });
+    if(!res.ok) return;
+    const rows = await res.json();
+    const list = rows && rows[0] && Array.isArray(rows[0].payload) ? rows[0].payload : null;
+    if(!list || !list.length) return;
+    SHIP_OPTS.length = 0;
+    list.forEach(s=>SHIP_OPTS.push({code:s.code, name:s.zh||s.name||s.code, vtype:s.vtype||""}));
+    const cur = document.getElementById("f-ship").value;
+    fillShipOpts(cur);
+    if(cur){
+      const s = SHIP_OPTS.find(x=>x.code===cur);
+      document.getElementById("f-vtype").value = s ? s.vtype : document.getElementById("f-vtype").value;
+    }
+  }catch(e){ /* 離線或連線失敗，靜默使用範例清單 */ }
+}
+loadShipsFromCloud();
 document.getElementById("f-ship").addEventListener("change",function(){
   const s=SHIP_OPTS.find(x=>x.code===this.value);
   document.getElementById("f-vtype").value=s?s.vtype:"";
@@ -366,10 +383,9 @@ function addDefectRow(data){
       </select></label>
       <label>大類<select class="d-ncMain">${mainOptsHtml(data.ncProb,data.ncMain)}</select></label>
       <label>具體名稱<select class="d-ncLeaf">${leafOptsHtml(data.ncMain,data.ncLeaf)}</select></label>
-      <label>三要素<select class="d-ncFactor">
-        <option value="">請選擇</option>
-        ${TAG_FACTOR.map(f=>`<option${data.ncFactor===f?" selected":""}>${esc(f)}</option>`).join("")}
-      </select></label>
+      <label>三要素（可複選）<span class="d-ncFactor-box" style="display:flex;gap:10px;flex-wrap:wrap;padding:9px 0">
+        ${TAG_FACTOR.map(f=>`<label style="display:inline-flex;align-items:center;gap:4px;font-weight:400;font-size:13px"><input type="checkbox" class="d-ncFactor-cb" value="${esc(f)}" ${(data.ncFactor||"").split("、").includes(f)?"checked":""}>${esc(f)}</label>`).join("")}
+      </span></label>
       <label>重要程度<select class="d-ncImp">
         <option value="">請選擇</option>
         <option${data.ncImp==="高"?" selected":""}>高</option>
@@ -558,7 +574,7 @@ function collectPayload(){
       ncProb: box.querySelector(".d-ncProb").value,
       ncMain: box.querySelector(".d-ncMain").value,
       ncLeaf: box.querySelector(".d-ncLeaf").value,
-      ncFactor: box.querySelector(".d-ncFactor").value,
+      ncFactor: [...box.querySelectorAll(".d-ncFactor-cb:checked")].map(cb=>cb.value).join("、"),
       ncImp: box.querySelector(".d-ncImp").value,
       risk: box.querySelector(".d-risk").value,
       ncOpinion: box.querySelector(".d-ncOpinion").value,
@@ -585,7 +601,7 @@ function collectPayload(){
 /* ── 還原本機暫存的草稿 ── */
 (function restoreDraft(){
   const d = loadDraft();
-  if(!d) { addDefectRow(); switchTab({kind:"def", id:document.querySelector(".defbox").dataset.id}); return; }
+  if(!d) { updateDefCount(); updatePosCount(); switchTab({kind:"pos"}); return; }
   const b = d.basic || {};
   fillShipOpts(b.ship||"");
   document.getElementById("f-ship").value = b.ship||"";
@@ -600,8 +616,6 @@ function collectPayload(){
   }
   if(d.defects && d.defects.length){
     d.defects.forEach(df=>addDefectRow(df));
-  }else{
-    addDefectRow();
   }
   const firstDef = document.querySelector(".defbox");
   switchTab(firstDef ? {kind:"def", id:firstDef.dataset.id} : {kind:"pos"});
@@ -707,6 +721,34 @@ document.getElementById("btnDownload").addEventListener("click", ()=>{
   const fname = `AfterInspectionReview_${b.ship||"未填船名"}_${b.date||""}.xlsx`;
   XLSX.writeFile(wb, fname);
   notify("✓ 已下載 " + fname + "，請將檔案回傳給承辦人員", "ok2");
+});
+
+/* ── 測試雲端連線與資料表：直接查一次 air_submissions，讓您能自己判斷是連線問題還是資料表沒建好 ── */
+document.getElementById("btnTestCloud").addEventListener("click", async ()=>{
+  const box = document.getElementById("cloudTestResult");
+  box.textContent = "測試中…"; box.style.color = "var(--ink-3)";
+  try{
+    const res = await fetch(`${CLOUD.url}/rest/v1/air_submissions?select=id&limit=1`,
+      { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } });
+    if(res.ok){
+      box.textContent = "✓ 連線正常，air_submissions 資料表存在，送出功能可以使用。";
+      box.style.color = "var(--ok)";
+    }else{
+      const t = await res.text().catch(()=>"");
+      box.textContent = `⚠ 連線得到回應但有錯誤（HTTP ${res.status}）：${t.slice(0,200)}　→ 通常代表 Supabase 裡還沒執行過 supabase_setup.sql 建表，請確認。`;
+      box.style.color = "var(--bad)";
+    }
+  }catch(e){
+    box.textContent = "⚠ 連線失敗（可能是網路問題）："+e.message;
+    box.style.color = "var(--bad)";
+  }
+});
+
+/* ── 清除表單：清掉本機暫存草稿並重新整理頁面，回到全新空白表單 ── */
+document.getElementById("btnClearForm").addEventListener("click", ()=>{
+  if(!confirm("確定要清除目前填寫的內容嗎？此動作無法復原。")) return;
+  try{ localStorage.removeItem(LS_KEY); }catch(e){}
+  location.reload();
 });
 
 /* ══════════ 頂層分頁：①船舶檢查資料／②對外回覆 ══════════ */
