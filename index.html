@@ -2526,6 +2526,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       <div class="toolbar" id="air-toptabs">
         <button class="btn primary" id="air-tab-list-btn" onclick="Air.showList()">📋 返回清單</button>
         <button class="btn" id="air-tab-followup-btn" onclick="Air.showFollowUpList()">🔖 Follow Up</button>
+        <button class="btn dark" id="air-tab-cloudqueue-btn" onclick="AirQueue.open()">☁ 線上填單審核佇列<span id="air-cq-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:5px"></span></button>
         <button class="btn" id="air-tab-new-btn" onclick="Air.newForm()" style="display:none">＋ 新增填單</button>
       </div>
 
@@ -2535,6 +2536,17 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <span class="hint" style="font-weight:400;margin-left:8px">曾在對外回覆中被勾選「需要 Follow Up」的項目，包含追蹤中與已結案</span>
           </h3>
           <div id="air-followup-table"></div>
+        </div>
+      </div>
+
+      <div id="air-cloudqueue-page" style="display:none">
+        <div class="card">
+          <h3>☁ 線上填單審核佇列
+            <span class="hint" style="font-weight:400;margin-left:8px">船上透過外部網頁送出、尚未審核匯入的填單</span>
+            <button class="btn sm" style="margin-left:auto" onclick="AirQueue.refresh()">🔄 重新整理</button>
+          </h3>
+          <p class="hint" style="line-height:1.7">每一筆是船上用獨立填單網頁送出的資料，尚未寫入系統。點「👀 預覽」可展開查看內容；「✓ 匯入」會把這筆轉成正式的線上填單記錄（比照手動新增），並可接著進行對外回覆；「✕ 拒絕」僅標記為不匯入，不會刪除原始資料。</p>
+          <div id="air-cq-list"></div>
         </div>
       </div>
 
@@ -2600,7 +2612,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <label>檢查類型（自動）<input type="text" id="air-icat" readonly style="background:#f4f6f7;color:#52656f"></label>
             <div class="fw fld" id="air-flag-wrap" style="display:none">FLAG項目（檢查來源為 FLAG 時必填，可多選）<div id="air-flag-box" style="display:flex;flex-wrap:wrap;gap:10px;border:1px solid var(--line);border-radius:6px;padding:8px;background:#fafbfb"></div></div>
             <label>檢查日期 *<input type="text" id="air-date" placeholder="2026/6/24" oninput="Air.scheduleFormAutoSave()"></label>
-            <label>檢查地點 *<input type="text" id="air-place" placeholder="Port, Country" oninput="Air.scheduleFormAutoSave()"></label>
+            <label>檢查地點 *<input type="text" id="air-place" list="dl-places" placeholder="Port, Country（打幾個字會有建議地點）" oninput="Air.scheduleFormAutoSave()"></label>
             <label>油公司/單位<input type="text" id="air-oilco" list="dl-units" oninput="Air.scheduleFormAutoSave()"></label>
             <label>檢查員<input type="text" id="air-inspector" list="dl-inspectors" oninput="Air.scheduleFormAutoSave()"></label>
             <label>缺失數<input type="number" id="air-ndef" min="0" oninput="Air.syncDefRowCount();Air.scheduleFormAutoSave()"></label>
@@ -2696,6 +2708,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
                 <button class="btn sm primary" onclick="Air.openReplyExportModal()">⬇ 匯出</button>
                 <button class="btn sm" onclick="Air.importReplyDocxPick()">⬆ 匯入 Word</button>
                 <button class="btn sm" id="air-notify-btn" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10" onclick="Air.openNotifyPopover(event)">🔔 通知</button>
+                <button class="btn sm dark" onclick="Air.generateReplyLink()">🔗 產生對外回覆連結</button>
               </span>
             </h3>
             <p class="hint" id="air-reply-context"></p>
@@ -3569,7 +3582,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
                 <input type="text" id="px-itype-other" placeholder="請說明檢查類型" style="display:none;flex:1;min-width:120px">
               </div></label>
                 <label>檢查日期<input type="text" id="px-date" placeholder="2026/6/12"></label>
-                <label>檢查地點<input type="text" id="px-place"></label>
+                <label>檢查地點<input type="text" id="px-place" list="dl-places"></label>
                 <label>檢查員<input type="text" id="px-inspector" list="dl-inspectors"></label>
                 <label>檢查單位/油公司<input type="text" id="px-unit" list="dl-units"></label>
                 <label style="flex-direction:row;align-items:center;gap:8px;align-self:end;padding-bottom:6px"><input type="checkbox" id="px-detain" style="width:16px;height:16px"> ⚑ 扣船</label>
@@ -4563,7 +4576,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
           </div></label>
         <label>檢查日期<input type="text" id="e-date" placeholder="2025/1/1" oninput="Defs.syncYm()"></label>
         <label>年月<input type="text" id="e-ym" placeholder="2025-01"></label>
-        <label>地點<input type="text" id="e-place"></label>
+        <label>地點<input type="text" id="e-place" list="dl-places"></label>
         <label>檢查員<input type="text" id="e-inspector" list="dl-inspectors"></label>
         <label>油公司/單位<input type="text" id="e-oilco" list="dl-units"></label>
         <label>原缺失代碼/CODE（章節代碼）<input type="text" id="e-code" placeholder="VIQ/SIR/RISQ/PSC 代碼" oninput="Defs.refreshChapterName()">
@@ -4619,7 +4632,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <input type="text" id="bt-itype-other" placeholder="說明" style="display:none;flex:1;min-width:100px">
           </div></label>
           <label>檢查日期 *<input type="text" id="bt-date" placeholder="2026/6/12"></label>
-          <label>檢查地點<input type="text" id="bt-place" placeholder="Port, Country"></label>
+          <label>檢查地點<input type="text" id="bt-place" list="dl-places" placeholder="Port, Country"></label>
           <label>檢查員<input type="text" id="bt-inspector" list="dl-inspectors"></label>
           <label>油公司/單位<input type="text" id="bt-oilco" list="dl-units"></label>
         </div>
@@ -4733,6 +4746,25 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <button class="btn primary" style="width:100%;text-align:left" onclick="Air.exportRecordDocx(Air._exportId);Air.closeRecordExportModal()">⬇ Word（.doc）<br><span style="font-weight:400;font-size:11px">基本資料＋缺失改善明細＋正面評價明細，完整內容</span></button>
         <button class="btn" style="width:100%;text-align:left" onclick="Air.exportRecordXlsx(Air._exportId);Air.closeRecordExportModal()">⬇ Excel（.xlsx）<br><span style="font-weight:400;font-size:11px">表格式留存／查核用</span></button>
         <button class="btn" style="width:100%;text-align:left" onclick="Air.exportCarDocx(Air._exportId);Air.closeRecordExportModal()">⬇ CAR（Word，官方格式）<br><span style="font-weight:400;font-size:11px">橫向排版，內容取自「海技對外回覆」的英文欄位</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 產生對外回覆連結：把目前這筆缺失的中文內容送到雲端草稿表，給主管開啟外部網頁填寫 -->
+<div class="modal-bg" id="airReplyLinkModal">
+  <div class="modal" style="max-width:520px">
+    <div class="mh"><h3>🔗 對外回覆連結</h3><button class="x" onclick="Air.closeReplyLinkModal()">✕</button></div>
+    <div class="mb">
+      <p class="hint" id="air-replylink-status" style="margin-bottom:10px">處理中…</p>
+      <div id="air-replylink-body" style="display:none">
+        <p class="hint" style="margin-bottom:6px">請把下面這個連結傳給主管（例如用通訊軟體），他打開後可以直接填中文回覆：</p>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <input type="text" id="air-replylink-url" readonly style="flex:1;padding:8px;border:1px solid var(--line-2);border-radius:6px;font-size:12px">
+          <button class="btn sm primary" onclick="Air.copyReplyLink()">📋 複製</button>
+        </div>
+        <p class="hint" style="line-height:1.7">同一個連結會依這筆缺失目前的階段自動顯示對應畫面（中文填寫／英文擬稿／最終確認），不用每個階段換連結。第一次使用需先設定外部填單網頁的網址，之後會記住。</p>
+        <button class="btn sm" style="margin-top:8px" onclick="Air.resetExternalFormBase()">⚙ 重新設定外部網頁網址</button>
       </div>
     </div>
   </div>
@@ -5368,6 +5400,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
 <input type="file" id="filepick" style="display:none">
 <datalist id="dl-inspectors"></datalist>
 <datalist id="dl-units"></datalist>
+<datalist id="dl-places"></datalist>
 <datalist id="dl-roster-names"></datalist>
 <datalist id="dl-supervisor-names"></datalist>
 <datalist id="dl-roster-names"></datalist>
@@ -6553,6 +6586,17 @@ function refreshUnitList(){
   App.defs.forEach(d=>d.oilco&&names.add(d.oilco));
   dl.innerHTML=[...names].sort().map(n=>`<option value="${esc(n)}">`).join("");
 }
+/* 檢查地點建議清單：彙整系統裡所有出現過的地點（Port, Country），供打字聯想使用，
+   避免船上打錯字或格式不一致；跟 refreshInspectorList／refreshUnitList 同一套機制，
+   每次資料異動都會重新彙整，永遠是系統當下最新的地點清單。 */
+function refreshPlaceList(){
+  const dl=$("#dl-places");if(!dl)return;
+  const names=new Set();
+  App.insp.forEach(i=>i.place&&names.add(i.place));
+  App.defs.forEach(d=>d.place&&names.add(d.place));
+  if(typeof App.air!=="undefined")App.air.forEach(d=>d.place&&names.add(d.place));
+  dl.innerHTML=[...names].sort().map(n=>`<option value="${esc(n)}">`).join("");
+}
 function mainTag(code){if(!code)return"(無代碼)";const c=String(code).trim();const m=c.match(/^([A-Za-z0-9]+)/);return m?m[1]:c;}
 /* ════════════════════════════════════════════════════════════════════
    自查任務的「刪除墓碑」（tombstone）
@@ -7566,7 +7610,7 @@ const App={
     if(typeof Classify!=="undefined")Classify.init();
     if(typeof NCTree!=="undefined")NCTree.init();
     Dash.init();Ov.init();if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();
-    refreshInspectorList();
+    refreshInspectorList();refreshPlaceList();
     this.refreshMeta();
     NavConfig.apply();
     if(typeof Snap!=="undefined")Snap.render();
@@ -7609,7 +7653,7 @@ const App={
         return;
       }
     }
-    refreshInspectorList();refreshUnitList();
+    refreshInspectorList();refreshUnitList();refreshPlaceList();
     try{
       // ═ 差異儲存：各鍵先與上次寫入的內容比對，無變動就跳過（避免每次編輯都全量重寫 15 個資料集）═
       // [鍵, 序列化函式, 對應雲端自動發布 key（null 表示不自動發布）]
@@ -16093,6 +16137,7 @@ const Air={
     this.ms.itype=MSel("ms-air-itype","檢查來源",()=>[...new Set(App.air.map(d=>d.itype))].filter(Boolean).sort(),()=>{this.page=1;this.renderList();});
     this.ms.status=MSel("ms-air-status","狀態",()=>["待處理","部分轉入","已轉檢查紀錄","已轉缺失紀錄","已轉正向評論","已轉全部"],()=>{this.page=1;this.renderList();});
     this.ms.reviewed=MSel("ms-air-reviewed","督導確認",()=>["已確認","尚未確認"],()=>{this.page=1;this.renderList();});
+    if(typeof AirQueue!=="undefined")setTimeout(()=>AirQueue.refresh(),1500); // 延後執行，等 Cloud.init() 連線完成
   },
   clearFilters(){Object.values(this.ms).forEach(m=>m.clear());this.page=1;this.renderList();},
   nextId(){return App.air.reduce((m,d)=>Math.max(m,+d.id||0),0)+1;},
@@ -17796,6 +17841,59 @@ const Air={
   },
   closeReplyExportModal(){$("#airReplyExportModal").classList.remove("show");},
   openRecordExportModal(id){this._exportId=id;$("#airRecordExportModal").classList.add("show");},
+  /* ══════════ 對外回覆連結：把目前這筆缺失的中文內容（若已有）送到雲端 air_reply_drafts，
+     產生一個網址給主管開啟外部填單網頁；同一網址依雲端目前的 stage 自動顯示對應畫面。══════════ */
+  BASEKEY:"vsm_airform_base_url",
+  getExternalFormBase(){
+    let v="";try{v=localStorage.getItem(this.BASEKEY)||"";}catch(e){}
+    if(!v){
+      v=(prompt("請輸入外部線上填單網頁（submit-airform.html）目前部署的網址：\n（只需輸入一次，之後會記住；例如放在公司雲端硬碟公開連結、或內部網頁空間）")||"").trim();
+      if(v)try{localStorage.setItem(this.BASEKEY,v);}catch(e){}
+    }
+    return v;
+  },
+  resetExternalFormBase(){
+    try{localStorage.removeItem(this.BASEKEY);}catch(e){}
+    this.generateReplyLink();
+  },
+  closeReplyLinkModal(){$("#airReplyLinkModal").classList.remove("show");},
+  async generateReplyLink(){
+    if(this.replyId==null){toast("⚠ 請先開啟一筆填單的對外回覆頁");return;}
+    const base=this.getExternalFormBase();
+    if(!base){toast("⚠ 未設定外部網頁網址，無法產生連結");return;}
+    const d=App.air.find(x=>x.id===this.replyId);if(!d)return;
+    const i=this.activeDefectIdx||0;
+    const rp=(d.reply&&d.reply.items&&d.reply.items[i])||{};
+    $("#airReplyLinkModal").classList.add("show");
+    $("#air-replylink-body").style.display="none";
+    $("#air-replylink-status").textContent="處理中…";
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){$("#air-replylink-status").textContent="⚠ 雲端未連線，無法產生連結";return;}
+    try{
+      const rows=await Cloud.api(`air_reply_drafts?air_record_id=eq.${this.replyId}&defect_idx=eq.${i}&order=id.desc&limit=1`);
+      if(!rows||!rows.length){
+        const items=[{opCommentCn:rp.opCommentCn||"",immediateCauseCn:rp.immediateCauseCn||"",
+          rootCauseCn:rp.rootCauseCn||(d.defects[i]||{}).rootCause||"",
+          correctiveCn:rp.correctiveCn||(d.defects[i]||{}).corrective||"",
+          preventiveCn:rp.preventiveCn||(d.defects[i]||{}).preventive||""}];
+        await Cloud.api("air_reply_drafts",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+          body:JSON.stringify([{air_record_id:this.replyId,defect_idx:i,ship:d.ship,stage:"1",items}])});
+      }
+      const sep=base.includes("?")?"&":"?";
+      const url=`${base}${sep}rid=${this.replyId}&didx=${i}#reply`;
+      $("#air-replylink-url").value=url;
+      $("#air-replylink-status").textContent="";
+      $("#air-replylink-body").style.display="";
+    }catch(e){
+      $("#air-replylink-status").textContent="⚠ 產生失敗："+e.message;
+    }
+  },
+  copyReplyLink(){
+    const el=$("#air-replylink-url");if(!el)return;
+    el.select();
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(el.value).then(()=>toast("✓ 已複製連結")).catch(()=>{try{document.execCommand("copy");toast("✓ 已複製連結");}catch(e){toast("⚠ 複製失敗，請手動選取");}});
+    }else{try{document.execCommand("copy");toast("✓ 已複製連結");}catch(e){toast("⚠ 複製失敗，請手動選取");}}
+  },
   closeRecordExportModal(){$("#airRecordExportModal").classList.remove("show");},
 
   /* ── 對外回覆：中英文 Word 匯出（沿用與 AI 提示詞相同的 [標籤-中文]/[標籤-EN] 格式，
@@ -18032,6 +18130,116 @@ const Air={
     dl(blob,`CAR_${d.ship}_${(d.date||"").replace(/\//g,"-")}.doc`);
     if(typeof Audit!=="undefined")Audit.log("匯出","AIR CAR",`#${d.id} ${d.ship} ${d.date}（${d.defects.length} 筆缺失）`);
     toast(`✓ 已匯出 CAR Word 檔（橫向，共 ${d.defects.length} 筆缺失，每筆一頁）`);
+  }
+};
+/* ══════════ AirQueue：外部線上填單網頁（submit-airform.html）送出的 air_submissions
+   審核佇列。與 App.air／app_db 完全獨立的另一張雲端表，這裡只負責讀取待審核清單、
+   預覽、以及「匯入」時把資料轉成正式的 Air 記錄（欄位對應比照 Air.saveForm 的結構）。══════════ */
+const AirQueue={
+  TABLE:"air_submissions",
+  rows:[],
+  expandedId:null,
+  open(){
+    if(!$("#tab-air"))return;
+    $("#air-list-page").style.display="none";
+    $("#air-form-page").style.display="none";
+    $("#air-followup-page").style.display="none";
+    $("#air-cloudqueue-page").style.display="";
+    $("#air-tab-list-btn").className="btn";
+    $("#air-tab-new-btn").className="btn";
+    $("#air-tab-followup-btn").className="btn";
+    this.refresh();
+  },
+  async refresh(){
+    const box=$("#air-cq-list");if(!box)return;
+    box.innerHTML=`<p class="hint">讀取中…</p>`;
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){box.innerHTML=`<p class="hint">⚠ 雲端未連線，無法讀取審核佇列</p>`;return;}
+    try{
+      this.rows=await Cloud.api(`${this.TABLE}?status=eq.pending&order=created_at.desc`)||[];
+    }catch(e){
+      box.innerHTML=`<p class="hint">⚠ 讀取失敗：${esc(e.message)}</p>`;return;
+    }
+    this.updateBadge();
+    this.render();
+  },
+  updateBadge(){
+    const b=$("#air-cq-badge");if(!b)return;
+    if(this.rows.length){b.textContent=this.rows.length;b.style.display="";}
+    else b.style.display="none";
+  },
+  render(){
+    const box=$("#air-cq-list");if(!box)return;
+    if(!this.rows.length){box.innerHTML=`<p class="hint">目前沒有待審核的線上填單。</p>`;return;}
+    box.innerHTML=this.rows.map(r=>{
+      const p=r.payload||{};const b=p.basic||{};const defs=p.defects||[];const pos=p.posComments||[];
+      const open=this.expandedId===r.id;
+      return `<div class="card" style="margin-bottom:10px;background:#fafbfc">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <b>${esc(b.ship||"（未填船名）")}</b>
+          <span class="hint">${esc(b.itype||"")} ・ ${esc(b.date||"")} ・ ${esc(b.place||"")}</span>
+          <span class="hint">缺失 ${defs.length} 筆・正面評論 ${pos.length} 筆</span>
+          <span class="hint">送出時間 ${esc((r.created_at||"").slice(0,16).replace("T"," "))}</span>
+          <span style="margin-left:auto;display:flex;gap:6px">
+            <button class="btn sm" onclick="AirQueue.toggle(${r.id})">${open?"收合":"👀 預覽"}</button>
+            <button class="btn sm dark" onclick="AirQueue.importRow(${r.id})">✓ 匯入</button>
+            <button class="btn sm" onclick="AirQueue.rejectRow(${r.id})">✕ 拒絕</button>
+          </span>
+        </div>
+        ${open?this.renderPreview(b,defs,pos):""}
+      </div>`;
+    }).join("");
+  },
+  toggle(id){this.expandedId=this.expandedId===id?null:id;this.render();},
+  renderPreview(b,defs,pos){
+    return `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;font-size:12.5px">
+      <p><b>檢查員：</b>${esc(b.inspector||"")}　<b>單位：</b>${esc(b.oilco||"")}</p>
+      ${defs.map((d,i)=>`<div style="margin-bottom:8px;padding:8px;background:#fff;border:1px solid var(--line);border-radius:6px">
+        <b>缺失 #${i+1}　CODE ${esc(d.code||"")}</b>　<span class="hint">${esc(d.rank||"")} ${esc(d.person||"")}</span><br>
+        <span class="hint">缺失詳情：</span>${esc(d.detail||"")}
+      </div>`).join("")}
+      ${pos.map((p,i)=>`<div style="margin-bottom:8px;padding:8px;background:#f3fbf6;border:1px solid #d7ecdf;border-radius:6px">
+        <b>正面評論 #${i+1}　${esc(p.item||"")}</b><br>${esc(p.comment||"")}
+      </div>`).join("")}
+    </div>`;
+  },
+  async importRow(id){
+    if(!await Guard.require()){toast("⚠ 匯入僅限維護者操作");return;}
+    const r=this.rows.find(x=>x.id===id);if(!r)return;
+    const p=r.payload||{};const b=p.basic||{};
+    if(!b.ship||!b.date){toast("⚠ 這筆資料缺少船名或日期，無法匯入");return;}
+    const rec={
+      id:Air.nextId(),ship:b.ship,vtype:b.vtype||"",itype:b.itype||"",date:b.date,
+      place:b.place||"",oilco:b.oilco||"",inspector:b.inspector||"",
+      ndef:(p.defects||[]).length,npos:(p.posComments||[]).length,flagType:"",
+      defects:(p.defects||[]).map(d=>({psc:"",code:d.code||"",actual:d.actual||"",detail:d.detail||"",
+        corrective:d.corrective||"",rootCause:d.rootCause||"",preventive:d.preventive||"",
+        rank:d.rank||"",person:d.person||"",people:Array.isArray(d.people)?d.people.filter(x=>x.rank||x.person):[],
+        ncProb:d.ncProb||"",ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",ncFactor:d.ncFactor||"",
+        ncImp:d.ncImp||"",ncFocus:d.ncFocus||"",ncMethod:"",ncOpinion:d.ncOpinion||"",risk:d.risk||"",
+        pushedDefId:null,followUp:{on:false,assignee:"",status:"open",log:[],closedAt:0}})),
+      posComments:(p.posComments||[]).map(pc=>({code:pc.code||"",item:pc.item||"",comment:pc.comment||"",
+        people:Array.isArray(pc.people)?pc.people.filter(x=>x.rank||x.person):[],pushedPosIds:null})),
+      updatedAt:Date.now(),importedFromQueueId:r.id
+    };
+    App.air.push(rec);
+    App.saveAll();if(App.refreshMeta)App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("匯入","AIR審核佇列",`#${rec.id} ${rec.ship} ${rec.date}（來自線上填單 #${r.id}）`);
+    try{
+      await Cloud.api(`${this.TABLE}?id=eq.${r.id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+        body:JSON.stringify({status:"imported",imported_at:new Date().toISOString(),imported_by:(function(){try{return localStorage.getItem("vsm_user_v1")||"";}catch(e){return "";}})()})});
+    }catch(e){console.warn("AirQueue mark imported failed",e);}
+    toast("✓ 已匯入為線上填單記錄 #"+rec.id);
+    this.rows=this.rows.filter(x=>x.id!==r.id);this.updateBadge();this.render();
+  },
+  async rejectRow(id){
+    if(!await Guard.require()){toast("⚠ 僅限維護者操作");return;}
+    if(!confirm("確定要拒絕這筆線上填單嗎？（不會刪除原始資料，只是標記為不匯入）"))return;
+    try{
+      await Cloud.api(`${this.TABLE}?id=eq.${id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+        body:JSON.stringify({status:"rejected"})});
+    }catch(e){toast("⚠ 更新失敗："+e.message);return;}
+    this.rows=this.rows.filter(x=>x.id!==id);this.updateBadge();this.render();
+    toast("已標記為拒絕");
   }
 };
 /* 海技對外回覆／線上填單都有自動儲存（停手2秒後存檔），但如果使用者在那2秒防抖動視窗內就

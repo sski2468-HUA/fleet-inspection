@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>線上填單 — After Inspection Review — FPMC</title>
+<style>
+:root{
+  --navy:#1c3a5e; --navy-2:#234a72; --navy-3:#2f6690;
+  --paper:#f5f7f8; --card:#ffffff; --line:#dde4e8; --line-2:#c3ced5;
+  --ink:#15262f; --ink-2:#52656f; --ink-3:#8195a0;
+  --signal:#e8842c; --signal-d:#c96a14;
+  --ok:#2e8b57; --bad:#c0392b; --bad-l:#fbeae7;
+  --sans:"Segoe UI","Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);font-family:var(--sans);color:var(--ink)}
+.wrap{max-width:1200px;margin:0 auto;padding:0 0 70px}
+header{background:var(--navy);color:#fff;padding:22px 18px}
+header h1{margin:0;font-size:19px}
+header p{margin:6px 0 0;font-size:13px;color:#b9c8d6;line-height:1.6}
+.badge-draft{display:inline-block;background:#3a5a80;color:#dbe8f4;font-size:11px;padding:2px 9px;border-radius:20px;margin-bottom:8px;font-weight:700;letter-spacing:.3px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:14px;padding:16px}
+.card h2{font-size:15px;margin:0 0 4px}
+.card .sub{font-size:11.5px;color:var(--ink-3);margin:0 0 12px;line-height:1.6}
+.grid{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:560px){.grid.two{grid-template-columns:1fr 1fr}.grid.three{grid-template-columns:1fr 1fr 1fr}}
+@media(min-width:900px){.grid.two{grid-template-columns:repeat(4,1fr)}}
+label{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--ink-2);font-weight:600}
+label.full{grid-column:1/-1}
+input,select,textarea{padding:11px 12px;border:1px solid var(--line-2);border-radius:8px;font-size:15px;font-family:var(--sans);color:var(--ink);background:#fff;width:100%}
+textarea{resize:vertical;min-height:64px;line-height:1.5}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-offset:1px}
+.defbox,.posbox{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;background:#fafbfc;position:relative}
+.defbox .dhead,.posbox .dhead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.defbox .idx,.posbox .idx{font-size:12.5px;color:var(--navy);font-weight:700;background:#e9eff5;padding:3px 10px;border-radius:20px}
+.defbox .rm,.posbox .rm{margin-left:auto;background:none;border:none;color:var(--bad);font-size:13px;cursor:pointer;padding:4px 6px;font-weight:600}
+.subgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}
+@media(min-width:560px){.subgrid{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:900px){.subgrid{grid-template-columns:repeat(8,1fr)}}
+.flag-row{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);font-weight:500;padding:9px 0}
+.flag-row input[type=checkbox]{width:18px;height:18px}
+.people-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.people-row select{flex:1}
+.people-row input{flex:1}
+.people-row button{flex:none;background:none;border:none;color:var(--bad);font-size:15px;cursor:pointer;padding:4px 8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-2);background:#fff;color:var(--ink);padding:11px 16px;border-radius:8px;font-size:14px;cursor:pointer;font-family:var(--sans);font-weight:600}
+.btn.primary{background:var(--signal);border-color:var(--signal);color:#fff}
+.btn.dark{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn.ghost{background:#fff}
+.btn.block{width:100%}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.actionbar{display:flex;flex-direction:column;gap:10px}
+.hint{color:var(--ink-3);font-size:12px;line-height:1.7}
+.hint.warn{color:var(--signal-d);background:#fff4e8;border:1px solid #f3d9b8;border-radius:8px;padding:10px 12px}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);display:none;z-index:99;max-width:90vw;text-align:center}
+#toast.err{background:var(--bad)}
+#toast.ok2{background:var(--ok)}
+#successView{display:none;text-align:center;padding:60px 20px}
+#successView .icon{font-size:52px;margin-bottom:14px}
+.savebar{position:sticky;top:0;z-index:20;background:#fff8e9;border-bottom:1px solid #f0deb0;padding:8px 14px;font-size:11.5px;color:#8a5a10;text-align:center}
+.tabpill{border:1.5px solid var(--line-2);background:#fff;color:var(--ink-2);padding:8px 14px;border-radius:20px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+.tabpill.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.tabpill.pos{border-color:#2e8b57}
+.tabpill.pos.on{background:#2e8b57;border-color:#2e8b57}
+.toptabs{display:flex;gap:8px;margin:14px 14px 4px}
+.toptab{flex:1;border:1.5px solid var(--line-2);background:#fff;color:var(--ink-2);padding:11px;border-radius:8px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+.toptab.on{background:var(--navy);border-color:var(--navy);color:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge-draft">🧪 船名／分類選項為範例資料，送出功能已接上雲端</span><br>
+    <h1>⚓ 線上填單（After Inspection Review）</h1>
+    <p>船上填完 ①「船舶檢查資料」後即可按送出，資料會回到公司端 → ②公司端進行對外回覆 → ③最後公司會匯出 CAR 給船上留存。若船上網路不穩、送不出去，也可以直接「下載 Excel」，回傳給承辦人員匯入資料庫系統。</p>
+  </header>
+
+  <div class="toptabs">
+    <button type="button" class="toptab on" id="toptab-intake-btn" onclick="switchTopTab('intake')">① 船舶檢查資料</button>
+    <button type="button" class="toptab" id="toptab-reply-btn" onclick="switchTopTab('reply')">② 對外回覆</button>
+  </div>
+
+  <div id="page-intake">
+  <div class="savebar">💾 本機自動暫存中：填到一半離開頁面，重新打開這個網址還會接續之前的內容</div>
+
+  <div id="formView">
+    <div class="card">
+      <h2>檢查基本資料</h2>
+      <p class="sub">船名／檢查來源這幾個選單，之後會接上系統目前最新的清單（不用擔心選項過期）；目前先用範例資料呈現版面。</p>
+      <div class="grid two">
+        <label>船名 *<select id="f-ship"></select></label>
+        <label>船型<input type="text" id="f-vtype" readonly placeholder="選船名後自動帶出"></label>
+        <label>檢查來源 *<select id="f-itype">
+          <option value="">請選擇</option>
+          <option>SIRE</option><option>CDI</option><option>RightShip</option><option>ASI</option>
+          <option>Onboard visit</option><option>Internal audit</option><option>PSC</option>
+          <option>IHM</option><option>Preemptive</option><option>Special</option>
+        </select></label>
+        <label>檢查日期 *<input type="date" id="f-date"></label>
+        <label>檢查地點 *<input type="text" id="f-place" list="dl-places" placeholder="例：Mailiao, Taiwan（打幾個字會有建議地點跳出來，也可以自己輸入新地點）"></label>
+        <label>油公司/單位<input type="text" id="f-oilco"></label>
+        <label>檢查員<input type="text" id="f-inspector"></label>
+        <div style="display:flex;gap:8px">
+          <label style="flex:1">缺失數<input type="number" id="f-ndef" min="0" value="0"></label>
+          <label style="flex:1">正面評論數<input type="number" id="f-npos" min="0" value="0"></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2 style="margin:0">缺失與正面評論</h2>
+        <span class="hint" style="margin-left:auto">缺失 <b id="defCountLabel">0</b> 筆・正面評論 <b id="posCountLabel">0</b> 筆</span>
+      </div>
+      <p class="sub" style="margin-top:6px">點下方分頁切換要填寫的缺失或正面評論（一次只顯示一筆，避免捲動時填錯格子）；每筆缺失請盡量填完整，分類欄位(問題別/大類/具體名稱/三要素/重要程度/風險/缺失性質判定)也請一併選好，回岸上就不用再補。</p>
+      <div id="tabBar" style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0"></div>
+      <div id="defList"></div>
+      <div id="posSection">
+        <div id="posList"></div>
+        <button class="btn ghost block" id="btnAddPos" type="button">＋ 新增一筆正面評論</button>
+      </div>
+      <div style="margin-top:10px">
+        <button class="btn ghost block" id="btnAddDef" type="button">＋ 新增一筆缺失明細</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>送出</h2>
+      <div class="actionbar">
+        <button class="btn primary block" id="btnSubmit" type="button">✓ 送出填單（有網路時優先用這個）</button>
+        <button class="btn dark block" id="btnDownload" type="button">⬇ 下載成 Excel（沒有網路時用這個）</button>
+      </div>
+      <p class="hint" style="margin-top:10px">送出成功後，此頁資料會清空並顯示完成畫面；下載不會清空頁面內容，下載完仍可以繼續填寫或稍後再嘗試送出。</p>
+    </div>
+  </div>
+
+  <div id="successView">
+    <div class="icon">✅</div>
+    <h2>已送出，謝謝您！</h2>
+    <p class="hint">您的填單資料已送交審核，確認無誤後會正式匯入系統。</p>
+    <button class="btn ghost" onclick="location.reload()">再填一筆</button>
+  </div>
+  </div>
+
+  <div id="page-reply" style="display:none">
+    <div class="card">
+      <h2>對外回覆</h2>
+      <p class="sub" id="reply-mode-note">網址列加上 <code>?rid=記錄代碼</code>（例如 <code>...?rid=12345</code>）開啟，即可對接該筆記錄的真實回覆資料；目前沒有帶代碼，先顯示版面示意（用範例中文內容）。</p>
+      <div class="hint warn" style="margin-bottom:14px">
+        <b>設計重點（三階段，全部在這個網頁完成，不進正式系統）：</b><br>
+        階段①　主管填「直接原因／根本原因／改善措施」等中文內容，送出後回到承辦人員。<br>
+        階段②　承辦人員（我方）打開同一個網址，用「📋 一鍵複製中文內容＋提示詞」複製給 AI 翻譯，翻完貼回「📥 貼上英文翻譯並自動填入」，微調後送出。<br>
+        階段③　同一網址重新開放給主管，這時中文＋英文並排顯示，主管做最終確認／微調後送出——這次的內容才是最終要匯入「缺失紀錄總表」的完整資料。<br>
+        整個來回都留在這個獨立頁面，只有階段③完成後，才由我方把最終資料匯入正式系統，不會中途影響到系統裡其他人正在編輯的內容。
+      </div>
+
+      <div id="replyPreviewBtns" style="display:flex;gap:8px;margin-bottom:14px">
+        <button type="button" class="btn ghost" id="stageBtn1" onclick="setReplyStage(1)">👀 1.中文內容填寫</button>
+        <button type="button" class="btn ghost" id="stageBtn2" onclick="setReplyStage(2)">👀 2.英文擬稿</button>
+        <button type="button" class="btn ghost" id="stageBtn3" onclick="setReplyStage(3)">👀 3.最終確認</button>
+      </div>
+
+      <div id="replyStageBadge" style="display:inline-block;background:#eef4ff;color:var(--navy-3);font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;margin-bottom:14px"></div>
+
+      <div id="replyAiBar" style="display:none;background:#eef4ff;border:1px solid #cfe0f9;border-radius:8px;padding:10px 12px;margin-bottom:14px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn primary" onclick="copyReplyPrompt()">📋 一鍵複製中文內容＋提示詞</button>
+          <button type="button" class="btn dark" onclick="togglePasteImport()">📥 貼上英文翻譯並自動填入</button>
+        </div>
+        <div id="replyPasteBox" style="display:none;margin-top:10px">
+          <textarea id="replyPasteText" placeholder="把 AI 回覆的完整內容貼在這裡…" style="min-height:120px"></textarea>
+          <button type="button" class="btn primary" style="margin-top:6px" onclick="applyPastedTranslation()">套用貼上的翻譯</button>
+        </div>
+        <p class="hint" style="margin-top:8px">流程：① 複製中文內容＋提示詞 → ② 貼到您慣用的 AI 對話視窗送出 → ③ 複製 AI 回覆的完整內容 → ④ 貼上英文翻譯並自動填入 → ⑤ 檢查／微調下方英文欄位。</p>
+      </div>
+
+      <div class="defbox">
+        <div class="dhead">
+          <span class="idx">缺失 #1 · CODE 3.2.6</span>
+        </div>
+        <p class="hint" style="background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:12px">
+          （唯讀）缺失詳情：Fire damper of Engine blower No.1 and 3 were not closing fully...
+        </p>
+        <div id="replyFieldsWrap"></div>
+      </div>
+      <div id="replySubmitBar" style="display:none;margin-top:14px">
+        <button type="button" class="btn primary block" id="replySubmitBtn" onclick="submitReplyStage()"></button>
+      </div>
+      <p class="hint" style="margin-top:6px" id="reply-demo-note">＊ 目前是版面示意（沒有帶 <code>?rid=</code>），下方沒有送出按鈕；但上面「複製提示詞／貼上翻譯」是真的能動的，可以實際測試。</p>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<datalist id="dl-places"></datalist>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* ════════════════════════════════════════════════════════════════
+   ⚠ 草稿階段設定：
+   - CLOUD 目前是空的，之後系統端整合時再填入 Supabase 專案的 url / key，
+     並把資料表名稱（AIR_TABLE）換成正式建立的表。
+   - SHIP_OPTS / NCDB / TAGLISTS 目前是代表性範例資料，之後會改成開場時
+     向雲端即時抓取系統當下最新的清單（跟主系統共用同一份資料，不會過期）。
+   ════════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════
+   雲端設定：跟正式系統共用同一個 Supabase 專案（同一把 anon key）。
+   這把 key 本來就設計成可以公開在前端——安全性由 Supabase 的 RLS 政策把關，
+   不是靠保密這串字。air_submissions／air_reply_drafts 這兩張表跟系統原本
+   的 app_db／self_tasks 完全獨立，這個頁面能做的事只有「新增」與「依 id 讀取」，
+   不會動到系統裡其他人正在編輯的任何資料。
+   ════════════════════════════════════════════════════════════════ */
+const CLOUD = {
+  url: "https://iqmbircjokdzdssouwkr.supabase.co",
+  key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY"
+};
+const AIR_TABLE = "air_submissions"; // 需先在 Supabase 執行 supabase_setup.sql 建好這張表
+
+/* ── 範例資料（之後改為即時從雲端抓取）── */
+const SHIP_OPTS=[
+  {code:"CJ",name:"台塑真善輪",vtype:"tanker"},
+  {code:"SE",name:"SE",vtype:"tanker"},
+  {code:"F30",name:"F30",vtype:"tanker"},
+  {code:"B108",name:"B108",vtype:"bulk"},
+  {code:"B202",name:"B202",vtype:"bulk"},
+];
+/* 檢查地點：跟系統「內稽動態」原本規劃的做法一樣，是從歷史紀錄裡出現過的地點彙整成建議清單，
+   打幾個字（不分大小寫、不用打完整）瀏覽器就會列出符合的地點，也可以直接輸入清單裡沒有的新地點，
+   不會被卡住。目前先用範例港口撐版面，之後系統端整合時會改成抓取系統裡實際出現過的所有地點。 */
+const PLACE_OPTS=[
+  "Mailiao, Taiwan","Kaohsiung, Taiwan","Taichung, Taiwan",
+  "Newcastle, Australia","Dampier, Australia","Port Hedland, Australia","Esperance, Australia","Gladstone, Australia",
+  "Jiaxing, China","Zhoushan, China","Ningbo, China",
+  "Rotterdam, Netherlands","Trois-Rivieres, Canada","Jacksonville, USA","Pascagoula, USA",
+  "Ramallo, Argentina","Muara, Brunei","Sigapore",
+];
+const NCDB_PROB=["设备问题","作业问题"];
+const NCDB_MAIN={
+  "设备问题":["驾驶台设备","系泊和锚泊设备","动力与推进","机舱设备","救生、消防、应急及安全设备","防污染设备","货物操作设备","甲板机械","船体/结构","生活区/MLC设备","保安/保全设备"],
+  "作业问题":["01.文件、证书和管理作业","02.人员管理作业","03.培训作业","05.航行和通信作业","07.PTW和高风险作业","13.机舱作业","15.消防、救生和应急响应作业"]
+};
+const NCDB_LEAF={
+  "救生、消防、应急及安全设备":["火警探测和报警系统","固定灭火系统","救生艇和吊艇架","救生筏","手提灭火器","防火门/防火挡板"],
+  "驾驶台设备":["雷达","ECDIS电子海图系统","AIS自动识别系统","GPS/GNSS定位系统"],
+  "动力与推进":["主机","电站及配电系统","轴系/艉轴/螺旋桨"],
+  "机舱设备":["锅炉","泵浦/阀门/管系","机舱监控报警系统"],
+  "03.培训作业":["新上船熟悉和岗位专项培训","应急演习和关键程序培训","安全会议、工具箱会议和检查前专项培训"],
+  "15.消防、救生和应急响应作业":["消防、弃船和救生艇/救生筏演习","人员落水、救助艇和密闭空间救援演习"],
+};
+const TAG_FACTOR=["人員因素","設備因素","系統因素"];
+const RANK_OPTIONS=["Master船長","C/O大副","2/O二副","3/O三副","C/E輪機長","2/E大管","3/E二管","4/E三管",
+  "BSN水手長","AB幹練水手","OS普通水手","COOK廚師","FTR銅匠","OLR加油匠","PM泵匠",
+  "A.Capt.見習船長","A.C/O見習大副","A.2/O見習二副","A.3/O見習三副","A.C/E見習輪機長","A.2/E見習大管","A.3/E見習二管","A.4/E見習三管",
+  "其他(請聯繫海技新增)"];
+const NC_OPINION_OPTS=[["none","無"],["inspector_opinion","檢查員個人意見"],["best_practice","Best Practice（建議做法）"]];
+
+const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ── 本機自動暫存（localStorage）：避免船上填到一半訊號斷了整份填單白填 ── */
+const LS_KEY="vsm_airform_draft_v1";
+function saveDraft(){
+  try{
+    localStorage.setItem(LS_KEY, JSON.stringify(collectPayload()));
+  }catch(e){}
+}
+function loadDraft(){
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    return raw?JSON.parse(raw):null;
+  }catch(e){ return null; }
+}
+let saveTimer=null;
+function scheduleAutoSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveDraft, 600); }
+
+/* ── 船名下拉 ── */
+function fillShipOpts(sel){
+  const el=document.getElementById("f-ship");
+  el.innerHTML='<option value="">請選擇</option>'+SHIP_OPTS.map(s=>`<option value="${esc(s.code)}"${sel===s.code?" selected":""}>${esc(s.code)} ${esc(s.name)}</option>`).join("");
+}
+fillShipOpts("");
+document.getElementById("dl-places").innerHTML = PLACE_OPTS.map(p=>`<option value="${esc(p)}">`).join("");
+document.getElementById("f-ship").addEventListener("change",function(){
+  const s=SHIP_OPTS.find(x=>x.code===this.value);
+  document.getElementById("f-vtype").value=s?s.vtype:"";
+  scheduleAutoSave();
+});
+
+/* ── 缺失明細列（可新增/刪除多筆）── */
+let defCount=0, posCount=0;
+let activeTab={kind:"def", id:null}; // {kind:'def',id} 或 {kind:'pos'}
+function ncOpinionOptsHtml(sel){
+  return NC_OPINION_OPTS.map(([v,label])=>`<option value="${v}"${sel===v?" selected":""}>${esc(label)}</option>`).join("");
+}
+function mainOptsHtml(prob,sel){
+  const list=NCDB_MAIN[prob]||[];
+  return `<option value="">${prob?"請選擇":"（先選問題別）"}</option>`+list.map(m=>`<option${sel===m?" selected":""}>${esc(m)}</option>`).join("");
+}
+function leafOptsHtml(main,sel){
+  const list=NCDB_LEAF[main]||[];
+  return `<option value="">${main?"請選擇":"（先選大類）"}</option>`+list.map(l=>`<option${sel===l?" selected":""}>${esc(l)}</option>`).join("");
+}
+function peopleRowHtml(rank,person,cls){
+  cls = cls || "d";
+  return `<div class="people-row">
+    <select class="${cls}-rank">${RANK_OPTIONS.map(r=>`<option${rank===r?" selected":""}>${esc(r)}</option>`).join("")}</select>
+    <input type="text" class="${cls}-person" placeholder="姓名" value="${esc(person||"")}">
+    <button type="button" class="rmPerson" title="移除">✕</button>
+  </div>`;
+}
+
+/* ── 分頁籤：缺失#1、缺失#2…＋一個「正面評論明細」，一次只顯示一筆，避免捲動時填錯格子 ── */
+function renderTabs(){
+  const bar = document.getElementById("tabBar");
+  const boxes = [...document.querySelectorAll(".defbox")];
+  let html = boxes.map((box,i)=>{
+    const on = activeTab.kind==="def" && activeTab.id===box.dataset.id;
+    return `<button type="button" class="tabpill${on?" on":""}" data-kind="def" data-id="${box.dataset.id}">缺失 #${i+1}</button>`;
+  }).join("");
+  const onPos = activeTab.kind==="pos";
+  html += `<button type="button" class="tabpill pos${onPos?" on":""}" data-kind="pos">📗 正面評論明細</button>`;
+  bar.innerHTML = html;
+  bar.querySelectorAll(".tabpill").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      switchTab(btn.dataset.kind==="pos" ? {kind:"pos"} : {kind:"def", id:btn.dataset.id});
+    });
+  });
+}
+function switchTab(tab){
+  activeTab = tab;
+  document.querySelectorAll(".defbox").forEach(box=>{
+    box.style.display = (tab.kind==="def" && tab.id===box.dataset.id) ? "" : "none";
+  });
+  document.getElementById("posSection").style.display = (tab.kind==="pos") ? "" : "none";
+  renderTabs();
+}
+
+function addDefectRow(data){
+  data = data || {};
+  defCount++;
+  const id = "d"+defCount+"_"+Date.now();
+  const div = document.createElement("div");
+  div.className = "defbox";
+  div.dataset.id = id;
+  div.innerHTML = `
+    <div class="dhead">
+      <span class="idx">缺失 #${defCount}</span>
+      <button type="button" class="rm" data-act="rmDef">✕ 刪除此筆</button>
+    </div>
+    <div class="grid two">
+      <label>CODE<input type="text" class="d-code" placeholder="例：3.2.6" value="${esc(data.code)}"></label>
+      <label>責任人員（可新增多筆）
+        <div class="peopleWrap"></div>
+        <button type="button" class="btn ghost" data-act="addPerson" style="margin-top:4px">＋ 新增人員</button>
+      </label>
+      <label class="full">缺失詳情<textarea class="d-detail" placeholder="請詳細描述發現的缺失內容">${esc(data.detail)}</textarea></label>
+      <label class="full">實際情況<textarea class="d-actual">${esc(data.actual)}</textarea></label>
+      <label class="full">改善措施<textarea class="d-corrective">${esc(data.corrective)}</textarea></label>
+      <label class="full">根本原因<textarea class="d-rootCause">${esc(data.rootCause)}</textarea></label>
+      <label class="full">預防措施<textarea class="d-preventive">${esc(data.preventive)}</textarea></label>
+    </div>
+    <div class="subgrid">
+      <label>問題別<select class="d-ncProb">
+        <option value="">請選擇</option>
+        ${NCDB_PROB.map(p=>`<option${data.ncProb===p?" selected":""}>${esc(p)}</option>`).join("")}
+      </select></label>
+      <label>大類<select class="d-ncMain">${mainOptsHtml(data.ncProb,data.ncMain)}</select></label>
+      <label>具體名稱<select class="d-ncLeaf">${leafOptsHtml(data.ncMain,data.ncLeaf)}</select></label>
+      <label>三要素<select class="d-ncFactor">
+        <option value="">請選擇</option>
+        ${TAG_FACTOR.map(f=>`<option${data.ncFactor===f?" selected":""}>${esc(f)}</option>`).join("")}
+      </select></label>
+      <label>重要程度<select class="d-ncImp">
+        <option value="">請選擇</option>
+        <option${data.ncImp==="高"?" selected":""}>高</option>
+        <option${data.ncImp==="中"?" selected":""}>中</option>
+        <option${data.ncImp==="低"?" selected":""}>低</option>
+      </select></label>
+      <label>風險<select class="d-risk">
+        <option value="">請選擇</option>
+        <option value="1"${data.risk==="1"?" selected":""}>1（低）</option>
+        <option value="2"${data.risk==="2"?" selected":""}>2（中）</option>
+        <option value="3"${data.risk==="3"?" selected":""}>3（高）</option>
+      </select></label>
+      <label>缺失性質判定<select class="d-ncOpinion">${ncOpinionOptsHtml(data.ncOpinion||"none")}</select></label>
+    </div>
+    <div class="flag-row"><input type="checkbox" class="d-ncFocus" ${data.ncFocus==="是"?"checked":""}> 重點關注</div>
+  `;
+  div.style.display = "none";
+  document.getElementById("defList").appendChild(div);
+
+  const peopleWrap = div.querySelector(".peopleWrap");
+  const people = (data.people && data.people.length) ? data.people : [{rank:RANK_OPTIONS[0],person:""}];
+  people.forEach(p=>{ peopleWrap.insertAdjacentHTML("beforeend", peopleRowHtml(p.rank,p.person,"d")); });
+
+  // 問題別 → 大類 → 具體名稱 連動
+  div.querySelector(".d-ncProb").addEventListener("change", function(){
+    div.querySelector(".d-ncMain").innerHTML = mainOptsHtml(this.value, "");
+    div.querySelector(".d-ncLeaf").innerHTML = leafOptsHtml("", "");
+    scheduleAutoSave();
+  });
+  div.querySelector(".d-ncMain").addEventListener("change", function(){
+    div.querySelector(".d-ncLeaf").innerHTML = leafOptsHtml(this.value, "");
+    scheduleAutoSave();
+  });
+
+  div.addEventListener("click", function(e){
+    const act = e.target.dataset && e.target.dataset.act;
+    if(act === "rmDef"){
+      const wasActive = activeTab.kind==="def" && activeTab.id===div.dataset.id;
+      div.remove(); updateDefCount();
+      if(wasActive){
+        const first = document.querySelector(".defbox");
+        switchTab(first ? {kind:"def", id:first.dataset.id} : {kind:"pos"});
+      }
+      scheduleAutoSave();
+    }
+    else if(act === "addPerson"){ peopleWrap.insertAdjacentHTML("beforeend", peopleRowHtml(RANK_OPTIONS[0],"","d")); scheduleAutoSave(); }
+    else if(e.target.classList.contains("rmPerson")){
+      const rows = peopleWrap.querySelectorAll(".people-row");
+      if(rows.length>1) e.target.closest(".people-row").remove();
+      scheduleAutoSave();
+    }
+  });
+  div.addEventListener("input", scheduleAutoSave);
+  div.addEventListener("change", scheduleAutoSave);
+
+  updateDefCount();
+  switchTab({kind:"def", id});
+}
+function updateDefCount(){
+  const n = document.querySelectorAll(".defbox").length;
+  document.getElementById("defCountLabel").textContent = n;
+  document.getElementById("f-ndef").value = n;
+  renderTabs();
+}
+document.getElementById("btnAddDef").addEventListener("click", ()=>{ addDefectRow(); scheduleAutoSave(); });
+
+/* 缺失數欄位：輸入數字會自動增減缺失明細卡片數量到相符（跟系統「線上填單」同樣邏輯），
+   減少時只會移除最後面的空白列，已經填過內容的列不會被砍掉，避免手滑遺失資料。 */
+document.getElementById("f-ndef").addEventListener("change", function(){
+  const target = Math.max(0, Math.floor(+this.value || 0));
+  const boxes = [...document.querySelectorAll(".defbox")];
+  if(target > boxes.length){
+    for(let i=boxes.length; i<target; i++) addDefectRow();
+  }else if(target < boxes.length){
+    for(let i=boxes.length-1; i>=target; i--){
+      const box = boxes[i];
+      const hasContent = [...box.querySelectorAll("input,textarea,select")]
+        .some(el => el.type==="checkbox" ? el.checked : (el.value||"").trim());
+      if(!hasContent) box.remove();
+    }
+    updateDefCount();
+    if(!document.querySelector(`.defbox[data-id="${activeTab.id}"]`)){
+      const first = document.querySelector(".defbox");
+      switchTab(first ? {kind:"def", id:first.dataset.id} : {kind:"pos"});
+    }
+  }
+  scheduleAutoSave();
+});
+
+/* ── 正面評論明細：全部顯示在同一個「正面評論明細」分頁裡，不像缺失那樣一筆一個分頁 ── */
+function addPosRow(data){
+  data = data || {};
+  posCount++;
+  const id = "p"+posCount+"_"+Date.now();
+  const div = document.createElement("div");
+  div.className = "posbox";
+  div.dataset.id = id;
+  div.innerHTML = `
+    <div class="dhead">
+      <span class="idx" style="background:#e5f3ec;color:#1f6b4a">正面評論 #${posCount}</span>
+      <button type="button" class="rm" data-act="rmPos">✕ 刪除此筆</button>
+    </div>
+    <div class="grid two">
+      <label>CODE（章節）<input type="text" class="p-code" placeholder="例：3.2" value="${esc(data.code)}"></label>
+      <label>評論項目<input type="text" class="p-item" placeholder="例：船員應變演練" value="${esc(data.item)}"></label>
+      <label class="full">正向評論內容<textarea class="p-comment" placeholder="請描述值得肯定的具體做法">${esc(data.comment)}</textarea></label>
+      <label class="full">相關人員（可新增多筆，選填）
+        <div class="peopleWrap"></div>
+        <button type="button" class="btn ghost" data-act="addPersonPos" style="margin-top:4px">＋ 新增人員</button>
+      </label>
+    </div>
+  `;
+  document.getElementById("posList").appendChild(div);
+
+  const peopleWrap = div.querySelector(".peopleWrap");
+  const people = (data.people && data.people.length) ? data.people : [];
+  people.forEach(p=>{ peopleWrap.insertAdjacentHTML("beforeend", peopleRowHtml(p.rank,p.person,"p")); });
+
+  div.addEventListener("click", function(e){
+    const act = e.target.dataset && e.target.dataset.act;
+    if(act === "rmPos"){ div.remove(); updatePosCount(); scheduleAutoSave(); }
+    else if(act === "addPersonPos"){ peopleWrap.insertAdjacentHTML("beforeend", peopleRowHtml(RANK_OPTIONS[0],"","p")); scheduleAutoSave(); }
+    else if(e.target.classList.contains("rmPerson")){
+      e.target.closest(".people-row").remove();
+      scheduleAutoSave();
+    }
+  });
+  div.addEventListener("input", scheduleAutoSave);
+  div.addEventListener("change", scheduleAutoSave);
+
+  updatePosCount();
+}
+function updatePosCount(){
+  const n = document.querySelectorAll(".posbox").length;
+  document.getElementById("posCountLabel").textContent = n;
+  document.getElementById("f-npos").value = n;
+}
+document.getElementById("btnAddPos").addEventListener("click", ()=>{ addPosRow(); switchTab({kind:"pos"}); scheduleAutoSave(); });
+
+/* 正面評論數欄位：邏輯跟缺失數一樣，輸入數字自動增減對應筆數的空白列 */
+document.getElementById("f-npos").addEventListener("change", function(){
+  const target = Math.max(0, Math.floor(+this.value || 0));
+  const boxes = [...document.querySelectorAll(".posbox")];
+  if(target > boxes.length){
+    for(let i=boxes.length; i<target; i++) addPosRow();
+  }else if(target < boxes.length){
+    for(let i=boxes.length-1; i>=target; i--){
+      const box = boxes[i];
+      const hasContent = [...box.querySelectorAll("input,textarea,select")]
+        .some(el => (el.value||"").trim());
+      if(!hasContent) box.remove();
+    }
+    updatePosCount();
+  }
+  scheduleAutoSave();
+});
+
+/* ── 收集目前表單內容成統一的 payload 物件（送出／下載／自動暫存共用）── */
+function collectPayload(){
+  const person_basic = {
+    ship: document.getElementById("f-ship").value,
+    vtype: document.getElementById("f-vtype").value,
+    itype: document.getElementById("f-itype").value,
+    date: document.getElementById("f-date").value,
+    place: document.getElementById("f-place").value.trim(),
+    oilco: document.getElementById("f-oilco").value.trim(),
+    inspector: document.getElementById("f-inspector").value.trim(),
+    ndef: +document.getElementById("f-ndef").value || 0,
+    npos: +document.getElementById("f-npos").value || 0,
+  };
+  const defects = [];
+  document.querySelectorAll(".defbox").forEach(box=>{
+    const people = [...box.querySelectorAll(".people-row")].map(r=>({
+      rank: r.querySelector(".d-rank").value,
+      person: r.querySelector(".d-person").value.trim()
+    })).filter(p=>p.person);
+    defects.push({
+      code: box.querySelector(".d-code").value.trim(),
+      people,
+      rank: people[0]?people[0].rank:"", person: people[0]?people[0].person:"",
+      detail: box.querySelector(".d-detail").value.trim(),
+      actual: box.querySelector(".d-actual").value.trim(),
+      corrective: box.querySelector(".d-corrective").value.trim(),
+      rootCause: box.querySelector(".d-rootCause").value.trim(),
+      preventive: box.querySelector(".d-preventive").value.trim(),
+      ncProb: box.querySelector(".d-ncProb").value,
+      ncMain: box.querySelector(".d-ncMain").value,
+      ncLeaf: box.querySelector(".d-ncLeaf").value,
+      ncFactor: box.querySelector(".d-ncFactor").value,
+      ncImp: box.querySelector(".d-ncImp").value,
+      risk: box.querySelector(".d-risk").value,
+      ncOpinion: box.querySelector(".d-ncOpinion").value,
+      ncFocus: box.querySelector(".d-ncFocus").checked ? "是" : "否",
+    });
+  });
+  const posComments = [];
+  document.querySelectorAll(".posbox").forEach(box=>{
+    const people = [...box.querySelectorAll(".people-row")].map(r=>({
+      rank: r.querySelector(".p-rank").value,
+      person: r.querySelector(".p-person").value.trim()
+    })).filter(p=>p.person);
+    posComments.push({
+      code: box.querySelector(".p-code").value.trim(),
+      item: box.querySelector(".p-item").value.trim(),
+      comment: box.querySelector(".p-comment").value.trim(),
+      people,
+      rank: people[0]?people[0].rank:"", person: people[0]?people[0].person:"",
+    });
+  });
+  return { basic: person_basic, defects, posComments };
+}
+
+/* ── 還原本機暫存的草稿 ── */
+(function restoreDraft(){
+  const d = loadDraft();
+  if(!d) { addDefectRow(); switchTab({kind:"def", id:document.querySelector(".defbox").dataset.id}); return; }
+  const b = d.basic || {};
+  fillShipOpts(b.ship||"");
+  document.getElementById("f-ship").value = b.ship||"";
+  document.getElementById("f-vtype").value = b.vtype||"";
+  document.getElementById("f-itype").value = b.itype||"";
+  document.getElementById("f-date").value = b.date||"";
+  document.getElementById("f-place").value = b.place||"";
+  document.getElementById("f-oilco").value = b.oilco||"";
+  document.getElementById("f-inspector").value = b.inspector||"";
+  if(d.posComments && d.posComments.length){
+    d.posComments.forEach(pc=>addPosRow(pc));
+  }
+  if(d.defects && d.defects.length){
+    d.defects.forEach(df=>addDefectRow(df));
+  }else{
+    addDefectRow();
+  }
+  const firstDef = document.querySelector(".defbox");
+  switchTab(firstDef ? {kind:"def", id:firstDef.dataset.id} : {kind:"pos"});
+})();
+document.getElementById("formView").addEventListener("input", scheduleAutoSave);
+document.getElementById("formView").addEventListener("change", scheduleAutoSave);
+
+/* ── 提示訊息 ── */
+let toastTimer;
+function notify(msg, tone){
+  const el=document.getElementById("toast");
+  el.textContent=msg; el.className = tone==="err"?"err":(tone==="ok2"?"ok2":"");
+  el.style.display="block";
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=> el.style.display="none", 4200);
+}
+
+/* ── 驗證 ── */
+function validatePayload(p){
+  if(!p.basic.ship) return "請選擇船名";
+  if(!p.basic.itype) return "請選擇檢查來源";
+  if(!p.basic.date) return "請填寫檢查日期";
+  if(!p.basic.place) return "請填寫檢查地點";
+  if(!p.defects.length) return "請至少填寫一筆缺失明細";
+  for(let i=0;i<p.defects.length;i++){
+    if(!p.defects[i].detail) return `第 ${i+1} 筆缺失請填寫「缺失詳情」`;
+  }
+  return null;
+}
+
+/* ── 送出：POST 到 Supabase（需先在雲端執行過 supabase_setup.sql 建好資料表）── */
+document.getElementById("btnSubmit").addEventListener("click", async ()=>{
+  const payload = collectPayload();
+  const err = validatePayload(payload);
+  if(err){ notify(err, "err"); return; }
+  const btn = document.getElementById("btnSubmit");
+  btn.disabled = true; btn.textContent = "送出中…";
+  try{
+    const res = await fetch(`${CLOUD.url}/rest/v1/${AIR_TABLE}`, {
+      method: "POST",
+      headers: {
+        "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key,
+        "Content-Type": "application/json", "Prefer": "return=minimal"
+      },
+      body: JSON.stringify([{ payload, submitted_ship: payload.basic.ship, status: "pending" }])
+    });
+    if(!res.ok){ const t = await res.text().catch(()=>""); throw new Error(t.slice(0,200)); }
+    try{ localStorage.removeItem(LS_KEY); }catch(e){}
+    document.getElementById("formView").style.display = "none";
+    document.getElementById("successView").style.display = "block";
+  }catch(e){
+    notify("送出失敗，建議改用「下載 Excel」：" + e.message, "err");
+    btn.disabled = false; btn.textContent = "✓ 送出填單（有網路時優先用這個）";
+  }
+});
+
+/* ── 下載：產生跟系統「下載匯入模板」相同欄位結構的 .xlsx，內容已帶入剛填的資料，
+     承辦人員收到後可直接用系統既有的「匯入 Excel（維護者）」匯入，不需要新的匯入邏輯。 ── */
+document.getElementById("btnDownload").addEventListener("click", ()=>{
+  const payload = collectPayload();
+  const err = validatePayload(payload);
+  if(err){ notify(err, "err"); return; }
+  if(typeof XLSX === "undefined"){ notify("Excel 功能載入失敗，請確認網路後重新整理頁面", "err"); return; }
+
+  const wb = XLSX.utils.book_new();
+  const b = payload.basic;
+  const shipRow = { 船名:b.ship, 船型:b.vtype, 檢查來源:b.itype, 檢查日期:b.date, 檢查地點:b.place,
+    "檢查單位/油公司":b.oilco, 檢查員:b.inspector, 缺失數:payload.defects.length, 正面評論數:(payload.posComments||[]).length };
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([shipRow]), "基本資料");
+
+  const NC_OPINION_LABEL = Object.fromEntries(NC_OPINION_OPTS);
+  const defRows = payload.defects.map((d,i)=>({
+    序號: i+1,
+    "PSC Action Taken": "",
+    CODE: d.code,
+    實際情況: d.actual,
+    缺失詳情: d.detail,
+    改善措施: d.corrective,
+    根本原因: d.rootCause,
+    預防措施: d.preventive,
+    責任人職位: d.rank,
+    責任人姓名: d.person,
+    問題別: d.ncProb,
+    大類: d.ncMain,
+    具體名稱: d.ncLeaf,
+    三要素: d.ncFactor,
+    重要程度: d.ncImp,
+    重點關注: d.ncFocus,
+    缺失性質判定: NC_OPINION_LABEL[d.ncOpinion] || "無",
+    風險: d.risk,
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(defRows), "缺失改善明細");
+
+  const posRows = [];
+  (payload.posComments||[]).forEach(pc=>{
+    const people = (pc.people && pc.people.length) ? pc.people : [{rank:"", person:""}];
+    people.forEach(p=>{
+      posRows.push({ "CODE（章節）":pc.code, 評論項目:pc.item, 正向評論內容:pc.comment, 職稱:p.rank, 姓名:p.person });
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(posRows), "正向評論明細");
+
+  const fname = `AfterInspectionReview_${b.ship||"未填船名"}_${b.date||""}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  notify("✓ 已下載 " + fname + "，請將檔案回傳給承辦人員", "ok2");
+});
+
+/* ══════════ 頂層分頁：①船舶檢查資料／②對外回覆 ══════════ */
+const REPLY_RID = new URLSearchParams(location.search).get("rid");
+const REPLY_DIDX = new URLSearchParams(location.search).get("didx") || "0";
+function switchTopTab(name){
+  document.getElementById("page-intake").style.display = name==="intake" ? "" : "none";
+  document.getElementById("page-reply").style.display = name==="reply" ? "" : "none";
+  document.getElementById("toptab-intake-btn").className = "toptab" + (name==="intake"?" on":"");
+  document.getElementById("toptab-reply-btn").className = "toptab" + (name==="reply"?" on":"");
+  if(name==="reply" && !document.getElementById("replyFieldsWrap").dataset.rendered){
+    if(REPLY_RID) loadReplyDraft(); else setReplyStage(1);
+  }
+}
+
+/* ══════════ 對外回覆：三階段（示範用假資料，AI複製/貼上邏輯是真的能動的，
+   跟正式系統「AI 翻譯小幫手」用同一套提示詞格式，方便直接比對相容）══════════ */
+const EN_PLACEHOLDER = "(請在此填入英文翻譯)";
+const REPLY_FIELDS = [
+  {key:"opComment",   labelZh:"Initial Operator Comment", labelEN:"INITIAL OPERATOR COMMENT"},
+  {key:"immediateCause", labelZh:"Immediate Cause 直接原因", labelEN:"IMMEDIATE CAUSE"},
+  {key:"rootCause",   labelZh:"根本原因 Root Cause",        labelEN:"ROOT CAUSE"},
+  {key:"corrective",  labelZh:"矯正措施 Corrective Action", labelEN:"CORRECTIVE ACTION"},
+  {key:"preventive",  labelZh:"預防措施 Preventive Measures", labelEN:"PREVENTIVE MEASURES"},
+];
+const replyData = {
+  opComment:{cn:"公司已建立船東督導任用規定(SSOR-015)，其中6.3節「若需要使用大管輪或公司其他職員作為機務督導，應通過公司的正式評估，並說明其聘用理由。」",en:""},
+  immediateCause:{cn:"靠泊卸貨期間，負責船副考量訪客較多，安排於舵機增設兩具EEBD備用。取用人員因SCBA鋼瓶遮蔽視線，未發現存放位置之訓練標示，誤將訓練用EEBD一併取出。",en:""},
+  rootCause:{cn:"部分船員未充分理解 SOLAS Chapter II-2 及 FSS Code 對 EEBD 僅限緊急逃生使用之規定，誤認EEBD可作為貨物作業或舷梯值班之緊急備用呼吸裝備，未能確實區分 EEBD 與SCBA的用途。",en:""},
+  corrective:{cn:"修訂船東督導訪船程序，明確規定凡執行船舶全面性輪機稽核之人員，應優先由具有資深輪機員適任證書並具備油輪服務經歷之機務督導或總輪機長執行或直接參與。",en:""},
+  preventive:{cn:"安排具備油輪機長資歷參與全面性輪機稽核工作，確保稽核內容符合實際油輪運行與維修管理之要求。",en:""},
+};
+let replyStage = 1;
+
+function buildReplyPromptText(){
+  const lines=[];
+  const field=(label,cn,en)=>{
+    lines.push(`[${label} - 中文]`); lines.push(cn||"(尚未填寫)");
+    lines.push(`[${label} - EN]`); lines.push(en||EN_PLACEHOLDER); lines.push("");
+  };
+  lines.push("===DEFICIENCY 1===");
+  REPLY_FIELDS.forEach(f=>field(f.labelEN, replyData[f.key].cn, replyData[f.key].en));
+  const prompt="你是海技部門的資深航務管理分析師，具備豐富的航海實務與船舶管理專業知識。\n"+
+    "以下是「缺失改善回覆」的中文內容，已用固定格式列出。請你逐項閱讀中文內容，並「只」在每個 [XXX - EN] 標籤的下一行，填入專業、精準、符合航運業界慣用語的英文翻譯。\n"+
+    "請務必遵守以下規則：\n1. 不要更動、翻譯或刪除任何標籤文字、方括號「[ ]」、等號「===」或編號本身；\n"+
+    "2. 不要使用 Markdown 符號（例如 *、#、-）或任何項目符號；\n3. 不要輸出開頭或結尾的任何說明文字、客套話；\n"+
+    "4. 請將整段內容（包含原本的中文與您填入的英文）完整且原封不動地輸出回來，不要省略任何一個缺失或欄位。";
+  return prompt+"\n\n"+lines.join("\n");
+}
+function copyReplyPrompt(){
+  const text=buildReplyPromptText();
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>notify("✓ 已複製到剪貼簿，請貼到您慣用的 AI 對話視窗","ok2")).catch(()=>fallbackCopy(text));
+  }else fallbackCopy(text);
+}
+function fallbackCopy(text){
+  const ta=document.createElement("textarea");
+  ta.value=text;ta.style.position="fixed";ta.style.left="-9999px";
+  document.body.appendChild(ta);ta.focus();ta.select();
+  try{document.execCommand("copy");notify("✓ 已複製到剪貼簿","ok2");}
+  catch(e){notify("⚠ 自動複製失敗，請手動選取文字後複製","err");}
+  document.body.removeChild(ta);
+}
+function togglePasteImport(){
+  const box=document.getElementById("replyPasteBox");
+  box.style.display = box.style.display==="none" ? "" : "none";
+}
+function applyPastedTranslation(){
+  const text=(document.getElementById("replyPasteText").value||"");
+  if(!text.trim()){notify("⚠ 請先貼上 AI 翻譯後的英文內容","err");return;}
+  let block=text.split(/===\s*DEFICIENCY\s*\d+\s*===/i).map(s=>s.trim()).filter(Boolean)[0]||text;
+  const grab=(label)=>{
+    const re=new RegExp("\\["+label+"\\s*-\\s*EN\\]\\s*([\\s\\S]*?)(?=\\n?\\[[A-Z ]+\\s*-\\s*(?:中文|EN)\\]|$)","i");
+    const m=block.match(re); if(!m)return "";
+    const v=m[1].trim();
+    if(!v||v===EN_PLACEHOLDER||(/^[\u4e00-\u9fff（）()，,。.\s]*$/.test(v)&&/[\u4e00-\u9fff]/.test(v)))return "";
+    return v;
+  };
+  let filled=0;
+  REPLY_FIELDS.forEach(f=>{ const v=grab(f.labelEN); if(v){replyData[f.key].en=v; filled++;} });
+  document.getElementById("replyPasteText").value="";
+  togglePasteImport();
+  setReplyStage(replyStage);
+  if(!filled) notify("⚠ 找不到任何 [標籤 - EN] 英文內容，請確認AI回覆格式是否正確","err");
+  else notify(`✓ 已自動填入 ${filled}／${REPLY_FIELDS.length} 個英文欄位，請檢查後再送出`,"ok2");
+}
+
+function setReplyStage(stage){
+  replyStage = stage;
+  const wrap = document.getElementById("replyFieldsWrap");
+  wrap.dataset.rendered = "1";
+  [1,2,3].forEach(n=>document.getElementById("stageBtn"+n).className = "btn"+(stage===n?" primary":" ghost"));
+  const badge = document.getElementById("replyStageBadge");
+  const aiBar = document.getElementById("replyAiBar");
+  const readOnlyDone = stage==="done";
+  if(stage===1){
+    badge.textContent = "1.中文內容填寫（英文尚未翻譯，暫不開放）";
+    badge.style.background = "#fff4e8"; badge.style.color = "#c96a14";
+    aiBar.style.display = "none";
+    wrap.innerHTML = REPLY_FIELDS.map(f=>`
+      <label class="full" style="margin-top:10px">${f.labelZh}
+        <textarea data-k="${f.key}" data-lang="cn">${esc(replyData[f.key].cn)}</textarea>
+      </label>`).join("");
+  }else if(stage===2){
+    badge.textContent = "2.英文擬稿（承辦人員用 AI 翻譯英文，微調後送出）";
+    badge.style.background = "#eef4ff"; badge.style.color = "var(--navy-3)";
+    aiBar.style.display = "";
+    wrap.innerHTML = REPLY_FIELDS.map(f=>`
+      <label class="full" style="margin-top:10px">${f.labelZh}（中文，唯讀）
+        <textarea readonly style="background:#f3f4f6">${esc(replyData[f.key].cn)}</textarea>
+      </label>
+      <label class="full" style="margin-top:4px">${f.labelZh}（English）
+        <textarea data-k="${f.key}" data-lang="en" placeholder="English translation…">${esc(replyData[f.key].en)}</textarea>
+      </label>`).join("");
+  }else{
+    badge.textContent = readOnlyDone ? "✅ 已完成最終確認，等待我方匯入正式系統" : "3.最終確認（中英文並排，請主管做最終確認）";
+    badge.style.background = "#eaf5ee"; badge.style.color = "#1f6b4a";
+    aiBar.style.display = "none";
+    wrap.innerHTML = REPLY_FIELDS.map(f=>`
+      <label class="full" style="margin-top:10px">${f.labelZh}（中文）
+        <textarea data-k="${f.key}" data-lang="cn" ${readOnlyDone?"readonly":""}>${esc(replyData[f.key].cn)}</textarea>
+      </label>
+      <label class="full" style="margin-top:4px">${f.labelZh}（English）
+        <textarea data-k="${f.key}" data-lang="en" ${readOnlyDone?"readonly":""}>${esc(replyData[f.key].en)}</textarea>
+      </label>`).join("");
+  }
+  wrap.querySelectorAll("textarea[data-k]").forEach(ta=>{
+    ta.addEventListener("input", function(){ replyData[this.dataset.k][this.dataset.lang] = this.value; });
+  });
+
+  // 真實模式（有 ?rid=）：隱藏預覽按鈕、顯示真正的送出按鈕；離線示意模式維持原本預覽按鈕
+  if(REPLY_RID){
+    document.getElementById("replyPreviewBtns").style.display = "none";
+    document.getElementById("reply-demo-note").style.display = "none";
+    const bar = document.getElementById("replySubmitBar");
+    const btn = document.getElementById("replySubmitBtn");
+    if(readOnlyDone){
+      bar.style.display = "none";
+    }else{
+      bar.style.display = "";
+      btn.textContent = stage===1 ? "✓ 送出中文回覆，交給承辦人員翻譯"
+                       : stage===2 ? "✓ 送出英文擬稿，交回主管最終確認"
+                       : "✓ 確認送出最終版本";
+    }
+  }
+}
+
+/* ── 真實模式：依網址 ?rid= 從雲端讀取這筆記錄目前的回覆草稿 ── */
+async function loadReplyDraft(){
+  document.getElementById("reply-mode-note").textContent =
+    `對接記錄代碼 rid=${REPLY_RID}，讀取中…`;
+  try{
+    const res = await fetch(`${CLOUD.url}/rest/v1/air_reply_drafts?air_record_id=eq.${encodeURIComponent(REPLY_RID)}&defect_idx=eq.${encodeURIComponent(REPLY_DIDX)}&order=id.desc&limit=1`,
+      { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } });
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const rows = await res.json();
+    if(rows && rows.length){
+      const d = rows[0];
+      currentDraftId = d.id;
+      const it = (d.items && d.items[0]) || {};
+      REPLY_FIELDS.forEach(f=>{ replyData[f.key].cn = it[f.key+"Cn"]||""; replyData[f.key].en = it[f.key+"En"]||""; });
+      const stage = d.stage==="done" ? "done" : (parseInt(d.stage,10)||1);
+      document.getElementById("reply-mode-note").textContent = `對接記錄代碼 rid=${REPLY_RID}，目前狀態：${d.stage==="done"?"已完成":"階段"+d.stage}`;
+      setReplyStage(stage);
+    }else{
+      currentDraftId = null;
+      REPLY_FIELDS.forEach(f=>{ replyData[f.key].cn=""; replyData[f.key].en=""; });
+      document.getElementById("reply-mode-note").textContent = `對接記錄代碼 rid=${REPLY_RID}，尚無回覆紀錄，請由階段①開始填寫`;
+      setReplyStage(1);
+    }
+  }catch(e){
+    document.getElementById("reply-mode-note").textContent = `⚠ 讀取失敗：${e.message}`;
+    notify("讀取回覆草稿失敗，請確認網址或稍後再試", "err");
+    setReplyStage(1);
+  }
+}
+
+/* ── 真實模式：送出目前階段內容，並把 stage 推進到下一關 ── */
+let currentDraftId = null;
+async function submitReplyStage(){
+  const items=[{}];
+  REPLY_FIELDS.forEach(f=>{ items[0][f.key+"Cn"]=replyData[f.key].cn; items[0][f.key+"En"]=replyData[f.key].en; });
+  const nextStage = replyStage===1 ? "2" : replyStage===2 ? "3" : "done";
+  const btn = document.getElementById("replySubmitBtn");
+  btn.disabled = true;
+  try{
+    if(currentDraftId){
+      const res = await fetch(`${CLOUD.url}/rest/v1/air_reply_drafts?id=eq.${currentDraftId}`, {
+        method: "PATCH",
+        headers: { "apikey":CLOUD.key, "Authorization":"Bearer "+CLOUD.key, "Content-Type":"application/json", "Prefer":"return=minimal" },
+        body: JSON.stringify({ stage: nextStage, items, updated_at: new Date().toISOString() })
+      });
+      if(!res.ok) throw new Error("HTTP "+res.status);
+    }else{
+      const res = await fetch(`${CLOUD.url}/rest/v1/air_reply_drafts`, {
+        method: "POST",
+        headers: { "apikey":CLOUD.key, "Authorization":"Bearer "+CLOUD.key, "Content-Type":"application/json", "Prefer":"return=minimal" },
+        body: JSON.stringify([{ air_record_id: +REPLY_RID, defect_idx: +REPLY_DIDX, stage: nextStage, items }])
+      });
+      if(!res.ok) throw new Error("HTTP "+res.status);
+    }
+    notify("✓ 已送出", "ok2");
+    await loadReplyDraft();
+  }catch(e){
+    notify("送出失敗："+e.message, "err");
+  }
+  btn.disabled = false;
+}
+
+/* 帶 ?rid= 開啟時，直接跳到「對外回覆」分頁，不用主管自己找 */
+if(REPLY_RID) switchTopTab("reply");
+</script>
+</body>
+</html>
