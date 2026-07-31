@@ -101,8 +101,9 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
       <div id="fieldsWrap" class="grid2"></div>
 
       <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <label style="flex:1;min-width:180px">確認人姓名（送出時記錄）
-          <input type="text" id="confirmerName" placeholder="您的姓名">
+        <label style="flex:1;min-width:220px">確認人姓名（送出時記錄）
+          <select id="confirmerSelect" onchange="onConfirmerSelectChange()"><option value="">讀取人員清單中…</option></select>
+          <input type="text" id="confirmerName" placeholder="請輸入姓名" style="display:none;margin-top:4px">
         </label>
         <button class="btn primary" id="submitBtn" onclick="submitStage()" style="align-self:flex-end">送出</button>
       </div>
@@ -154,15 +155,49 @@ async function api(path,opts){
 }
 
 /* ════════ 模式切換：有 rid → 編輯單筆；沒有 → 顯示歷史清單 ════════ */
-if(RID){
-  document.getElementById("editView").style.display="";
-  document.getElementById("hdr-note").textContent="編輯單一缺失的對外回覆內容";
-  loadDraft();
-}else{
-  document.getElementById("listView").style.display="";
-  document.getElementById("hdr-note").textContent="所有已建立的對外回覆案件";
-  loadList();
+/* ════════ 確認人姓名：預設抓海技組人員清單，找不到人名時可切換自行輸入 ════════ */
+let ROSTER_NAMES=[];
+async function loadConfirmerRoster(){
+  const sel=document.getElementById("confirmerSelect");
+  try{
+    const rows=await api(`app_db?select=payload&k=eq.roster`);
+    const list=(rows&&rows[0]&&Array.isArray(rows[0].payload))?rows[0].payload:[];
+    ROSTER_NAMES=[...new Set(list.filter(p=>p.name&&p.dept&&String(p.dept).includes("海技")).map(p=>p.name))].sort();
+  }catch(e){ ROSTER_NAMES=[]; }
+  sel.innerHTML = (ROSTER_NAMES.length?`<option value="">請選擇</option>`+ROSTER_NAMES.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join(""):`<option value="">（讀取不到人員清單）</option>`)
+    + `<option value="__other__">其他（自行輸入姓名）</option>`;
 }
+function onConfirmerSelectChange(){
+  const sel=document.getElementById("confirmerSelect");
+  const txt=document.getElementById("confirmerName");
+  txt.style.display = sel.value==="__other__" ? "" : "none";
+  if(sel.value==="__other__") txt.focus();
+}
+function getConfirmerValue(){
+  const sel=document.getElementById("confirmerSelect");
+  if(sel.value==="__other__") return (document.getElementById("confirmerName").value||"").trim();
+  return sel.value||"";
+}
+function setConfirmerValue(name){
+  const sel=document.getElementById("confirmerSelect");
+  const txt=document.getElementById("confirmerName");
+  if(!name){ sel.value=""; txt.style.display="none"; return; }
+  if(ROSTER_NAMES.includes(name)){ sel.value=name; txt.style.display="none"; }
+  else{ sel.value="__other__"; txt.style.display=""; txt.value=name; }
+}
+async function initPage(){
+  await loadConfirmerRoster();
+  if(RID){
+    document.getElementById("editView").style.display="";
+    document.getElementById("hdr-note").textContent="編輯單一缺失的對外回覆內容";
+    loadDraft();
+  }else{
+    document.getElementById("listView").style.display="";
+    document.getElementById("hdr-note").textContent="所有已建立的對外回覆案件";
+    loadList();
+  }
+}
+initPage();
 
 /* ════════ 歷史清單 ════════ */
 async function loadList(){
@@ -205,7 +240,7 @@ async function loadDraft(){
       REPLY_FIELDS.forEach(f=>{ replyData[f.key].cn=it[f.key+"Cn"]||""; replyData[f.key].en=it[f.key+"En"]||""; });
       defectMeta=it._defectMeta||null;
       stage=+draftRow.stage||1;
-      document.getElementById("confirmerName").value=draftRow.confirmed_by||"";
+      setConfirmerValue(draftRow.confirmed_by||"");
     }else{
       draftRow=null; stage=1; defectMeta=null;
     }
@@ -331,7 +366,7 @@ async function submitStage(){
   const body={ ship:(defectMeta&&defectMeta.ship)||(draftRow&&draftRow.ship)||"", code:(defectMeta&&defectMeta.code)||"", stage:String(nextStage), items };
 
   if(stage===3){
-    const name=(document.getElementById("confirmerName").value||"").trim();
+    const name=getConfirmerValue();
     if(!name){ notify("⚠ 請先填寫確認人姓名","err"); btn.disabled=false; return; }
     const now=new Date().toISOString();
     const hist=(draftRow&&Array.isArray(draftRow.history))?draftRow.history.slice():[];

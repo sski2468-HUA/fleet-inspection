@@ -1804,7 +1804,6 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       <div class="nav-item" data-tab="pdfx"><span class="num">7</span>PDF報告識別</div>
       <div class="nav-item" data-tab="refdocs"><span class="num">🔗</span>船隊通報單</div>
       <div class="nav-item" data-tab="refdocs2"><span class="num">📖</span>海技參考資料</div>
-      <div class="nav-item" data-tab="crewmatrix"><span class="num">👥</span>Crew Matrix 工作站</div>
     </div>
     <div class="nav-item" data-tab="data"><span class="num">⚙</span>資料管理</div>
   </nav>
@@ -2709,38 +2708,26 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
                 <button class="btn sm primary" onclick="Air.openReplyExportModal()">⬇ 匯出</button>
                 <button class="btn sm" onclick="Air.importReplyDocxPick()">⬆ 匯入 Word</button>
                 <button class="btn sm" id="air-notify-btn" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10" onclick="Air.openNotifyPopover(event)">🔔 通知</button>
-                <button class="btn sm dark" onclick="Air.generateReplyLink()">🔗 產生對外回覆連結</button>
+                <button class="btn sm primary" onclick="Air.openExternalEditor()">✏ 對外回覆編輯</button>
+                <button class="btn sm" onclick="window.open(Air.getExternalReplyBase(),'_blank')">📋 對外回覆案件清單</button>
+                <button class="btn sm" onclick="Air.togglePromptEditor()">⚙ 自訂提示詞</button>
+                <button class="btn sm" title="說明" onclick="Air.showPromptHelp()">❓</button>
+                <button class="btn sm" title="重新設定外部網頁網址" onclick="Air.resetExternalReplyBase()">⚙ 外部網址設定</button>
               </span>
             </h3>
-            <p class="hint" id="air-reply-context"></p>
-            <p class="hint" id="air-reply-savestatus" style="font-weight:600;margin-top:2px"></p>
+            <p class="hint" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span id="air-reply-context"></span>
+              <span id="air-reply-savestatus" style="font-weight:600"></span>
+            </p>
           </div>
 
-          <div class="card">
-            <h3>AI 翻譯小幫手
-              <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-                <button class="btn sm" onclick="Air.togglePromptEditor()">⚙ 自訂提示詞</button>
-                <button class="btn sm primary" onclick="Air.copyReplyPrompt()">📋 一鍵複製中文內容＋提示詞</button>
-                <button class="btn sm dark" onclick="Air.togglePasteImport()">📥 貼上英文翻譯並自動填入</button>
-              </span>
-            </h3>
-            <p class="hint">流程：① 按「一鍵複製中文內容＋提示詞」（已內含填空範本，請AI只在 [標籤 - EN] 下方填英文）→ ② 貼到您慣用的 AI 對話視窗送出 → ③ 複製 AI 回覆的完整內容（含中英文整段）→ ④ 按「貼上英文翻譯並自動填入」貼回此頁，系統會依各 [標籤 - EN] 的位置精準對應填入下方英文欄位 → ⑤ 檢查／微調後按最下方「💾 儲存回覆」。</p>
-            <div id="air-prompt-editor" style="display:none;margin-top:8px;border-top:1px solid var(--line);padding-top:10px">
-              <label style="display:block;font-size:12px;color:var(--ink-2);margin-bottom:4px">AI 提示詞（會自動加在複製內容最前面；可自行修改後儲存為您的個人偏好，僅儲存在本機瀏覽器）</label>
-              <textarea id="air-prompt-text" style="width:100%;min-height:100px"></textarea>
-              <div class="toolbar" style="margin-top:6px">
-                <button class="btn sm primary" onclick="Air.savePromptCustom()">儲存提示詞</button>
-                <button class="btn sm" onclick="Air.resetPrompt()">還原系統預設</button>
-                <button class="btn sm" onclick="Air.togglePromptEditor()">關閉</button>
-              </div>
-            </div>
-            <div id="air-paste-import" style="display:none;margin-top:8px;border-top:1px solid var(--line);padding-top:10px">
-              <label style="display:block;font-size:12px;color:var(--ink-2);margin-bottom:4px">貼上 AI 回覆的完整內容（系統會依「[標籤 - EN]」逐項精準對位填入英文欄位；若 AI 沒有依範本填寫，對應欄位會略過，可手動補上）</label>
-              <textarea id="air-paste-text" style="width:100%;min-height:140px" placeholder="將 AI 翻譯後回覆的完整內容貼在這裡…"></textarea>
-              <div class="toolbar" style="margin-top:6px">
-                <button class="btn sm primary" onclick="Air.applyPastedTranslation()">解析並填入英文欄位</button>
-                <button class="btn sm" onclick="Air.togglePasteImport()">關閉</button>
-              </div>
+          <div id="air-prompt-editor" style="display:none;margin:0 14px 14px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:8px">
+            <label style="display:block;font-size:12px;color:var(--ink-2);margin-bottom:4px">AI 提示詞（會自動加在複製內容最前面；可自行修改後儲存為您的個人偏好，僅儲存在本機瀏覽器）</label>
+            <textarea id="air-prompt-text" style="width:100%;min-height:100px"></textarea>
+            <div class="toolbar" style="margin-top:6px">
+              <button class="btn sm primary" onclick="Air.savePromptCustom()">儲存提示詞</button>
+              <button class="btn sm" onclick="Air.resetPrompt()">還原系統預設</button>
+              <button class="btn sm" onclick="Air.togglePromptEditor()">關閉</button>
             </div>
           </div>
 
@@ -3206,6 +3193,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <div class="toolbar" style="margin-top:8px">
           <button class="btn primary" id="ap-btn-suggest" onclick="AnnualPlan.autoSuggest()">🔄 自動產生建議排程</button>
           <button class="btn" id="ap-btn-match" onclick="AnnualPlan.matchActual()">✓ 核對完成狀態（依檢查紀錄）</button>
+          <button class="btn" onclick="AnnualPlan.showDupCheck()">🔍 檢查船舶代碼／重複完成標記</button>
           <button class="btn" id="ap-btn-clear" onclick="AnnualPlan.clearYear()">🗑 清空本年度本類型排程</button>
           <span class="hint" id="ap-readonly-hint" style="color:#a04030;font-weight:600"></span>
           <span class="spacer" style="flex:1"></span>
@@ -4753,20 +4741,13 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
 </div>
 
 <!-- 產生對外回覆連結：把目前這筆缺失的中文內容送到雲端草稿表，給主管開啟外部網頁填寫 -->
-<div class="modal-bg" id="airReplyLinkModal">
-  <div class="modal" style="max-width:520px">
-    <div class="mh"><h3>🔗 對外回覆連結</h3><button class="x" onclick="Air.closeReplyLinkModal()">✕</button></div>
+<!-- 年度計畫：重複完成標記診斷 -->
+<div class="modal-bg" id="apDupModal">
+  <div class="modal" style="max-width:720px">
+    <div class="mh"><h3>🔍 重複完成標記檢查</h3><button class="x" onclick="AnnualPlan.closeDupCheck()">✕</button></div>
     <div class="mb">
-      <p class="hint" id="air-replylink-status" style="margin-bottom:10px">處理中…</p>
-      <div id="air-replylink-body" style="display:none">
-        <p class="hint" style="margin-bottom:6px">請把下面這個連結傳給主管（例如用通訊軟體），他打開後可以直接填中文回覆：</p>
-        <div style="display:flex;gap:6px;margin-bottom:10px">
-          <input type="text" id="air-replylink-url" readonly style="flex:1;padding:8px;border:1px solid var(--line-2);border-radius:6px;font-size:12px">
-          <button class="btn sm primary" onclick="Air.copyReplyLink()">📋 複製</button>
-        </div>
-        <p class="hint" style="line-height:1.7">同一個連結會依這筆缺失目前的階段自動顯示對應畫面（中文填寫／英文擬稿／最終確認），不用每個階段換連結。第一次使用需先設定外部填單網頁的網址，之後會記住。</p>
-        <button class="btn sm" style="margin-top:8px" onclick="Air.resetExternalFormBase()">⚙ 重新設定外部網頁網址</button>
-      </div>
+      <p class="hint" style="margin-bottom:10px">列出「同一艘船、同一年度、同一檢查類型」出現 2 格（含）以上已完成標記的情況。請比對下方每格對應的「檢查紀錄」日期／地點，判斷是否為同一次稽核被重複標記；確認是重複的，可直接點「🗑 取消此格」。</p>
+      <div id="apDupBody"></div>
     </div>
   </div>
 </div>
@@ -8467,7 +8448,7 @@ function SSel(elId,getOptions,placeholder,onPick){
 const NavConfig={
   KEY:"vsm_navconfig_v1",
   CLOUD_KEY:"nav_config",
-  cfg:{labels:{},order:{},hidden:{},itemGroup:{crewmatrix:"crewmgmt"},groups:null,groupLabels:{}},
+  cfg:{labels:{},order:{},hidden:{},itemGroup:{},groups:null,groupLabels:{}},
   /* 這個頁面對「目前這位使用者」是否已隱藏。
      Owner／管理員即使設為隱藏仍看得到（標為 adminonly），因此不算隱藏。
      待辦事項會用這個判斷 —— 功能都隱藏了還一直催人去做，是自相矛盾的。 */
@@ -8521,13 +8502,12 @@ const NavConfig={
       .filter(t=>t!=="data"&&t!=="guide");
   },
   loadLocal(){
-    const DEF={labels:{},order:{},hidden:{},itemGroup:{crewmatrix:"crewmgmt"},groups:null,groupLabels:{}};
+    const DEF={labels:{},order:{},hidden:{},itemGroup:{},groups:null,groupLabels:{}};
     try{
       const s=localStorage.getItem(this.KEY);
       if(s){
         this.cfg=Object.assign({},DEF,JSON.parse(s));
-        if(!this.cfg.itemGroup)this.cfg.itemGroup={crewmatrix:"crewmgmt"};
-        else if(!("crewmatrix" in this.cfg.itemGroup))this.cfg.itemGroup.crewmatrix="crewmgmt";
+        if(!this.cfg.itemGroup)this.cfg.itemGroup={};
       }
     }catch(e){}
   },
@@ -8614,10 +8594,9 @@ const NavConfig={
       const rows=await Cloud.api("app_db?select=payload&k=eq."+encodeURIComponent(this.CLOUD_KEY));
       const p=rows&&rows[0]&&rows[0].payload;
       if(p){
-        const DEF={labels:{},order:{},hidden:{},itemGroup:{crewmatrix:"crewmgmt"},groups:null,groupLabels:{}};
+        const DEF={labels:{},order:{},hidden:{},itemGroup:{},groups:null,groupLabels:{}};
         this.cfg=Object.assign({},DEF,p);
-        if(!this.cfg.itemGroup)this.cfg.itemGroup={crewmatrix:"crewmgmt"};
-        else if(!("crewmatrix" in this.cfg.itemGroup))this.cfg.itemGroup.crewmatrix="crewmgmt";
+        if(!this.cfg.itemGroup)this.cfg.itemGroup={};
         this.saveLocal();this.apply();this.renderAdmin();
       }
     }catch(e){console.warn("nav config cloud load failed",e);}
@@ -8761,7 +8740,7 @@ const NavConfig={
   async resetAdmin(){
     if(typeof Guard!=="undefined"&&!await Guard.require()){toast("⚠ 僅 Owner／管理員可調整側邊欄設定");return;}
     if(!confirm("確定要將側邊欄順序、分類與顯示名稱恢復為系統預設？"))return;
-    this.cfg={labels:{},order:{},hidden:{},itemGroup:{crewmatrix:"crewmgmt"},groups:null,groupLabels:{}};
+    this.cfg={labels:{},order:{},hidden:{},itemGroup:{},groups:null,groupLabels:{}};
     this.saveLocal();
     this.apply();
     this.renderAdmin();
@@ -8775,7 +8754,7 @@ const NavConfig={
 
 
 /* ───── 導航 ───── */
-const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["船舶缺失自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["線上填單","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"],voyrecv:["航次報表收件","DCP-FM03 船上上傳 → 督導確認 → 海技歸檔"],crewmatrix:["Crew Matrix 工作站","開新分頁前往 Crew Matrix"]};
+const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["船舶缺失自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["線上填單","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"],voyrecv:["航次報表收件","DCP-FM03 船上上傳 → 督導確認 → 海技歸檔"]};
 $$(".nav-item").forEach(n=>n.onclick=()=>{
   $$(".nav-item").forEach(x=>x.classList.remove("active"));n.classList.add("active");
   $$(".tabpage").forEach(p=>p.classList.remove("show"));
@@ -8800,13 +8779,6 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
   if(typeof closeSidebar==="function")closeSidebar(); // 手機版：選了頁面後自動收合側欄抽屜，桌機版寬度夠大時此動作無視覺影響
 });
 
-/* Crew Matrix 工作站是外部網站，不是本系統內的分頁：
-   沿用上方 $$(".nav-item").forEach(...) 綁定的顯示/隱藏/排序/自訂名稱等管理功能，
-   但點擊時改成開新分頁前往外部網址，而不是切換到系統內不存在的 #tab-crewmatrix。 */
-(()=>{
-  const cmNav=document.querySelector('#sidebar .nav-item[data-tab="crewmatrix"]');
-  if(cmNav)cmNav.onclick=()=>{ window.open("https://sski2468-hua.github.io/crew-matrix/","_blank","noopener"); };
-})();
 
 
 /* ════════ 1.5 檢查一覽表 ════════ */
@@ -14218,7 +14190,7 @@ const AnnualPlan={
       if(this.ms.mgr&&!this.ms.mgr.pass(s.mgr))return false;
       return true;
     };
-    const ships=SHIPINFO.filter(passFilters).slice().sort((a,b)=>a.code.localeCompare(b.code)).map(s=>({code:s.code,zh:s.zh||s.name||s.code,name:s.name||"",isExtra:false}));
+    const ships=SHIPINFO.filter(s=>s.operator==="FPMC").filter(passFilters).slice().sort((a,b)=>a.code.localeCompare(b.code)).map(s=>({code:s.code,zh:s.zh||s.name||s.code,name:s.name||"",isExtra:false}));
     const extra=(this.PLAN_TYPES[planType].extraRows||[]).map(e=>({code:e.key,zh:e.label,name:"",isExtra:true}));
     return [...ships,...extra];
   },
@@ -14353,6 +14325,98 @@ const AnnualPlan={
     this.render();
     if(typeof Audit!=="undefined")Audit.log("核對完成","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 核對 ${matched} 筆，補上 ${createdFromActual} 筆`);
     toast(`✓ 核對完成：${matched} 筆計畫已對應到實際紀錄${createdFromActual?`，另有 ${createdFromActual} 筆實際紀錄未列入原計畫，已自動補上顯示`:""}`);
+  },
+  /* 找出「同船、同年、同檢查類型」出現 2 格以上已完成標記的情況，
+     並列出每格對應到哪一筆檢查紀錄（日期／地點），方便判斷是真的兩次稽核還是重複配對殘留 */
+  findDupDone(){
+    const groups={};
+    App.annualPlan.forEach(e=>{
+      if(!e.actualDate)return;
+      const k=e.year+"|"+e.planType+"|"+e.ship;
+      (groups[k]=groups[k]||[]).push(e);
+    });
+    return Object.values(groups).filter(g=>g.length>1);
+  },
+  /* 明確的壞資料：這格記錄的船是 A，但它連到的檢查紀錄卻屬於另一艘船 B——
+     這種不可能是「同船兩次稽核」的合理情況，一定是配對配錯，可以直接判定要刪除 */
+  findShipMismatch(){
+    return App.annualPlan.filter(e=>{
+      if(e.actualInspId==null)return false;
+      const rec=App.insp.find(r=>r.id===e.actualInspId);
+      return rec&&rec.ship&&rec.ship!==e.ship;
+    });
+  },
+  entryRowHtml(e,highlightMismatch){
+    const rec=e.actualInspId!=null?App.insp.find(r=>r.id===e.actualInspId):null;
+    const mismatch=!!(highlightMismatch&&rec&&rec.ship&&rec.ship!==e.ship);
+    const recTxt=rec
+      ?(mismatch
+        ?`<span style="color:var(--bad);font-weight:700">⚠ 資料錯誤：此紀錄屬於「${esc(rec.ship)}」，不是「${esc(e.ship)}」</span><br>檢查紀錄 #${rec.id}：${esc(rec.date||"")}／${esc(rec.place||"")}`
+        :`檢查紀錄 #${rec.id}：${esc(rec.date||"")}／${esc(rec.place||"")}`)
+      :(e.actualInspId!=null?`⚠ 找不到對應的檢查紀錄（id=${e.actualInspId}，可能已被刪除）`:"（無對應紀錄，可能是手動標記）");
+    return `<tr${mismatch?' style="background:#fdecea"':''}>
+      <td>${esc(e.ship)}</td>
+      <td>${e.month} 月</td>
+      <td style="font-family:var(--mono)">${esc(e.actualDate||"")}</td>
+      <td>${recTxt}</td>
+      <td style="white-space:nowrap">${esc(e.source||"")}</td>
+      <td><button class="btn sm" onclick="AnnualPlan.dupDeleteEntry(${e.id})">🗑 取消此格</button></td>
+    </tr>`;
+  },
+  /* 檢查「檢查紀錄」裡出現過的船舶代碼，有沒有哪些對不到 SHIPINFO 目前任何一個船舶代碼——
+     如果有，代表這些紀錄從一開始就不可能被年度計畫正確配對到，problem 的源頭在這裡 */
+  findShipCodeIssues(){
+    const validCodes=new Set(SHIPINFO.map(s=>s.code));
+    const counts={};
+    App.insp.forEach(r=>{ if(r.ship)counts[r.ship]=(counts[r.ship]||0)+1; });
+    const bad=Object.keys(counts).filter(s=>!validCodes.has(s)).map(s=>({ship:s,count:counts[s]}));
+    return bad.sort((a,b)=>b.count-a.count);
+  },
+  showDupCheck(){
+    const codeIssues=this.findShipCodeIssues();
+    const mismatches=this.findShipMismatch();
+    const groups=this.findDupDone();
+    const body=$("#apDupBody");
+    let html="";
+    if(codeIssues.length){
+      html+=`<div style="margin-bottom:18px">
+        <p style="font-weight:700;color:var(--bad);margin-bottom:6px">⚠ 「檢查紀錄」裡有 ${codeIssues.length} 種船舶代碼，在目前的船舶資料（SHIPINFO）裡完全找不到對應——這些紀錄從源頭就無法被年度計畫正確配對，是問題的根源。</p>
+        <table class="tbl" style="width:100%"><thead><tr><th>檢查紀錄裡的船舶代碼</th><th>筆數</th></tr></thead>
+        <tbody>${codeIssues.map(c=>`<tr><td style="font-family:var(--mono);color:var(--bad)">${esc(c.ship)}</td><td>${c.count}</td></tr>`).join("")}</tbody></table>
+        <p class="hint" style="margin-top:6px">請比對這些代碼是不是應該對應到某艘船的正式代碼（例如全名被誤存、代碼打錯、船舶已改名但紀錄沒同步更新等），修正「檢查紀錄」裡的船舶欄位後，重新執行「✓ 核對完成狀態」即可正確配對。</p>
+      </div>`;
+    }
+    if(mismatches.length){
+      html+=`<div style="margin-bottom:18px">
+        <p style="font-weight:700;color:var(--bad);margin-bottom:6px">⚠ 船名對不起來（確定是錯誤資料，共 ${mismatches.length} 筆）</p>
+        <table class="tbl" style="width:100%"><thead><tr><th>船舶（排程上）</th><th>月份</th><th>完成日期</th><th>對應檢查紀錄</th><th>來源</th><th></th></tr></thead>
+        <tbody>${mismatches.map(e=>this.entryRowHtml(e,true)).join("")}</tbody></table>
+      </div>`;
+    }
+    if(groups.length){
+      html+=groups.map(g=>{
+        const first=g[0];
+        const label=(this.PLAN_TYPES[first.planType]||{}).label||first.planType;
+        const rows=g.slice().sort((a,b)=>a.month-b.month).map(e=>this.entryRowHtml(e,true)).join("");
+        return `<div style="margin-bottom:16px">
+          <p style="font-weight:700;margin-bottom:6px">${esc(first.ship)}　${first.year}年　${esc(label)}　－　共 ${g.length} 格已完成（可能是合理的同船兩次稽核，請核對日期）</p>
+          <table class="tbl" style="width:100%"><thead><tr><th>船舶</th><th>月份</th><th>完成日期</th><th>對應檢查紀錄</th><th>來源</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+        </div>`;
+      }).join("");
+    }
+    body.innerHTML=html||`<p class="hint" style="text-align:center;padding:20px">目前沒有偵測到重複完成標記或船名錯誤。</p>`;
+    $("#apDupModal").classList.add("show");
+  },
+  closeDupCheck(){$("#apDupModal").classList.remove("show");},
+  dupDeleteEntry(id){
+    if(!this.requireEdit())return;
+    if(!confirm("確定要取消這一格的完成標記嗎？此動作無法復原。"))return;
+    App.annualPlan=App.annualPlan.filter(e=>e.id!==id);
+    App.saveAll();
+    if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`取消重複完成標記（id=${id}）`);
+    this.render();
+    this.showDupCheck();
+    toast("✓ 已取消");
   },
   clearYear(){
     if(!Role.isOwner()){toast("⚠ 僅 Owner 可清空整年度排程");return;}
@@ -15291,6 +15355,7 @@ const AuditDash={
       const set=new Set(this.rowsRaw().filter(r=>this.fpmcShips().some(s=>s.code===r.ship)).map(r=>this.monthDisplay(r.schedMonth)).filter(Boolean));
       return [...set].sort();
     },rerun);
+    this.refreshAutoFields(); // 每次開啟頁面都重算，不再需要手動按「更新進度」才會套用新公式／新資料
     this.ensureDefaults();
     const dl=$("#dl-audit-ports");
     if(dl)dl.innerHTML=[...new Set(App.insp.map(r=>r.place))].filter(Boolean).sort().map(p=>`<option value="${esc(p)}">`).join("");
@@ -16212,6 +16277,7 @@ const Air={
     $("#air-list-page").style.display="";
     $("#air-form-page").style.display="none";
     if($("#air-followup-page"))$("#air-followup-page").style.display="none";
+    if($("#air-cloudqueue-page"))$("#air-cloudqueue-page").style.display="none";
     $("#air-tab-list-btn").className="btn primary";
     $("#air-tab-new-btn").className="btn";
     if($("#air-tab-followup-btn"))$("#air-tab-followup-btn").className="btn";
@@ -16222,6 +16288,7 @@ const Air={
     $("#air-list-page").style.display="none";
     $("#air-form-page").style.display="none";
     $("#air-followup-page").style.display="";
+    if($("#air-cloudqueue-page"))$("#air-cloudqueue-page").style.display="none";
     $("#air-tab-list-btn").className="btn";
     $("#air-tab-new-btn").className="btn";
     $("#air-tab-followup-btn").className="btn primary";
@@ -16304,6 +16371,7 @@ const Air={
     const d=id==null?{}:App.air.find(x=>x.id===id)||{};
     $("#air-list-page").style.display="none";
     $("#air-form-page").style.display="";
+    if($("#air-cloudqueue-page"))$("#air-cloudqueue-page").style.display="none";
     $("#air-tab-list-btn").className="btn";
     $("#air-tab-new-btn").className="btn primary";
     const fa=$("#air-form-actions");
@@ -17240,6 +17308,9 @@ const Air={
     el.style.display=show?"":"none";
     if(show){const ta=$("#air-prompt-text");if(ta)ta.value=this.loadPrompt();}
   },
+  showPromptHelp(){
+    alert("這裡設定的提示詞，是「對外回覆編輯」外部頁面用 AI 翻譯英文時，自動加在複製內容最前面的指示文字（告訴 AI 只能在英文欄位填空、不要更動格式）。\n\n可以依需要調整用詞或加強規則，儲存後僅存在您這台電腦的瀏覽器裡，不會影響其他人。");
+  },
   togglePasteImport(){
     const el=$("#air-paste-import");if(!el)return;
     el.style.display=el.style.display==="none"?"":"none";
@@ -17335,6 +17406,7 @@ const Air={
     const pt=$("#air-paste-text");if(pt)pt.value="";
     this.applyReplyFontSize();
     this.renderReplyDefects(d);
+    this.pullReplyDraft(0,true);
     return true;
   },
   renderReplyDefects(d){
@@ -17374,8 +17446,12 @@ const Air={
       </div>`:"";
     const row=(idx,label,key,rp)=>`
       <label class="air-reply-lbl" style="display:block;margin:10px 0 3px">${label}</label>
-      <textarea class="air-reply-ta" placeholder="中文" style="width:100%" ${ro} oninput="autoResizeTA(this);Air.setReplyField(${idx},'${key}Cn',this.value)">${esc(rp[key+"Cn"]||"")}</textarea>
-      <textarea class="air-reply-ta" placeholder="English" style="width:100%;margin-top:4px" ${ro} oninput="autoResizeTA(this);Air.setReplyField(${idx},'${key}En',this.value)">${esc(rp[key+"En"]||"")}</textarea>`;
+      <div style="position:relative;background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 36px 8px 10px;white-space:pre-wrap;font-size:13.5px;line-height:1.5;min-height:22px;margin-bottom:4px" title="中文">${esc(rp[key+"Cn"]||"（尚未填寫）")}
+        <button type="button" onclick="Air.copyReplyField(${idx},'${key}Cn',this)" title="複製這段中文" style="position:absolute;top:5px;right:5px;background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px">📋</button>
+      </div>
+      <div style="position:relative;background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 36px 8px 10px;white-space:pre-wrap;font-size:13.5px;line-height:1.5;min-height:22px" title="English">${esc(rp[key+"En"]||"（尚未填寫）")}
+        <button type="button" onclick="Air.copyReplyField(${idx},'${key}En',this)" title="複製這段英文" style="position:absolute;top:5px;right:5px;background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px">📋</button>
+      </div>`;
     const i=this.activeDefectIdx;
     const df=defs[i];
     let cardHtml="";
@@ -17392,6 +17468,10 @@ const Air={
           <div class="air-reply-lbl" style="background:#fff;padding:10px;border-radius:6px;white-space:pre-line;font-weight:400;font-size:13px;line-height:1.6">${esc(df.detail)||"（未填寫缺失詳情）"}</div>
         </div>
         <div class="air-rs-edit">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;padding:8px 10px;background:#eef4ff;border-radius:6px">
+            <span class="hint" style="font-size:12px">📖 以下為唯讀預覽（最後一次拉取到的對外回覆內容）${rp._replyStage?`　目前階段：${rp._replyStage==="3"?"③主管確認":(rp._replyStage==="2"?"②英文擬稿":"①中文填寫")}${rp._confirmCount?`　已確認 ${rp._confirmCount} 次`:""}`:""}；要調整內容請點右上「✏ 對外回覆編輯」到外部頁面修改。</span>
+            <button class="btn sm" style="margin-left:auto" onclick="Air.pullReplyDraft(${i})">🔄 拉取最新回覆</button>
+          </div>
           ${row(i,"Initial Operator Comment","opComment",rp)}
           ${row(i,"Immediate Cause 直接原因","immediateCause",rp)}
           ${row(i,"根本原因 Root Cause","rootCause",rp)}
@@ -17429,6 +17509,7 @@ const Air={
     const d=App.air.find(x=>x.id===this.replyId);
     if(d)this.renderReplyDefects(d);
     const el=$("#air-reply-defects");if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"start"});
+    this.pullReplyDraft(i,true); // 靜默拉取最新對外回覆內容，拉到才重繪，避免畫面先閃一次舊資料
   },
   /* ── 通知功能：翻譯/確認流程的人員通知（例如「英文已翻譯完成，通知OO確認」）── */
   CARD_PALETTE:[["#0b3a5c","#eef3f7"],["#1f6b4a","#eaf5ee"],["#a0631f","#fbf3e7"],["#6a3b8f","#f3edf8"],["#a23b3b","#faeceb"],["#1f7a8c","#e9f5f7"]],
@@ -17891,55 +17972,112 @@ const Air={
   /* ══════════ 對外回覆連結：把目前這筆缺失的中文內容（若已有）送到雲端 air_reply_drafts，
      產生一個網址給主管開啟外部填單網頁；同一網址依雲端目前的 stage 自動顯示對應畫面。══════════ */
   BASEKEY:"vsm_airform_base_url",
+  DEFAULT_FORM_BASE:"https://sski2468-hua.github.io/fleet-inspection/submit-airform.html",
+  REPLY_BASEKEY:"vsm_airreply_base_url",
+  DEFAULT_REPLY_BASE:"https://sski2468-hua.github.io/fleet-inspection/submit-airreply.html",
   getExternalFormBase(){
     let v="";try{v=localStorage.getItem(this.BASEKEY)||"";}catch(e){}
     if(!v){
-      v=(prompt("請輸入外部線上填單網頁（submit-airform.html）目前部署的網址：\n（只需輸入一次，之後會記住；例如放在公司雲端硬碟公開連結、或內部網頁空間）")||"").trim();
-      if(v)try{localStorage.setItem(this.BASEKEY,v);}catch(e){}
+      v=this.DEFAULT_FORM_BASE;
+      try{localStorage.setItem(this.BASEKEY,v);}catch(e){}
+    }
+    return v;
+  },
+  getExternalReplyBase(){
+    let v="";try{v=localStorage.getItem(this.REPLY_BASEKEY)||"";}catch(e){}
+    if(!v){
+      v=this.DEFAULT_REPLY_BASE;
+      try{localStorage.setItem(this.REPLY_BASEKEY,v);}catch(e){}
     }
     return v;
   },
   resetExternalFormBase(){
-    try{localStorage.removeItem(this.BASEKEY);}catch(e){}
-    this.generateReplyLink();
+    const v=(prompt("外部線上填單網頁目前部署的網址：",this.getExternalFormBase())||"").trim();
+    if(!v)return;
+    try{localStorage.setItem(this.BASEKEY,v);}catch(e){}
+    toast("✓ 已更新，下次「複製線上填單連結」會用新網址");
+  },
+  resetExternalReplyBase(){
+    const v=(prompt("外部對外回覆網頁（submit-airreply.html）目前部署的網址：",this.getExternalReplyBase())||"").trim();
+    if(!v)return;
+    try{localStorage.setItem(this.REPLY_BASEKEY,v);}catch(e){}
+    toast("✓ 已更新，下次「對外回覆編輯」會用新網址");
   },
   closeReplyLinkModal(){$("#airReplyLinkModal").classList.remove("show");},
-  async generateReplyLink(){
+  /* 直接開新分頁跳到外部編輯網頁，給自己（海技組）做階段②翻譯用；跟「產生連結」分開，
+     那顆是給外部人（主管）用的分享連結，這顆是自己要編輯時的捷徑 */
+  async openExternalEditor(){
     if(this.replyId==null){toast("⚠ 請先開啟一筆填單的對外回覆頁");return;}
-    const base=this.getExternalFormBase();
-    if(!base){toast("⚠ 未設定外部網頁網址，無法產生連結");return;}
+    const base=this.getExternalReplyBase();
+    if(!base){toast("⚠ 未設定外部網頁網址");return;}
     const d=App.air.find(x=>x.id===this.replyId);if(!d)return;
     const i=this.activeDefectIdx||0;
+    const df=d.defects[i]||{};
+    const sep=base.includes("?")?"&":"?";
+    const url=`${base}${sep}rid=${this.replyId}&didx=${i}`;
+    if(typeof Cloud!=="undefined"&&Cloud.enabled()){
+      try{
+        const rows=await Cloud.api(`air_reply_drafts?air_record_id=eq.${this.replyId}&defect_idx=eq.${i}&order=id.desc&limit=1`);
+        const rp=(d.reply&&d.reply.items&&d.reply.items[i])||{};
+        if(!rows||!rows.length){
+          const items=[{
+            _defectMeta:{ship:d.ship,date:d.date,itype:d.itype,code:df.code||"",detail:df.detail||"",actual:df.actual||""},
+            opCommentCn:rp.opCommentCn||"",immediateCauseCn:rp.immediateCauseCn||"",
+            rootCauseCn:rp.rootCauseCn||df.rootCause||"",
+            correctiveCn:rp.correctiveCn||df.corrective||"",
+            preventiveCn:rp.preventiveCn||df.preventive||""}];
+          await Cloud.api("air_reply_drafts",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+            body:JSON.stringify([{air_record_id:this.replyId,defect_idx:i,ship:d.ship,code:df.code||"",stage:"1",items,imported:false,history:[]}])});
+        }else if(!(rows[0].items&&rows[0].items[0]&&rows[0].items[0]._defectMeta)){
+          const it=(rows[0].items&&rows[0].items[0])||{};
+          it._defectMeta={ship:d.ship,date:d.date,itype:d.itype,code:df.code||"",detail:df.detail||"",actual:df.actual||""};
+          await Cloud.api(`air_reply_drafts?id=eq.${rows[0].id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+            body:JSON.stringify({items:[it]})});
+        }
+      }catch(e){ console.warn("openExternalEditor ensure-draft failed",e); }
+    }
+    window.open(url,"_blank");
+  },
+  /* 複製單一欄位（中或英）目前顯示的內容到剪貼簿；內容一律來自 d.reply.items[i]，
+     也就是上次「🔄 拉取最新回覆」或系統自動同步進來的最新版本 */
+  copyReplyField(i,key,btnEl){
+    const d=App.air.find(x=>x.id===this.replyId);if(!d)return;
     const rp=(d.reply&&d.reply.items&&d.reply.items[i])||{};
-    $("#airReplyLinkModal").classList.add("show");
-    $("#air-replylink-body").style.display="none";
-    $("#air-replylink-status").textContent="處理中…";
-    if(typeof Cloud==="undefined"||!Cloud.enabled()){$("#air-replylink-status").textContent="⚠ 雲端未連線，無法產生連結";return;}
+    const text=rp[key]||"";
+    if(!text){toast("⚠ 這欄目前是空的");return;}
+    const done=()=>{ toast("✓ 已複製"); if(btnEl){const old=btnEl.textContent;btnEl.textContent="✓";setTimeout(()=>btnEl.textContent=old,900);} };
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(()=>this._fallbackCopyLink(text));
+    }else this._fallbackCopyLink(text);
+  },
+  /* 從雲端拉取這筆缺失目前最新（最後一次確認，或還沒確認的最新草稿）的回覆內容，
+     寫回 App.air 的 d.reply.items[i]，讓系統這邊的預覽永遠顯示「主管回覆的最後結果」。
+     拉取成功後會把雲端草稿標記 imported=true（純粹顯示用途，不影響內容本身）。 */
+  async pullReplyDraft(i,silent){
+    if(this.replyId==null)return;
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){if(!silent)toast("⚠ 雲端未連線");return;}
+    const d=App.air.find(x=>x.id===this.replyId);if(!d)return;
     try{
       const rows=await Cloud.api(`air_reply_drafts?air_record_id=eq.${this.replyId}&defect_idx=eq.${i}&order=id.desc&limit=1`);
-      if(!rows||!rows.length){
-        const items=[{opCommentCn:rp.opCommentCn||"",immediateCauseCn:rp.immediateCauseCn||"",
-          rootCauseCn:rp.rootCauseCn||(d.defects[i]||{}).rootCause||"",
-          correctiveCn:rp.correctiveCn||(d.defects[i]||{}).corrective||"",
-          preventiveCn:rp.preventiveCn||(d.defects[i]||{}).preventive||""}];
-        await Cloud.api("air_reply_drafts",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
-          body:JSON.stringify([{air_record_id:this.replyId,defect_idx:i,ship:d.ship,stage:"1",items}])});
+      if(!rows||!rows.length)return;
+      const draft=rows[0];
+      const it=(draft.items&&draft.items[0])||{};
+      if(!d.reply)d.reply={items:[]};
+      if(!d.reply.items[i])d.reply.items[i]={};
+      const rp=d.reply.items[i];
+      ["opComment","immediateCause","rootCause","corrective","preventive"].forEach(k=>{
+        rp[k+"Cn"]=it[k+"Cn"]||""; rp[k+"En"]=it[k+"En"]||"";
+      });
+      rp._replyStage=draft.stage; rp._confirmCount=draft.confirm_count||0;
+      rp._confirmedBy=draft.confirmed_by||""; rp._confirmedAt=draft.confirmed_at||"";
+      App.saveAll();
+      if(!draft.imported){
+        Cloud.api(`air_reply_drafts?id=eq.${draft.id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+          body:JSON.stringify({imported:true,imported_at:new Date().toISOString()})}).catch(()=>{});
       }
-      const sep=base.includes("?")?"&":"?";
-      const url=`${base}${sep}rid=${this.replyId}&didx=${i}#reply`;
-      $("#air-replylink-url").value=url;
-      $("#air-replylink-status").textContent="";
-      $("#air-replylink-body").style.display="";
-    }catch(e){
-      $("#air-replylink-status").textContent="⚠ 產生失敗："+e.message;
-    }
-  },
-  copyReplyLink(){
-    const el=$("#air-replylink-url");if(!el)return;
-    el.select();
-    if(navigator.clipboard&&navigator.clipboard.writeText){
-      navigator.clipboard.writeText(el.value).then(()=>toast("✓ 已複製連結")).catch(()=>{try{document.execCommand("copy");toast("✓ 已複製連結");}catch(e){toast("⚠ 複製失敗，請手動選取");}});
-    }else{try{document.execCommand("copy");toast("✓ 已複製連結");}catch(e){toast("⚠ 複製失敗，請手動選取");}}
+      if(!silent)toast("✓ 已拉取最新對外回覆內容");
+      this.renderReplyDefects(d);
+    }catch(e){ if(!silent)toast("⚠ 拉取失敗："+e.message); }
   },
   closeRecordExportModal(){$("#airRecordExportModal").classList.remove("show");},
   copyIntakeLink(){
@@ -22596,6 +22734,7 @@ const SelfCheck={
   },
   setStatus(i,s){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅「"+t.ship+"」本船帳號或管理員可勾選查核狀態");this.renderRun();return;}t.items[i].status=s;if(s!=="similar")t.items[i].closed=false;
     if(s!=="pending"){const pn=(typeof Role!=="undefined"&&Role.personName)?Role.personName():"";if(pn){t.items[i].checkedBy=pn;t.items[i].checkedAt=todayStr();}}
+    t.updated=Date.now();
     App._op2Bypass=true;App.saveAll();this.renderRun();
     if(s!=="pending")Audit.log("查核","自檢任務",`${t.ship}／#${i+1} ${s==="ok"?"✓無類似缺失":(s==="na"?"⊘本船不適用":"⚠有類似缺失")}：${(t.items[i].detail||"").slice(0,30)}`);},
   bulkSetStatus(target){
@@ -22618,6 +22757,7 @@ const SelfCheck={
     if(!confirm(msg))return;
     const pn=(typeof Role!=="undefined"&&Role.personName)?Role.personName():"";
     targets.forEach(i=>{i.status=target;i.closed=false;if(target!=="pending"&&pn){i.checkedBy=pn;i.checkedAt=todayStr();}});
+    t.updated=Date.now();
     App._op2Bypass=true;App.saveAll();this.renderRun();
     Audit.log("批量查核","自檢任務",`${t.ship}：一鍵全選${targetLabel}（${viewLabel}）共 ${targets.length} 項`);
     toast(`✓ 已將 ${targets.length} 項標記為${targetLabel}`);
@@ -22703,11 +22843,11 @@ ${factorLines||"（無三要素資料）"}
   copyDataOnly(){
     safeCopyText($("#sc-data-box").value,"✓ 已複製自檢資料 JSON");
   },
-  setNote(i,v){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅「"+t.ship+"」本船帳號或管理員可編輯處理情形");this.renderRun();return;}t.items[i].note=v;App._op2Bypass=true;App.saveAll();},
+  setNote(i,v){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅「"+t.ship+"」本船帳號或管理員可編輯處理情形");this.renderRun();return;}t.items[i].note=v;t.updated=Date.now();App._op2Bypass=true;App.saveAll();},
   /* 引導模式把「實際情形」與「處理方式」拆成兩欄：
      note = 本船的實際狀況；actual = 打算怎麼處理。 */
-  setActual(i,v){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅「"+t.ship+"」本船帳號或管理員可編輯處理方式");this.renderRun();return;}t.items[i].actual=v;App._op2Bypass=true;App.saveAll();},
-  setClosed(i,v){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅「"+t.ship+"」本船帳號或管理員可勾選結案");this.renderRun();return;}t.items[i].closed=v;App._op2Bypass=true;App.saveAll();this.renderRun();
+  setActual(i,v){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅「"+t.ship+"」本船帳號或管理員可編輯處理方式");this.renderRun();return;}t.items[i].actual=v;t.updated=Date.now();App._op2Bypass=true;App.saveAll();},
+  setClosed(i,v){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅「"+t.ship+"」本船帳號或管理員可勾選結案");this.renderRun();return;}t.items[i].closed=v;t.updated=Date.now();App._op2Bypass=true;App.saveAll();this.renderRun();
     if(v)Audit.log("結案","自檢任務",`${t.ship}／#${i+1}：${(t.items[i].detail||"").slice(0,30)}`);},
   async removeItem(i){const t=this.cur();if(!t)return;if(typeof Guard!=="undefined"&&!await Guard.requireDelete())return;t.items.splice(i,1);App.saveAll();this.renderRun();},
 
