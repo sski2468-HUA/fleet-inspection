@@ -2708,13 +2708,15 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
                 <button class="btn sm primary" onclick="Air.openReplyExportModal()">⬇ 匯出</button>
                 <button class="btn sm" onclick="Air.importReplyDocxPick()">⬆ 匯入 Word</button>
                 <button class="btn sm" id="air-notify-btn" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10" onclick="Air.openNotifyPopover(event)">🔔 通知</button>
-                <button class="btn sm primary" onclick="Air.openExternalEditor()">✏ 對外回覆編輯</button>
-                <button class="btn sm" onclick="window.open(Air.getExternalReplyBase(),'_blank')">📋 對外回覆案件清單</button>
-                <button class="btn sm" onclick="Air.togglePromptEditor()">⚙ 自訂提示詞</button>
-                <button class="btn sm" title="說明" onclick="Air.showPromptHelp()">❓</button>
-                <button class="btn sm" title="重新設定外部網頁網址" onclick="Air.resetExternalReplyBase()">⚙ 外部網址設定</button>
               </span>
             </h3>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px">
+              <button class="btn sm primary" onclick="Air.openExternalEditor()">✏ 對外回覆編輯</button>
+              <button class="btn sm" onclick="window.open(Air.getExternalReplyBase(),'_blank')">📋 對外回覆案件清單</button>
+              <button class="btn sm" onclick="Air.togglePromptEditor()">⚙ 自訂提示詞</button>
+              <button class="btn sm" title="說明" onclick="Air.showPromptHelp()">❓</button>
+              <button class="btn sm" title="重新設定外部網頁網址" onclick="Air.resetExternalReplyBase()">⚙ 外部網址設定</button>
+            </div>
             <p class="hint" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <span id="air-reply-context"></span>
               <span id="air-reply-savestatus" style="font-weight:600"></span>
@@ -2809,6 +2811,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <button class="btn sm primary" onclick="Defs.openBatch()">＋＋ 批量新增</button>
             <button class="btn sm dark" onclick="Defs.openBatchEdit()">✎✎ 批量編輯（維護者）</button>
             <button class="btn sm" onclick="Defs.openDownloadModal()">⬇ 下載表單</button>
+            <button class="btn sm" style="background:#f3edf8;border-color:#d9c3ef;color:#6a3b8f" onclick="Defs.openInternalControlList()">🔒 內控清單</button>
             <button class="btn sm" onclick="Defs.exportTemplate()">📋 下載匯入模板</button>
             <button class="btn sm" onclick="Defs.openColPicker()" title="設定顯示欄位與欄位排序">⚙ 欄位設定</button>
             <button class="btn sm" onclick="Defs.resetColOrder()" title="還原為系統內建順序與寬度（非您自訂的預設）">⟲ 還原系統內建順序</button>
@@ -3423,9 +3426,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
           </span>
           <button class="btn sm primary" onclick="SelfCheck.openSummaryModal()">📊 彙整查核重點</button>
           <button class="btn sm" onclick="SelfCheck.openAiModal()">🤖 AI提示詞＋匯出</button>
-          <button class="btn" onclick="SelfCheck.exportXlsx()">⬇ Excel</button>
-          <button class="btn" onclick="SelfCheck.exportPdf()">⬇ PDF</button>
-          <button class="btn" onclick="SelfCheck.exportJson()">⬇ JS</button>
+          <button class="btn" onclick="SelfCheck.openDownloadModal()">📤 匯出</button>
           <button class="btn danger" onclick="SelfCheck.delTask(App.curTaskId)">🗑 刪除任務</button>
         </div>
         <div class="progressbar" style="margin:0 0 14px"><div id="sc-pbar"></div></div>
@@ -4560,7 +4561,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <label>船名<select id="e-ship" onchange="if(vtypeOfShip(this.value))$('#e-vtype').value=vtypeOfShip(this.value)"></select></label>
         <label>船型<select id="e-vtype"><option>tanker</option><option>bulk</option><option>other</option></select></label>
         <label>檢查來源<div style="display:flex;gap:6px;flex-wrap:wrap">
-            <select id="e-itype" onchange="$('#e-itype-other').style.display=this.value==='其他'?'':'none';Defs.refreshPscBox();Defs.refreshChapterName();"></select>
+            <select id="e-itype" onchange="$('#e-itype-other').style.display=this.value==='其他'?'':'none';Defs.refreshPscBox();Defs.refreshChapterName();Defs.refreshInternalControlVisibility();"></select>
             <input type="text" id="e-itype-other" placeholder="請說明檢查來源" style="display:none;flex:1;min-width:120px">
           </div></label>
         <label>檢查日期<input type="text" id="e-date" placeholder="2025/1/1" oninput="Defs.syncYm()"></label>
@@ -4589,6 +4590,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <div class="fw fld">具體名稱（可多選）<div class="msel" id="ms-e-ncLeaf"></div></div>
             <label>重要程度<select id="e-ncImp"><option value="">（未設定）</option><option>低</option><option>中</option><option>高</option></select></label>
             <label style="flex-direction:row;align-items:center;gap:8px;align-self:end;padding-bottom:6px"><input type="checkbox" id="e-ncFocus" style="width:16px;height:16px;accent-color:var(--bad)"> 🔴 重點關注</label>
+            <label id="e-internalControl-wrap" style="display:none;flex-direction:row;align-items:center;gap:8px;align-self:end;padding-bottom:6px"><input type="checkbox" id="e-internalControl" style="width:16px;height:16px;accent-color:#6a3b8f"> 🔒 內控（全船隊比照管控）</label>
             <label id="e-ncMethod-wrap">分類方法<input type="text" id="e-ncMethod" placeholder="關鍵字對應 / 人工核對…"></label>
             <div class="fw fld">三要素（人員/設備/系統，可多選）<div class="msel" id="ms-e-ncFactor"></div></div>
             <label class="fw">缺失性質判定<select id="e-ncOpinion"><option value="none">無</option><option value="inspector_opinion">檢查員個人意見</option><option value="best_practice">Best Practice（建議做法）</option></select></label>
@@ -4656,6 +4658,32 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       <span style="flex:1"></span>
       <button class="btn" onclick="Defs.closeBatch()">取消</button>
       <button class="btn primary" onclick="Defs.saveBatch()">儲存全部</button>
+    </div>
+  </div>
+</div>
+
+<!-- 船舶缺失自查：下載表單(Excel/PDF/JS選擇) -->
+<div class="modal-bg" id="scDownloadModal">
+  <div class="modal" style="max-width:380px">
+    <div class="mh"><h3>📤 匯出自查任務</h3><button class="x" onclick="SelfCheck.closeDownloadModal()">✕</button></div>
+    <div class="mb">
+      <p class="hint" style="margin-bottom:10px">請選擇要下載的檔案格式：</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn primary" style="width:100%" onclick="SelfCheck.exportXlsx();SelfCheck.closeDownloadModal()">⬇ Excel (.xlsx)</button>
+        <button class="btn" style="width:100%" onclick="SelfCheck.exportPdf();SelfCheck.closeDownloadModal()">⬇ PDF</button>
+        <button class="btn" style="width:100%" onclick="SelfCheck.exportJson();SelfCheck.closeDownloadModal()">⬇ JS 檔 (.json)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 缺失紀錄總表：內控清單（交叉訪船項目經判定需全船隊比照管控的缺失） -->
+<div class="modal-bg" id="internalControlModal">
+  <div class="modal" style="max-width:900px">
+    <div class="mh"><h3>🔒 內控清單</h3><button class="x" onclick="Defs.closeInternalControlList()">✕</button></div>
+    <div class="mb">
+      <p class="hint" style="margin-bottom:10px">列出所有在「交叉訪船」中發現、經勾選列入內控的缺失項目——代表這類問題需要提醒全船隊比照檢查與管控，不只是單艘船的個案。</p>
+      <div id="internalControlBody"></div>
     </div>
   </div>
 </div>
@@ -10895,6 +10923,21 @@ const Defs={
   },
   openDownloadModal(){$("#downloadModal").classList.add("show");},
   closeDownloadModal(){$("#downloadModal").classList.remove("show");},
+  openInternalControlList(){
+    const rows=(App.defs||[]).filter(d=>d.internalControl===true).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    const box=$("#internalControlBody");
+    if(box){
+      box.innerHTML=rows.length?`<table class="tbl" style="width:100%"><thead><tr><th>船舶</th><th>日期</th><th>CODE</th><th>缺失詳情</th><th></th></tr></thead><tbody>${rows.map(d=>`<tr>
+        <td><b>${esc(d.ship)}</b></td>
+        <td style="white-space:nowrap">${esc(d.date||"")}</td>
+        <td>${esc(d.code||"")}</td>
+        <td style="max-width:420px">${esc((d.detail||"").slice(0,120))}${(d.detail||"").length>120?"…":""}</td>
+        <td><button class="btn sm" onclick="Defs.closeInternalControlList();Defs.openEdit(${d.id})">✏ 開啟</button></td>
+      </tr>`).join("")}</tbody></table>`:`<p class="hint" style="text-align:center;padding:20px">目前沒有列入內控的項目。</p>`;
+    }
+    $("#internalControlModal").classList.add("show");
+  },
+  closeInternalControlList(){$("#internalControlModal").classList.remove("show");},
   init(){
     const rerun=()=>{this.page=1;this.render();};
     this.populateYm();
@@ -11348,6 +11391,12 @@ const Defs={
     this.emFactor.set(splitFactor(d.ncFactor));
     set("#e-ncImp",d.ncImp||"");
     if($("#e-ncFocus"))$("#e-ncFocus").checked=(d.ncFocus==="是");
+    const icWrap=$("#e-internalControl-wrap");
+    if(icWrap){
+      const isCrossVisit=this.normItype?this.normItype(d.itype)==="CROSSSHIPVISIT":String(d.itype||"").toUpperCase().replace(/[^A-Z0-9]/g,"")==="CROSSSHIPVISIT";
+      icWrap.style.display=isCrossVisit?"":"none";
+      const icBox=$("#e-internalControl");if(icBox)icBox.checked=(d.internalControl===true||d.internalControl==="是");
+    }
     set("#e-ncMethod",d.ncMethod||"");
     const mWrap=$("#e-ncMethod-wrap");if(mWrap)mWrap.style.display=id==null?"none":"";
     set("#e-ncOpinion",ncOpinionNormalize(d.ncOpinion));
@@ -11356,10 +11405,17 @@ const Defs={
     $("#editModal").classList.add("show");
   },
   closeEdit(){$("#editModal").classList.remove("show");},
+  refreshInternalControlVisibility(){
+    const icWrap=$("#e-internalControl-wrap");if(!icWrap)return;
+    const v=$("#e-itype")?$("#e-itype").value:"";
+    const norm=String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+    icWrap.style.display=(norm==="CROSSSHIPVISIT")?"":"none";
+    if(norm!=="CROSSSHIPVISIT"){const icBox=$("#e-internalControl");if(icBox)icBox.checked=false;}
+  },
   saveEdit(){
     const g=i=>$(i).value.trim();
     let _itype=$("#e-itype").value;if(_itype==="其他"){const _o=g("#e-itype-other");_itype=_o?"其他-"+_o:"其他";}
-    const rec={ship:g("#e-ship"),vtype:g("#e-vtype"),itype:_itype,date:g("#e-date"),ym:g("#e-ym")||ymOf(g("#e-date")),place:g("#e-place"),inspector:canonInspector(g("#e-inspector")),oilco:canonUnit(g("#e-oilco")),psc:pscBoxRead("e-psc"),code:g("#e-code"),detail:g("#e-detail"),actual:g("#e-actual"),preventive:g("#e-preventive"),corrective:g("#e-corrective"),rootCause:g("#e-rootcause"),attn:$("#e-attn").checked,rank:g("#e-rank"),person:g("#e-person"),risk:g("#e-risk"),ncProb:ncJoin(this.emProb?this.emProb.sel:[]),ncMain:ncJoin(this.emMain?this.emMain.sel:[]),ncLeaf:ncJoin(this.emLeaf?this.emLeaf.sel:[]),ncFactor:[...(this.emFactor?this.emFactor.sel:[])].join("、"),ncImp:g("#e-ncImp"),ncFocus:$("#e-ncFocus").checked?"是":"否",ncMethod:g("#e-ncMethod"),ncOpinion:ncOpinionNormalize(g("#e-ncOpinion"))};
+    const rec={ship:g("#e-ship"),vtype:g("#e-vtype"),itype:_itype,date:g("#e-date"),ym:g("#e-ym")||ymOf(g("#e-date")),place:g("#e-place"),inspector:canonInspector(g("#e-inspector")),oilco:canonUnit(g("#e-oilco")),psc:pscBoxRead("e-psc"),code:g("#e-code"),detail:g("#e-detail"),actual:g("#e-actual"),preventive:g("#e-preventive"),corrective:g("#e-corrective"),rootCause:g("#e-rootcause"),attn:$("#e-attn").checked,rank:g("#e-rank"),person:g("#e-person"),risk:g("#e-risk"),ncProb:ncJoin(this.emProb?this.emProb.sel:[]),ncMain:ncJoin(this.emMain?this.emMain.sel:[]),ncLeaf:ncJoin(this.emLeaf?this.emLeaf.sel:[]),ncFactor:[...(this.emFactor?this.emFactor.sel:[])].join("、"),ncImp:g("#e-ncImp"),ncFocus:$("#e-ncFocus").checked?"是":"否",ncMethod:g("#e-ncMethod"),ncOpinion:ncOpinionNormalize(g("#e-ncOpinion")),internalControl:($("#e-internalControl")&&$("#e-internalControl").checked)?true:false};
     if(!rec.ship){toast("⚠ 請填寫船名");return;}
     if(this.editId==null){rec.id=App.nextId();App.defs.push(rec);toast("✓ 已新增");Audit.log("新增","缺失紀錄",`${rec.ship} ${rec.date}：${(rec.detail||"").slice(0,40)}`);}
     else{const d=App.defs.find(x=>x.id===this.editId);Object.assign(d,rec);toast("✓ 已更新");Audit.log("編輯","缺失紀錄",`#${this.editId} ${rec.ship}：${(rec.detail||"").slice(0,40)}`);}
@@ -18034,7 +18090,11 @@ const Air={
           await Cloud.api(`air_reply_drafts?id=eq.${rows[0].id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
             body:JSON.stringify({items:[it]})});
         }
-      }catch(e){ console.warn("openExternalEditor ensure-draft failed",e); }
+      }catch(e){
+        toast("⚠ 建立對外回覆草稿失敗：" + e.message + "（可能是 Supabase 資料表欄位沒更新，請確認已執行最新的 supabase_setup.sql）");
+        console.warn("openExternalEditor ensure-draft failed",e);
+        return;
+      }
     }
     window.open(url,"_blank");
   },
@@ -21715,6 +21775,8 @@ const DefsProj={
 
 const SelfCheck={
   msW:{},msT:{},wizMode:"new",pendingItems:null,
+  openDownloadModal(){$("#scDownloadModal").classList.add("show");},
+  closeDownloadModal(){$("#scDownloadModal").classList.remove("show");},
   cur(){return App.tasks.find(t=>t.id===App.curTaskId)||null;},
   init(){
     const wc=()=>this.wizCount();

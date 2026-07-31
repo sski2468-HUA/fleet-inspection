@@ -208,7 +208,7 @@ async function loadList(){
     if(!rows||!rows.length){ box.innerHTML=`<p class="hint">目前沒有任何對外回覆案件。</p>`; return; }
     const stageLabel={1:["階段①中文填寫","s1"],2:["階段②英文擬稿","s2"],3:["階段③主管確認","s3"]};
     box.innerHTML=`<table class="tbl"><thead><tr>
-      <th>船舶</th><th>CODE</th><th>階段</th><th>確認次數</th><th>最後確認人／時間</th><th>已匯入系統</th><th>最後更新</th><th></th>
+      <th>船舶</th><th>CODE</th><th>階段</th><th>確認次數</th><th>最後確認人／時間</th><th>已匯入系統</th><th>最後更新</th><th></th><th></th>
     </tr></thead><tbody>${rows.map(r=>{
       const [lbl,cls]=stageLabel[r.stage]||["－","s1"];
       const impBadge=r.imported?`<span class="badge imp">✓ 已匯入</span>`:`<span class="badge nimp">未匯入</span>`;
@@ -222,6 +222,7 @@ async function loadList(){
         <td>${impBadge}</td>
         <td class="hint">${r.updated_at?new Date(r.updated_at).toLocaleString("zh-TW",{hour12:false}):""}</td>
         <td><a class="btn sm" href="${url}">✏ 編輯</a></td>
+        <td><button type="button" class="btn sm" style="color:var(--bad);border-color:#e8c3bc" onclick="deleteCase(${r.id},'${esc(r.ship||"")}')">🗑 刪除</button></td>
       </tr>`;
     }).join("")}</tbody></table>`;
   }catch(e){
@@ -230,6 +231,17 @@ async function loadList(){
 }
 
 /* ════════ 單筆編輯 ════════ */
+async function deleteCase(id,ship){
+  if(!confirm(`確定要刪除「${ship||""}」這筆對外回覆案件嗎？此動作無法復原。`))return;
+  try{
+    await api(`${TABLE}?id=eq.${id}`,{method:"DELETE",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Prefer":"return=minimal"}});
+    notify("✓ 已刪除","ok2");
+    loadList();
+  }catch(e){
+    notify("刪除失敗："+e.message,"err");
+  }
+}
+
 async function loadDraft(){
   document.getElementById("edit-meta").textContent=`對接記錄代碼 rid=${RID}／didx=${DIDX}，讀取中…`;
   try{
@@ -274,7 +286,7 @@ function renderStage(){
   badgeWrap.innerHTML=`<span class="badge" style="background:${bg};color:${fg}">${lbl}</span>
     ${draftRow?`　<span class="hint">已確認 ${draftRow.confirm_count||0} 次${draftRow.imported?"　·　✓ 目前版本已被系統匯入":"　·　尚未被系統匯入最新版本"}</span>`:""}`;
 
-  aiBar.style.display = stage===2 ? "" : "none";
+  aiBar.style.display = "";
 
   if(stage===1){
     wrap.innerHTML=REPLY_FIELDS.map(f=>`<label class="full">${f.labelZh}
