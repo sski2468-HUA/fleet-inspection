@@ -45,6 +45,17 @@ textarea,input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border
 .detailwrap.show{display:block}
 label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px 0 4px}
 .closedrow{display:flex;align-items:center;gap:8px;margin-top:10px;background:#fdf2e0;border:1px solid #f0dba9;border-radius:8px;padding:10px 12px}
+.modebar{display:flex;gap:8px}
+.modebtn{border:1.5px solid var(--line-2);background:#fff;color:var(--ink-2);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+.modebtn.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.itemcard.gh{display:none}
+.itemcard.gh.show{display:block}
+@media print{
+  header,#guideNav,#submitBtn,.modebar,#saveNote,#toast,.btn{display:none!important}
+  .itemcard{display:block!important;page-break-inside:avoid;box-shadow:none;border:1px solid #999;margin:0 0 10px}
+  body{background:#fff}
+  .wrap{max-width:none;padding:0}
+}
 #saveNote{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px;text-align:center;font-size:12.5px;color:var(--ink-3)}
 </style>
 </head>
@@ -67,9 +78,22 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
           <div style="font-weight:700;font-size:15px" id="taskTitle"></div>
           <div class="hint" id="taskMeta"></div>
         </div>
-        <button class="btn primary" style="margin-left:auto" id="submitBtn" onclick="submitAll()">✓ 送出</button>
+        <button class="btn" style="margin-left:auto" onclick="window.print()">⬇ 匯出 PDF（列印存檔）</button>
+        <button class="btn primary" id="submitBtn" onclick="submitAll()">✓ 送出</button>
       </div>
       <p class="hint warn" style="margin-top:10px">內容會自動即時儲存，不用自己按存檔。答「有，需處理」的項目，等船上處理完成後記得回來勾選「已完成改善（結案）」，再按一次「送出」才算完整。送出後仍可以回來調整、再送出一次覆蓋更新。</p>
+      <div class="modebar" style="margin-top:12px">
+        <button type="button" class="modebtn on" id="modeBtnGuide" onclick="setViewMode('guide')">▶ 引導作答</button>
+        <button type="button" class="modebtn" id="modeBtnList" onclick="setViewMode('list')">☰ 清單模式</button>
+      </div>
+    </div>
+    <div id="guideNav" class="card" style="display:none;text-align:center">
+      <div class="hint" id="guideCounter" style="margin-bottom:8px"></div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn" onclick="guidePrev()">← 上一題</button>
+        <button class="btn" onclick="guideNext()">下一題 →</button>
+        <button class="btn" onclick="guideJumpUnanswered()">⏭ 跳到未答</button>
+      </div>
     </div>
     <div id="itemsWrap"></div>
   </div>
@@ -126,6 +150,7 @@ async function init(){
   document.getElementById("taskTitle").textContent=draft.title||"";
   document.getElementById("taskMeta").textContent=`船舶：${draft.ship||""}　已送出 ${draft.submit_count||0} 次${draft.submitted_at?"　最後送出："+new Date(draft.submitted_at).toLocaleString("zh-TW",{hour12:false}):""}`;
   renderItems();
+  guideJumpUnanswered(true);
 }
 function showError(msg){
   document.getElementById("hdr-note").textContent="無法開啟";
@@ -157,7 +182,7 @@ function renderItems(){
   const wrap=document.getElementById("itemsWrap");
   const items=draft.items||[];
   wrap.innerHTML=items.map((it,i)=>`
-    <div class="itemcard" data-idx="${i}">
+    <div class="itemcard gh" data-idx="${i}">
       <div><span class="num">#${i+1}</span><b>${esc(it.detail?(it.grouped?it.detail:("CODE "+(it.code||""))):"")}</b></div>
       ${renderRef(it)}
       <p style="font-weight:700;margin:10px 0 4px">❓ 本船目前有同樣或類似的情形嗎？</p>
@@ -180,6 +205,41 @@ function renderItems(){
     </div>
   `).join("");
   updateProgress();
+  applyViewMode();
+}
+
+/* ════════ 引導作答／清單模式，跟系統原本一致：引導作答一次只顯示一題，清單模式一次看全部 ════════ */
+let viewMode="guide", guideIdx=0;
+function setViewMode(mode){
+  viewMode=mode;
+  document.getElementById("modeBtnGuide").className="modebtn"+(mode==="guide"?" on":"");
+  document.getElementById("modeBtnList").className="modebtn"+(mode==="list"?" on":"");
+  document.getElementById("guideNav").style.display=mode==="guide"?"":"none";
+  if(mode==="guide")guideJumpUnanswered(true);
+  applyViewMode();
+}
+function applyViewMode(){
+  const cards=document.querySelectorAll(".itemcard");
+  if(viewMode==="list"){
+    cards.forEach(c=>c.classList.add("show"));
+    document.getElementById("guideNav").style.display="none";
+  }else{
+    cards.forEach(c=>c.classList.toggle("show", +c.dataset.idx===guideIdx));
+    document.getElementById("guideNav").style.display="";
+    const n=(draft.items||[]).length;
+    document.getElementById("guideCounter").textContent=`第 ${guideIdx+1} / ${n} 題`;
+    const card=document.querySelector(`.itemcard[data-idx="${guideIdx}"]`);
+    if(card)card.scrollIntoView({behavior:"smooth",block:"start"});
+  }
+}
+function guidePrev(){ if(guideIdx>0){guideIdx--;applyViewMode();} }
+function guideNext(){ const n=(draft.items||[]).length; if(guideIdx<n-1){guideIdx++;applyViewMode();} }
+function guideJumpUnanswered(silent){
+  const items=draft.items||[];
+  const idx=items.findIndex(it=>!it.status||it.status==="pending");
+  guideIdx = idx>=0 ? idx : Math.max(0,items.length-1);
+  applyViewMode();
+  if(!silent && idx<0)notify("全部已作答","ok2");
 }
 
 function setStatus(i,status){
@@ -196,6 +256,9 @@ function setStatus(i,status){
   if(btns[btnMap[status]])btns[btnMap[status]].classList.add("on",status);
   updateProgress();
   scheduleAutoSave();
+  if(viewMode==="guide"){
+    setTimeout(()=>{ const n=items.length; if(guideIdx<n-1){guideIdx++;applyViewMode();} },350);
+  }
 }
 function onFieldInput(ta){
   const i=+ta.dataset.idx, field=ta.dataset.field;
