@@ -49,6 +49,9 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
 .grid2{display:grid;grid-template-columns:1fr;gap:12px}
 @media(min-width:640px){.grid2{grid-template-columns:1fr 1fr}}
 .defbox{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;background:#fafbfc}
+.tabpill{border:1.5px solid var(--line-2);background:#fff;color:var(--ink-2);padding:7px 13px;border-radius:20px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+.tabpill.on{background:var(--navy);border-color:var(--navy);color:#fff}
+#defTabsWrap{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -81,6 +84,8 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
         按「已確認」不會鎖死——之後還能再調整、再按一次「已確認」，最新一次確認的內容就是最終版本，正式系統會採用最新確認版覆蓋匯入。
       </div>
 
+      <div id="defTabsWrap"></div>
+
       <div class="defbox">
         <p class="hint" style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px" id="defMetaBox">讀取中…</p>
       </div>
@@ -101,7 +106,7 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
       <div id="fieldsWrap" class="grid2"></div>
 
       <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <label style="flex:1;min-width:220px">確認人姓名（送出時記錄）
+        <label style="flex:1;min-width:220px">確認人姓名（選填，送出時記錄）
           <select id="confirmerSelect" onchange="onConfirmerSelectChange()"><option value="">讀取人員清單中…</option></select>
           <input type="text" id="confirmerName" placeholder="請輸入姓名" style="display:none;margin-top:4px">
         </label>
@@ -140,9 +145,10 @@ const REPLY_FIELDS=[
 ];
 const params=new URLSearchParams(location.search);
 const RID=params.get("rid");
-const DIDX=params.get("didx")||"0";
+let DIDX=+(params.get("didx")||"0");
 
 let draftRow=null, replyData={}, stage=1, defectMeta=null;
+let allDrafts=[]; // 同一筆記錄底下所有缺失的草稿，一次抓齊，切分頁不用重新整理頁面
 REPLY_FIELDS.forEach(f=>replyData[f.key]={cn:"",en:""});
 
 async function api(path,opts){
@@ -243,24 +249,48 @@ async function deleteCase(id,ship){
 }
 
 async function loadDraft(){
-  document.getElementById("edit-meta").textContent=`對接記錄代碼 rid=${RID}／didx=${DIDX}，讀取中…`;
+  document.getElementById("edit-meta").textContent=`對接記錄代碼 rid=${RID}，讀取中…`;
   try{
-    const rows=await api(`${TABLE}?air_record_id=eq.${encodeURIComponent(RID)}&defect_idx=eq.${encodeURIComponent(DIDX)}&order=id.desc&limit=1`);
-    if(rows&&rows.length){
-      draftRow=rows[0];
-      const it=(draftRow.items&&draftRow.items[0])||{};
-      REPLY_FIELDS.forEach(f=>{ replyData[f.key].cn=it[f.key+"Cn"]||""; replyData[f.key].en=it[f.key+"En"]||""; });
-      defectMeta=it._defectMeta||null;
-      stage=+draftRow.stage||1;
-      setConfirmerValue(draftRow.confirmed_by||"");
-    }else{
-      draftRow=null; stage=1; defectMeta=null;
-    }
+    const rows=await api(`${TABLE}?air_record_id=eq.${encodeURIComponent(RID)}&order=defect_idx.asc`);
+    allDrafts=rows||[];
   }catch(e){
     document.getElementById("edit-meta").textContent=`⚠ 讀取失敗：${e.message}`;
     notify("讀取失敗，請重新整理再試","err");
     return;
   }
+  if(!allDrafts.length){
+    document.getElementById("edit-meta").textContent=`對接記錄代碼 rid=${RID}，尚無回覆紀錄，請確認連結是否正確（需由正式系統「✏ 對外回覆編輯」建立）`;
+    document.getElementById("defTabsWrap").innerHTML="";
+    draftRow=null; stage=1; defectMeta=null;
+    renderDefMeta();
+    renderStage();
+    return;
+  }
+  if(!allDrafts.some(r=>r.defect_idx===DIDX))DIDX=allDrafts[0].defect_idx;
+  renderDefTabs();
+  switchDefect(DIDX);
+}
+function renderDefTabs(){
+  const wrap=document.getElementById("defTabsWrap");
+  if(allDrafts.length<=1){ wrap.innerHTML=""; return; }
+  wrap.innerHTML=allDrafts.map(r=>{
+    const meta=(r.items&&r.items[0]&&r.items[0]._defectMeta)||{};
+    const on=r.defect_idx===DIDX;
+    return `<button type="button" class="tabpill${on?" on":""}" onclick="switchDefect(${r.defect_idx})">#${r.defect_idx+1}${meta.code?"　CODE "+esc(meta.code):""}</button>`;
+  }).join("");
+}
+function switchDefect(idx){
+  const row=allDrafts.find(r=>r.defect_idx===idx);
+  if(!row)return;
+  DIDX=idx;
+  draftRow=row;
+  const it=(row.items&&row.items[0])||{};
+  REPLY_FIELDS.forEach(f=>{ replyData[f.key].cn=it[f.key+"Cn"]||""; replyData[f.key].en=it[f.key+"En"]||""; });
+  defectMeta=it._defectMeta||null;
+  stage=+row.stage||1;
+  setConfirmerValue(row.confirmed_by||"");
+  try{ history.replaceState(null,"",`?rid=${RID}&didx=${idx}`); }catch(e){}
+  renderDefTabs();
   renderDefMeta();
   renderStage();
 }
@@ -268,7 +298,7 @@ function renderDefMeta(){
   const box=document.getElementById("defMetaBox");
   if(defectMeta){
     document.getElementById("edit-title").textContent=`對外回覆 － ${defectMeta.ship||""} CODE ${defectMeta.code||""}`;
-    document.getElementById("edit-meta").textContent=`${defectMeta.ship||""}　${defectMeta.date||""}　${defectMeta.itype||""}`;
+    document.getElementById("edit-meta").textContent=`${defectMeta.ship||""}　${defectMeta.date||""}　${defectMeta.itype||""}${allDrafts.length>1?`　（共 ${allDrafts.length} 條缺失，可切換上方分頁）`:""}`;
     box.innerHTML=`<b>缺失詳情：</b>${esc(defectMeta.detail||"（未填寫）")}<br><b>實際情況：</b>${esc(defectMeta.actual||"（未填寫）")}`;
   }else{
     box.textContent="尚未取得原始缺失內容，請確認連結是否正確（需由正式系統「產生對外回覆連結」建立）。";
@@ -294,8 +324,8 @@ function renderStage(){
     </label>`).join("");
     submitBtn.textContent="✓ 送出中文回覆，交給承辦人員翻譯";
   }else if(stage===2){
-    wrap.innerHTML=REPLY_FIELDS.map(f=>`<label class="full">${f.labelZh}（中文，唯讀）
-        <textarea readonly style="background:#f3f4f6">${esc(replyData[f.key].cn)}</textarea>
+    wrap.innerHTML=REPLY_FIELDS.map(f=>`<label class="full">${f.labelZh}（中文，可微調小錯字）
+        <textarea data-k="${f.key}" data-lang="cn">${esc(replyData[f.key].cn)}</textarea>
       </label>
       <label class="full">${f.labelZh}（English）
         <textarea data-k="${f.key}" data-lang="en" placeholder="English translation…">${esc(replyData[f.key].en)}</textarea>
@@ -378,8 +408,7 @@ async function submitStage(){
   const body={ ship:(defectMeta&&defectMeta.ship)||(draftRow&&draftRow.ship)||"", code:(defectMeta&&defectMeta.code)||"", stage:String(nextStage), items };
 
   if(stage===3){
-    const name=getConfirmerValue();
-    if(!name){ notify("⚠ 請先填寫確認人姓名","err"); btn.disabled=false; return; }
+    const name=getConfirmerValue()||"（未填寫）";
     const now=new Date().toISOString();
     const hist=(draftRow&&Array.isArray(draftRow.history))?draftRow.history.slice():[];
     hist.push({by:name,at:now,items:items[0]});

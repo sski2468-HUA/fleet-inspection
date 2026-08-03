@@ -2710,7 +2710,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
                 <button class="btn sm" id="air-notify-btn" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10" onclick="Air.openNotifyPopover(event)">🔔 通知</button>
               </span>
             </h3>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:flex-end;margin-top:8px">
               <button class="btn sm primary" onclick="Air.openExternalEditor()">✏ 對外回覆編輯</button>
               <button class="btn sm" onclick="window.open(Air.getExternalReplyBase(),'_blank')">📋 對外回覆案件清單</button>
               <button class="btn sm" onclick="Air.togglePromptEditor()">⚙ 自訂提示詞</button>
@@ -16308,7 +16308,12 @@ const Air={
     if(typeof AirQueue!=="undefined")setTimeout(()=>AirQueue.refresh(),1500); // 延後執行，等 Cloud.init() 連線完成
   },
   clearFilters(){Object.values(this.ms).forEach(m=>m.clear());this.page=1;this.renderList();},
-  nextId(){return App.air.reduce((m,d)=>Math.max(m,+d.id||0),0)+1;},
+  nextId(){
+    let id=Date.now();
+    const used=new Set(App.air.map(d=>+d.id||0));
+    while(used.has(id))id++; // 避免同一毫秒內連續呼叫，或極少數情況撞到既有 id
+    return id;
+  },
   statusText(d){
     const used=[d.usedInsp,d.usedDef,d.usedPos].filter(Boolean).length;
     if(used===0)return "待處理";
@@ -18068,27 +18073,38 @@ const Air={
     if(!base){toast("⚠ 未設定外部網頁網址");return;}
     const d=App.air.find(x=>x.id===this.replyId);if(!d)return;
     const i=this.activeDefectIdx||0;
-    const df=d.defects[i]||{};
     const sep=base.includes("?")?"&":"?";
     const url=`${base}${sep}rid=${this.replyId}&didx=${i}`;
     if(typeof Cloud!=="undefined"&&Cloud.enabled()){
       try{
-        const rows=await Cloud.api(`air_reply_drafts?air_record_id=eq.${this.replyId}&defect_idx=eq.${i}&order=id.desc&limit=1`);
-        const rp=(d.reply&&d.reply.items&&d.reply.items[i])||{};
-        if(!rows||!rows.length){
-          const items=[{
-            _defectMeta:{ship:d.ship,date:d.date,itype:d.itype,code:df.code||"",detail:df.detail||"",actual:df.actual||""},
-            opCommentCn:rp.opCommentCn||"",immediateCauseCn:rp.immediateCauseCn||"",
-            rootCauseCn:rp.rootCauseCn||df.rootCause||"",
-            correctiveCn:rp.correctiveCn||df.corrective||"",
-            preventiveCn:rp.preventiveCn||df.preventive||""}];
+        // 確保這筆記錄「每一條缺失」都有對應的草稿，不只是目前正在看的這條，
+        // 這樣外部編輯頁一次打開就能看到全部缺失、可以切換分頁，不用每條缺失各自產生一次連結
+        const existingRows=await Cloud.api(`air_reply_drafts?air_record_id=eq.${this.replyId}&select=defect_idx,items`);
+        const existingByIdx={};
+        (existingRows||[]).forEach(r=>{existingByIdx[r.defect_idx]=r;});
+        const toInsert=[];
+        for(let k=0;k<d.defects.length;k++){
+          const df=d.defects[k]||{};
+          const rp=(d.reply&&d.reply.items&&d.reply.items[k])||{};
+          const ex=existingByIdx[k];
+          if(!ex){
+            toInsert.push({air_record_id:this.replyId,defect_idx:k,ship:d.ship,code:df.code||"",stage:"1",imported:false,history:[],
+              items:[{
+                _defectMeta:{ship:d.ship,date:d.date,itype:d.itype,code:df.code||"",detail:df.detail||"",actual:df.actual||""},
+                opCommentCn:rp.opCommentCn||"",immediateCauseCn:rp.immediateCauseCn||"",
+                rootCauseCn:rp.rootCauseCn||df.rootCause||"",
+                correctiveCn:rp.correctiveCn||df.corrective||"",
+                preventiveCn:rp.preventiveCn||df.preventive||""}]});
+          }else if(!(ex.items&&ex.items[0]&&ex.items[0]._defectMeta)){
+            const it=(ex.items&&ex.items[0])||{};
+            it._defectMeta={ship:d.ship,date:d.date,itype:d.itype,code:df.code||"",detail:df.detail||"",actual:df.actual||""};
+            await Cloud.api(`air_reply_drafts?air_record_id=eq.${this.replyId}&defect_idx=eq.${k}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+              body:JSON.stringify({items:[it]})});
+          }
+        }
+        if(toInsert.length){
           await Cloud.api("air_reply_drafts",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
-            body:JSON.stringify([{air_record_id:this.replyId,defect_idx:i,ship:d.ship,code:df.code||"",stage:"1",items,imported:false,history:[]}])});
-        }else if(!(rows[0].items&&rows[0].items[0]&&rows[0].items[0]._defectMeta)){
-          const it=(rows[0].items&&rows[0].items[0])||{};
-          it._defectMeta={ship:d.ship,date:d.date,itype:d.itype,code:df.code||"",detail:df.detail||"",actual:df.actual||""};
-          await Cloud.api(`air_reply_drafts?id=eq.${rows[0].id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
-            body:JSON.stringify({items:[it]})});
+            body:JSON.stringify(toInsert)});
         }
       }catch(e){
         toast("⚠ 建立對外回覆草稿失敗：" + e.message + "（可能是 Supabase 資料表欄位沒更新，請確認已執行最新的 supabase_setup.sql）");
