@@ -50,11 +50,19 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
 .modebtn.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .itemcard.gh{display:none}
 .itemcard.gh.show{display:block}
+#printArea{display:none}
 @media print{
-  header,#guideNav,#submitBtn,.modebar,#saveNote,#toast,.btn{display:none!important}
-  .itemcard{display:block!important;page-break-inside:avoid;box-shadow:none;border:1px solid #999;margin:0 0 10px}
-  body{background:#fff}
-  .wrap{max-width:none;padding:0}
+  body *{visibility:hidden}
+  #printArea,#printArea *{visibility:visible}
+  #printArea{display:block!important;position:absolute;left:0;top:0;width:100%;font-size:11px;line-height:1.5}
+  #printArea h2{font-size:14px;margin:0 0 4px}
+  #printArea .pmeta{font-size:10.5px;color:#555;margin-bottom:10px}
+  #printArea table{width:100%;border-collapse:collapse}
+  #printArea td,#printArea th{border:1px solid #999;padding:4px 6px;vertical-align:top;font-size:10px}
+  #printArea th{background:#eee;text-align:left}
+  #printArea .pnum{width:22px;text-align:center}
+  #printArea .pst{width:70px}
+  #printArea .pref{color:#555;font-size:9.5px;margin-top:2px}
 }
 #saveNote{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px;text-align:center;font-size:12.5px;color:var(--ink-3)}
 </style>
@@ -78,7 +86,7 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
           <div style="font-weight:700;font-size:15px" id="taskTitle"></div>
           <div class="hint" id="taskMeta"></div>
         </div>
-        <button class="btn" style="margin-left:auto" onclick="window.print()">⬇ 匯出 PDF（列印存檔）</button>
+        <button class="btn" style="margin-left:auto" onclick="preparePrint()">⬇ 匯出 PDF（列印存檔）</button>
         <button class="btn primary" id="submitBtn" onclick="submitAll()">✓ 送出</button>
       </div>
       <p class="hint warn" style="margin-top:10px">內容會自動即時儲存，不用自己按存檔。答「有，需處理」的項目，等船上處理完成後記得回來勾選「已完成改善（結案）」，再按一次「送出」才算完整。送出後仍可以回來調整、再送出一次覆蓋更新。</p>
@@ -100,6 +108,7 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
 </div>
 
 <div id="saveNote"></div>
+<div id="printArea"></div>
 <div id="toast"></div>
 
 <script>
@@ -166,6 +175,33 @@ function updateProgress(){
   document.getElementById("hdr-note").textContent=`已作答 ${done} / ${items.length} 題（${pct}%）`;
 }
 
+function preparePrint(){
+  if(!draft){notify("⚠ 資料還沒載入完成","err");return;}
+  const items=draft.items||[];
+  const stLabel={ok:"✅ 沒有",similar:"⚠️ 需處理",na:"➖ 不適用",pending:"（未作答）"};
+  const rows=items.map((it,i)=>{
+    const refTxt=it.grouped&&Array.isArray(it.samples)&&it.samples.length
+      ? it.samples.map(s=>`${esc(s.ship||"")} ${esc(s.date||"")} ${esc((s.detail||"").slice(0,70))}`).join("；")
+      : "";
+    return `<tr>
+      <td class="pnum">${i+1}</td>
+      <td>
+        <b>${esc(it.detail?(it.grouped?it.detail:("CODE "+(it.code||""))):"")}</b>
+        ${refTxt?`<div class="pref">${refTxt}</div>`:""}
+      </td>
+      <td class="pst">${stLabel[it.status||"pending"]}</td>
+      <td>${esc(it.note||"")}</td>
+      <td>${esc(it.actual||"")}</td>
+      <td class="pst">${it.closed?"✓":""}</td>
+    </tr>`;
+  }).join("");
+  document.getElementById("printArea").innerHTML=`
+    <h2>船舶缺失自查　${esc(draft.title||"")}</h2>
+    <div class="pmeta">船舶：${esc(draft.ship||"")}　已送出 ${draft.submit_count||0} 次${draft.submitted_at?"　最後送出："+esc(new Date(draft.submitted_at).toLocaleString("zh-TW",{hour12:false})):""}　匯出時間：${esc(new Date().toLocaleString("zh-TW",{hour12:false}))}</div>
+    <table><thead><tr><th class="pnum">#</th><th>查核項目</th><th class="pst">狀態</th><th>本船實際狀況</th><th>打算怎麼處理</th><th class="pst">結案</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+  setTimeout(()=>window.print(),50);
+}
 function renderRef(it){
   if(it.grouped && Array.isArray(it.samples) && it.samples.length){
     return `<div class="refbox"><b>其他船舶曾發生的問題：</b>${it.samples.map(s=>
