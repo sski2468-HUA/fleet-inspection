@@ -214,25 +214,37 @@ async function loadList(){
   const box=document.getElementById("listBody");
   box.innerHTML=`<p class="hint">讀取中…</p>`;
   try{
-    const rows=await api(`${TABLE}?select=*&order=updated_at.desc&limit=300`);
+    const rows=await api(`${TABLE}?select=*&order=updated_at.desc&limit=500`);
     if(!rows||!rows.length){ box.innerHTML=`<p class="hint">目前沒有任何對外回覆案件。</p>`; return; }
-    const stageLabel={1:["階段①中文填寫","s1"],2:["階段②英文擬稿","s2"],3:["階段③主管確認","s3"]};
+    const stageLabel={1:"①中文填寫",2:"②英文擬稿",3:"③主管確認"};
+    // 依 air_record_id（同一艘船的同一筆記錄）分組，一筆記錄一列，不再一條缺失一列
+    const groups={};
+    rows.forEach(r=>{
+      const k=r.air_record_id;
+      (groups[k]=groups[k]||[]).push(r);
+    });
+    const list=Object.values(groups).map(g=>{
+      g.sort((a,b)=>a.defect_idx-b.defect_idx);
+      const latest=g.reduce((m,r)=>(!m||new Date(r.updated_at)>new Date(m.updated_at))?r:m,null);
+      return {rid:g[0].air_record_id, ship:g[0].ship, rows:g, latest};
+    }).sort((a,b)=>new Date(b.latest.updated_at)-new Date(a.latest.updated_at));
+
     box.innerHTML=`<table class="tbl"><thead><tr>
-      <th>船舶</th><th>CODE</th><th>階段</th><th>確認次數</th><th>最後確認人／時間</th><th>已匯入系統</th><th>最後更新</th><th></th><th></th>
-    </tr></thead><tbody>${rows.map(r=>{
-      const [lbl,cls]=stageLabel[r.stage]||["－","s1"];
-      const impBadge=r.imported?`<span class="badge imp">✓ 已匯入</span>`:`<span class="badge nimp">未匯入</span>`;
-      const url=`?rid=${r.air_record_id}&didx=${r.defect_idx}`;
+      <th>船舶</th><th>缺失數</th><th>各缺失目前階段</th><th>已匯入系統</th><th>最後更新</th><th></th><th></th>
+    </tr></thead><tbody>${list.map(g=>{
+      const n=g.rows.length;
+      const imported=g.rows.filter(r=>r.imported).length;
+      const impBadge=imported===n?`<span class="badge imp">✓ 全部已匯入</span>`:(imported>0?`<span class="badge nimp">${imported}/${n} 已匯入</span>`:`<span class="badge nimp">未匯入</span>`);
+      const stageSummary=g.rows.map(r=>`<span title="CODE ${esc(r.code||"")}">${stageLabel[r.stage]||"－"}</span>`).join("、");
+      const url=`?rid=${g.rid}&didx=${g.rows[0].defect_idx}`;
       return `<tr>
-        <td><a href="${url}"><b>${esc(r.ship||"")}</b></a></td>
-        <td>${esc(r.code||"")}</td>
-        <td><span class="badge ${cls}">${lbl}</span></td>
-        <td>${r.confirm_count||0} 次</td>
-        <td>${esc(r.confirmed_by||"")}${r.confirmed_at?`<br><span class="hint">${new Date(r.confirmed_at).toLocaleString("zh-TW",{hour12:false})}</span>`:""}</td>
+        <td><a href="${url}"><b>${esc(g.ship||"")}</b></a></td>
+        <td>${n} 條</td>
+        <td class="hint" style="max-width:320px">${stageSummary}</td>
         <td>${impBadge}</td>
-        <td class="hint">${r.updated_at?new Date(r.updated_at).toLocaleString("zh-TW",{hour12:false}):""}</td>
+        <td class="hint">${g.latest.updated_at?new Date(g.latest.updated_at).toLocaleString("zh-TW",{hour12:false}):""}</td>
         <td><a class="btn sm" href="${url}">✏ 編輯</a></td>
-        <td><button type="button" class="btn sm" style="color:var(--bad);border-color:#e8c3bc" onclick="deleteCase(${r.id},'${esc(r.ship||"")}')">🗑 刪除</button></td>
+        <td><button type="button" class="btn sm" style="color:var(--bad);border-color:#e8c3bc" onclick="deleteCaseGroup(${g.rid},'${esc(g.ship||"")}')">🗑 刪除整筆</button></td>
       </tr>`;
     }).join("")}</tbody></table>`;
   }catch(e){
@@ -241,10 +253,10 @@ async function loadList(){
 }
 
 /* ════════ 單筆編輯 ════════ */
-async function deleteCase(id,ship){
-  if(!confirm(`確定要刪除「${ship||""}」這筆對外回覆案件嗎？此動作無法復原。`))return;
+async function deleteCaseGroup(rid,ship){
+  if(!confirm(`確定要刪除「${ship||""}」這整筆對外回覆案件嗎？裡面所有缺失的回覆草稿都會一併刪除，此動作無法復原。`))return;
   try{
-    await api(`${TABLE}?id=eq.${id}`,{method:"DELETE",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Prefer":"return=minimal"}});
+    await api(`${TABLE}?air_record_id=eq.${rid}`,{method:"DELETE",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Prefer":"return=minimal"}});
     notify("✓ 已刪除","ok2");
     loadList();
   }catch(e){
