@@ -3382,6 +3382,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
           <button class="btn" style="background:var(--teal);border-color:var(--teal);color:#fff;font-weight:700" onclick="Cloud.syncNow()">☁ 雲端同步</button>
           <span class="statline" id="cl-state2"></span>
           <button class="btn" style="background:var(--teal-l);border-color:var(--teal);color:var(--teal);font-weight:700" onclick="$('#helpModal').classList.add('show')">📖 使用說明</button>
+          <button class="btn" title="重新設定外部自查網頁網址" onclick="SelfCheck.resetExternalBase()">⚙ 外部網址設定</button>
           <span class="sep"></span>
           <span class="lbl" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">篩選</span>
           <div class="msel" id="ms-t-ship"></div>
@@ -4662,8 +4663,19 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
   </div>
 </div>
 
+<!-- 船舶缺失自查：查看外部進度（唯讀） -->
+<div class="modal-bg" id="scViewModal">
+  <div class="modal" style="max-width:900px">
+    <div class="mh"><h3>👀 查看自查進度（唯讀）</h3><button class="x" onclick="SelfCheck.closeViewModal()">✕</button></div>
+    <div class="mb">
+      <p class="hint" style="margin-bottom:8px">這裡顯示的是外部自查頁面目前的最新狀況，僅供查看，不能在這裡編輯——要調整內容請用「📤 開啟」跳到外部頁面。</p>
+      <div id="scViewBody"></div>
+    </div>
+  </div>
+</div>
+
 <!-- 船舶缺失自查：下載表單(Excel/PDF/JS選擇) -->
-<div class="modal-bg" id="scDownloadModal">
+<div class="modal-bg" id="scExportTaskModal">
   <div class="modal" style="max-width:380px">
     <div class="mh"><h3>📤 匯出自查任務</h3><button class="x" onclick="SelfCheck.closeDownloadModal()">✕</button></div>
     <div class="mb">
@@ -21796,8 +21808,99 @@ const DefsProj={
 
 const SelfCheck={
   msW:{},msT:{},wizMode:"new",pendingItems:null,
-  openDownloadModal(){$("#scDownloadModal").classList.add("show");},
-  closeDownloadModal(){$("#scDownloadModal").classList.remove("show");},
+  openDownloadModal(){$("#scExportTaskModal").classList.add("show");},
+  /* ══════════ 獨立自查網頁（submit-selfcheck.html）：一個任務一個連結，涵蓋全部題目。
+     船上／督導在外部頁面作答，不會直接動系統這份共用資料，避免雙向同步互相覆蓋的問題；
+     這裡只負責「開啟」時確保雲端草稿存在並更新參考內容，以及「查看」時唯讀顯示目前進度。══════════ */
+  SC_BASEKEY:"vsm_selfcheck_base_url",
+  DEFAULT_SC_BASE:"https://sski2468-hua.github.io/fleet-inspection/submit-selfcheck.html",
+  getExternalBase(){
+    let v="";try{v=localStorage.getItem(this.SC_BASEKEY)||"";}catch(e){}
+    if(!v){v=this.DEFAULT_SC_BASE;try{localStorage.setItem(this.SC_BASEKEY,v);}catch(e){}}
+    return v;
+  },
+  resetExternalBase(){
+    const v=(prompt("外部自查網頁（submit-selfcheck.html）目前部署的網址：",this.getExternalBase())||"").trim();
+    if(!v)return;
+    try{localStorage.setItem(this.SC_BASEKEY,v);}catch(e){}
+    toast("✓ 已更新，下次「開啟」會用新網址");
+  },
+  async openExternalEditor(taskId){
+    const t=App.tasks.find(x=>x.id===taskId);
+    if(!t){toast("⚠ 找不到此任務");return;}
+    const base=this.getExternalBase();
+    if(!base){toast("⚠ 未設定外部網頁網址");return;}
+    if(typeof Cloud!=="undefined"&&Cloud.enabled()){
+      try{
+        const rows=await Cloud.api(`selfcheck_drafts?task_id=eq.${taskId}&limit=1`);
+        if(!rows||!rows.length){
+          await Cloud.api("selfcheck_drafts",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+            body:JSON.stringify([{task_id:taskId,ship:t.ship,title:t.title||"",items:t.items.map(it=>({...it})),imported:false,history:[]}])});
+        }else{
+          // 重新整理「題目本身」的參考內容（以防任務項目後續有調整），但保留船上／督導已經填的作答進度
+          const remote=rows[0].items||[];
+          const merged=t.items.map((local,i)=>{
+            const r=remote[i]||{};
+            return Object.assign({},local,{
+              status:r.status!==undefined?r.status:local.status,
+              note:r.note!==undefined?r.note:local.note,
+              actual:r.actual!==undefined?r.actual:local.actual,
+              closed:r.closed!==undefined?r.closed:local.closed,
+              checkedBy:r.checkedBy!==undefined?r.checkedBy:local.checkedBy,
+              checkedAt:r.checkedAt!==undefined?r.checkedAt:local.checkedAt
+            });
+          });
+          await Cloud.api(`selfcheck_drafts?task_id=eq.${taskId}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+            body:JSON.stringify({ship:t.ship,title:t.title||"",items:merged})});
+        }
+      }catch(e){
+        toast("⚠ 建立/更新自查草稿失敗："+e.message+"（可能是 Supabase 資料表還沒建，請確認已執行最新的 supabase_setup.sql）");
+        console.warn("SelfCheck.openExternalEditor failed",e);
+        return;
+      }
+    }else{
+      toast("⚠ 雲端未連線，無法開啟外部自查頁");return;
+    }
+    window.open(`${base}?tid=${taskId}`,"_blank");
+  },
+  async viewExternalDraft(taskId){
+    const t=App.tasks.find(x=>x.id===taskId);
+    if(!t){toast("⚠ 找不到此任務");return;}
+    const body=$("#scViewBody");
+    body.innerHTML=`<p class="hint">讀取中…</p>`;
+    $("#scViewModal").classList.add("show");
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){
+      body.innerHTML=`<p class="hint">⚠ 雲端未連線，無法查看外部進度。</p>`;return;
+    }
+    try{
+      const rows=await Cloud.api(`selfcheck_drafts?task_id=eq.${taskId}&limit=1`);
+      if(!rows||!rows.length){
+        body.innerHTML=`<p class="hint">尚未在外部頁面開啟過這筆任務，還沒有任何草稿資料。</p>`;return;
+      }
+      const r=rows[0];
+      const items=r.items||[];
+      const done=items.filter(it=>it.status&&it.status!=="pending").length;
+      const sim=items.filter(it=>it.status==="similar").length;
+      const cls=items.filter(it=>it.status==="similar"&&it.closed).length;
+      body.innerHTML=`<p class="hint" style="margin-bottom:10px">${esc(r.ship||"")}　已作答 ${done}/${items.length}　⚠ 類似缺失 ${sim}（結案 ${cls}）　已送出 ${r.submit_count||0} 次${r.submitted_at?"　最後送出："+esc(new Date(r.submitted_at).toLocaleString("zh-TW",{hour12:false})):""}</p>
+        <table class="tbl" style="width:100%"><thead><tr><th>#</th><th>缺失詳情</th><th>狀態</th><th>本船實際狀況／處理</th><th>結案</th></tr></thead><tbody>
+        ${items.map((it,i)=>{
+          const stLabel={ok:"✅ 沒有",similar:"⚠️ 有，需處理",na:"➖ 不適用",pending:"（未作答）"}[it.status||"pending"];
+          return `<tr>
+            <td>${i+1}</td>
+            <td style="max-width:280px">${esc((it.detail||"").slice(0,80))}${(it.detail||"").length>80?"…":""}</td>
+            <td>${stLabel}</td>
+            <td style="max-width:280px">${esc((it.note||"").slice(0,60))}${it.actual?"／"+esc((it.actual||"").slice(0,60)):""}</td>
+            <td>${it.closed?"✓":""}</td>
+          </tr>`;
+        }).join("")}
+        </tbody></table>`;
+    }catch(e){
+      body.innerHTML=`<p class="hint" style="color:var(--bad)">⚠ 讀取失敗：${esc(e.message)}</p>`;
+    }
+  },
+  closeViewModal(){$("#scViewModal").classList.remove("show");},
+  closeDownloadModal(){$("#scExportTaskModal").classList.remove("show");},
   cur(){return App.tasks.find(t=>t.id===App.curTaskId)||null;},
   init(){
     const wc=()=>this.wizCount();
@@ -21927,7 +22030,7 @@ const SelfCheck={
       const supCanEdit=this.isSup();
       const supDis=supCanEdit?"":"disabled";
       return `<div class="task-card">
-        <div class="tc-main" onclick="SelfCheck.openTask(${t.id})">
+        <div class="tc-main" onclick="SelfCheck.openExternalEditor(${t.id})">
           <div class="tc-name">${esc(t.ship)} <span>·</span> ${esc(t.date)} <span>·</span> ${esc(t.title||"自檢")}</div>
           <div class="tc-meta">${t.inspector?`✍ ${esc(t.inspector)} · `:""}共 ${n} 項 · 已查核 ${done}（${pct}%）${sim?` · <b style="color:var(--bad)">⚠ 類似缺失 ${sim}</b>（結案 ${cls}）`:""} · 建立 ${esc(t.created||"")}${t.createdBy?`（${esc(t.createdBy)}）`:""}</div>
           <div class="progressbar"><div style="width:${pct}%"></div></div>
@@ -21937,9 +22040,10 @@ const SelfCheck={
             <input type="checkbox" ${t.supConfirmed?"checked":""} ${supDis} onchange="SelfCheck.toggleSupConfirm(${t.id},this.checked)">
             🧭 督導確認${t.supConfirmed?`（${esc(t.supConfirmedBy||"")}）`:""}
           </label>
-          <button class="btn sm primary" onclick="SelfCheck.openTask(${t.id})">開啟</button>
-          <button class="btn sm" onclick="SelfCheck.openTaskDownload(${t.id})">下載</button>
-          <button class="btn sm danger" onclick="SelfCheck.delTask(${t.id})">刪除</button>
+          <button class="btn sm primary" onclick="event.stopPropagation();SelfCheck.openExternalEditor(${t.id})">📤 開啟</button>
+          <button class="btn sm" onclick="event.stopPropagation();SelfCheck.viewExternalDraft(${t.id})">👀 查看</button>
+          <button class="btn sm" onclick="event.stopPropagation();SelfCheck.openTaskDownload(${t.id})">下載</button>
+          <button class="btn sm danger" onclick="event.stopPropagation();SelfCheck.delTask(${t.id})">刪除</button>
         </div>
       </div>`;
     }).join("");

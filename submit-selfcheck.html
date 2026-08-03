@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>船舶缺失自查 — FPMC</title>
+<style>
+:root{
+  --navy:#1c3a5e; --navy-2:#234a72; --navy-3:#2f6690;
+  --paper:#f5f7f8; --card:#ffffff; --line:#dde4e8; --line-2:#c3ced5;
+  --ink:#15262f; --ink-2:#52656f; --ink-3:#8195a0;
+  --signal:#e8842c; --signal-d:#c96a14;
+  --ok:#2e8b57; --bad:#c0392b; --warn:#c99a1f;
+  --sans:"Segoe UI","Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);font-family:var(--sans);color:var(--ink)}
+.wrap{max-width:900px;margin:0 auto;padding:0 0 90px}
+header{background:var(--navy);color:#fff;padding:20px 18px;position:sticky;top:0;z-index:20}
+header h1{margin:0;font-size:18px}
+header p{margin:6px 0 0;font-size:12.5px;color:#b9c8d6;line-height:1.6}
+.progressbar{background:rgba(255,255,255,.18);border-radius:20px;height:8px;margin-top:10px;overflow:hidden}
+.progressbar>div{background:#8fd19e;height:100%;transition:width .3s}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:14px;padding:16px}
+.hint{color:var(--ink-3);font-size:12px;line-height:1.7}
+.hint.warn{color:var(--signal-d);background:#fff4e8;border:1px solid #f3d9b8;border-radius:8px;padding:10px 12px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-2);background:#fff;color:var(--ink);padding:10px 15px;border-radius:8px;font-size:13.5px;cursor:pointer;font-family:var(--sans);font-weight:600}
+.btn.primary{background:var(--signal);border-color:var(--signal);color:#fff}
+.btn.sm{padding:6px 10px;font-size:12px}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+textarea,input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8px;font-size:14px;font-family:var(--sans);width:100%;resize:vertical}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);display:none;z-index:99;max-width:90vw;text-align:center}
+#toast.err{background:var(--bad)}
+#toast.ok2{background:var(--ok)}
+.itemcard{border:1px solid var(--line);border-radius:10px;margin:0 14px 14px;padding:16px;background:#fff}
+.itemcard .num{display:inline-block;background:var(--navy);color:#fff;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;margin-right:6px}
+.refbox{background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:13px;line-height:1.7;color:var(--ink-2)}
+.refbox .samp{margin:4px 0;padding-left:8px;border-left:2px solid var(--line-2)}
+.statusrow{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.statusbtn{flex:1;min-width:140px;border:1.5px solid var(--line-2);background:#fff;color:var(--ink-2);padding:12px;border-radius:8px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+.statusbtn.on.ok{background:#eaf5ee;border-color:var(--ok);color:var(--ok)}
+.statusbtn.on.similar{background:#fff4e8;border-color:var(--warn);color:var(--warn)}
+.statusbtn.on.na{background:#eef0f4;border-color:var(--ink-3);color:var(--ink-2)}
+.detailwrap{display:none;margin-top:10px}
+.detailwrap.show{display:block}
+label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px 0 4px}
+.closedrow{display:flex;align-items:center;gap:8px;margin-top:10px;background:#fdf2e0;border:1px solid #f0dba9;border-radius:8px;padding:10px 12px}
+#saveNote{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px;text-align:center;font-size:12.5px;color:var(--ink-3)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📋 船舶缺失自查</h1>
+    <p id="hdr-note">讀取中…</p>
+    <div class="progressbar"><div id="progressFill" style="width:0%"></div></div>
+  </header>
+
+  <div class="card" id="errorCard" style="display:none">
+    <p class="hint warn" id="errorMsg"></p>
+  </div>
+
+  <div id="body" style="display:none">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:700;font-size:15px" id="taskTitle"></div>
+          <div class="hint" id="taskMeta"></div>
+        </div>
+        <button class="btn primary" style="margin-left:auto" id="submitBtn" onclick="submitAll()">✓ 送出</button>
+      </div>
+      <p class="hint warn" style="margin-top:10px">內容會自動即時儲存，不用自己按存檔。答「有，需處理」的項目，等船上處理完成後記得回來勾選「已完成改善（結案）」，再按一次「送出」才算完整。送出後仍可以回來調整、再送出一次覆蓋更新。</p>
+    </div>
+    <div id="itemsWrap"></div>
+  </div>
+</div>
+
+<div id="saveNote"></div>
+<div id="toast"></div>
+
+<script>
+const CLOUD = {
+  url: "https://iqmbircjokdzdssouwkr.supabase.co",
+  key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY"
+};
+const TABLE = "selfcheck_drafts";
+const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let toastTimer;
+function notify(msg,tone){
+  const el=document.getElementById("toast");
+  el.textContent=msg; el.className=tone==="err"?"err":(tone==="ok2"?"ok2":"");
+  el.style.display="block"; clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.style.display="none",4200);
+}
+async function api(path,opts){
+  const res=await fetch(`${CLOUD.url}/rest/v1/${path}`,Object.assign({headers:{
+    "apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json"
+  }},opts||{}));
+  if(!res.ok){ const t=await res.text().catch(()=>""); throw new Error("HTTP "+res.status+" "+t.slice(0,150)); }
+  const ct=res.headers.get("content-type")||"";
+  return ct.includes("json")?res.json():null;
+}
+
+const TID=new URLSearchParams(location.search).get("tid");
+let draft=null;
+let autoSaveTimer=null;
+
+async function init(){
+  if(!TID){
+    showError("網址缺少任務代碼（?tid=...），請確認連結是否正確，需由正式系統「開啟」自查任務建立。");
+    return;
+  }
+  document.getElementById("hdr-note").textContent="讀取中…";
+  try{
+    const rows=await api(`${TABLE}?task_id=eq.${encodeURIComponent(TID)}&limit=1`);
+    if(!rows||!rows.length){
+      showError("找不到這筆自查任務的資料，請確認連結是否正確，或請督導在正式系統重新按一次「開啟」建立。");
+      return;
+    }
+    draft=rows[0];
+  }catch(e){
+    showError("讀取失敗："+e.message);
+    return;
+  }
+  document.getElementById("body").style.display="";
+  document.getElementById("taskTitle").textContent=draft.title||"";
+  document.getElementById("taskMeta").textContent=`船舶：${draft.ship||""}　已送出 ${draft.submit_count||0} 次${draft.submitted_at?"　最後送出："+new Date(draft.submitted_at).toLocaleString("zh-TW",{hour12:false}):""}`;
+  renderItems();
+}
+function showError(msg){
+  document.getElementById("hdr-note").textContent="無法開啟";
+  document.getElementById("errorCard").style.display="";
+  document.getElementById("errorMsg").textContent="⚠ "+msg;
+}
+
+function updateProgress(){
+  const items=draft.items||[];
+  const done=items.filter(it=>it.status&&it.status!=="pending").length;
+  const pct=items.length?Math.round(done/items.length*100):0;
+  document.getElementById("progressFill").style.width=pct+"%";
+  document.getElementById("hdr-note").textContent=`已作答 ${done} / ${items.length} 題（${pct}%）`;
+}
+
+function renderRef(it){
+  if(it.grouped && Array.isArray(it.samples) && it.samples.length){
+    return `<div class="refbox"><b>其他船舶曾發生的問題：</b>${it.samples.map(s=>
+      `<div class="samp">${esc(s.ship||"")}　${esc(s.date||"")}　${esc((s.detail||"").slice(0,160))}${(s.detail||"").length>160?"…":""}</div>`
+    ).join("")}</div>`;
+  }
+  return `<div class="refbox">
+    ${it.ship?`<div><b>船舶：</b>${esc(it.ship)}　${esc(it.date||"")}　${esc(it.code||"")}</div>`:""}
+    <div><b>缺失詳情：</b>${esc(it.detail||"")}</div>
+  </div>`;
+}
+
+function renderItems(){
+  const wrap=document.getElementById("itemsWrap");
+  const items=draft.items||[];
+  wrap.innerHTML=items.map((it,i)=>`
+    <div class="itemcard" data-idx="${i}">
+      <div><span class="num">#${i+1}</span><b>${esc(it.detail?(it.grouped?it.detail:("CODE "+(it.code||""))):"")}</b></div>
+      ${renderRef(it)}
+      <p style="font-weight:700;margin:10px 0 4px">❓ 本船目前有同樣或類似的情形嗎？</p>
+      <div class="statusrow">
+        <button type="button" class="statusbtn ${it.status==='ok'?'on ok':''}" onclick="setStatus(${i},'ok')">✅ 沒有</button>
+        <button type="button" class="statusbtn ${it.status==='similar'?'on similar':''}" onclick="setStatus(${i},'similar')">⚠️ 有，需處理</button>
+        <button type="button" class="statusbtn ${it.status==='na'?'on na':''}" onclick="setStatus(${i},'na')">➖ 不適用本船</button>
+      </div>
+      <div class="detailwrap ${it.status==='similar'?'show':''}" id="detail-${i}">
+        <label>本船的實際狀況</label>
+        <textarea data-idx="${i}" data-field="note" oninput="onFieldInput(this)">${esc(it.note||"")}</textarea>
+        <label>打算怎麼處理／改善措施</label>
+        <textarea data-idx="${i}" data-field="actual" oninput="onFieldInput(this)">${esc(it.actual||"")}</textarea>
+        <div class="closedrow">
+          <input type="checkbox" id="closed-${i}" ${it.closed?"checked":""} onchange="onClosedChange(${i},this.checked)" style="width:18px;height:18px">
+          <label for="closed-${i}" style="margin:0">✓ 已完成改善（結案）</label>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:8px">${it.checkedBy?`最後回答：${esc(it.checkedBy)}　${esc(it.checkedAt||"")}`:""}</p>
+    </div>
+  `).join("");
+  updateProgress();
+}
+
+function setStatus(i,status){
+  const items=draft.items||[];
+  const it=items[i];if(!it)return;
+  it.status=status;
+  if(status!=="similar")it.closed=false;
+  it.checkedAt=new Date().toISOString().slice(0,10);
+  const dw=document.getElementById("detail-"+i);
+  if(dw)dw.classList.toggle("show",status==="similar");
+  document.querySelectorAll(`.itemcard[data-idx="${i}"] .statusbtn`).forEach(b=>b.classList.remove("on","ok","similar","na"));
+  const btnMap={ok:0,similar:1,na:2};
+  const btns=document.querySelectorAll(`.itemcard[data-idx="${i}"] .statusbtn`);
+  if(btns[btnMap[status]])btns[btnMap[status]].classList.add("on",status);
+  updateProgress();
+  scheduleAutoSave();
+}
+function onFieldInput(ta){
+  const i=+ta.dataset.idx, field=ta.dataset.field;
+  const it=(draft.items||[])[i];if(!it)return;
+  it[field]=ta.value;
+  scheduleAutoSave();
+}
+function onClosedChange(i,checked){
+  const it=(draft.items||[])[i];if(!it)return;
+  it.closed=checked;
+  scheduleAutoSave();
+}
+
+function scheduleAutoSave(){
+  const note=document.getElementById("saveNote");
+  if(note)note.textContent="● 有未儲存的變更…";
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer=setTimeout(flushAutoSave,900);
+}
+async function flushAutoSave(){
+  clearTimeout(autoSaveTimer);
+  if(!draft)return;
+  try{
+    await api(`${TABLE}?id=eq.${draft.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},
+      body:JSON.stringify({items:draft.items})});
+    const note=document.getElementById("saveNote");
+    if(note)note.textContent="✓ 已自動儲存　"+new Date().toLocaleTimeString("zh-TW",{hour12:false});
+  }catch(e){
+    const note=document.getElementById("saveNote");
+    if(note)note.textContent="⚠ 自動儲存失敗："+e.message;
+  }
+}
+window.addEventListener("beforeunload",()=>{ if(autoSaveTimer)flushAutoSave(); });
+
+async function submitAll(){
+  const btn=document.getElementById("submitBtn");
+  btn.disabled=true;
+  await flushAutoSave();
+  const now=new Date().toISOString();
+  const hist=Array.isArray(draft.history)?draft.history.slice():[];
+  hist.push({at:now});
+  try{
+    await api(`${TABLE}?id=eq.${draft.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},
+      body:JSON.stringify({items:draft.items,submitted_at:now,submit_count:(draft.submit_count||0)+1,history:hist,imported:false})});
+    draft.submitted_at=now; draft.submit_count=(draft.submit_count||0)+1;
+    document.getElementById("taskMeta").textContent=`船舶：${draft.ship||""}　已送出 ${draft.submit_count} 次　最後送出：${new Date(now).toLocaleString("zh-TW",{hour12:false})}`;
+    notify("✓ 已送出，公司端可以查看到這次結果了","ok2");
+  }catch(e){
+    notify("送出失敗："+e.message,"err");
+  }
+  btn.disabled=false;
+}
+
+init();
+</script>
+</body>
+</html>
