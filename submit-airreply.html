@@ -81,7 +81,16 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
       <p class="hint" id="edit-meta"></p>
       <div class="hint warn" style="margin:10px 0">
         <b>三階段，可重複調整：</b> ①主管填中文 → ②承辦人員AI翻譯英文 → ③中英文並排，主管確認。
-        按「已確認」不會鎖死——之後還能再調整、再按一次「已確認」，最新一次確認的內容就是最終版本，正式系統會採用最新確認版覆蓋匯入。
+        內容會自動即時儲存，不用自己按存檔，切換分頁也不會遺失。全部缺失整理完後，按最下方「🌐 全部送出」一次推進所有缺失的階段。
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;background:#fff4e8;border:1px solid #f3d9b8;border-radius:8px;padding:10px 12px">
+        <label style="flex:1;min-width:200px;margin:0">確認人姓名（選填，全部送出時記錄）
+          <select id="confirmerSelect" onchange="onConfirmerSelectChange()"><option value="">讀取人員清單中…</option></select>
+          <input type="text" id="confirmerName" placeholder="請輸入姓名" style="display:none;margin-top:4px">
+        </label>
+        <button class="btn primary" id="submitAllBtn" onclick="submitAll()">🌐 全部送出</button>
+        <span class="hint" id="autoSaveNote" style="width:100%"></span>
       </div>
 
       <div id="defTabsWrap"></div>
@@ -105,14 +114,9 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
 
       <div id="fieldsWrap" class="grid2"></div>
 
-      <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <label style="flex:1;min-width:220px">確認人姓名（選填，送出時記錄）
-          <select id="confirmerSelect" onchange="onConfirmerSelectChange()"><option value="">讀取人員清單中…</option></select>
-          <input type="text" id="confirmerName" placeholder="請輸入姓名" style="display:none;margin-top:4px">
-        </label>
-        <button class="btn primary" id="submitBtn" onclick="submitStage()" style="align-self:flex-end">送出</button>
+      <div style="margin-top:16px;display:flex;justify-content:flex-end">
+        <button class="btn primary" onclick="submitAll()">🌐 全部送出</button>
       </div>
-      <p class="hint" style="margin-top:8px" id="confirmHistoryNote"></p>
     </div>
   </div>
 </div>
@@ -279,7 +283,8 @@ function renderDefTabs(){
     return `<button type="button" class="tabpill${on?" on":""}" onclick="switchDefect(${r.defect_idx})">#${r.defect_idx+1}${meta.code?"　CODE "+esc(meta.code):""}</button>`;
   }).join("");
 }
-function switchDefect(idx){
+async function switchDefect(idx){
+  if(draftRow&&draftRow.defect_idx!==idx)await flushAutoSave();
   const row=allDrafts.find(r=>r.defect_idx===idx);
   if(!row)return;
   DIDX=idx;
@@ -294,6 +299,33 @@ function switchDefect(idx){
   renderDefMeta();
   renderStage();
 }
+
+/* ════════ 自動即時儲存：內容變更後 debounce 一下就自動存檔，切分頁前也會先存一次，
+   不用自己按存檔、切分頁也不會遺失剛才改的內容。只存內容，不會動階段。 ════════ */
+let autoSaveTimer=null;
+function scheduleAutoSave(){
+  const note=document.getElementById("autoSaveNote");
+  if(note)note.textContent="● 有未儲存的變更…";
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer=setTimeout(flushAutoSave,900);
+}
+async function flushAutoSave(){
+  clearTimeout(autoSaveTimer);
+  if(!draftRow)return;
+  const items=[{ _defectMeta: defectMeta }];
+  REPLY_FIELDS.forEach(f=>{ items[0][f.key+"Cn"]=replyData[f.key].cn; items[0][f.key+"En"]=replyData[f.key].en; });
+  try{
+    await api(`${TABLE}?id=eq.${draftRow.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({items})});
+    draftRow.items=items;
+    const cached=allDrafts.find(r=>r.id===draftRow.id);if(cached)cached.items=items;
+    const note=document.getElementById("autoSaveNote");
+    if(note)note.textContent="✓ 已自動儲存　"+new Date().toLocaleTimeString("zh-TW",{hour12:false});
+  }catch(e){
+    const note=document.getElementById("autoSaveNote");
+    if(note)note.textContent="⚠ 自動儲存失敗："+e.message;
+  }
+}
+window.addEventListener("beforeunload",()=>{ if(autoSaveTimer)flushAutoSave(); });
 function renderDefMeta(){
   const box=document.getElementById("defMetaBox");
   if(defectMeta){
@@ -308,8 +340,6 @@ function renderStage(){
   const badgeWrap=document.getElementById("stageBadgeWrap");
   const aiBar=document.getElementById("aiBar");
   const wrap=document.getElementById("fieldsWrap");
-  const submitBtn=document.getElementById("submitBtn");
-  const histNote=document.getElementById("confirmHistoryNote");
 
   const labels={1:["階段① · 主管填寫中文回覆","#fff4e8","#c96a14"],2:["階段② · 承辦人員用 AI 翻譯英文","#eef4ff","var(--navy-3)"],3:["階段③ · 中英文並排，主管確認","#fdf2e9","#a35d1a"]};
   const [lbl,bg,fg]=labels[stage]||labels[1];
@@ -322,7 +352,6 @@ function renderStage(){
     wrap.innerHTML=REPLY_FIELDS.map(f=>`<label class="full">${f.labelZh}
       <textarea data-k="${f.key}" data-lang="cn">${esc(replyData[f.key].cn)}</textarea>
     </label>`).join("");
-    submitBtn.textContent="✓ 送出中文回覆，交給承辦人員翻譯";
   }else if(stage===2){
     wrap.innerHTML=REPLY_FIELDS.map(f=>`<label class="full">${f.labelZh}（中文，可微調小錯字）
         <textarea data-k="${f.key}" data-lang="cn">${esc(replyData[f.key].cn)}</textarea>
@@ -330,7 +359,6 @@ function renderStage(){
       <label class="full">${f.labelZh}（English）
         <textarea data-k="${f.key}" data-lang="en" placeholder="English translation…">${esc(replyData[f.key].en)}</textarea>
       </label>`).join("");
-    submitBtn.textContent="✓ 送出英文擬稿，交回主管最終確認";
   }else{
     wrap.innerHTML=REPLY_FIELDS.map(f=>`<label class="full">${f.labelZh}（中文）
         <textarea data-k="${f.key}" data-lang="cn">${esc(replyData[f.key].cn)}</textarea>
@@ -338,14 +366,13 @@ function renderStage(){
       <label class="full">${f.labelZh}（English）
         <textarea data-k="${f.key}" data-lang="en">${esc(replyData[f.key].en)}</textarea>
       </label>`).join("");
-    submitBtn.textContent = (draftRow&&draftRow.confirm_count) ? "✓ 重新確認（覆蓋前一次確認內容）" : "✓ 確認送出";
   }
   wrap.querySelectorAll("textarea[data-k]").forEach(ta=>{
-    ta.addEventListener("input",function(){ replyData[this.dataset.k][this.dataset.lang]=this.value; });
+    ta.addEventListener("input",function(){
+      replyData[this.dataset.k][this.dataset.lang]=this.value;
+      scheduleAutoSave();
+    });
   });
-  histNote.textContent = stage===3
-    ? "「已確認」不會鎖死畫面——確認後仍可以繼續調整、再按一次確認，每次確認都會記錄下來，正式系統永遠採用最新一次確認的內容。"
-    : "";
 }
 
 /* ════════ AI 翻譯小幫手（跟正式系統同一套提示詞格式，方便互通）════════ */
@@ -399,39 +426,39 @@ function applyPaste(){
 }
 
 /* ════════ 送出：推進階段，或（階段③）記錄一次確認 ════════ */
-async function submitStage(){
-  const btn=document.getElementById("submitBtn");
-  btn.disabled=true;
-  const items=[{ _defectMeta: defectMeta }];
-  REPLY_FIELDS.forEach(f=>{ items[0][f.key+"Cn"]=replyData[f.key].cn; items[0][f.key+"En"]=replyData[f.key].en; });
-  const nextStage = stage<3 ? stage+1 : 3;
-  const body={ ship:(defectMeta&&defectMeta.ship)||(draftRow&&draftRow.ship)||"", code:(defectMeta&&defectMeta.code)||"", stage:String(nextStage), items };
-
-  if(stage===3){
-    const name=getConfirmerValue()||"（未填寫）";
-    const now=new Date().toISOString();
-    const hist=(draftRow&&Array.isArray(draftRow.history))?draftRow.history.slice():[];
-    hist.push({by:name,at:now,items:items[0]});
-    body.confirmed_by=name; body.confirmed_at=now;
-    body.confirm_count=((draftRow&&draftRow.confirm_count)||0)+1;
-    body.history=hist;
-    body.imported=false; // 有新的確認版本，系統端需要重新匯入
-  }
-
-  try{
-    if(draftRow){
-      await api(`${TABLE}?id=eq.${draftRow.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(body)});
-    }else{
-      body.air_record_id=+RID; body.defect_idx=+DIDX;
-      await api(`${TABLE}`,{method:"POST",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify([body])});
+/* ════════ 全部送出：把目前這筆記錄底下「每一條缺失」一次推進到下一階段。
+   送出前先把目前分頁未存的內容 flush 一次，確保不遺漏。各條缺失依「自己目前的階段」各自推進
+   （正常情況下全部缺失階段會一致，一起往前走；如果不小心不一致，也會各自正確推進，不會出錯）。════════ */
+async function submitAll(){
+  const btn=document.getElementById("submitAllBtn");
+  if(btn)btn.disabled=true;
+  await flushAutoSave();
+  const name=getConfirmerValue()||"（未填寫）";
+  const now=new Date().toISOString();
+  let ok=0, fail=0;
+  for(const row of allDrafts){
+    const curStage=+row.stage||1;
+    const nextStage=curStage<3?curStage+1:3;
+    const items=row.items&&row.items.length?row.items:[{}];
+    const body={ stage:String(nextStage) };
+    if(curStage===3){
+      const hist=Array.isArray(row.history)?row.history.slice():[];
+      hist.push({by:name,at:now,items:items[0]});
+      body.confirmed_by=name; body.confirmed_at=now;
+      body.confirm_count=(row.confirm_count||0)+1;
+      body.history=hist;
+      body.imported=false;
     }
-    notify("✓ 已送出","ok2");
-    await loadDraft();
-  }catch(e){
-    notify("送出失敗："+e.message,"err");
+    try{
+      await api(`${TABLE}?id=eq.${row.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(body)});
+      ok++;
+    }catch(e){ fail++; console.warn("submitAll failed for defect_idx="+row.defect_idx, e); }
   }
-  btn.disabled=false;
+  notify(fail?`已送出 ${ok} 條，${fail} 條失敗，請檢查後重試`:`✓ 全部 ${ok} 條缺失已送出`, fail?"err":"ok2");
+  await loadDraft();
+  if(btn)btn.disabled=false;
 }
 </script>
+
 </body>
 </html>
