@@ -99,7 +99,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
         <h2 style="margin:0">缺失與正面評論</h2>
         <span class="hint" style="margin-left:auto">缺失 <b id="defCountLabel">0</b> 筆・正面評論 <b id="posCountLabel">0</b> 筆</span>
       </div>
-      <p class="sub" style="margin-top:6px">點下方分頁切換要填寫的缺失或正面評論（一次只顯示一筆，避免捲動時填錯格子）；每筆缺失請盡量填完整，分類欄位(問題別/大類/具體名稱/三要素/重要程度/風險/缺失性質判定)也請一併選好，回岸上就不用再補。</p>
+      <p class="sub" style="margin-top:6px">點下方分頁切換要填寫的缺失或正面評論（一次只顯示一筆，避免捲動時填錯格子）；每筆缺失請盡量填完整，分類欄位(問題別/大類/具體名稱/三要素/重要程度/風險/缺失性質判定)也請一併選好。</p>
       <div id="tabBar" style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0"></div>
       <div id="defList"></div>
       <div id="posSection">
@@ -259,6 +259,36 @@ async function loadItypesFromCloud(){
   dl.innerHTML = list.map(t=>`<option value="${esc(t)}">`).join("");
 }
 loadItypesFromCloud();
+
+/* NCDB_MAIN/NCDB_LEAF 上面已經內嵌一份範例快照當離線備援，但主系統那邊分類清單如果之後調整，
+   這份快照不會自動跟著變。改成打開表單時向雲端抓一次最新版本，直接覆蓋這兩個物件的內容
+   （用清空後重新賦值的方式，這樣其他地方用同一個物件參照的地方會自動讀到新內容，不用另外重render）。 */
+async function loadNcdbFromCloud(){
+  try{
+    const res = await fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=eq.ncdb`,
+      { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } });
+    if(!res.ok)return;
+    const rows = await res.json();
+    const payload = rows && rows[0] && rows[0].payload;
+    if(!payload || !payload.equip || !payload.ops)return;
+    const mainMap={"设备问题":[],"作业问题":[]};
+    const leafMap={};
+    const seenMain={"设备问题":new Set(),"作业问题":new Set()};
+    payload.equip.forEach(([main,leaf])=>{
+      if(!seenMain["设备问题"].has(main)){seenMain["设备问题"].add(main);mainMap["设备问题"].push(main);}
+      (leafMap[main]=leafMap[main]||[]).push(leaf);
+    });
+    payload.ops.forEach(([main,leaf])=>{
+      if(!seenMain["作业问题"].has(main)){seenMain["作业问题"].add(main);mainMap["作业问题"].push(main);}
+      (leafMap[main]=leafMap[main]||[]).push(leaf);
+    });
+    Object.keys(NCDB_MAIN).forEach(k=>delete NCDB_MAIN[k]);
+    Object.assign(NCDB_MAIN, mainMap);
+    Object.keys(NCDB_LEAF).forEach(k=>delete NCDB_LEAF[k]);
+    Object.assign(NCDB_LEAF, leafMap);
+  }catch(e){ /* 離線或連線失敗，沿用內嵌的備援快照 */ }
+}
+loadNcdbFromCloud();
 
 document.getElementById("f-ship").addEventListener("change",function(){
   const s=SHIP_OPTS.find(x=>x.code===this.value);

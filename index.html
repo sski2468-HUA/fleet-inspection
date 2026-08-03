@@ -21304,11 +21304,35 @@ const Cloud={
       if(!silent)toast(`✓ 已從雲端載入（${info.join("／")} 筆）${by?"，發布者："+map.inspections.by:""}`);
     }catch(e){this.dbState("⚠ 載入失敗");if(!silent)toast("⚠ 載入失敗："+e.message);}
   },
+  /* NCDB（分類清單：問題別/大類/具體名稱）是寫死在程式碼裡的常數，不像其他資料存在 App.xxx 裡，
+     所以沒辦法用一般的 gid/updated 比對機制同步。這裡改成用簡單的內容比對：算一個內容的簡易
+     指紋存在 localStorage，跟雲端現有的比對，不同才推送，避免每次同步都白白寫一次雲端。 */
+  _ncdbFingerprint(){
+    try{
+      const s=JSON.stringify(NCDB);
+      let h=0;for(let i=0;i<s.length;i++){h=((h<<5)-h+s.charCodeAt(i))|0;}
+      return String(h)+":"+s.length;
+    }catch(e){return "";}
+  },
+  async pushNcdbIfChanged(){
+    if(typeof NCDB==="undefined")return;
+    const fp=this._ncdbFingerprint();
+    if(!fp)return;
+    let last="";try{last=localStorage.getItem("vsm_ncdb_fp")||"";}catch(e){}
+    if(fp===last)return; // 內容沒變，不用重推
+    try{
+      await this.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(this.hdr(),{"Prefer":"resolution=merge-duplicates,return=minimal"}),
+        body:JSON.stringify([{k:"ncdb",updated:Date.now(),by:(function(){try{return localStorage.getItem("vsm_user_v1")||"";}catch(e){return "";}})(),payload:NCDB}])});
+      try{localStorage.setItem("vsm_ncdb_fp",fp);}catch(e){}
+    }catch(e){console.warn("pushNcdbIfChanged failed",e);}
+  },
   async syncNow(silent){
     if(!this.enabled()){if(!silent)toast("⚠ 請先於「資料管理 → 雲端同步」完成設定");return;}
     if(this._busy)return;this._busy=true;
     this.state("☁ 同步中…");
     try{
+      this.pushNcdbIfChanged(); // 分類清單(NCDB)是寫死在程式碼裡的，這裡順便把目前版本同步上雲端，
+                                  // 讓「線上填單」外部網頁抓到的分類永遠跟系統一致，不會過期
       this.ensureGids();
       /* 先併入雲端已知的刪除清單，再把本機已知的刪除清掉雲端殘留，
          否則已刪除的任務會在下面被當成「新任務」拉回本機 */
