@@ -4579,10 +4579,16 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <label>姓名-責任人<input type="text" id="e-person"></label>
         <label class="fw">缺失詳情<textarea id="e-detail"></textarea></label>
         <label class="fw">實際情況<textarea id="e-actual"></textarea></label>
-
-        <label class="fw">預防措施<textarea id="e-preventive"></textarea></label>
-        <label class="fw">改善措施<textarea id="e-corrective"></textarea></label>
-        <label class="fw">根本原因<textarea id="e-rootcause"></textarea></label>
+        <label class="fw">Initial Operator Comment（船上填寫版）<textarea id="e-opcomment"></textarea></label>
+        <label class="fw">Initial Operator Comment（對外回覆版）<textarea id="e-opcomment-reply"></textarea></label>
+        <label class="fw">直接原因 Immediate Cause（船上填寫版）<textarea id="e-immediatecause"></textarea></label>
+        <label class="fw">直接原因 Immediate Cause（對外回覆版）<textarea id="e-immediatecause-reply"></textarea></label>
+        <label class="fw">預防措施（船上填寫版）<textarea id="e-preventive"></textarea></label>
+        <label class="fw">預防措施（對外回覆版）<textarea id="e-preventive-reply"></textarea></label>
+        <label class="fw">改善措施（船上填寫版）<textarea id="e-corrective"></textarea></label>
+        <label class="fw">改善措施（對外回覆版）<textarea id="e-corrective-reply"></textarea></label>
+        <label class="fw">根本原因（船上填寫版）<textarea id="e-rootcause"></textarea></label>
+        <label class="fw">根本原因（對外回覆版）<textarea id="e-rootcause-reply"></textarea></label>
         <div class="fw" style="background:#f0f9ef;border:1px solid #b7dfb8;border-radius:6px;padding:12px;margin-top:4px">
           <div style="font-size:11.5px;font-weight:700;color:#2d6a4f;margin-bottom:10px;letter-spacing:.5px">📋 缺失分類</div>
           <div class="fgrid">
@@ -7819,6 +7825,7 @@ const Snap={
   async saveDefault(){
     if(typeof Guard!=="undefined"&&!await Guard.require())return; // 僅維護者
     if(!confirm(`確定要將「目前資料庫」設為預設備份？\n\n內容：檢查紀錄 ${App.insp.length} 筆、缺失紀錄 ${App.defs.length} 筆、船舶資料 ${SHIPINFO.length} 艘、SIRE正向評論 ${App.sirePos.length} 筆、自檢任務 ${App.tasks.length} 個、檢查管控 ${App.inspCtrl.length} 筆、年度計畫 ${App.annualPlan.length} 筆、內稽動態 ${App.auditDash.length} 筆、AIR ${App.air.length} 筆、參考連結 ${App.refDocs.length} 筆。\n\n設定後，若資料之後被誤改，可隨時用「還原預設」恢復成這個時間點的版本。\n（注意：此動作會直接覆蓋掉上一次設定的備份，無法復原上一版備份，建議先確認目前資料無誤）`))return;
+    if(typeof Air!=="undefined")await Air.syncAllReplyDrafts().catch(()=>{}); // 先同步雲端最新對外回覆內容，確保這份備份也是完整的
     const usr=(typeof Audit!=="undefined")?Audit.user():"";
     const snap={
       insp:JSON.parse(JSON.stringify(App.insp)),
@@ -10461,7 +10468,7 @@ function ncOpinionNormalize(v){
 }
 function ncOpinionLabel(v){const hit=NC_OPINION_OPTS.find(o=>o[0]===ncOpinionNormalize(v));return hit?hit[1]:"無";}
 function ncOpinionOptsHtml(v){const cur=ncOpinionNormalize(v);return NC_OPINION_OPTS.map(([val,label])=>`<option value="${val}"${cur===val?" selected":""}>${label}</option>`).join("");}
-const DEF_COLS=[["ship","船名"],["vtype","船型"],["itype","檢查類型"],["ym","年月"],["date","檢查日期"],["place","地點"],["inspector","檢查員"],["oilco","油公司/單位"],["psc","PSC action"],["code","缺失代碼"],["attn","重點關注"],["detail","缺失詳情"],["actual","實際情況"],["corrective","改善措施"],["rootCause","根本原因"],["preventive","預防措施"],["rank","職級-責任人"],["person","姓名-責任人"],["risk","風險(1低2中3高)"],["ncProb","問題別"],["ncMain","大類"],["ncLeaf","具體名稱"],["ncFactor","三要素"],["ncImp","重要程度"],["ncFocus","重點關注"],["ncMethod","分類方法"],["ncOpinion","缺失性質判定"]];
+const DEF_COLS=[["ship","船名"],["vtype","船型"],["itype","檢查類型"],["ym","年月"],["date","檢查日期"],["place","地點"],["inspector","檢查員"],["oilco","油公司/單位"],["psc","PSC action"],["code","缺失代碼"],["attn","重點關注"],["detail","缺失詳情"],["actual","實際情況"],["opComment","Initial Operator Comment（船上填寫版）"],["opCommentReply","Initial Operator Comment（對外回覆版）"],["immediateCause","直接原因 Immediate Cause（船上填寫版）"],["immediateCauseReply","直接原因 Immediate Cause（對外回覆版）"],["corrective","改善措施（船上填寫版）"],["correctiveReply","改善措施（對外回覆版）"],["rootCause","根本原因（船上填寫版）"],["rootCauseReply","根本原因（對外回覆版）"],["preventive","預防措施（船上填寫版）"],["preventiveReply","預防措施（對外回覆版）"],["rank","職級-責任人"],["person","姓名-責任人"],["risk","風險(1低2中3高)"],["ncProb","問題別"],["ncMain","大類"],["ncLeaf","具體名稱"],["ncFactor","三要素"],["ncImp","重要程度"],["ncFocus","重點關注"],["ncMethod","分類方法"],["ncOpinion","缺失性質判定"]];
 
 /* ════════ 通用：頁面篩選欄位顯示設定（僅 Owner 可調整）════════
    任何頁面都可用 FilterVisEngine.register(key,{...}) 註冊，決定該頁篩選列上
@@ -10726,9 +10733,16 @@ const Defs={
     {k:"ym",t:"年月",sort:true,def:false,cell:d=>`<td style="font-family:var(--mono);white-space:nowrap">${esc(d.ym||"")}</td>`},
     {k:"oilco",t:"油公司/單位",sort:true,def:false,cell:d=>`<td class="col-narrow">${esc(d.oilco||"")}</td>`},
 
-    {k:"preventive",t:"預防措施",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.preventive||"")}</div></td>`},
-    {k:"corrective",t:"改善措施",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.corrective||"")}</div></td>`},
-    {k:"rootCause",t:"根本原因",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.rootCause||"")}</div></td>`},
+    {k:"preventive",t:"預防措施（船上填寫版）",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.preventive||"")}</div></td>`},
+    {k:"preventiveReply",t:"預防措施（對外回覆版）",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.preventiveReply||"")}</div></td>`},
+    {k:"corrective",t:"改善措施（船上填寫版）",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.corrective||"")}</div></td>`},
+    {k:"correctiveReply",t:"改善措施（對外回覆版）",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.correctiveReply||"")}</div></td>`},
+    {k:"rootCause",t:"根本原因（船上填寫版）",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.rootCause||"")}</div></td>`},
+    {k:"rootCauseReply",t:"根本原因（對外回覆版）",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.rootCauseReply||"")}</div></td>`},
+    {k:"opComment",t:"Initial Operator Comment（船上填寫版）",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.opComment||"")}</div></td>`},
+    {k:"opCommentReply",t:"Initial Operator Comment（對外回覆版）",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.opCommentReply||"")}</div></td>`},
+    {k:"immediateCause",t:"直接原因（船上填寫版）",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.immediateCause||"")}</div></td>`},
+    {k:"immediateCauseReply",t:"直接原因（對外回覆版）",sort:true,def:false,cell:d=>`<td class="cell-wide"><div class="cell-wide-inner">${esc(d.immediateCauseReply||"")}</div></td>`},
     {k:"tmMethod",t:"分類方法",sort:true,def:false,cell:d=>`<td style="font-size:11px;max-width:90px;word-break:break-word">${esc(d.tmMethod||"")}</td>`},
     {k:"rank",t:"職級-責任人",sort:true,def:false,cell:d=>`<td class="col-narrow">${esc(d.rank||"")}</td>`},
     {k:"person",t:"姓名-責任人",sort:true,def:false,cell:d=>`<td class="col-narrow">${esc(d.person||"")}</td>`},
@@ -11391,6 +11405,9 @@ const Defs={
     $("#e-attn").checked=!!d.attn;$("#e-rank").innerHTML=rankOptionsHtml(d.rank);set("#e-rank",d.rank);set("#e-person",d.person);set("#e-detail",d.detail);set("#e-actual",d.actual);
     set("#e-preventive",d.preventive);
     set("#e-corrective",d.corrective);set("#e-rootcause",d.rootCause);
+    set("#e-opcomment",d.opComment);set("#e-immediatecause",d.immediateCause);
+    set("#e-opcomment-reply",d.opCommentReply);set("#e-immediatecause-reply",d.immediateCauseReply);
+    set("#e-corrective-reply",d.correctiveReply);set("#e-rootcause-reply",d.rootCauseReply);set("#e-preventive-reply",d.preventiveReply);
     const splitTags=v=>ncTags(v); // 問題別/大類/具體名稱：用 ‖ 分隔，因為分類名稱本身可能含「、」
     const splitFactor=v=>(v||"").split(/[、,，]/).map(s=>s.trim()).filter(Boolean); // 三要素固定選項，不含特殊符號，可安全用「、」分隔
     this.emProb=MSel("ms-e-ncProb","問題別",()=>["设备问题","作业问题"],()=>ncPruneCascade(this.emProb,this.emMain,this.emLeaf));
@@ -11427,7 +11444,7 @@ const Defs={
   saveEdit(){
     const g=i=>$(i).value.trim();
     let _itype=$("#e-itype").value;if(_itype==="其他"){const _o=g("#e-itype-other");_itype=_o?"其他-"+_o:"其他";}
-    const rec={ship:g("#e-ship"),vtype:g("#e-vtype"),itype:_itype,date:g("#e-date"),ym:g("#e-ym")||ymOf(g("#e-date")),place:g("#e-place"),inspector:canonInspector(g("#e-inspector")),oilco:canonUnit(g("#e-oilco")),psc:pscBoxRead("e-psc"),code:g("#e-code"),detail:g("#e-detail"),actual:g("#e-actual"),preventive:g("#e-preventive"),corrective:g("#e-corrective"),rootCause:g("#e-rootcause"),attn:$("#e-attn").checked,rank:g("#e-rank"),person:g("#e-person"),risk:g("#e-risk"),ncProb:ncJoin(this.emProb?this.emProb.sel:[]),ncMain:ncJoin(this.emMain?this.emMain.sel:[]),ncLeaf:ncJoin(this.emLeaf?this.emLeaf.sel:[]),ncFactor:[...(this.emFactor?this.emFactor.sel:[])].join("、"),ncImp:g("#e-ncImp"),ncFocus:$("#e-ncFocus").checked?"是":"否",ncMethod:g("#e-ncMethod"),ncOpinion:ncOpinionNormalize(g("#e-ncOpinion")),internalControl:($("#e-internalControl")&&$("#e-internalControl").checked)?true:false};
+    const rec={ship:g("#e-ship"),vtype:g("#e-vtype"),itype:_itype,date:g("#e-date"),ym:g("#e-ym")||ymOf(g("#e-date")),place:g("#e-place"),inspector:canonInspector(g("#e-inspector")),oilco:canonUnit(g("#e-oilco")),psc:pscBoxRead("e-psc"),code:g("#e-code"),detail:g("#e-detail"),actual:g("#e-actual"),opComment:g("#e-opcomment"),opCommentReply:g("#e-opcomment-reply"),immediateCause:g("#e-immediatecause"),immediateCauseReply:g("#e-immediatecause-reply"),preventive:g("#e-preventive"),preventiveReply:g("#e-preventive-reply"),corrective:g("#e-corrective"),correctiveReply:g("#e-corrective-reply"),rootCause:g("#e-rootcause"),rootCauseReply:g("#e-rootcause-reply"),attn:$("#e-attn").checked,rank:g("#e-rank"),person:g("#e-person"),risk:g("#e-risk"),ncProb:ncJoin(this.emProb?this.emProb.sel:[]),ncMain:ncJoin(this.emMain?this.emMain.sel:[]),ncLeaf:ncJoin(this.emLeaf?this.emLeaf.sel:[]),ncFactor:[...(this.emFactor?this.emFactor.sel:[])].join("、"),ncImp:g("#e-ncImp"),ncFocus:$("#e-ncFocus").checked?"是":"否",ncMethod:g("#e-ncMethod"),ncOpinion:ncOpinionNormalize(g("#e-ncOpinion")),internalControl:($("#e-internalControl")&&$("#e-internalControl").checked)?true:false};
     if(!rec.ship){toast("⚠ 請填寫船名");return;}
     if(this.editId==null){rec.id=App.nextId();App.defs.push(rec);toast("✓ 已新增");Audit.log("新增","缺失紀錄",`${rec.ship} ${rec.date}：${(rec.detail||"").slice(0,40)}`);}
     else{const d=App.defs.find(x=>x.id===this.editId);Object.assign(d,rec);toast("✓ 已更新");Audit.log("編輯","缺失紀錄",`#${this.editId} ${rec.ship}：${(rec.detail||"").slice(0,40)}`);}
@@ -11618,7 +11635,7 @@ const Defs={
     ws.addRow(hdr);
     ws.addRow(cols.map(c=>SAMPLE1[c.k]??""));
     ws.addRow(cols.map(c=>SAMPLE2[c.k]??""));
-    cols.forEach((c,i)=>{ws.getColumn(i+1).width=["detail","actual","ncOpinion","preventive","corrective","rootCause"].includes(c.k)?40:(c.k==="place"?20:14);});
+    cols.forEach((c,i)=>{ws.getColumn(i+1).width=["detail","actual","ncOpinion","preventive","preventiveReply","corrective","correctiveReply","rootCause","rootCauseReply","opComment","opCommentReply","immediateCause","immediateCauseReply"].includes(c.k)?40:(c.k==="place"?20:14);});
     const col={};cols.forEach((c,i)=>{col[c.k]=ws.getColumn(i+1).letter;});
     if(col.date)ws.getColumn(cols.findIndex(c=>c.k==="date")+1).numFmt="@";
 
@@ -11743,7 +11760,13 @@ const ImportUI={
   },
   mapHeaders(aoa){
     const hdr=aoa[0].map(h=>String(h).trim());
-    const defMap={"船名":"ship","SHIP":"ship","SHIP NAME":"ship","Name of Vessel":"ship","船型":"vtype","TYPE":"vtype","vessel type":"vtype","檢查來源":"itype","Type of Inspectio":"itype","Type of Inspection":"itype","年月":"ym","YYYY-MM":"ym","檢查日期":"date","DATE":"date","Date of Inspection":"date","地點":"place","Place":"place","Location":"place","檢查員":"inspector","Inspector":"inspector","油公司/單位":"oilco","Oil company":"oilco","檢查單位/油公司":"oilco","Inspection unit/oil company":"oilco","PSC action":"psc","缺失代碼":"code","原缺失代碼":"code","CODE":"code","新缺失須注意":"attn","注意":"attn","缺失詳情":"detail","實際情況":"actual","預防措施":"preventive","問題別":"ncProb","大類":"ncMain","具體名稱":"ncLeaf","三要素":"ncFactor","重要程度":"ncImp","重點關注(是/否)":"ncFocus","重點關注":"ncFocus","分類方法":"ncMethod","檢查員意見/Best Practice":"ncOpinion","缺失性質判定":"ncOpinion","檢查員意見":"ncOpinion","檢察官意見":"ncOpinion","Best Practice":"ncOpinion","BP":"ncOpinion","職級-責任人":"rank","姓名-責任人":"person","職稱":"rank","名字":"person","評論項目":"item","ITEM":"item","正向評論":"comment","正向評論內容":"comment","檢查員正向評論內容":"comment","POSITIVE COMMENT":"comment","風險(1低2中3高)":"risk","風險":"risk","缺失數":"ndef","Number of defiency":"ndef","FLAG項目":"flagType","FLAG INSPECTION TYPE":"flagType","扣船":"detain","detain":"detain"};
+    const defMap={"船名":"ship","SHIP":"ship","SHIP NAME":"ship","Name of Vessel":"ship","船型":"vtype","TYPE":"vtype","vessel type":"vtype","檢查來源":"itype","Type of Inspectio":"itype","Type of Inspection":"itype","年月":"ym","YYYY-MM":"ym","檢查日期":"date","DATE":"date","Date of Inspection":"date","地點":"place","Place":"place","Location":"place","檢查員":"inspector","Inspector":"inspector","油公司/單位":"oilco","Oil company":"oilco","檢查單位/油公司":"oilco","Inspection unit/oil company":"oilco","PSC action":"psc","缺失代碼":"code","原缺失代碼":"code","CODE":"code","新缺失須注意":"attn","注意":"attn","缺失詳情":"detail","實際情況":"actual",
+      "Initial Operator Comment（船上填寫版）":"opComment","Initial Operator Comment（對外回覆版）":"opCommentReply","Initial Operator Comment":"opComment","Operator Comment":"opComment",
+      "直接原因 Immediate Cause（船上填寫版）":"immediateCause","直接原因 Immediate Cause（對外回覆版）":"immediateCauseReply","直接原因 Immediate Cause":"immediateCause","直接原因":"immediateCause","Immediate Cause":"immediateCause",
+      "改善措施（船上填寫版）":"corrective","改善措施（對外回覆版）":"correctiveReply","改善措施":"corrective","Corrective Action":"corrective",
+      "根本原因（船上填寫版）":"rootCause","根本原因（對外回覆版）":"rootCauseReply","根本原因":"rootCause","Root Cause":"rootCause",
+      "預防措施（船上填寫版）":"preventive","預防措施（對外回覆版）":"preventiveReply","預防措施":"preventive",
+      "問題別":"ncProb","大類":"ncMain","具體名稱":"ncLeaf","三要素":"ncFactor","重要程度":"ncImp","重點關注(是/否)":"ncFocus","重點關注":"ncFocus","分類方法":"ncMethod","檢查員意見/Best Practice":"ncOpinion","缺失性質判定":"ncOpinion","檢查員意見":"ncOpinion","檢察官意見":"ncOpinion","Best Practice":"ncOpinion","BP":"ncOpinion","職級-責任人":"rank","姓名-責任人":"person","職稱":"rank","名字":"person","評論項目":"item","ITEM":"item","正向評論":"comment","正向評論內容":"comment","檢查員正向評論內容":"comment","POSITIVE COMMENT":"comment","風險(1低2中3高)":"risk","風險":"risk","缺失數":"ndef","Number of defiency":"ndef","FLAG項目":"flagType","FLAG INSPECTION TYPE":"flagType","扣船":"detain","detain":"detain"};
     // 注意：匯出檔案裡的「檢查類型」欄（icat）是由「檢查來源」（itype）自動推算出來的顯示用欄位（見 icatOf()），
     // 從來不是獨立儲存的原始資料，因此匯入時刻意不比對「檢查類型」這個表頭——先前曾誤將它也對映到 itype，
     // 兩欄同時存在時，順序在後的「檢查類型」欄會覆蓋掉正確的「檢查來源」值，導致匯入後來源資料全部跑掉。
@@ -11766,7 +11789,7 @@ const ImportUI={
       ["ship","date","code","item","comment","rank","person"].forEach(k=>n[k]=String(o[k]??"").trim());
       n.ym=ymOf(n.date);
     }else{
-      ["ship","vtype","itype","ym","date","place","inspector","oilco","psc","code","detail","actual","preventive","ncProb","ncMain","ncLeaf","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","rank","person","risk"].forEach(k=>n[k]=String(o[k]??"").trim());
+      ["ship","vtype","itype","ym","date","place","inspector","oilco","psc","code","detail","actual","opComment","opCommentReply","immediateCause","immediateCauseReply","corrective","correctiveReply","rootCause","rootCauseReply","preventive","preventiveReply","ncProb","ncMain","ncLeaf","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","rank","person","risk"].forEach(k=>n[k]=String(o[k]??"").trim());
       if(!n.ym)n.ym=ymOf(n.date);
       n.attn=["v","V","Y","y","true","TRUE","1","是","✓"].includes(String(o.attn??"").trim());
       n.ncFocus=["v","V","Y","y","true","TRUE","1","是","✓"].includes(String(o.ncFocus??"").trim())?"是":"否";
@@ -16117,11 +16140,11 @@ const Air={
     wsBase.getColumn(5).numFmt="@"; // 檢查日期欄強制當文字格式,避免Excel把「2026/1/15」自動轉成日期序號,匯入時解析失敗
 
     const wsDef=wb.addWorksheet("缺失改善明細");
-    const defHdr=["序號","PSC Action Taken","CODE","實際情況","缺失詳情","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","三要素","重要程度","重點關注","缺失性質判定","風險"];
+    const defHdr=["序號","PSC Action Taken","CODE","實際情況","缺失詳情","Initial Operator Comment","直接原因 Immediate Cause","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","三要素","重要程度","重點關注","缺失性質判定","風險"];
     wsDef.addRow(defHdr);
-    wsDef.addRow([1,"17","17","已補正並加強督導","航行當值記錄不完整","針對程序進行修正","體系文件不足及上船前培訓針對性有待加強","公司修正管理體系文件內容及上船前培訓","","","作业问题","","","人員因素","中","否","檢查員個人意見","2"]);
-    wsDef.addRow([2,"","","通知岸基安排檢修","雷達顯示異常","","","","","","设备问题","","","設備因素","高","是","無","3"]);
-    [6,14,8,22,26,22,22,22,12,12,10,16,20,12,10,10,26,6].forEach((w,i)=>{wsDef.getColumn(i+1).width=w;});
+    wsDef.addRow([1,"17","17","已補正並加強督導","航行當值記錄不完整","","","針對程序進行修正","體系文件不足及上船前培訓針對性有待加強","公司修正管理體系文件內容及上船前培訓","","","作业问题","","","人員因素","中","否","檢查員個人意見","2"]);
+    wsDef.addRow([2,"","","通知岸基安排檢修","雷達顯示異常","","","","","","","","设备问题","","","設備因素","高","是","無","3"]);
+    [6,14,8,22,26,22,22,22,22,22,12,12,10,16,20,12,10,10,26,6].forEach((w,i)=>{wsDef.getColumn(i+1).width=w;});
     const col={};defHdr.forEach((h,i)=>{col[h]=wsDef.getColumn(i+1).letter;});
 
     const wsRef=wb.addWorksheet("分類選項參考");
@@ -16219,15 +16242,17 @@ const Air={
       toast("✓ 已下載填單匯入範本（船名／船型／檢查來源／問題別／大類／具體名稱／三要素／重要程度／重點關注／風險／缺失性質判定／責任人職位皆為下拉選單，大類與具體名稱會依上一欄自動篩選）");
     }catch(e){toast("⚠ 範本產生失敗："+e.message);}
   },
-  exportXlsx(){
+  async exportXlsx(){
     if(!hasXLSX())return;
+    toast("⏳ 同步對外回覆最新內容中…");
+    await this.syncAllReplyDrafts().catch(()=>{});
     const wb=XLSX.utils.book_new();
     // 若清單上已勾選特定幾筆，匯出時只帶出勾選的那幾筆；未勾選任何一筆則維持匯出全部（跟其他頁面「已勾選只匯出勾選」的慣例一致）
     const scope=this.selected&&this.selected.size?App.air.filter(d=>this.selected.has(String(d.id))):App.air;
     const baseRows=scope.map((d,i)=>({序號:i+1,船名:d.ship,船型:d.vtype,檢查來源:d.itype,檢查日期:d.date,檢查地點:d.place,"檢查單位/油公司":d.oilco,檢查員:d.inspector,缺失數:d.ndef??0,正面評論數:d.npos??0,督導確認:d.reviewed?"已確認":"尚未確認",已轉檢查紀錄:d.usedInsp?"是":"否",已轉缺失紀錄:d.usedDef?"是":"否",已轉正向評論:d.usedPos?"是":"否"}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(baseRows),"基本資料");
     const defRows=[];
-    scope.forEach((d,i)=>{(d.defects||[]).forEach(df=>{defRows.push({序號:i+1,"PSC Action Taken":df.psc||"",CODE:df.code||"",實際情況:df.actual||"",缺失詳情:df.detail||"",改善措施:df.corrective||"",根本原因:df.rootCause||"",預防措施:df.preventive||"",責任人職位:df.rank||"",責任人姓名:df.person||"",問題別:df.ncProb||"",大類:df.ncMain||"",具體名稱:df.ncLeaf||"",三要素:df.ncFactor||"",重要程度:df.ncImp||"",重點關注:df.ncFocus||"","缺失性質判定":ncOpinionLabel(df.ncOpinion),風險:df.risk||""});});});
+    scope.forEach((d,i)=>{(d.defects||[]).forEach((df,di)=>{const rp=(d.reply&&d.reply.items&&d.reply.items[di])||{};defRows.push({序號:i+1,"PSC Action Taken":df.psc||"",CODE:df.code||"",實際情況:df.actual||"",缺失詳情:df.detail||"","Initial Operator Comment":rp.opCommentCn||df.opComment||"","直接原因 Immediate Cause":rp.immediateCauseCn||df.immediateCause||"",改善措施:rp.correctiveCn||df.corrective||"",根本原因:rp.rootCauseCn||df.rootCause||"",預防措施:rp.preventiveCn||df.preventive||"",責任人職位:df.rank||"",責任人姓名:df.person||"",問題別:df.ncProb||"",大類:df.ncMain||"",具體名稱:df.ncLeaf||"",三要素:df.ncFactor||"",重要程度:df.ncImp||"",重點關注:df.ncFocus||"","缺失性質判定":ncOpinionLabel(df.ncOpinion),風險:df.risk||""});});});
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(defRows),"缺失改善明細");
     const posRows=[];
     scope.forEach((d,i)=>{(d.posComments||[]).forEach(pc=>{
@@ -16268,12 +16293,14 @@ const Air={
           const ship=g(o,"船名","船舶","Ship");
           const defs=defRows.filter(x=>g(x,"序號")===seq).map(x=>({
             psc:g(x,"PSC Action Taken","PSC"),code:g(x,"CODE","代碼"),actual:g(x,"實際情況"),detail:g(x,"缺失詳情"),
+            opComment:g(x,"Initial Operator Comment","Operator Comment","船公司初步意見"),
+            immediateCause:g(x,"直接原因 Immediate Cause","直接原因","Immediate Cause"),
             corrective:g(x,"改善措施"),rootCause:g(x,"根本原因"),preventive:g(x,"預防措施"),
             ncProb:g(x,"問題別"),ncMain:g(x,"大類"),ncLeaf:g(x,"具體名稱"),ncFactor:g(x,"三要素"),
             ncImp:g(x,"重要程度"),ncFocus:truthy(g(x,"重點關注"))?"是":(g(x,"重點關注")?"否":""),
             ncOpinion:ncOpinionNormalize(g(x,"缺失性質判定","檢查員意見/BP","檢查員意見","Best Practice")),risk:g(x,"風險"),
             rank:g(x,"責任人職位"),person:g(x,"責任人姓名")
-          })).filter(d=>d.detail||d.corrective||d.rootCause||d.preventive||d.code||d.actual||d.ncProb||d.ncMain);
+          })).filter(d=>d.detail||d.corrective||d.rootCause||d.preventive||d.opComment||d.immediateCause||d.code||d.actual||d.ncProb||d.ncMain);
           const posMap=new Map();
           posRows.filter(x=>g(x,"序號")===seq).forEach(x=>{
             const code=g(x,"CODE（章節）","CODE","章節");
@@ -16651,7 +16678,7 @@ const Air={
   },
   refreshIcat(){const t=$("#air-itype").value;$("#air-icat").value=icatOf(t)||"（未分類）";},
   /* ── 缺失改善明細 ── */
-  blankDefect(){return {id:this.defSeq++,psc:"",code:"",actual:"",detail:"",corrective:"",rootCause:"",preventive:"",rank:"",person:"",people:[{rank:"",person:""}],ncProb:"",ncMain:"",ncLeaf:"",ncFactor:"",ncImp:"",ncFocus:"",ncMethod:"",ncOpinion:"",risk:""};},
+  blankDefect(){return {id:this.defSeq++,psc:"",code:"",actual:"",detail:"",opComment:"",immediateCause:"",corrective:"",rootCause:"",preventive:"",rank:"",person:"",people:[{rank:"",person:""}],ncProb:"",ncMain:"",ncLeaf:"",ncFactor:"",ncImp:"",ncFocus:"",ncMethod:"",ncOpinion:"",risk:""};},
   addDefectRow(){this.defRows.push(this.blankDefect());this.activeDefRowIdx=this.defRows.length-1;this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
   rmDefectRow(id){this.defRows=this.defRows.filter(r=>r.id!==id);this.defSel.delete(id);this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
   syncNdefField(){const el=$("#air-ndef");if(el)el.value=this.defRows.length;},
@@ -16707,7 +16734,7 @@ const Air={
     if(n>cur){for(let i=cur;i<n;i++)this.defRows.push(this.blankDefect());}
     else if(n<cur){
       const removed=this.defRows.slice(n);
-      const hasContent=removed.some(r=>r.detail||r.corrective||r.rootCause||r.preventive||r.rank||r.person||r.code||r.actual||r.psc);
+      const hasContent=removed.some(r=>r.detail||r.corrective||r.rootCause||r.preventive||r.opComment||r.immediateCause||r.rank||r.person||r.code||r.actual||r.psc);
       if(hasContent&&!confirm(`縮減列數將刪除已填寫內容的 ${removed.length} 列缺失明細，確定要繼續？`)){$("#air-ndef").value=cur;return;}
       this.defRows=this.defRows.slice(0,Math.max(n,0));
     }
@@ -16758,6 +16785,8 @@ const Air={
         <div class="air-rs-edit">
           <div class="fgrid">
             <label class="fw">實際情況<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'actual',this.value)">${esc(r.actual)}</textarea></label>
+            <label class="fw">Initial Operator Comment<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'opComment',this.value)">${esc(r.opComment)}</textarea></label>
+            <label class="fw">直接原因 Immediate Cause<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'immediateCause',this.value)">${esc(r.immediateCause)}</textarea></label>
             <label class="fw">改善措施<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'corrective',this.value)">${esc(r.corrective)}</textarea></label>
             <label class="fw">根本原因<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'rootCause',this.value)">${esc(r.rootCause)}</textarea></label>
             <label class="fw">預防措施<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'preventive',this.value)">${esc(r.preventive)}</textarea></label>
@@ -16966,8 +16995,8 @@ const Air={
      pushedDefId：記錄這一列上次轉入「缺失紀錄總表」後對應的那筆紀錄 id，
      供之後「覆蓋」轉入時比對用；找不到對應（例如已被刪除）就視為要新增。 */
   rowsToDefectsPayload(rows){
-    return rows.filter(r=>r.detail||r.corrective||r.rootCause||r.preventive||r.rank||r.person||r.psc||r.code||r.actual||r.ncProb||r.ncMain||r.ncLeaf)
-      .map(r=>({psc:r.psc||"",code:r.code||"",actual:r.actual||"",detail:r.detail||"",corrective:r.corrective||"",rootCause:r.rootCause||"",preventive:r.preventive||"",rank:r.rank||"",person:r.person||"",people:Array.isArray(r.people)?r.people.filter(p=>p.rank||p.person):[],ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||"",risk:r.risk||"",pushedDefId:r.pushedDefId??null,
+    return rows.filter(r=>r.detail||r.corrective||r.rootCause||r.preventive||r.opComment||r.immediateCause||r.rank||r.person||r.psc||r.code||r.actual||r.ncProb||r.ncMain||r.ncLeaf)
+      .map(r=>({psc:r.psc||"",code:r.code||"",actual:r.actual||"",detail:r.detail||"",opComment:r.opComment||"",immediateCause:r.immediateCause||"",corrective:r.corrective||"",rootCause:r.rootCause||"",preventive:r.preventive||"",rank:r.rank||"",person:r.person||"",people:Array.isArray(r.people)?r.people.filter(p=>p.rank||p.person):[],ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||"",risk:r.risk||"",pushedDefId:r.pushedDefId??null,
         followUp:r.followUp||{on:false,assignee:"",status:"open",log:[],closedAt:0},mergedCodes:Array.isArray(r.mergedCodes)?r.mergedCodes:undefined}));
   },
   saveForm(){
@@ -17083,7 +17112,7 @@ const Air={
     if(!await Guard.require())return;
     if(this.editId==null){toast("⚠ 請先儲存基本資料");return;}
     const d=App.air.find(x=>x.id===this.editId);if(!d)return;
-    let rows=this.defRows.filter(r=>r.detail||r.corrective||r.rootCause||r.preventive||r.code||r.actual||r.psc||r.ncProb||r.ncMain||r.ncLeaf);
+    let rows=this.defRows.filter(r=>r.detail||r.corrective||r.rootCause||r.preventive||r.opComment||r.immediateCause||r.code||r.actual||r.psc||r.ncProb||r.ncMain||r.ncLeaf);
     const selScope=this.defSel.size>0;
     if(selScope)rows=rows.filter(r=>this.defSel.has(r.id));
     if(!rows.length){toast(selScope?"⚠ 已勾選的列中沒有可轉入的缺失明細":"⚠ 沒有可轉入的缺失明細");return;}
@@ -17122,14 +17151,29 @@ const Air={
     const d=App.air.find(x=>x.id===this.editId);if(!d)return;
     let added=0,updated=0;
     rows.forEach(r=>{
-      /* 改善措施／根本原因／預防措施：優先採用「對外回覆」審閱過的中文版本（船上原始填寫的
-         只是草稿，實際對外用字以海技審過的回覆內容為準）；該筆缺失若還沒填過對外回覆，
-         才退回使用缺失明細裡船上原本填的版本，避免轉入空白。 */
+      /* 策略：船上原始填寫的版本，與海技「對外回覆」審閱過的版本，是兩份不同的內容，
+         都要完整保留、不互相覆蓋——所以缺失紀錄總表對這5個欄位各自拆成兩欄：
+         corrective／correctiveReply、rootCause／rootCauseReply、preventive／preventiveReply、
+         opComment／opCommentReply、immediateCause／immediateCauseReply。
+         左邊（無Reply後綴）＝船上原始填寫版；右邊（Reply後綴）＝對外回覆審閱版（若尚未
+         產生對外回覆，或該筆對外回覆尚未填寫，Reply欄位就先留空，之後補填對外回覆後
+         可再次「覆蓋」轉入更新，不會遺失任何一邊的內容。 */
       const idx=this.defRows.indexOf(r);
       const rp=(d.reply&&d.reply.items&&d.reply.items[idx])||{};
       const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:d.date,ym:ymOf(d.date),place:d.place,oilco:d.oilco,inspector:d.inspector,
         psc:r.psc||"",code:r.code||"",detail:r.detail||"",actual:r.actual||"",
-        preventive:rp.preventiveCn||r.preventive||"",corrective:rp.correctiveCn||r.corrective||"",rootCause:rp.rootCauseCn||r.rootCause||"",
+        // 船上原始填寫版（來自線上填單缺失明細）
+        opComment:r.opComment||"",
+        immediateCause:r.immediateCause||"",
+        corrective:r.corrective||"",
+        rootCause:r.rootCause||"",
+        preventive:r.preventive||"",
+        // 對外回覆審閱版（來自海技對外回覆的中文欄位，尚未填寫則留空，不退回船上版本）
+        opCommentReply:rp.opCommentCn||"",
+        immediateCauseReply:rp.immediateCauseCn||"",
+        correctiveReply:rp.correctiveCn||"",
+        rootCauseReply:rp.rootCauseCn||"",
+        preventiveReply:rp.preventiveCn||"",
         rank:r.rank||"",person:r.person||"",risk:r.risk||"",
         ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||""};
       const existing=(mode==="overwrite"&&r.pushedDefId!=null)?App.defs.find(x=>x.id===r.pushedDefId):null;
@@ -17396,10 +17440,10 @@ const Air={
       if(!Array.isArray(df.followUp.log))df.followUp.log=[];
       if(!d.reply.items[i]){
         d.reply.items[i]={
+          opCommentCn:df.opComment||"",opCommentEn:"",
+          immediateCauseCn:df.immediateCause||"",immediateCauseEn:"",
           correctiveCn:df.corrective||"",correctiveEn:"",
-          immediateCauseCn:"",immediateCauseEn:"",
           rootCauseCn:df.rootCause||"",rootCauseEn:"",
-          opCommentCn:"",opCommentEn:"",
           preventiveCn:df.preventive||"",preventiveEn:"",
           hasEvidence:false,supportingMaterial:"",evidenceFiles:[],
           notify:{to:"",note:"",from:"",at:0,status:"",ackNote:"",ackAt:0}
@@ -17814,6 +17858,8 @@ const Air={
     merged.corrective=joinField(mergeDfs,"corrective");
     merged.rootCause=joinField(mergeDfs,"rootCause");
     merged.preventive=joinField(mergeDfs,"preventive");
+    merged.opComment=joinField(mergeDfs,"opComment");
+    merged.immediateCause=joinField(mergeDfs,"immediateCause");
     merged.mergedCodes=mergeDfs.map(x=>x.code).filter(Boolean);
     merged.followUp={on:false,assignee:"",status:"open",log:[],closedAt:0};
     const mergedRp={};
@@ -18103,10 +18149,11 @@ const Air={
             toInsert.push({air_record_id:this.replyId,defect_idx:k,ship:d.ship,code:df.code||"",stage:"1",imported:false,history:[],
               items:[{
                 _defectMeta:{ship:d.ship,date:d.date,itype:d.itype,code:df.code||"",detail:df.detail||"",actual:df.actual||""},
-                opCommentCn:rp.opCommentCn||"",immediateCauseCn:rp.immediateCauseCn||"",
-                rootCauseCn:rp.rootCauseCn||df.rootCause||"",
-                correctiveCn:rp.correctiveCn||df.corrective||"",
-                preventiveCn:rp.preventiveCn||df.preventive||""}]});
+                opCommentCn:rp.opCommentCn||df.opComment||"",opCommentEn:"",
+                immediateCauseCn:rp.immediateCauseCn||df.immediateCause||"",immediateCauseEn:"",
+                rootCauseCn:rp.rootCauseCn||df.rootCause||"",rootCauseEn:"",
+                correctiveCn:rp.correctiveCn||df.corrective||"",correctiveEn:"",
+                preventiveCn:rp.preventiveCn||df.preventive||"",preventiveEn:""}]});
           }else{
             const it=(ex.items&&ex.items[0])||{};
             const freshMeta={ship:d.ship,date:d.date,itype:d.itype,code:df.code||"",detail:df.detail||"",actual:df.actual||""};
@@ -18146,6 +18193,39 @@ const Air={
   /* 從雲端拉取這筆缺失目前最新（最後一次確認，或還沒確認的最新草稿）的回覆內容，
      寫回 App.air 的 d.reply.items[i]，讓系統這邊的預覽永遠顯示「主管回覆的最後結果」。
      拉取成功後會把雲端草稿標記 imported=true（純粹顯示用途，不影響內容本身）。 */
+  /* ════════ 一次同步「全部」對外回覆草稿（雲端 air_reply_drafts）回本機 App.air[].reply。
+     用途：本機 App.air.reply 只有在有人實際打開過某筆對外回覆頁（pullReplyDraft）時才會更新，
+     若船隊很多、沒人剛好點開過某幾筆，本機就會是舊資料或空白——備份時就會漏掉對外回覆內容。
+     這個函式在做「填單」相關匯出／「一鍵備份全部」之前呼叫，一次把雲端最新內容（含歷史版本、
+     確認紀錄）灌回本機，確保不論有沒有人開過對外回覆頁，備份都是完整、最新的。
+     回傳同步到的筆數；雲端未連線時直接跳過（回傳 -1），不擋住原本的匯出流程。 ════════ */
+  async syncAllReplyDrafts(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return -1;
+    try{
+      const rows=await Cloud.api(`air_reply_drafts?select=*`);
+      if(!Array.isArray(rows))return 0;
+      let n=0;
+      rows.forEach(draft=>{
+        const d=App.air.find(x=>x.id===draft.air_record_id);
+        if(!d)return;
+        if(!d.reply)d.reply={items:[]};
+        if(!Array.isArray(d.reply.items))d.reply.items=[];
+        const idx=draft.defect_idx;
+        if(!d.reply.items[idx])d.reply.items[idx]={};
+        const rp=d.reply.items[idx];
+        const it=(draft.items&&draft.items[0])||{};
+        ["opComment","immediateCause","rootCause","corrective","preventive"].forEach(k=>{
+          rp[k+"Cn"]=it[k+"Cn"]||""; rp[k+"En"]=it[k+"En"]||"";
+        });
+        rp._replyStage=draft.stage; rp._confirmCount=draft.confirm_count||0;
+        rp._confirmedBy=draft.confirmed_by||""; rp._confirmedAt=draft.confirmed_at||"";
+        rp._replyHistory=Array.isArray(draft.history)?draft.history:[]; // 完整版本歷史也一併備份，不只是目前版本
+        n++;
+      });
+      if(n)App.saveAll();
+      return n;
+    }catch(e){ console.warn("syncAllReplyDrafts failed",e); return -1; }
+  },
   async pullReplyDraft(i,silent){
     if(this.replyId==null)return;
     if(typeof Cloud==="undefined"||!Cloud.enabled()){if(!silent)toast("⚠ 雲端未連線");return;}
@@ -18505,6 +18585,7 @@ const AirQueue={
       place:b.place||"",oilco:b.oilco||"",inspector:b.inspector||"",
       ndef:(p.defects||[]).length,npos:(p.posComments||[]).length,flagType:"",
       defects:(p.defects||[]).map(d=>({psc:"",code:d.code||"",actual:d.actual||"",detail:d.detail||"",
+        opComment:d.opComment||"",immediateCause:d.immediateCause||"",
         corrective:d.corrective||"",rootCause:d.rootCause||"",preventive:d.preventive||"",
         rank:d.rank||"",person:d.person||"",people:Array.isArray(d.people)?d.people.filter(x=>x.rank||x.person):[],
         ncProb:d.ncProb||"",ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",ncFactor:d.ncFactor||"",
@@ -18843,7 +18924,7 @@ const Recur={
     // 匯出缺失明細 JSON（精簡欄位，降低 token 數）
     const jsonData=defs.map(d=>({
       ship:d.ship,date:d.date,itype:d.itype,place:d.place||"",
-      ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",
+      ncProb:d.ncProb||"",ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",
       detail:(d.detail||"").slice(0,150),
       actual:(d.actual||"").slice(0,100),
       ncFactor:d.ncFactor||"",ncImp:d.ncImp||"",
@@ -18861,41 +18942,34 @@ const Recur={
     const upCount=list.filter(r=>r.trend>0).length;
     RolePrompts.bind("rc");
     const persona=RolePrompts.currentText("rc")||RolePrompts.getDefault(RolePrompts.getRole());
-    const prompt=`${persona}\n以下是我們船隊的重複性缺失資料（JSON格式，位於本訊息末尾）。請完成以下兩件事：
+    const prompt=`${persona}
 
-═══════════════════════════════
-【第一部分：缺失彙整總結】
-═══════════════════════════════
-1. 統計缺失總筆數、涉及船數、涉及分類數
-2. 依三要素（人員因素／設備因素／系統因素）分析比重，以 ASCII 長條圖呈現（█ 每格約4%，共25格）
-3. 找出前3高風險缺失類別並說明成因模式
-4. 各類別趨勢用 ▲（上升）▼（下降）→（持平）標示
-5. 用2～3段白話文總結整體船隊狀況
-
-═══════════════════════════════
-【第二部分：稽查重點 Check List】
-═══════════════════════════════
-針對每個缺失分類，以下列格式逐條輸出，依發生次數由高到低：
-
-□ [大類] 查核項目名稱　　發生：N次　趨勢：▲/▼/→
-  ▸ 查核重點：（具體要查什麼，1～2句，直接可帶上船用）
-  ▸ 常見問題：（從缺失明細歸納，舉1～2個實例）
-  ▸ 三要素：（人員因素/設備因素/系統因素 及各自佔比）
-
-輸出要求：
-- 全部使用繁體中文
-- 查核重點語言精煉，稽查員到船上直接能用
-- 整份清單段落緊密，不要加多餘說明
-- 最後加一段「建議優先查核船舶」列出前3艘缺失最多的船
-
-━━━ 參考資訊（系統已統計）━━━
-統計期間：${period}
-缺失總筆數：${defs.length}　涉及分類：${list.length}
-最高發生類別：${topCat}　趨勢上升類別：${upCount} 個
-
-三要素分布（系統統計）：
-${factorLines||"（無三要素資料）"}
-━━━━━━━━━━━━━━━━━━━━━━━━
+### 身份定位
+資深船舶體系與檢查數據分析師，僅依據附件Excel內全部缺失記錄開展整體綜合總結，不得單獨逐行生成小結。
+### 原始數據欄位說明
+每條檢查缺失記錄固定三個核心資訊：【問題類別】、【實際情況】、【缺失詳情】；數據權重規則：全部分析以「缺失詳情」為核心依據，實際情況僅作輔助補充，任意資訊存在衝突時，完全捨棄實際情況內容，只採用缺失詳情描述。
+### 輸出硬性要求
+1. 語言：全程繁體中文，商務正式文風，簡練不冗長。
+2. 內容拆分：
+   ① 純文字整體總結（兩段式）
+   第一段：歸納全部缺失整體分佈特徵，重點列舉高風險、需重點關注的設備故障類問題；
+   第二段：歸納所有作業類缺失的共性問題，點出SMS體系、文件管理、日常自查等管理短板與改善空間。
+   ② 關鍵數據速覽表格（文字段落下方）：所有統計數字全部放入此Markdown表格，正文段落禁止穿插大量數字描述。
+3. 禁止行為：不要開頭客套話、不要分段列舉、不要解釋你的分析邏輯、不要補充表格以外多餘數據備註、不要逐條單獨總結每一行缺失。
+4. 表格規範：維度精簡，只保留核心統計項，格式整齊易讀。
+### 固定輸出排版範式（嚴格遵守，不增減標題）
+## 整體總結
+第一段文字（設備缺失整體+高風險故障）
+第二段文字（作業管理缺失共性與短板）
+### 關鍵數據速覽
+| 維度 | 數據 |
+|------|------|
+| 總缺失項 | XXX |
+| 涉及船舶 | XXX |
+| 設備問題 / 作業問題 | XXX / XXX |
+| 動力與推進占比 | XX%（XX項） |
+| 高發設備類 | XXX、XXX |
+| 重點關注項 | XXX |
 
 缺失明細資料（JSON）：
 [PASTE_DATA_HERE]`;
@@ -19298,7 +19372,7 @@ const Ref={
     if(!defs.length){toast("⚠ 無資料可匯出，請調整篩選或勾選");return;}
     const jsonData=defs.map(d=>({
       ship:d.ship,date:d.date,itype:d.itype,place:d.place||"",
-      ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",
+      ncProb:d.ncProb||"",ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",
       detail:(d.detail||"").slice(0,150),
       actual:(d.actual||"").slice(0,100),
       ncFactor:d.ncFactor||"",ncImp:d.ncImp||"",
@@ -19316,39 +19390,34 @@ const Ref={
     const period=`${fromYm||"—"} ～ ${toYm||"—"}`;
     RolePrompts.bind("ref");
     const persona=RolePrompts.currentText("ref")||RolePrompts.getDefault(RolePrompts.getRole());
-    const prompt=`${persona}\n以下是我們船隊依分類彙總分析篩選出的缺失資料（JSON格式，位於本訊息末尾）。請完成以下兩件事：
+    const prompt=`${persona}
 
-═══════════════════════════════
-【第一部分：缺失彙整總結】
-═══════════════════════════════
-1. 統計缺失總筆數、涉及船數、涉及分類數
-2. 依三要素（人員因素／設備因素／系統因素）分析比重，以 ASCII 長條圖呈現（█ 每格約4%，共25格）
-3. 找出前3高風險缺失分類並說明成因模式
-4. 用2～3段白話文總結整體船隊狀況
-
-═══════════════════════════════
-【第二部分：稽查重點 Check List】
-═══════════════════════════════
-針對每個缺失分類，以下列格式逐條輸出，依發生次數由高到低：
-
-□ [大類] 查核項目名稱　　發生：N次
-  ▸ 查核重點：（具體要查什麼，1～2句，直接可帶上船用）
-  ▸ 常見問題：（從缺失明細歸納，舉1～2個實例）
-  ▸ 三要素：（人員因素/設備因素/系統因素 及各自佔比）
-
-輸出要求：
-- 全部使用繁體中文
-- 查核重點語言精煉，稽查員到船上直接能用
-- 整份清單段落緊密，不要加多餘說明
-- 最後加一段「建議優先查核船舶」列出前3艘缺失最多的船
-
-━━━ 參考資訊（系統已統計）━━━
-統計期間：${period}
-缺失總筆數：${defs.length}　涉及分類前3：${topMainList}
-
-三要素分布（系統統計）：
-${factorLines||"（無三要素資料）"}
-━━━━━━━━━━━━━━━━━━━━━━━━
+### 身份定位
+資深船舶體系與檢查數據分析師，僅依據附件Excel內全部缺失記錄開展整體綜合總結，不得單獨逐行生成小結。
+### 原始數據欄位說明
+每條檢查缺失記錄固定三個核心資訊：【問題類別】、【實際情況】、【缺失詳情】；數據權重規則：全部分析以「缺失詳情」為核心依據，實際情況僅作輔助補充，任意資訊存在衝突時，完全捨棄實際情況內容，只採用缺失詳情描述。
+### 輸出硬性要求
+1. 語言：全程繁體中文，商務正式文風，簡練不冗長。
+2. 內容拆分：
+   ① 純文字整體總結（兩段式）
+   第一段：歸納全部缺失整體分佈特徵，重點列舉高風險、需重點關注的設備故障類問題；
+   第二段：歸納所有作業類缺失的共性問題，點出SMS體系、文件管理、日常自查等管理短板與改善空間。
+   ② 關鍵數據速覽表格（文字段落下方）：所有統計數字全部放入此Markdown表格，正文段落禁止穿插大量數字描述。
+3. 禁止行為：不要開頭客套話、不要分段列舉、不要解釋你的分析邏輯、不要補充表格以外多餘數據備註、不要逐條單獨總結每一行缺失。
+4. 表格規範：維度精簡，只保留核心統計項，格式整齊易讀。
+### 固定輸出排版範式（嚴格遵守，不增減標題）
+## 整體總結
+第一段文字（設備缺失整體+高風險故障）
+第二段文字（作業管理缺失共性與短板）
+### 關鍵數據速覽
+| 維度 | 數據 |
+|------|------|
+| 總缺失項 | XXX |
+| 涉及船舶 | XXX |
+| 設備問題 / 作業問題 | XXX / XXX |
+| 動力與推進占比 | XX%（XX項） |
+| 高發設備類 | XXX、XXX |
+| 重點關注項 | XXX |
 
 缺失明細資料（JSON）：
 [PASTE_DATA_HERE]`;
@@ -19691,7 +19760,9 @@ const DM={
       </table>`;
     $("#lsBreakdownModal").classList.add("show");
   },
-  exportAllJson(){
+  async exportAllJson(){
+    toast("⏳ 同步對外回覆最新內容中…");
+    await Air.syncAllReplyDrafts().catch(()=>{});
     const bundle={
       type:"vsm_full_backup",
       exportedAt:new Date().toISOString(),
@@ -19846,23 +19917,25 @@ const DM={
     const st=$("#dm-both-state");
     const say=t=>{if(st)st.textContent=t;};
     try{
-      say("⟳ 正在產生 Excel…");
-      this.exportAllXlsx();
+      say("⟳ 同步對外回覆最新內容、產生 Excel…");
+      await this.exportAllXlsx();
       await new Promise(r=>setTimeout(r,1200));   // 讓瀏覽器先完成第一個下載
       say("⟳ 正在產生 JS 完整備份…");
-      this.exportAllJson();
+      await this.exportAllJson();
       await new Promise(r=>setTimeout(r,300));
       say(`✓ 已下載 2 個檔案（${todayStr()}）`);
-      if(typeof Audit!=="undefined")Audit.log("匯出","全部備份","一鍵下載全部備份（Excel＋JS）");
-      toast("✓ 已下載 Excel 與 JS 兩份完整備份。若只看到一個檔案，請檢查瀏覽器是否攔截了多重下載。");
+      if(typeof Audit!=="undefined")Audit.log("匯出","全部備份","一鍵下載全部備份（Excel＋JS，含對外回覆最新內容）");
+      toast("✓ 已下載 Excel 與 JS 兩份完整備份（已含對外回覆最新內容）。若只看到一個檔案，請檢查瀏覽器是否攔截了多重下載。");
     }catch(e){
       console.warn("exportAllBoth failed",e);
       say("✘ 下載過程發生錯誤");
       toast("⚠ 下載過程發生錯誤，請改用下方的單獨匯出按鈕");
     }
   },
-  exportAllXlsx(){
+  async exportAllXlsx(){
     if(!hasXLSX())return;
+    toast("⏳ 同步對外回覆最新內容中…");
+    await Air.syncAllReplyDrafts().catch(()=>{});
     const wb=XLSX.utils.book_new();
     // 1. 檢查紀錄
     const inspRows=App.insp.map(r=>({船名:r.ship,船型:r.vtype,檢查來源:r.itype,檢查類型:icatOf(r.itype)||"",檢查日期:r.date,檢查地點:r.loc,檢查員:r.inspector,"檢查單位/油公司":r.unit,缺失數:r.ndef,正面評論數:r.npos,FLAG項目:r.flagType,扣船:r.detain}));
@@ -19873,8 +19946,13 @@ const DM={
     // 3. SIRE正向評論
     const sireAoa=(typeof SirePos!=="undefined")?SirePos.rowsToAoa(App.sirePos):[["ship","date","code","item","comment","rank","person"],...App.sirePos.map(d=>[d.ship,d.date,d.code,d.item,d.comment,d.rank,d.person])];
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sireAoa),"SIRE正向評論");
-    // 4. 填單（概要：每筆AIR一列，缺失/正向評論明細數量另列計數，明細請見各自資料表）
-    const airRows=App.air.map(d=>({船名:d.ship,船型:d.vtype,檢查來源:d.itype,檢查日期:d.date,檢查地點:d.place,"油公司/單位":d.oilco,檢查員:d.inspector,缺失數:d.ndef??0,正面評論數:d.npos??0,缺失明細筆數:(d.defects||[]).length,正向評論明細筆數:(d.posComments||[]).length,督導確認:d.reviewed?"已確認":"尚未確認",確認人:d.reviewedBy||"",已轉檢查紀錄:d.usedInsp?"是":"否",已轉缺失紀錄:d.usedDef?"是":"否",已轉正向評論:d.usedPos?"是":"否",建立者:d.createdBy||""}));
+    // 4. 填單（概要：每筆AIR一列，缺失/正向評論明細數量另列計數，明細請見各自資料表；
+    //    對外回覆欄位為剛同步過的雲端最新狀態，方便一眼看出哪幾筆還沒確認）
+    const airRows=App.air.map(d=>{
+      const items=(d.reply&&Array.isArray(d.reply.items))?d.reply.items:[];
+      const nConfirmed=items.filter(x=>(x&&x._confirmCount||0)>0).length;
+      return {船名:d.ship,船型:d.vtype,檢查來源:d.itype,檢查日期:d.date,檢查地點:d.place,"油公司/單位":d.oilco,檢查員:d.inspector,缺失數:d.ndef??0,正面評論數:d.npos??0,缺失明細筆數:(d.defects||[]).length,正向評論明細筆數:(d.posComments||[]).length,督導確認:d.reviewed?"已確認":"尚未確認",確認人:d.reviewedBy||"",已轉檢查紀錄:d.usedInsp?"是":"否",已轉缺失紀錄:d.usedDef?"是":"否",已轉正向評論:d.usedPos?"是":"否",對外回覆已確認筆數:`${nConfirmed}/${(d.defects||[]).length}`,建立者:d.createdBy||""};
+    });
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(airRows),"填單");
     // 5. 船舶資料
     const shipRows=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).map(s=>({代碼:s.code,"Vessel Name":s.name,船名:s.zh,船型:s.vtype,Type:s.type1,交船日:s.delivery,"IMO No.":s.imo,"C/S":s.cs,DWT:s.dwt,GRT:s.grt,LOA:s.loa,Breadth:s.breadth,船廠:s.yard,船廠地點:s.yardLoc,FLAG:s.flag,Class:s.cls,登記公司:s.registry,海技經管:s.mgr,甲板督導:s.deckSup,機艙督導:s.engineSup,CSO:s.cso,備註:s.note}));
@@ -22980,7 +23058,7 @@ const SelfCheck={
     const jsonData=t.items.map(it=>{
       const orig=defMap.get(it.defId);
       return{ship:it.ship,date:it.date,itype:it.itype,place:it.place||"",
-        ncMain:it.ncMain||"",ncLeaf:it.ncLeaf||"",
+        ncProb:(orig&&orig.ncProb)||"",ncMain:it.ncMain||"",ncLeaf:it.ncLeaf||"",
         detail:(it.detail||"").slice(0,150),actual:(it.actual||"").slice(0,100),
         ncFactor:(orig&&orig.ncFactor)||"",risk:it.risk||""};
     });
@@ -22999,45 +23077,36 @@ const SelfCheck={
       .map(([f,n])=>{const pct=Math.round(n/factorTotal*100);const bar="█".repeat(Math.round(pct/4))+"░".repeat(25-Math.round(pct/4));return `${f.padEnd(6)}${bar} ${pct}%（${n}筆）`;}).join("\n");
     RolePrompts.bind("sc");
     const persona=RolePrompts.currentText("sc")||RolePrompts.getDefault(RolePrompts.getRole());
-    const prompt=`${persona}\n以下是船隊自檢任務「${t.title||"自檢"}」（${t.ship}，${t.date}）所彙整出來的缺失資料（JSON格式，位於本訊息末尾）。
+    const prompt=`${persona}
 
-請注意：我要的不是「這次自檢做完了多少項」的結案進度報告，而是要你針對這些**彙整出來的缺失內容本身**進行分析，找出其中的查核重點，產出一份可以直接帶到船上、供船上幹部或督導使用的查核清單。請完成以下兩件事：
+### 身份定位
+資深船舶體系與檢查數據分析師，僅依據附件Excel內全部缺失記錄開展整體綜合總結，不得單獨逐行生成小結。
+### 原始數據欄位說明
+每條檢查缺失記錄固定三個核心資訊：【問題類別】、【實際情況】、【缺失詳情】；數據權重規則：全部分析以「缺失詳情」為核心依據，實際情況僅作輔助補充，任意資訊存在衝突時，完全捨棄實際情況內容，只採用缺失詳情描述。
+### 輸出硬性要求
+1. 語言：全程繁體中文，商務正式文風，簡練不冗長。
+2. 內容拆分：
+   ① 純文字整體總結（兩段式）
+   第一段：歸納全部缺失整體分佈特徵，重點列舉高風險、需重點關注的設備故障類問題；
+   第二段：歸納所有作業類缺失的共性問題，點出SMS體系、文件管理、日常自查等管理短板與改善空間。
+   ② 關鍵數據速覽表格（文字段落下方）：所有統計數字全部放入此Markdown表格，正文段落禁止穿插大量數字描述。
+3. 禁止行為：不要開頭客套話、不要分段列舉、不要解釋你的分析邏輯、不要補充表格以外多餘數據備註、不要逐條單獨總結每一行缺失。
+4. 表格規範：維度精簡，只保留核心統計項，格式整齊易讀。
+### 固定輸出排版範式（嚴格遵守，不增減標題）
+## 整體總結
+第一段文字（設備缺失整體+高風險故障）
+第二段文字（作業管理缺失共性與短板）
+### 關鍵數據速覽
+| 維度 | 數據 |
+|------|------|
+| 總缺失項 | XXX |
+| 涉及船舶 | XXX |
+| 設備問題 / 作業問題 | XXX / XXX |
+| 動力與推進占比 | XX%（XX項） |
+| 高發設備類 | XXX、XXX |
+| 重點關注項 | XXX |
 
-═══════════════════════════════
-【第一部分：缺失內容彙整總結】
-═══════════════════════════════
-1. 統計本次彙整缺失總筆數、涉及大類數、涉及船舶數
-2. 依三要素（人員因素／設備因素／系統因素）分析比重，以 ASCII 長條圖呈現（█ 每格約4%，共25格）
-3. 找出發生次數最高的前3個大類，並從缺失內容（detail/actual）歸納出常見的問題模式與根本原因傾向
-4. 用2～3段白話文總結這批缺失反映出的整體船隊狀況
-
-═══════════════════════════════
-【第二部分：稽查重點 Check List】
-═══════════════════════════════
-針對每一個大類（ncMain），綜合該大類下所有缺失內容，產出一條查核項目，格式如下：
-
-□ [大類] 查核項目名稱
-  ▸ 查核重點：（船上/督導到現場具體要查什麼，1～2句，直接可用，不是抄缺失原文）
-  ▸ 常見問題：（從該大類缺失內容歸納，舉1～2個具體實例）
-  ▸ 三要素：（人員因素／設備因素／系統因素，可多選）
-
-輸出要求：
-- 全部使用繁體中文
-- 查核重點語言精煉、具體可操作，船上幹部或督導帶著這份清單即可直接執行查核
-- 依該大類缺失發生次數，由高到低排列
-- 不要逐筆覆述原始缺失，要綜合歸納；整份清單段落緊湊，方便列印帶上船
-- 最後加一段「整體建議」，給出下次重點查核方向
-
-━━━ 參考資訊（系統已統計）━━━
-船舶：${t.ship}　日期：${t.date}　主題：${t.title||"自檢"}
-缺失總筆數：${total}　涉及大類：${mainN} 類　涉及船舶：${shipN} 艘
-發生次數前3大類：${topMain}
-
-三要素分布（系統統計）：
-${factorLines||"（無三要素資料）"}
-━━━━━━━━━━━━━━━━━━━━━━━━
-
-彙整缺失資料（JSON）：
+缺失明細資料（JSON）：
 [PASTE_DATA_HERE]`;
     $("#sc-prompt-box").value=prompt;
     $("#sc-data-box").value=JSON.stringify(jsonData,null,1);
