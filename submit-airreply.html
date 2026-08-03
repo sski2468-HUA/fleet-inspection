@@ -90,7 +90,19 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
           <input type="text" id="confirmerName" placeholder="請輸入姓名" style="display:none;margin-top:4px">
         </label>
         <button class="btn primary" id="submitAllBtn" onclick="submitAll()">🌐 全部送出</button>
+        <button class="btn" onclick="openHistoryModal()">🕐 版本歷史（目前這條缺失）</button>
         <span class="hint" id="autoSaveNote" style="width:100%"></span>
+      </div>
+
+      <div id="historyModal" class="modal-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;align-items:center;justify-content:center">
+        <div style="background:#fff;border-radius:10px;max-width:640px;width:92%;max-height:80vh;overflow:auto;padding:18px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <h3 style="margin:0;font-size:15px">🕐 版本歷史 － 目前這條缺失</h3>
+            <button class="btn sm" style="margin-left:auto" onclick="closeHistoryModal()">✕ 關閉</button>
+          </div>
+          <p class="hint" style="margin-bottom:10px">每次自動儲存、每次「全部送出」都會留一份快照（最多保留最近 30 筆）。如果內容不小心被蓋掉，可以從這裡找回之前的版本，點「還原這個版本」會把目前畫面上的內容換成該版本，換完記得自己再檢查一次、確認沒問題。</p>
+          <div id="historyListBody"></div>
+        </div>
       </div>
 
       <div id="defTabsWrap"></div>
@@ -326,10 +338,19 @@ async function flushAutoSave(){
   if(!draftRow)return;
   const items=[{ _defectMeta: defectMeta }];
   REPLY_FIELDS.forEach(f=>{ items[0][f.key+"Cn"]=replyData[f.key].cn; items[0][f.key+"En"]=replyData[f.key].en; });
+  // 每次自動儲存也順便留一份版本快照（跟「全部送出」的確認紀錄共用同一個 history 欄位），
+  // 這樣就算沒有特地按「全部送出」，內容也不會完全沒有備份、萬一被誤蓋掉還能找回來。
+  // 內容跟上一筆快照一樣就不重複存，最多保留最近 30 筆，避免無限長大。
+  const hist=Array.isArray(draftRow.history)?draftRow.history.slice():[];
+  const lastSnap=hist.length?JSON.stringify(hist[hist.length-1].items):null;
+  if(JSON.stringify(items[0])!==lastSnap){
+    hist.push({by:"（自動儲存）",at:new Date().toISOString(),items:items[0]});
+    while(hist.length>30)hist.shift();
+  }
   try{
-    await api(`${TABLE}?id=eq.${draftRow.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({items})});
-    draftRow.items=items;
-    const cached=allDrafts.find(r=>r.id===draftRow.id);if(cached)cached.items=items;
+    await api(`${TABLE}?id=eq.${draftRow.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({items,history:hist})});
+    draftRow.items=items; draftRow.history=hist;
+    const cached=allDrafts.find(r=>r.id===draftRow.id);if(cached){cached.items=items;cached.history=hist;}
     const note=document.getElementById("autoSaveNote");
     if(note)note.textContent="✓ 已自動儲存　"+new Date().toLocaleTimeString("zh-TW",{hour12:false});
   }catch(e){
@@ -425,6 +446,44 @@ function applyPaste(){
 /* ════════ 全部送出：把目前這筆記錄底下「每一條缺失」一次推進到下一階段。
    送出前先把目前分頁未存的內容 flush 一次，確保不遺漏。各條缺失依「自己目前的階段」各自推進
    （正常情況下全部缺失階段會一致，一起往前走；如果不小心不一致，也會各自正確推進，不會出錯）。════════ */
+function openHistoryModal(){
+  if(!draftRow){notify("⚠ 請先選擇一條缺失","err");return;}
+  const hist=Array.isArray(draftRow.history)?draftRow.history.slice().reverse():[];
+  const box=document.getElementById("historyListBody");
+  if(!hist.length){
+    box.innerHTML=`<p class="hint">目前這條缺失還沒有任何版本快照。</p>`;
+  }else{
+    box.innerHTML=hist.map((h,i)=>{
+      const it=h.items||{};
+      const preview=REPLY_FIELDS.map(f=>{
+        const cn=(it[f.key+"Cn"]||"").trim(), en=(it[f.key+"En"]||"").trim();
+        if(!cn&&!en)return "";
+        return `<div style="margin-top:4px"><b>${f.labelZh}：</b>${cn?esc(cn.slice(0,50))+(cn.length>50?"…":""):"（空）"}${en?"　EN: "+esc(en.slice(0,50))+(en.length>50?"…":""):""}</div>`;
+      }).join("");
+      return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <b>${esc(h.by||"（自動儲存）")}</b>
+          <span class="hint">${h.at?new Date(h.at).toLocaleString("zh-TW",{hour12:false}):""}</span>
+          <button class="btn sm primary" style="margin-left:auto" onclick="restoreHistoryVersion(${hist.length-1-i})">↩ 還原這個版本</button>
+        </div>
+        <div style="font-size:12px;margin-top:6px">${preview||"（這個版本所有欄位都是空的）"}</div>
+      </div>`;
+    }).join("");
+  }
+  document.getElementById("historyModal").style.display="flex";
+}
+function closeHistoryModal(){ document.getElementById("historyModal").style.display="none"; }
+async function restoreHistoryVersion(origIdx){
+  const hist=draftRow.history||[];
+  const h=hist[origIdx]; if(!h)return;
+  if(!confirm(`確定要把目前畫面上的內容換成「${h.by||"（自動儲存）"}」在 ${h.at?new Date(h.at).toLocaleString("zh-TW",{hour12:false}):""} 的版本嗎？目前還沒送出的變更會被覆蓋。`))return;
+  const it=h.items||{};
+  REPLY_FIELDS.forEach(f=>{ replyData[f.key].cn=it[f.key+"Cn"]||""; replyData[f.key].en=it[f.key+"En"]||""; });
+  renderStage();
+  closeHistoryModal();
+  scheduleAutoSave();
+  notify("✓ 已還原，記得檢查內容後再送出","ok2");
+}
 async function submitAll(){
   const btn=document.getElementById("submitAllBtn");
   if(btn)btn.disabled=true;
@@ -436,6 +495,7 @@ async function submitAll(){
     const items=row.items&&row.items.length?row.items:[{}];
     const hist=Array.isArray(row.history)?row.history.slice():[];
     hist.push({by:name,at:now,items:items[0]});
+    while(hist.length>30)hist.shift();
     const body={
       stage:"3", // 欄位保留供資料庫相容用，畫面上已經不分階段
       confirmed_by:name, confirmed_at:now,
