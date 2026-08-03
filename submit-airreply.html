@@ -80,8 +80,8 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
       </div>
       <p class="hint" id="edit-meta"></p>
       <div class="hint warn" style="margin:10px 0">
-        <b>三階段，可重複調整：</b> ①主管填中文 → ②承辦人員AI翻譯英文 → ③中英文並排，主管確認。
-        內容會自動即時儲存，不用自己按存檔，切換分頁也不會遺失。全部缺失整理完後，按最下方「🌐 全部送出」一次推進所有缺失的階段。
+        中英文欄位都直接顯示、可以自由編輯，內容會自動即時儲存，不用自己按存檔，切換分頁也不會遺失。
+        全部缺失整理完後，按「🌐 全部送出」確認目前版本，並記錄一次確認紀錄；送出後仍可以回來調整、再送出一次覆蓋更新，記得改完跟對方說一聲。
       </div>
 
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;background:#fff4e8;border:1px solid #f3d9b8;border-radius:8px;padding:10px 12px">
@@ -216,7 +216,6 @@ async function loadList(){
   try{
     const rows=await api(`${TABLE}?select=*&order=updated_at.desc&limit=500`);
     if(!rows||!rows.length){ box.innerHTML=`<p class="hint">目前沒有任何對外回覆案件。</p>`; return; }
-    const stageLabel={1:"①中文填寫",2:"②英文擬稿",3:"③主管確認"};
     // 依 air_record_id（同一艘船的同一筆記錄）分組，一筆記錄一列，不再一條缺失一列
     const groups={};
     rows.forEach(r=>{
@@ -230,17 +229,18 @@ async function loadList(){
     }).sort((a,b)=>new Date(b.latest.updated_at)-new Date(a.latest.updated_at));
 
     box.innerHTML=`<table class="tbl"><thead><tr>
-      <th>船舶</th><th>缺失數</th><th>各缺失目前階段</th><th>已匯入系統</th><th>最後更新</th><th></th><th></th>
+      <th>船舶</th><th>缺失數</th><th>確認狀況</th><th>已匯入系統</th><th>最後更新</th><th></th><th></th>
     </tr></thead><tbody>${list.map(g=>{
       const n=g.rows.length;
       const imported=g.rows.filter(r=>r.imported).length;
       const impBadge=imported===n?`<span class="badge imp">✓ 全部已匯入</span>`:(imported>0?`<span class="badge nimp">${imported}/${n} 已匯入</span>`:`<span class="badge nimp">未匯入</span>`);
-      const stageSummary=g.rows.map(r=>`<span title="CODE ${esc(r.code||"")}">${stageLabel[r.stage]||"－"}</span>`).join("、");
+      const confirmed=g.rows.filter(r=>(r.confirm_count||0)>0).length;
+      const confirmSummary=confirmed===n?`<span style="color:var(--ok);font-weight:700">✓ 全部已確認</span>`:(confirmed>0?`${confirmed}/${n} 已確認`:`尚未確認`);
       const url=`?rid=${g.rid}&didx=${g.rows[0].defect_idx}`;
       return `<tr>
         <td><a href="${url}"><b>${esc(g.ship||"")}</b></a></td>
         <td>${n} 條</td>
-        <td class="hint" style="max-width:320px">${stageSummary}</td>
+        <td class="hint">${confirmSummary}</td>
         <td>${impBadge}</td>
         <td class="hint">${g.latest.updated_at?new Date(g.latest.updated_at).toLocaleString("zh-TW",{hour12:false}):""}</td>
         <td><a class="btn sm" href="${url}">✏ 編輯</a></td>
@@ -353,32 +353,16 @@ function renderStage(){
   const aiBar=document.getElementById("aiBar");
   const wrap=document.getElementById("fieldsWrap");
 
-  const labels={1:["階段① · 主管填寫中文回覆","#fff4e8","#c96a14"],2:["階段② · 承辦人員用 AI 翻譯英文","#eef4ff","var(--navy-3)"],3:["階段③ · 中英文並排，主管確認","#fdf2e9","#a35d1a"]};
-  const [lbl,bg,fg]=labels[stage]||labels[1];
-  badgeWrap.innerHTML=`<span class="badge" style="background:${bg};color:${fg}">${lbl}</span>
-    ${draftRow?`　<span class="hint">已確認 ${draftRow.confirm_count||0} 次${draftRow.imported?"　·　✓ 目前版本已被系統匯入":"　·　尚未被系統匯入最新版本"}</span>`:""}`;
+  badgeWrap.innerHTML=draftRow?`<span class="hint">✓ 已確認 ${draftRow.confirm_count||0} 次${draftRow.confirmed_by?`（最後：${esc(draftRow.confirmed_by)}　${draftRow.confirmed_at?new Date(draftRow.confirmed_at).toLocaleString("zh-TW",{hour12:false}):""}）`:""}${draftRow.imported?"　·　✓ 目前版本已被系統匯入":"　·　尚未被系統匯入最新版本"}</span>`:"";
 
   aiBar.style.display = "";
 
-  if(stage===1){
-    wrap.innerHTML=REPLY_FIELDS.map(f=>`<label class="full">${f.labelZh}
+  wrap.innerHTML=REPLY_FIELDS.map(f=>`<label class="full">${f.labelZh}（中文）
       <textarea data-k="${f.key}" data-lang="cn">${esc(replyData[f.key].cn)}</textarea>
+    </label>
+    <label class="full">${f.labelZh}（English）
+      <textarea data-k="${f.key}" data-lang="en">${esc(replyData[f.key].en)}</textarea>
     </label>`).join("");
-  }else if(stage===2){
-    wrap.innerHTML=REPLY_FIELDS.map(f=>`<label class="full">${f.labelZh}（中文，可微調小錯字）
-        <textarea data-k="${f.key}" data-lang="cn">${esc(replyData[f.key].cn)}</textarea>
-      </label>
-      <label class="full">${f.labelZh}（English）
-        <textarea data-k="${f.key}" data-lang="en" placeholder="English translation…">${esc(replyData[f.key].en)}</textarea>
-      </label>`).join("");
-  }else{
-    wrap.innerHTML=REPLY_FIELDS.map(f=>`<label class="full">${f.labelZh}（中文）
-        <textarea data-k="${f.key}" data-lang="cn">${esc(replyData[f.key].cn)}</textarea>
-      </label>
-      <label class="full">${f.labelZh}（English）
-        <textarea data-k="${f.key}" data-lang="en">${esc(replyData[f.key].en)}</textarea>
-      </label>`).join("");
-  }
   wrap.querySelectorAll("textarea[data-k]").forEach(ta=>{
     ta.addEventListener("input",function(){
       replyData[this.dataset.k][this.dataset.lang]=this.value;
@@ -449,24 +433,22 @@ async function submitAll(){
   const now=new Date().toISOString();
   let ok=0, fail=0;
   for(const row of allDrafts){
-    const curStage=+row.stage||1;
-    const nextStage=curStage<3?curStage+1:3;
     const items=row.items&&row.items.length?row.items:[{}];
-    const body={ stage:String(nextStage) };
-    if(curStage===3){
-      const hist=Array.isArray(row.history)?row.history.slice():[];
-      hist.push({by:name,at:now,items:items[0]});
-      body.confirmed_by=name; body.confirmed_at=now;
-      body.confirm_count=(row.confirm_count||0)+1;
-      body.history=hist;
-      body.imported=false;
-    }
+    const hist=Array.isArray(row.history)?row.history.slice():[];
+    hist.push({by:name,at:now,items:items[0]});
+    const body={
+      stage:"3", // 欄位保留供資料庫相容用，畫面上已經不分階段
+      confirmed_by:name, confirmed_at:now,
+      confirm_count:(row.confirm_count||0)+1,
+      history:hist,
+      imported:false
+    };
     try{
       await api(`${TABLE}?id=eq.${row.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(body)});
       ok++;
     }catch(e){ fail++; console.warn("submitAll failed for defect_idx="+row.defect_idx, e); }
   }
-  notify(fail?`已送出 ${ok} 條，${fail} 條失敗，請檢查後重試`:`✓ 全部 ${ok} 條缺失已送出`, fail?"err":"ok2");
+  notify(fail?`已送出 ${ok} 條，${fail} 條失敗，請檢查後重試`:`✓ 全部 ${ok} 條缺失已送出，記得跟對方說一聲`, fail?"err":"ok2");
   await loadDraft();
   if(btn)btn.disabled=false;
 }
