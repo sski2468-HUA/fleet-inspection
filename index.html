@@ -4492,10 +4492,13 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <h3>🌳 缺失分類階層管理（問題別／大類／具體名稱）</h3>
         <p class="hint" style="margin-bottom:10px;line-height:1.7">
           「問題別 → 大類 → 具體名稱」是<b>連動階層分類</b>：選了「設備問題」，大類只會出現設備相關的選項；選了某個大類，具體名稱只會出現該大類底下的選項。這裡新增的項目會自動維持正確的連動關係，並立即出現在「新增缺失」等各處的連動選單中。<br>
-          「問題別」固定為「設備問題／作業問題」兩類（許多統計邏輯依此區分，不開放新增或刪除）；<b>大類</b>與<b>具體名稱</b>可自由新增。<b>新增大類</b>時系統會自動附一個與大類同名的「一般」具體名稱，之後可再於下方新增更細的具體名稱。標示<span class="hint" style="color:var(--signal-d)">（自訂）</span>或橘框的項目為後台新增，可自行刪除（僅移除選單項目，不影響既有缺失紀錄）；灰底項目為系統內建，不可由此刪除。
+          「問題別」固定為「設備問題／作業問題」兩類（許多統計邏輯依此區分，不開放新增或刪除）；<b>大類</b>與<b>具體名稱</b>可自由新增。<b>新增大類</b>時系統會自動附一個與大類同名的具體名稱，等您新增第一個「真正」的具體名稱後，這個暫代項目會自動移除。<br>
+          每個大類／具體名稱旁都有 <b>✎ 改名</b>、<b>⇄ 搬移問題別</b>（僅大類）、<b>🗑 刪除</b> 可用，不分系統內建或自己新增的都可以操作。<b>改名／搬移／刪除都會直接同步更新所有已經用到這個分類的既有缺失紀錄</b>（改名／搬移＝連動更新文字；刪除＝把用到的缺失欄位清空），操作前系統會先告訴您目前有幾筆缺失會受影響，請仔細確認再送出，這類操作沒有「復原」按鈕。
         </p>
         <div class="toolbar">
           <button class="btn dark" id="nct-toggle-btn" onclick="NCTree.toggle()">📂 顯示／編輯分類階層</button>
+          <button class="btn" onclick="NCTree.undoLast()">↩ 復原上一步</button>
+          <span class="hint" id="nct-undo-hint"></span>
         </div>
         <div id="nct-body" style="display:none;margin-top:10px">
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px" id="nct-probtabs"></div>
@@ -10278,32 +10281,117 @@ const NCDB={"equip":[["驾驶台设备","雷达","全船型（散货船、油化
   （如需調整內建項目文字，仍可用既有的「篩選清單管理」重新命名／刪除紀錄上的文字）。 */
 const NCDB_BASE=JSON.parse(JSON.stringify(NCDB));
 const NCTree={
-  LS_KEY:"vsm_nctree_custom_v1",
-  CLOUD_KEY:"nctree_custom",
-  custom:{equip:[],ops:[]}, // 每筆 [大類,具體名稱]
-  open:false,curProb:"设备问题",_removeTargets:[],
+  /* ════════ 儲存格式說明 ════════
+     舊格式（vsm_nctree_custom_v1／nctree_custom）只存「自己新增的項目」，NCDB_BASE 內建清單不可異動。
+     新格式（vsm_nctree_full_v2／nctree_full_v2）改存「完整清單」（大類+具體名稱的最終結果，包含改名／
+     搬移過的內建項目），因為現在改名／搬移／刪除對內建與自訂項目都開放，單純「疊加新增項目」的模式
+     已經不夠用。第一次讀取時，如果只找到舊格式，會自動遷移成新格式（= 內建清單 + 舊自訂新增項目），
+     之後就都用新格式儲存，不影響舊資料。 ════════ */
+  LS_KEY_LEGACY:"vsm_nctree_custom_v1",
+  LS_KEY:"vsm_nctree_full_v2",
+  UNDO_KEY:"vsm_nctree_undo_v1", // 復原紀錄僅存本機瀏覽器，不同步雲端（純粹是給剛做完異動的人反悔用的安全網）
+  CLOUD_KEY_LEGACY:"nctree_custom",
+  CLOUD_KEY:"nctree_full_v2",
+  list:{equip:[],ops:[]}, // 完整可變動清單，每筆 [大類,具體名稱,適用船型]；NCDB.equip/ops 就是這個清單的鏡射
+  undoStack:null, // 延遲載入，見 _loadUndo()
+  open:false,curProb:"设备问题",_leafTargets:[],_mainTargets:[],
   arrKey(prob){return prob==="设备问题"?"equip":prob==="作业问题"?"ops":null;},
+  _shipAll(){return "全船型（散货船、油化船、气体船、集装箱船）";},
   _loadLocal(){
     try{
-      const s=localStorage.getItem(this.LS_KEY);
-      if(s){const p=JSON.parse(s);this.custom={equip:Array.isArray(p.equip)?p.equip:[],ops:Array.isArray(p.ops)?p.ops:[]};}
+      const full=localStorage.getItem(this.LS_KEY);
+      if(full){
+        const p=JSON.parse(full);
+        this.list={equip:Array.isArray(p.equip)?p.equip:[],ops:Array.isArray(p.ops)?p.ops:[]};
+        return;
+      }
     }catch(e){}
+    // 找不到新格式，嘗試從舊格式（僅新增項目）遷移
+    let legacyAdd={equip:[],ops:[]};
+    try{
+      const s=localStorage.getItem(this.LS_KEY_LEGACY);
+      if(s){const p=JSON.parse(s);legacyAdd={equip:Array.isArray(p.equip)?p.equip:[],ops:Array.isArray(p.ops)?p.ops:[]};}
+    }catch(e){}
+    this.list={
+      equip:[...NCDB_BASE.equip.map(x=>x.slice()),...legacyAdd.equip.map(([m,l])=>[m,l,this._shipAll()])],
+      ops:[...NCDB_BASE.ops.map(x=>x.slice()),...legacyAdd.ops.map(([m,l])=>[m,l,this._shipAll()])]
+    };
+    this._saveLocal(); // 遷移完立刻存成新格式，之後不再依賴舊格式的 key
   },
-  _saveLocal(){try{localStorage.setItem(this.LS_KEY,JSON.stringify(this.custom));}catch(e){}},
-  init(){this._loadLocal();this.apply();},
-  apply(){
-    const shipAll="全船型（散货船、油化船、气体船、集装箱船）";
-    NCDB.equip=[...NCDB_BASE.equip,...this.custom.equip.map(([m,l])=>[m,l,shipAll])];
-    NCDB.ops=[...NCDB_BASE.ops,...this.custom.ops.map(([m,l])=>[m,l,shipAll])];
+  _saveLocal(){try{localStorage.setItem(this.LS_KEY,JSON.stringify(this.list));}catch(e){}},
+  init(){this._loadLocal();this._loadUndo();this.apply();this._refreshUndoHint();},
+  _refreshUndoHint(){const hint=$("#nct-undo-hint");if(hint){const lbl=this.lastUndoLabel();hint.textContent=lbl?`上一步可復原：${lbl}`:"目前沒有可復原的分類異動";}},
+  /* ════════ 復原機制：改名／搬移／刪除這幾個「會連動改到既有缺失紀錄」的動作，
+     執行前都會先把「分類清單當下的完整內容」＋「每一筆被連動改到的缺失，改之前的原始值」
+     記下來，存一個最多 8 筆的堆疊（本機瀏覽器，不同步雲端）。「↩ 復原上一步」永遠只復原
+     堆疊最上面那一筆（最近一次的分類異動）。
+     注意：復原是把「分類清單」整份換回異動前的版本，如果復原前這段時間內還有別人也調整過
+     分類清單，那些調整會一併被蓋掉——所以發現改錯了，建議盡快復原，不要拖。 ════════ */
+  _loadUndo(){
+    if(this.undoStack)return;
+    try{const s=localStorage.getItem(this.UNDO_KEY);this.undoStack=Array.isArray(JSON.parse(s))?JSON.parse(s):[];}catch(e){this.undoStack=[];}
   },
+  _pushUndo(label,listBefore,undoLog){
+    this._loadUndo();
+    this.undoStack.push({ts:Date.now(),label,listBefore,defs:undoLog.defs,air:undoLog.air});
+    while(this.undoStack.length>8)this.undoStack.shift();
+    try{localStorage.setItem(this.UNDO_KEY,JSON.stringify(this.undoStack));}catch(e){}
+  },
+  lastUndoLabel(){
+    this._loadUndo();
+    if(!this.undoStack.length)return null;
+    const e=this.undoStack[this.undoStack.length-1];
+    return `${e.label}（${new Date(e.ts).toLocaleString("zh-TW",{hour12:false})}）`;
+  },
+  async undoLast(){
+    this._loadUndo();
+    if(!this.undoStack.length){toast("目前沒有可復原的分類異動");return;}
+    if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    const entry=this.undoStack[this.undoStack.length-1];
+    const n=entry.defs.length+entry.air.length;
+    if(!confirm(`確定要復原這一步：「${entry.label}」？\n會把分類清單、以及 ${n} 筆缺失的分類欄位還原成異動前的內容。\n\n⚠ 如果復原前這段時間內還有別人也調整過分類清單，那些調整會一併被蓋掉，請確認沒有其他人同時在改分類。`))return;
+    this.list=entry.listBefore;
+    entry.defs.forEach(o=>{
+      const d=(App.defs||[]).find(x=>x.id===o.id);
+      if(d){d.ncProb=o.ncProb;d.ncMain=o.ncMain;d.ncLeaf=o.ncLeaf;}
+    });
+    entry.air.forEach(o=>{
+      const rec=(App.air||[]).find(x=>x.id===o.recId);
+      if(rec&&rec.defects&&rec.defects[o.idx]){
+        rec.defects[o.idx].ncProb=o.ncProb;rec.defects[o.idx].ncMain=o.ncMain;rec.defects[o.idx].ncLeaf=o.ncLeaf;
+      }
+    });
+    this.undoStack.pop();
+    try{localStorage.setItem(this.UNDO_KEY,JSON.stringify(this.undoStack));}catch(e){}
+    this._saveLocal();this.apply();
+    App.saveAll();App.refreshMeta&&App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("復原","分類階層",`復原：「${entry.label}」（還原 ${n} 筆缺失）`);
+    if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
+    toast(`✓ 已復原「${entry.label}」，還原了 ${n} 筆缺失的分類欄位`);
+    this.render();this.refreshDependents();
+  },
+  apply(){ NCDB.equip=this.list.equip; NCDB.ops=this.list.ops; },
   async loadCloud(){
     if(typeof Cloud==="undefined"||!Cloud.enabled())return;
     try{
-      const rows=await Cloud.api("app_db?select=payload&k=eq."+encodeURIComponent(this.CLOUD_KEY));
-      const p=rows&&rows[0]&&rows[0].payload;
+      let rows=await Cloud.api("app_db?select=payload&k=eq."+encodeURIComponent(this.CLOUD_KEY));
+      let p=rows&&rows[0]&&rows[0].payload;
       if(p&&(Array.isArray(p.equip)||Array.isArray(p.ops))){
-        this.custom={equip:Array.isArray(p.equip)?p.equip:[],ops:Array.isArray(p.ops)?p.ops:[]};
+        this.list={equip:Array.isArray(p.equip)?p.equip:[],ops:Array.isArray(p.ops)?p.ops:[]};
         this._saveLocal();this.apply();this.render();this.refreshDependents();
+        return;
+      }
+      // 雲端也還沒有新格式，嘗試讀舊格式雲端資料做一次性遷移
+      rows=await Cloud.api("app_db?select=payload&k=eq."+encodeURIComponent(this.CLOUD_KEY_LEGACY));
+      p=rows&&rows[0]&&rows[0].payload;
+      if(p&&(Array.isArray(p.equip)||Array.isArray(p.ops))){
+        const legacyAdd={equip:Array.isArray(p.equip)?p.equip:[],ops:Array.isArray(p.ops)?p.ops:[]};
+        this.list={
+          equip:[...NCDB_BASE.equip.map(x=>x.slice()),...legacyAdd.equip.map(([m,l])=>[m,l,this._shipAll()])],
+          ops:[...NCDB_BASE.ops.map(x=>x.slice()),...legacyAdd.ops.map(([m,l])=>[m,l,this._shipAll()])]
+        };
+        this._saveLocal();this.apply();this.render();this.refreshDependents();
+        this.pushCloud(); // 順便把新格式寫回雲端，之後就不用再靠遷移
       }
     }catch(e){console.warn("nctree cloud load failed",e);}
   },
@@ -10311,7 +10399,7 @@ const NCTree={
     if(typeof Cloud==="undefined"||!Cloud.enabled())return;
     try{
       const usr=(typeof Audit!=="undefined")?Audit.user():"";
-      const row={k:this.CLOUD_KEY,updated:Date.now(),by:usr,payload:this.custom};
+      const row={k:this.CLOUD_KEY,updated:Date.now(),by:usr,payload:this.list};
       await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([row])});
     }catch(e){console.warn("nctree cloud push failed",e);}
   },
@@ -10341,8 +10429,84 @@ const NCTree={
     const key=this.arrKey(prob);if(!key)return [];
     return NCDB[key].filter(x=>x[0]===main).map(x=>x[1]);
   },
+  /* 新增大類時系統會先建立一個跟大類同名的具體名稱（讓選單至少有一個可選項）。
+     等使用者新增第一個「真正」不同名的具體名稱後，這個暫代項目就沒有用了，這裡自動移除，
+     避免下拉選單/清單同時看到「娛樂設施」跟「娛樂設施」底下的「PS」擠在一起造成混淆。
+     只移除選單項目，不會影響任何缺失紀錄（暫代項目理論上不會有人真的選它來分類缺失）。 */
+  _removePlaceholderLeaf(key,main,newLeaf){
+    if(newLeaf===main)return; // 新增的本來就跟大類同名，不是要清掉的對象
+    const idx=this.list[key].findIndex(x=>x[0]===main&&x[1]===main);
+    if(idx>=0)this.list[key].splice(idx,1);
+  },
+  /* ── 統計某大類／具體名稱目前被幾筆缺失使用（含缺失紀錄總表＋線上填單尚未轉入的），
+       改名／搬移／刪除前用來提醒使用者影響範圍 ── */
+  _countMain(prob,main){
+    let n=0;
+    (App.defs||[]).forEach(d=>{if(d.ncProb===prob&&d.ncMain===main)n++;});
+    (App.air||[]).forEach(rec=>(rec.defects||[]).forEach(df=>{if(df.ncProb===prob&&df.ncMain===main)n++;}));
+    return n;
+  },
+  _countLeaf(prob,main,leaf){
+    let n=0;
+    (App.defs||[]).forEach(d=>{if(d.ncProb===prob&&d.ncMain===main&&d.ncLeaf===leaf)n++;});
+    (App.air||[]).forEach(rec=>(rec.defects||[]).forEach(df=>{if(df.ncProb===prob&&df.ncMain===main&&df.ncLeaf===leaf)n++;}));
+    return n;
+  },
+  /* ── 實際把改名／搬移／刪除同步套用到既有缺失紀錄（缺失紀錄總表 App.defs ＋ 線上填單 App.air 的缺失明細）── */
+  _cascadeMain(prob,oldMain,newMainOrNull,newProbOrNull,undoLog){
+    let n=0;
+    (App.defs||[]).forEach(d=>{
+      if(d.ncProb===prob&&d.ncMain===oldMain){
+        if(undoLog)undoLog.defs.push({id:d.id,ncProb:d.ncProb,ncMain:d.ncMain,ncLeaf:d.ncLeaf});
+        if(newMainOrNull!=null)d.ncMain=newMainOrNull;
+        if(newProbOrNull!=null)d.ncProb=newProbOrNull;
+        n++;
+      }
+    });
+    (App.air||[]).forEach(rec=>(rec.defects||[]).forEach((df,di)=>{
+      if(df.ncProb===prob&&df.ncMain===oldMain){
+        if(undoLog)undoLog.air.push({recId:rec.id,idx:di,ncProb:df.ncProb,ncMain:df.ncMain,ncLeaf:df.ncLeaf});
+        if(newMainOrNull!=null)df.ncMain=newMainOrNull;
+        if(newProbOrNull!=null)df.ncProb=newProbOrNull;
+        n++;
+      }
+    }));
+    return n;
+  },
+  _cascadeLeaf(prob,main,oldLeaf,newLeafOrNull,undoLog){
+    let n=0;
+    (App.defs||[]).forEach(d=>{
+      if(d.ncProb===prob&&d.ncMain===main&&d.ncLeaf===oldLeaf){
+        if(undoLog)undoLog.defs.push({id:d.id,ncProb:d.ncProb,ncMain:d.ncMain,ncLeaf:d.ncLeaf});
+        d.ncLeaf=newLeafOrNull!=null?newLeafOrNull:""; n++;
+      }
+    });
+    (App.air||[]).forEach(rec=>(rec.defects||[]).forEach((df,di)=>{
+      if(df.ncProb===prob&&df.ncMain===main&&df.ncLeaf===oldLeaf){
+        if(undoLog)undoLog.air.push({recId:rec.id,idx:di,ncProb:df.ncProb,ncMain:df.ncMain,ncLeaf:df.ncLeaf});
+        df.ncLeaf=newLeafOrNull!=null?newLeafOrNull:""; n++;
+      }
+    }));
+    return n;
+  },
+  _cascadeDeleteMain(prob,main,undoLog){
+    let n=0;
+    (App.defs||[]).forEach(d=>{
+      if(d.ncProb===prob&&d.ncMain===main){
+        if(undoLog)undoLog.defs.push({id:d.id,ncProb:d.ncProb,ncMain:d.ncMain,ncLeaf:d.ncLeaf});
+        d.ncMain="";d.ncLeaf="";n++;
+      }
+    });
+    (App.air||[]).forEach(rec=>(rec.defects||[]).forEach((df,di)=>{
+      if(df.ncProb===prob&&df.ncMain===main){
+        if(undoLog)undoLog.air.push({recId:rec.id,idx:di,ncProb:df.ncProb,ncMain:df.ncMain,ncLeaf:df.ncLeaf});
+        df.ncMain="";df.ncLeaf="";n++;
+      }
+    }));
+    return n;
+  },
   /* 供「缺失總表 → 快速分類」下拉選單直接新增用（不依賴後台設定頁的輸入框）。
-     leafOrNull 為 null＝新增大類（自動附一個同名的「一般」具體名稱）；
+     leafOrNull 為 null＝新增大類（自動附一個同名的具體名稱）；
      leafOrNull 有值＝在既有大類下新增具體名稱。 */
   async quickAdd(prob,main,leafOrNull){
     const key=this.arrKey(prob);
@@ -10351,12 +10515,13 @@ const NCTree={
     if(!main)return {ok:false,msg:"大類名稱不可為空"};
     if(leafOrNull==null){
       if(this.mainsOf(prob).includes(main))return {ok:false,msg:`此大類已存在於「${prob}」之下`};
-      this.custom[key].push([main,main]);
+      this.list[key].push([main,main,this._shipAll()]);
     }else{
       const leaf=(leafOrNull||"").trim();
       if(!leaf)return {ok:false,msg:"具體名稱不可為空"};
       if(this.leavesOf(prob,main).includes(leaf))return {ok:false,msg:`此具體名稱已存在於「${main}」之下`};
-      this.custom[key].push([main,leaf]);
+      this.list[key].push([main,leaf,this._shipAll()]);
+      this._removePlaceholderLeaf(key,main,leaf);
     }
     this._saveLocal();this.apply();
     if(typeof Audit!=="undefined")Audit.log("新增","分類階層",leafOrNull==null?`${prob}：新增大類「${main}」（快速分類）`:`${prob}／${main}：新增具體名稱「${leafOrNull}」（快速分類）`);
@@ -10372,7 +10537,7 @@ const NCTree={
     const key=this.arrKey(prob);if(!key)return;
     if(this.mainsOf(prob).includes(v)){toast(`⚠ 此大類已存在於「${prob}」之下`);return;}
     if(typeof Guard!=="undefined"&&!await Guard.require())return;
-    this.custom[key].push([v,v]); // 先建立一個與大類同名的「一般」具體名稱，之後可再新增更細的具體名稱
+    this.list[key].push([v,v,this._shipAll()]); // 先建立一個與大類同名的具體名稱，新增第一個真正的具體名稱後會自動移除
     this._saveLocal();this.apply();
     if(typeof Audit!=="undefined")Audit.log("新增","分類階層",`${prob}：新增大類「${v}」`);
     if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
@@ -10391,7 +10556,8 @@ const NCTree={
     const key=this.arrKey(prob);if(!key)return;
     if(this.leavesOf(prob,main).includes(v)){toast(`⚠ 此具體名稱已存在於「${main}」之下`);return;}
     if(typeof Guard!=="undefined"&&!await Guard.require())return;
-    this.custom[key].push([main,v]);
+    this.list[key].push([main,v,this._shipAll()]);
+    this._removePlaceholderLeaf(key,main,v);
     this._saveLocal();this.apply();
     if(typeof Audit!=="undefined")Audit.log("新增","分類階層",`${prob}／${main}：新增具體名稱「${v}」`);
     if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
@@ -10399,25 +10565,116 @@ const NCTree={
     toast(`✓ 已新增具體名稱「${v}」，可於新增缺失的連動選單中選用`);
     this.render();this.refreshDependents();
   },
-  removeCustomIdx(idx){
-    const t=this._removeTargets&&this._removeTargets[idx];
-    if(!t)return;
-    this.removeCustom(t[0],t[1],t[2]);
-  },
-  async removeCustom(prob,main,leaf){
+  /* ── 改名／搬移／刪除：內建、自訂項目都可操作，會連動更新既有缺失紀錄（App.defs＋App.air 的缺失明細）── */
+  async renameMainPrompt(prob,main){
+    if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    const v=(prompt(`將大類「${main}」改名為：`,main)||"").trim();
+    if(!v||v===main)return;
     const key=this.arrKey(prob);if(!key)return;
-    const idx=this.custom[key].findIndex(x=>x[0]===main&&x[1]===leaf);
-    if(idx<0){toast("⚠ 僅能刪除自訂新增的項目，內建預設項目請改用「篩選清單管理」調整紀錄上的文字");return;}
-    if(typeof Role!=="undefined"&&!Role.isOwner()&&typeof Guard!=="undefined"&&!await Guard.requireDelete())return;
-    if(!confirm(`確定要刪除自訂項目「${main}／${leaf}」？\n（僅影響選單，不會刪除已使用此分類的既有缺失紀錄）`))return;
-    this.custom[key].splice(idx,1);
+    if(this.mainsOf(prob).includes(v)){toast(`⚠「${v}」已存在於「${prob}」之下，無法改名`);return;}
+    const n=this._countMain(prob,main);
+    if(!confirm(`確定要把大類「${main}」改名為「${v}」？\n目前有 ${n} 筆缺失（含缺失紀錄總表與線上填單尚未轉入的）使用這個大類，改名後會一併更新成新名稱。\n\n如果改完發現不對，可以用「↩ 復原上一步」還原。`))return;
+    const listBefore=JSON.parse(JSON.stringify(this.list));
+    const undoLog={defs:[],air:[]};
+    this.list[key].forEach(x=>{if(x[0]===main)x[0]=v;});
+    const affected=this._cascadeMain(prob,main,v,null,undoLog);
+    this._pushUndo(`大類「${main}」改名為「${v}」`,listBefore,undoLog);
     this._saveLocal();this.apply();
-    if(typeof Audit!=="undefined")Audit.log("刪除","分類階層",`${prob}／${main}：刪除具體名稱「${leaf}」`);
+    App.saveAll();App.refreshMeta&&App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("改名","分類階層",`${prob}：大類「${main}」→「${v}」（同步更新 ${affected} 筆缺失）`);
     if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
-    toast("✓ 已刪除");
+    toast(`✓ 已改名，同步更新 ${affected} 筆缺失（如需復原可點「↩ 復原上一步」）`);
+    this.render();this.refreshDependents();
+  },
+  async renameLeafPrompt(prob,main,leaf){
+    if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    const v=(prompt(`將「${main}／${leaf}」改名為：`,leaf)||"").trim();
+    if(!v||v===leaf)return;
+    const key=this.arrKey(prob);if(!key)return;
+    if(this.leavesOf(prob,main).includes(v)){toast(`⚠「${v}」已存在於「${main}」之下，無法改名`);return;}
+    const n=this._countLeaf(prob,main,leaf);
+    if(!confirm(`確定要把「${main}／${leaf}」改名為「${main}／${v}」？\n目前有 ${n} 筆缺失使用這個具體名稱，改名後會一併更新成新名稱。\n\n如果改完發現不對，可以用「↩ 復原上一步」還原。`))return;
+    const listBefore=JSON.parse(JSON.stringify(this.list));
+    const undoLog={defs:[],air:[]};
+    const idx=this.list[key].findIndex(x=>x[0]===main&&x[1]===leaf);
+    if(idx>=0)this.list[key][idx][1]=v;
+    const affected=this._cascadeLeaf(prob,main,leaf,v,undoLog);
+    this._pushUndo(`「${main}／${leaf}」改名為「${main}／${v}」`,listBefore,undoLog);
+    this._saveLocal();this.apply();
+    App.saveAll();App.refreshMeta&&App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("改名","分類階層",`${prob}／${main}：具體名稱「${leaf}」→「${v}」（同步更新 ${affected} 筆缺失）`);
+    if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
+    toast(`✓ 已改名，同步更新 ${affected} 筆缺失（如需復原可點「↩ 復原上一步」）`);
+    this.render();this.refreshDependents();
+  },
+  async moveMainPrompt(prob,main){
+    if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    const toProb=prob==="设备问题"?"作业问题":"设备问题";
+    const n=this._countMain(prob,main);
+    if(!confirm(`確定要把大類「${main}」從「${prob}」搬移到「${toProb}」？\n目前有 ${n} 筆缺失（含缺失紀錄總表與線上填單尚未轉入的）屬於這個大類，搬移後這些缺失的「問題別」也會一併改成「${toProb}」，具體名稱維持不變。\n\n如果搬完發現不對，可以用「↩ 復原上一步」還原。`))return;
+    const fromKey=this.arrKey(prob),toKey=this.arrKey(toProb);
+    const listBefore=JSON.parse(JSON.stringify(this.list));
+    const undoLog={defs:[],air:[]};
+    const rows=this.list[fromKey].filter(x=>x[0]===main);
+    this.list[fromKey]=this.list[fromKey].filter(x=>x[0]!==main);
+    // 目的地若已有同名大類，合併具體名稱並去重，避免搬過去後重複
+    const existLeaves=new Set(this.list[toKey].filter(x=>x[0]===main).map(x=>x[1]));
+    rows.forEach(r=>{if(!existLeaves.has(r[1])){this.list[toKey].push(r);existLeaves.add(r[1]);}});
+    const affected=this._cascadeMain(prob,main,null,toProb,undoLog);
+    this._pushUndo(`大類「${main}」搬移：${prob} → ${toProb}`,listBefore,undoLog);
+    this._saveLocal();this.apply();
+    App.saveAll();App.refreshMeta&&App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("搬移","分類階層",`大類「${main}」：${prob} → ${toProb}（同步更新 ${affected} 筆缺失）`);
+    if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
+    toast(`✓ 已搬移到「${toProb}」，同步更新 ${affected} 筆缺失（如需復原可點「↩ 復原上一步」）`);
+    this.curProb=toProb;
+    this.render();this.refreshDependents();
+  },
+  async deleteMainPrompt(prob,main){
+    if(typeof Role!=="undefined"&&!Role.isOwner()&&typeof Guard!=="undefined"&&!await Guard.requireDelete())return;
+    const n=this._countMain(prob,main);
+    const warn=n>0?`\n⚠ 目前有 ${n} 筆缺失（含缺失紀錄總表與線上填單尚未轉入的）使用這個大類，刪除後這些缺失的「大類」與「具體名稱」欄位都會被清空成空白，缺失內容本身不會被刪除。`:"\n目前沒有缺失在使用這個大類。";
+    if(!confirm(`確定要刪除整個大類「${main}」（含底下所有具體名稱）？${warn}\n\n如果刪完發現不對，可以用「↩ 復原上一步」還原。`))return;
+    const key=this.arrKey(prob);if(!key)return;
+    const listBefore=JSON.parse(JSON.stringify(this.list));
+    const undoLog={defs:[],air:[]};
+    this.list[key]=this.list[key].filter(x=>x[0]!==main);
+    const affected=this._cascadeDeleteMain(prob,main,undoLog);
+    this._pushUndo(`刪除大類「${main}」`,listBefore,undoLog);
+    this._saveLocal();this.apply();
+    App.saveAll();App.refreshMeta&&App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("刪除","分類階層",`${prob}：刪除大類「${main}」（清空 ${affected} 筆缺失的分類欄位）`);
+    if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
+    toast(`✓ 已刪除，${affected} 筆缺失的分類欄位已清空（如需復原可點「↩ 復原上一步」）`);
+    this.render();this.refreshDependents();
+  },
+  deleteLeafIdx(idx){
+    const t=this._leafTargets&&this._leafTargets[idx];
+    if(!t)return;
+    this.deleteLeaf(t[0],t[1],t[2]);
+  },
+  async deleteLeaf(prob,main,leaf){
+    const key=this.arrKey(prob);if(!key)return;
+    if(typeof Role!=="undefined"&&!Role.isOwner()&&typeof Guard!=="undefined"&&!await Guard.requireDelete())return;
+    const n=this._countLeaf(prob,main,leaf);
+    const warn=n>0?`\n⚠ 目前有 ${n} 筆缺失使用這個具體名稱，刪除後這些缺失的「具體名稱」欄位會被清空成空白（大類不受影響），缺失內容本身不會被刪除。`:"\n目前沒有缺失在使用這個具體名稱。";
+    if(!confirm(`確定要刪除「${main}／${leaf}」？${warn}\n\n如果刪完發現不對，可以用「↩ 復原上一步」還原。`))return;
+    const listBefore=JSON.parse(JSON.stringify(this.list));
+    const undoLog={defs:[],air:[]};
+    const idx=this.list[key].findIndex(x=>x[0]===main&&x[1]===leaf);
+    if(idx<0){toast("⚠ 找不到這個項目");return;}
+    this.list[key].splice(idx,1);
+    const affected=this._cascadeLeaf(prob,main,leaf,null,undoLog);
+    this._pushUndo(`刪除「${main}／${leaf}」`,listBefore,undoLog);
+    this._saveLocal();this.apply();
+    App.saveAll();App.refreshMeta&&App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("刪除","分類階層",`${prob}／${main}：刪除具體名稱「${leaf}」（清空 ${affected} 筆缺失的具體名稱欄位）`);
+    if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
+    toast(`✓ 已刪除，${affected} 筆缺失的具體名稱欄位已清空（如需復原可點「↩ 復原上一步」）`);
     this.render();this.refreshDependents();
   },
   render(){
+    this._refreshUndoHint();
     const tabs=$("#nct-probtabs");
     if(!tabs)return;
     tabs.innerHTML=NC_PROBS.map(p=>`<button class="btn sm ${p===this.curProb?"primary":""}" onclick="NCTree.selectProb('${p}')">${esc(p)}</button>`).join("");
@@ -10426,22 +10683,31 @@ const NCTree={
     if(mainSel)mainSel.innerHTML=mains.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join("");
     const box=$("#nct-tree");
     if(box){
-      this._removeTargets=[];
+      this._leafTargets=[];this._mainTargets=[];
+      const key=this.arrKey(this.curProb);
       box.innerHTML=mains.map(m=>{
         const leaves=this.leavesOf(this.curProb,m);
-        const allCustom=leaves.length>0&&leaves.every(l=>!this.isBase(this.curProb,m,l));
+        const isBaseMain=key&&NCDB_BASE[key].some(x=>x[0]===m);
+        const mi=this._mainTargets.length;
+        this._mainTargets.push([this.curProb,m]);
         return `<div style="margin-bottom:10px;padding:8px 10px;border:1px solid var(--line);border-radius:6px">
-          <div style="font-weight:600;margin-bottom:4px">📁 ${esc(m)}${allCustom?` <span class="hint" style="color:var(--signal-d)">（自訂）</span>`:``}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
+            <span style="font-weight:600">📁 ${esc(m)}</span>
+            ${!isBaseMain?`<span class="hint" style="color:var(--signal-d)">（自訂）</span>`:``}
+            <button class="btn sm" style="padding:0 6px" onclick="NCTree.renameMainPrompt('${this.curProb}',NCTree._mainTargets[${mi}][1])" title="改大類名稱">✎ 改名</button>
+            <button class="btn sm" style="padding:0 6px" onclick="NCTree.moveMainPrompt('${this.curProb}',NCTree._mainTargets[${mi}][1])" title="搬移到另一個問題別">⇄ 搬移問題別</button>
+            <button class="btn sm danger" style="padding:0 6px" onclick="NCTree.deleteMainPrompt('${this.curProb}',NCTree._mainTargets[${mi}][1])" title="刪除整個大類（含底下所有具體名稱）">🗑 刪除大類</button>
+          </div>
           <div style="display:flex;flex-wrap:wrap;gap:6px">
             ${leaves.map(l=>{
               const custom=!this.isBase(this.curProb,m,l);
-              let btn="";
-              if(custom){
-                const idx=this._removeTargets.length;
-                this._removeTargets.push([this.curProb,m,l]);
-                btn=`<button class="btn sm" style="padding:0 4px;line-height:1.2;margin-left:2px" onclick="NCTree.removeCustomIdx(${idx})" title="刪除此自訂項目">✕</button>`;
-              }
-              return `<span style="display:inline-flex;align-items:center;background:${custom?"#fff4e5":"#f2f2f2"};border:1px solid ${custom?"var(--orange)":"var(--line)"};border-radius:4px;padding:2px 6px;font-size:12px">${esc(l)}${btn}</span>`;
+              const li=this._leafTargets.length;
+              this._leafTargets.push([this.curProb,m,l]);
+              return `<span style="display:inline-flex;align-items:center;gap:2px;background:${custom?"#fff4e5":"#f2f2f2"};border:1px solid ${custom?"var(--orange)":"var(--line)"};border-radius:4px;padding:2px 4px 2px 6px;font-size:12px">
+                ${esc(l)}
+                <button style="border:none;background:none;cursor:pointer;padding:0 2px;font-size:11px" onclick="NCTree.renameLeafPrompt('${this.curProb}',NCTree._leafTargets[${li}][1],NCTree._leafTargets[${li}][2])" title="改具體名稱">✎</button>
+                <button style="border:none;background:none;cursor:pointer;padding:0 2px;font-size:11px;color:var(--bad)" onclick="NCTree.deleteLeafIdx(${li})" title="刪除此項目">✕</button>
+              </span>`;
             }).join("")}
           </div>
         </div>`;
