@@ -1076,6 +1076,8 @@ body.dg-on td.dg-empty{background:rgba(232,132,44,.10)}   /* 未填：更明顯�
 .dg-opt.dg-clear{color:var(--ink-3);border-top:1px solid var(--line)}
 .dg-opt.dg-checked{color:var(--dg);font-weight:600}
 .dg-opt.dg-ok{color:var(--ok);font-weight:700;border-top:1px solid var(--line)}
+.dg-icbtn{border:none;background:none;cursor:pointer;padding:1px 3px;font-size:11px;color:var(--ink-3);border-radius:3px;flex:none}
+.dg-icbtn:hover{background:var(--paper);color:var(--ink)}
 
 /* 全站密度切換器 */
 .densbox{display:inline-flex;border:1px solid var(--line-2);border-radius:5px;overflow:hidden;vertical-align:middle}
@@ -5835,8 +5837,19 @@ const DefsGrid={
         <input type="text" id="dg-new-val" placeholder="輸入新的${esc(col.t)}…" style="width:100%;box-sizing:border-box;margin-bottom:4px" onkeydown="if(event.key==='Enter'){event.preventDefault();DefsGrid.addNewOpt();}else if(event.key==='Escape'){DefsGrid.closeEd();}">
         <button class="btn sm primary" style="width:100%" onclick="DefsGrid.addNewOpt()">＋ 新增到「${esc(k==="ncMain"?d.ncProb:d.ncMain)}」下面</button>
       </div>`:"";
-      box.innerHTML=`<div class="dg-eh">${col.t}　↑↓ 選擇 · Enter 確定 · Esc 取消 · Tab 下一欄</div>`+
-        opts.map((o,j)=>`<div class="dg-opt ${j===this.edHi?"hi":""}" data-j="${j}" onclick="DefsGrid.pick(${j})">${esc(col.label?col.label(o):o)}</div>`).join("")+
+      /* 大類／具體名稱這兩欄，除了選取，還可以直接在選項旁邊改名／搬移問題別（僅大類）／刪除，
+         跟「🌳 缺失分類階層管理」後台頁面共用同一套 NCTree 函式，所以確認視窗、受影響筆數提示、
+         復原機制都是同一套，不分內建或自訂項目都能操作。點圖示要 stopPropagation，避免同時觸發選取。 */
+      const isNc=(k==="ncMain"||k==="ncLeaf");
+      const optsHtml=!isNc ? opts.map((o,j)=>`<div class="dg-opt ${j===this.edHi?"hi":""}" data-j="${j}" onclick="DefsGrid.pick(${j})">${esc(col.label?col.label(o):o)}</div>`).join("")
+        : opts.map((o,j)=>`<div class="dg-opt ${j===this.edHi?"hi":""}" data-j="${j}" style="display:flex;align-items:center;gap:1px;padding:2px 2px 2px 10px;overflow:visible;white-space:normal">
+            <span onclick="DefsGrid.pick(${j})" style="flex:1;cursor:pointer;padding:3px 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o)}</span>
+            <button class="dg-icbtn" onclick="event.stopPropagation();DefsGrid.ncEdit('rename','${k==="ncMain"?"main":"leaf"}',${j})" title="改名（同步更新既有缺失）">✎</button>
+            ${k==="ncMain"?`<button class="dg-icbtn" onclick="event.stopPropagation();DefsGrid.ncEdit('move','main',${j})" title="搬移到另一個問題別（同步更新既有缺失）">⇄</button>`:""}
+            <button class="dg-icbtn" onclick="event.stopPropagation();DefsGrid.ncEdit('delete','${k==="ncMain"?"main":"leaf"}',${j})" title="刪除（既有缺失的欄位會被清空）">🗑</button>
+          </div>`).join("");
+      box.innerHTML=`<div class="dg-eh">${col.t}　↑↓ 選擇 · Enter 確定 · Esc 取消 · Tab 下一欄${isNc?"　（✎改名／⇄搬移／🗑刪除，會同步更新既有缺失）":""}</div>`+
+        optsHtml+
         (d[k]?`<div class="dg-opt dg-clear" onclick="DefsGrid.pick(-1)">✕ 清除此欄</div>`:"")+
         addNewHtml;
     }
@@ -5848,6 +5861,27 @@ const DefsGrid={
   closeEd(){
     if(this.ed){this.ed.remove();this.ed=null;}
     $$("td.dg-active").forEach(t=>t.classList.remove("dg-active"));
+  },
+  /* 快速分類下拉選單裡直接改名／搬移／刪除大類或具體名稱（跟後台「缺失分類階層管理」共用同一套邏輯）。
+     這幾個動作可能會改到「目前正在編輯這格」所屬的分類本身（例如剛好把自己這筆的大類改名了），
+     所以做完之後一律重新整理當前這筆紀錄的最新值，並重開一次下拉選單，確保畫面顯示的是最新狀態，
+     不會停留在舊的、可能已經不存在的選項上。 */
+  async ncEdit(action,level,j){
+    if(typeof NCTree==="undefined")return;
+    const d=App.defs.find(x=>String(x.id)===String(this.ar));if(!d)return;
+    const col=this.COLS[this.ac];
+    const opts=col.opts(d);
+    const val=opts[j];if(val==null)return;
+    const prob=d.ncProb;
+    if(level==="main"){
+      if(action==="rename")await NCTree.renameMainPrompt(prob,val);
+      else if(action==="move")await NCTree.moveMainPrompt(prob,val);
+      else if(action==="delete")await NCTree.deleteMainPrompt(prob,val);
+    }else{
+      if(action==="rename")await NCTree.renameLeafPrompt(prob,d.ncMain,val);
+      else if(action==="delete")await NCTree.deleteLeaf(prob,d.ncMain,val);
+    }
+    if(this.on&&this.ar!=null&&this.ac>=0)this.openEd(this.ar,this.COLS[this.ac].k);
   },
   /* 在快速分類下拉選單中直接新增大類／具體名稱（會同步進 NCTree，維持連動關係） */
   async addNewOpt(){
