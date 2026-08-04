@@ -2050,6 +2050,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <button class="btn sm primary" onclick="Ov.openBatch()">＋＋ 批量新增</button>
             <button class="btn sm dark" onclick="Ov.openBatchEdit()">✎✎ 批量編輯（維護者）</button>
             <button class="btn sm" onclick="Ov.exportXlsx()">⬇ 匯出 Excel</button>
+            <button class="btn sm" onclick="Ov.openMgmtReportModal()">📄 匯出主管會 Word</button>
           </span>
         </h3>
         <div class="tblwrap" style="max-height:420px">
@@ -5189,6 +5190,30 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       <span style="flex:1"></span>
       <button class="btn" onclick="Ov.closeEdit()">取消</button>
       <button class="btn primary" onclick="Ov.saveEdit()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 匯出主管會 Word -->
+<div class="modal-bg" id="ovMgmtRptModal">
+  <div class="modal" style="max-width:560px">
+    <div class="mh"><h3>📄 匯出主管會 Word</h3><button class="x" onclick="Ov.closeMgmtReportModal()">✕</button></div>
+    <div class="mb">
+      <p class="hint" style="margin-bottom:10px;line-height:1.7">抓取「上週完成」的 SIRE／CDI／RightShip 與 PSC 檢查紀錄，以及「本週安排」預計進行的 SIRE／CDI／RightShip（取自檢查管控表的預排檢查日）。日期區間預設為上週日～上週六，可自行調整。</p>
+      <div style="display:flex;gap:10px;margin-bottom:10px">
+        <label style="flex:1">上週區間（起）
+          <input type="date" id="ov-mr-from" style="width:100%;padding:8px;border:1px solid var(--line-2);border-radius:6px">
+        </label>
+        <label style="flex:1">上週區間（迄）
+          <input type="date" id="ov-mr-to" style="width:100%;padding:8px;border:1px solid var(--line-2);border-radius:6px">
+        </label>
+      </div>
+      <button class="btn sm" onclick="Ov.presetLastWeek()">↺ 還原為上週日～上週六</button>
+      <p class="hint" id="ov-mr-preview" style="margin-top:12px"></p>
+    </div>
+    <div class="mf">
+      <button class="btn" onclick="Ov.closeMgmtReportModal()">取消</button>
+      <button class="btn primary" onclick="Ov.exportMgmtReportDocx()">⬇ 產生 Word</button>
     </div>
   </div>
 </div>
@@ -9059,6 +9084,111 @@ const Ov={
     const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"檢查紀錄");
     XLSX.writeFile(wb,`檢查紀錄_${todayStr()}.xlsx`);
+  },
+  /* ════════ 匯出「主管會 Word」週報：抓上週完成的 SIRE/CDI/RightShip＋PSC，
+     以及檢查管控表裡本週（緊接在選定區間之後7天）預排的 SIRE/CDI/RightShip。
+     日期字串（如 App.insp.date、InspCtrl.schedDate）格式不固定（YYYY/M/D 或 YYYY-M-D），
+     用寬鬆解析。「itype」大小寫/空白不一定一致（RightShip/RIGHTSHIP/Rightship等），
+     比對時一律轉大寫、去除非英數字元再比對。 ════════ */
+  _mrDate(s){
+    const m=String(s||"").match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+    return m?new Date(+m[1],+m[2]-1,+m[3]):null;
+  },
+  _mrNorm(s){return String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");},
+  _mrIsSireGroup(itype){
+    const n=this._mrNorm(itype);
+    return n==="SIRE"||n==="CDI"||n==="RIGHTSHIP";
+  },
+  _mrIsPsc(itype){return this._mrNorm(itype)==="PSC";},
+  _mrLastWeekRange(){
+    // 預設「上週」＝以今天為基準，往前推到最近一個「上週日～上週六」的區間
+    const today=new Date();today.setHours(0,0,0,0);
+    const dow=today.getDay(); // 0=Sun
+    const thisSun=new Date(today);thisSun.setDate(today.getDate()-dow);
+    const lastSat=new Date(thisSun);lastSat.setDate(thisSun.getDate()-1);
+    const lastSun=new Date(lastSat);lastSun.setDate(lastSat.getDate()-6);
+    return {from:lastSun,to:lastSat};
+  },
+  _mrToInputVal(d){
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  },
+  presetLastWeek(){
+    const {from,to}=this._mrLastWeekRange();
+    $("#ov-mr-from").value=this._mrToInputVal(from);
+    $("#ov-mr-to").value=this._mrToInputVal(to);
+    this._mrRefreshPreview();
+  },
+  openMgmtReportModal(){
+    this.presetLastWeek();
+    $("#ov-mr-from").oninput=()=>this._mrRefreshPreview();
+    $("#ov-mr-to").oninput=()=>this._mrRefreshPreview();
+    $("#ovMgmtRptModal").classList.add("show");
+  },
+  closeMgmtReportModal(){$("#ovMgmtRptModal").classList.remove("show");},
+  _mrGetRangeDates(){
+    const fromV=$("#ov-mr-from").value,toV=$("#ov-mr-to").value;
+    const from=fromV?new Date(fromV+"T00:00:00"):null;
+    const to=toV?new Date(toV+"T00:00:00"):null;
+    return {from,to};
+  },
+  _mrCollect(){
+    const {from,to}=this._mrGetRangeDates();
+    if(!from||!to||from>to)return null;
+    const inRange=d=>d&&d>=from&&d<=to;
+    const sireDone=App.insp.filter(r=>this._mrIsSireGroup(r.itype)&&inRange(this._mrDate(r.date)))
+      .sort((a,b)=>(this._mrDate(a.date)||0)-(this._mrDate(b.date)||0));
+    const pscDone=App.insp.filter(r=>this._mrIsPsc(r.itype)&&inRange(this._mrDate(r.date)))
+      .sort((a,b)=>(this._mrDate(a.date)||0)-(this._mrDate(b.date)||0));
+    // 本週安排：緊接在選定區間之後的7天（例如選了上週日~六，這裡就是本週日~六）
+    const thisFrom=new Date(to);thisFrom.setDate(to.getDate()+1);
+    const thisTo=new Date(thisFrom);thisTo.setDate(thisFrom.getDate()+6);
+    const inThisWeek=d=>d&&d>=thisFrom&&d<=thisTo;
+    const sirePlanned=(typeof App.inspCtrl!=="undefined"?App.inspCtrl:[]).filter(r=>this._mrIsSireGroup(r.itype)&&inThisWeek(this._mrDate(r.schedDate)))
+      .sort((a,b)=>(this._mrDate(a.schedDate)||0)-(this._mrDate(b.schedDate)||0));
+    return {from,to,thisFrom,thisTo,sireDone,pscDone,sirePlanned};
+  },
+  _mrFmtDate(d){return d?`${d.getMonth()+1}/${d.getDate()}`:"";},
+  _mrRefreshPreview(){
+    const box=$("#ov-mr-preview");if(!box)return;
+    const c=this._mrCollect();
+    if(!c){box.textContent="⚠ 請確認日期區間正確（起須早於或等於迄）。";return;}
+    box.innerHTML=`統計期間：${this._mrFmtDate(c.from)} ～ ${this._mrFmtDate(c.to)}（本週安排區間：${this._mrFmtDate(c.thisFrom)} ～ ${this._mrFmtDate(c.thisTo)}）<br>`+
+      `SIRE／CDI／RightShip 上週完成：<b>${c.sireDone.length}</b> 艘　本週安排：<b>${c.sirePlanned.length}</b> 艘　PSC 上週發生：<b>${c.pscDone.length}</b> 艘`;
+  },
+  exportMgmtReportDocx(){
+    const c=this._mrCollect();
+    if(!c){toast("⚠ 請確認日期區間正確（起須早於或等於迄）");return;}
+    const vtypeOfCode=code=>{const s=SHIPINFO.find(x=>x.code===code);return s?s.vtype:"";};
+    const nl2br=s=>esc(s||"");
+    const th=t=>`<td style="background:#1c3a5e;color:#fff;font-weight:bold;padding:6px 8px;border:1px solid #999">${t}</td>`;
+    const td=t=>`<td style="padding:6px 8px;border:1px solid #999">${t}</td>`;
+    const inspTable=(rows,noteFn)=>{
+      if(!rows.length)return `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:12.5px;font-family:Calibri,Arial,sans-serif"><tr>${["No.","船名","船型","檢查種類","日期","地點",noteFn.label].map(th).join("")}</tr><tr><td colspan="7" style="padding:8px;border:1px solid #999;text-align:center">（無）</td></tr></table>`;
+      return `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:12.5px;font-family:Calibri,Arial,sans-serif">
+        <tr>${["No.","船名","船型","檢查種類","日期","地點",noteFn.label].map(th).join("")}</tr>
+        ${rows.map((r,i)=>`<tr>${td(i+1)}${td(esc(r.ship))}${td(esc(r.vtype||vtypeOfCode(r.ship)))}${td(esc(r.itype))}${td(esc(r.date||r.schedDate))}${td(esc(r.loc||""))}${td(nl2br(noteFn(r)))}</tr>`).join("")}
+      </table>`;
+    };
+    const pscTable=rows=>{
+      if(!rows.length)return `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:12.5px;font-family:Calibri,Arial,sans-serif"><tr>${["No.","船名","船型","日期","地點","缺失數","是否扣船"].map(th).join("")}</tr><tr><td colspan="7" style="padding:8px;border:1px solid #999;text-align:center">（無）</td></tr></table>`;
+      return `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:12.5px;font-family:Calibri,Arial,sans-serif">
+        <tr>${["No.","船名","船型","日期","地點","缺失數","是否扣船"].map(th).join("")}</tr>
+        ${rows.map((r,i)=>`<tr>${td(i+1)}${td(esc(r.ship))}${td(esc(r.vtype||vtypeOfCode(r.ship)))}${td(esc(r.date))}${td(esc(r.loc||""))}${td(esc(r.ndef??""))}${td(esc(r.detain?"是":"否"))}</tr>`).join("")}
+      </table>`;
+    };
+    const html=`<h2 style="text-align:center;font-family:Calibri,Arial,sans-serif;text-decoration:underline">航運處 ${todayStr().replace(/-/g,"")} 報告</h2>
+      <h3 style="font-family:Calibri,Arial,sans-serif">1．船舶檢查 SIRE／CDI／Rightship</h3>
+      <p style="font-family:Calibri,Arial,sans-serif;text-decoration:underline;font-weight:bold">上週完成→${c.sireDone.length}</p>
+      ${inspTable(c.sireDone,Object.assign(r=>r.ndef??"",{label:"缺失數"}))}
+      <p style="font-family:Calibri,Arial,sans-serif;text-decoration:underline;font-weight:bold">本週安排→${c.sirePlanned.length}</p>
+      ${inspTable(c.sirePlanned,Object.assign(r=>r.note||"",{label:"備註"}))}
+      <h3 style="font-family:Calibri,Arial,sans-serif">2．船舶檢查 PSC</h3>
+      <p style="font-family:Calibri,Arial,sans-serif;text-decoration:underline;font-weight:bold">上週發生→${c.pscDone.length} 艘</p>
+      ${pscTable(c.pscDone)}`;
+    const blob=new Blob(["\ufeff",'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>主管會週報</title></head><body>',html,"</body></html>"],{type:"application/msword"});
+    dl(blob,`主管會週報_${this._mrToInputVal(c.from).replace(/-/g,"")}~${this._mrToInputVal(c.to).replace(/-/g,"")}.doc`);
+    this.closeMgmtReportModal();
+    toast("✓ 已匯出主管會週報 Word 檔（.doc，可直接用 Word 開啟）");
   },
   /* ── 新增/編輯/刪除 ── */
   async openEdit(idx){
@@ -16140,11 +16270,11 @@ const Air={
     wsBase.getColumn(5).numFmt="@"; // 檢查日期欄強制當文字格式,避免Excel把「2026/1/15」自動轉成日期序號,匯入時解析失敗
 
     const wsDef=wb.addWorksheet("缺失改善明細");
-    const defHdr=["序號","PSC Action Taken","CODE","實際情況","缺失詳情","Initial Operator Comment","直接原因 Immediate Cause","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","三要素","重要程度","重點關注","缺失性質判定","風險"];
+    const defHdr=["序號","PSC Action Taken","CODE","實際情況","缺失詳情","Initial Operator Comment","直接原因 Immediate Cause","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","三要素","重要程度","重點關注","缺失性質判定","風險","需內控"];
     wsDef.addRow(defHdr);
-    wsDef.addRow([1,"17","17","已補正並加強督導","航行當值記錄不完整","","","針對程序進行修正","體系文件不足及上船前培訓針對性有待加強","公司修正管理體系文件內容及上船前培訓","","","作业问题","","","人員因素","中","否","檢查員個人意見","2"]);
-    wsDef.addRow([2,"","","通知岸基安排檢修","雷達顯示異常","","","","","","","","设备问题","","","設備因素","高","是","無","3"]);
-    [6,14,8,22,26,22,22,22,22,22,12,12,10,16,20,12,10,10,26,6].forEach((w,i)=>{wsDef.getColumn(i+1).width=w;});
+    wsDef.addRow([1,"17","17","已補正並加強督導","航行當值記錄不完整","","","針對程序進行修正","體系文件不足及上船前培訓針對性有待加強","公司修正管理體系文件內容及上船前培訓","","","作业问题","","","人員因素","中","否","檢查員個人意見","2","否"]);
+    wsDef.addRow([2,"","","通知岸基安排檢修","雷達顯示異常","","","","","","","","设备问题","","","設備因素","高","是","無","3","是"]);
+    [6,14,8,22,26,22,22,22,22,22,12,12,10,16,20,12,10,10,26,6,10].forEach((w,i)=>{wsDef.getColumn(i+1).width=w;});
     const col={};defHdr.forEach((h,i)=>{col[h]=wsDef.getColumn(i+1).letter;});
 
     const wsRef=wb.addWorksheet("分類選項參考");
@@ -16177,6 +16307,7 @@ const Air={
     namedRange("lst_ncFactor",(()=>{const v=(typeof TagLists!=="undefined"?TagLists.values("ncFactor"):[]);return v.length?v:["人員因素","設備因素","系統因素"];})());
     namedRange("lst_ncImp",["高","中","低"]);
     namedRange("lst_ncFocus",["是","否"]);
+    namedRange("lst_needControl",["是","否"]);
     namedRange("lst_risk",["1","2","3"]);
     namedRange("lst_ncOpinion",NC_OPINION_OPTS.map(o=>o[1]));
     namedRange("lst_rank",RANK_OPTIONS);
@@ -16220,6 +16351,7 @@ const Air={
       wsDef.getCell(`${col["三要素"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncFactor"]};
       wsDef.getCell(`${col["重要程度"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncImp"]};
       wsDef.getCell(`${col["重點關注"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncFocus"]};
+      wsDef.getCell(`${col["需內控"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_needControl"]};
       wsDef.getCell(`${col["風險"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_risk"]};
       wsDef.getCell(`${col["缺失性質判定"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncOpinion"]};
       wsDef.getCell(`${col["責任人職位"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_rank"]};
@@ -16252,7 +16384,7 @@ const Air={
     const baseRows=scope.map((d,i)=>({序號:i+1,船名:d.ship,船型:d.vtype,檢查來源:d.itype,檢查日期:d.date,檢查地點:d.place,"檢查單位/油公司":d.oilco,檢查員:d.inspector,缺失數:d.ndef??0,正面評論數:d.npos??0,督導確認:d.reviewed?"已確認":"尚未確認",已轉檢查紀錄:d.usedInsp?"是":"否",已轉缺失紀錄:d.usedDef?"是":"否",已轉正向評論:d.usedPos?"是":"否"}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(baseRows),"基本資料");
     const defRows=[];
-    scope.forEach((d,i)=>{(d.defects||[]).forEach((df,di)=>{const rp=(d.reply&&d.reply.items&&d.reply.items[di])||{};defRows.push({序號:i+1,"PSC Action Taken":df.psc||"",CODE:df.code||"",實際情況:df.actual||"",缺失詳情:df.detail||"","Initial Operator Comment":rp.opCommentCn||df.opComment||"","直接原因 Immediate Cause":rp.immediateCauseCn||df.immediateCause||"",改善措施:rp.correctiveCn||df.corrective||"",根本原因:rp.rootCauseCn||df.rootCause||"",預防措施:rp.preventiveCn||df.preventive||"",責任人職位:df.rank||"",責任人姓名:df.person||"",問題別:df.ncProb||"",大類:df.ncMain||"",具體名稱:df.ncLeaf||"",三要素:df.ncFactor||"",重要程度:df.ncImp||"",重點關注:df.ncFocus||"","缺失性質判定":ncOpinionLabel(df.ncOpinion),風險:df.risk||""});});});
+    scope.forEach((d,i)=>{(d.defects||[]).forEach((df,di)=>{const rp=(d.reply&&d.reply.items&&d.reply.items[di])||{};defRows.push({序號:i+1,"PSC Action Taken":df.psc||"",CODE:df.code||"",實際情況:df.actual||"",缺失詳情:df.detail||"","Initial Operator Comment":rp.opCommentCn||df.opComment||"","直接原因 Immediate Cause":rp.immediateCauseCn||df.immediateCause||"",改善措施:rp.correctiveCn||df.corrective||"",根本原因:rp.rootCauseCn||df.rootCause||"",預防措施:rp.preventiveCn||df.preventive||"",責任人職位:df.rank||"",責任人姓名:df.person||"",問題別:df.ncProb||"",大類:df.ncMain||"",具體名稱:df.ncLeaf||"",三要素:df.ncFactor||"",重要程度:df.ncImp||"",重點關注:df.ncFocus||"","缺失性質判定":ncOpinionLabel(df.ncOpinion),風險:df.risk||"",需內控:df.needControl?"是":"否"});});});
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(defRows),"缺失改善明細");
     const posRows=[];
     scope.forEach((d,i)=>{(d.posComments||[]).forEach(pc=>{
@@ -16299,6 +16431,7 @@ const Air={
             ncProb:g(x,"問題別"),ncMain:g(x,"大類"),ncLeaf:g(x,"具體名稱"),ncFactor:g(x,"三要素"),
             ncImp:g(x,"重要程度"),ncFocus:truthy(g(x,"重點關注"))?"是":(g(x,"重點關注")?"否":""),
             ncOpinion:ncOpinionNormalize(g(x,"缺失性質判定","檢查員意見/BP","檢查員意見","Best Practice")),risk:g(x,"風險"),
+            needControl:truthy(g(x,"需內控","是否內控","內控")),
             rank:g(x,"責任人職位"),person:g(x,"責任人姓名")
           })).filter(d=>d.detail||d.corrective||d.rootCause||d.preventive||d.opComment||d.immediateCause||d.code||d.actual||d.ncProb||d.ncMain);
           const posMap=new Map();
@@ -16678,7 +16811,7 @@ const Air={
   },
   refreshIcat(){const t=$("#air-itype").value;$("#air-icat").value=icatOf(t)||"（未分類）";},
   /* ── 缺失改善明細 ── */
-  blankDefect(){return {id:this.defSeq++,psc:"",code:"",actual:"",detail:"",opComment:"",immediateCause:"",corrective:"",rootCause:"",preventive:"",rank:"",person:"",people:[{rank:"",person:""}],ncProb:"",ncMain:"",ncLeaf:"",ncFactor:"",ncImp:"",ncFocus:"",ncMethod:"",ncOpinion:"",risk:""};},
+  blankDefect(){return {id:this.defSeq++,psc:"",code:"",actual:"",detail:"",opComment:"",immediateCause:"",corrective:"",rootCause:"",preventive:"",needControl:false,rank:"",person:"",people:[{rank:"",person:""}],ncProb:"",ncMain:"",ncLeaf:"",ncFactor:"",ncImp:"",ncFocus:"",ncMethod:"",ncOpinion:"",risk:""};},
   addDefectRow(){this.defRows.push(this.blankDefect());this.activeDefRowIdx=this.defRows.length-1;this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
   rmDefectRow(id){this.defRows=this.defRows.filter(r=>r.id!==id);this.defSel.delete(id);this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
   syncNdefField(){const el=$("#air-ndef");if(el)el.value=this.defRows.length;},
@@ -16793,6 +16926,7 @@ const Air={
           </div>
           <div class="air-def-shortrow">
             <div class="adf-item adf-chk"><label style="flex-direction:row;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${r.ncFocus==="是"?"checked":""} style="width:18px;height:18px;accent-color:var(--bad)" onchange="Air.setDefField(${r.id},'ncFocus',this.checked?'是':'否')">重點關注</label></div>
+            <div class="adf-item adf-chk"><label style="flex-direction:row;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${r.needControl?"checked":""} style="width:18px;height:18px;accent-color:var(--signal)" onchange="Air.setDefField(${r.id},'needControl',this.checked)">需內控</label></div>
             <div class="adf-item"><label>問題別</label><div class="msel" id="ms-air-prob-${r.id}"></div><div class="adf-val" id="ms-air-prob-${r.id}-val"></div></div>
             <div class="adf-item"><label>大類</label><div class="msel" id="ms-air-main-${r.id}"></div><div class="adf-val" id="ms-air-main-${r.id}-val"></div></div>
             <div class="adf-item"><label>具體名稱</label><div class="msel" id="ms-air-leaf-${r.id}"></div><div class="adf-val" id="ms-air-leaf-${r.id}-val"></div></div>
@@ -16996,7 +17130,7 @@ const Air={
      供之後「覆蓋」轉入時比對用；找不到對應（例如已被刪除）就視為要新增。 */
   rowsToDefectsPayload(rows){
     return rows.filter(r=>r.detail||r.corrective||r.rootCause||r.preventive||r.opComment||r.immediateCause||r.rank||r.person||r.psc||r.code||r.actual||r.ncProb||r.ncMain||r.ncLeaf)
-      .map(r=>({psc:r.psc||"",code:r.code||"",actual:r.actual||"",detail:r.detail||"",opComment:r.opComment||"",immediateCause:r.immediateCause||"",corrective:r.corrective||"",rootCause:r.rootCause||"",preventive:r.preventive||"",rank:r.rank||"",person:r.person||"",people:Array.isArray(r.people)?r.people.filter(p=>p.rank||p.person):[],ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||"",risk:r.risk||"",pushedDefId:r.pushedDefId??null,
+      .map(r=>({psc:r.psc||"",code:r.code||"",actual:r.actual||"",detail:r.detail||"",opComment:r.opComment||"",immediateCause:r.immediateCause||"",corrective:r.corrective||"",rootCause:r.rootCause||"",preventive:r.preventive||"",needControl:!!r.needControl,rank:r.rank||"",person:r.person||"",people:Array.isArray(r.people)?r.people.filter(p=>p.rank||p.person):[],ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||"",risk:r.risk||"",pushedDefId:r.pushedDefId??null,
         followUp:r.followUp||{on:false,assignee:"",status:"open",log:[],closedAt:0},mergedCodes:Array.isArray(r.mergedCodes)?r.mergedCodes:undefined}));
   },
   saveForm(){
@@ -17174,7 +17308,7 @@ const Air={
         correctiveReply:rp.correctiveCn||"",
         rootCauseReply:rp.rootCauseCn||"",
         preventiveReply:rp.preventiveCn||"",
-        rank:r.rank||"",person:r.person||"",risk:r.risk||"",
+        rank:r.rank||"",person:r.person||"",risk:r.risk||"",needControl:!!r.needControl,
         ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||""};
       const existing=(mode==="overwrite"&&r.pushedDefId!=null)?App.defs.find(x=>x.id===r.pushedDefId):null;
       if(existing){
@@ -21063,7 +21197,7 @@ const Cloud={
        網路慢時順序仍然正確，不會發生「資料還沒拉完就先渲染／同步」的競態。任一步失敗不阻擋後續步驟。 */
     (async()=>{
       if(this.enabled()&&this.cfg.auto){
-        try{await this.loadDB(true);}catch(e){console.warn("startup loadDB",e);}
+        try{await this.loadDB(true,true);}catch(e){console.warn("startup loadDB",e);}
         if(typeof App!=="undefined"){try{App.migrateCsoData();App.migrateOperatorData();}catch(e){}}
         /* 開機時先把雲端已知的刪除清單併入本機（涵蓋「別的裝置刪過、這台還不知道」的情況），
            再把本機已知的刪除清單同步清乾淨雲端上的殘留。
@@ -21337,7 +21471,7 @@ const Cloud={
       toast(`✓ 已發布到雲端（檢查 ${App.insp.length}／缺失 ${App.defs.length}／船舶 ${(typeof SHIPINFO!=="undefined"?SHIPINFO.length:0)}／SIRE正向評論 ${App.sirePos.length}／AIR ${App.air.length}／檢查管控 ${App.inspCtrl.length}／人員名單 ${rosterN} 筆），請通知同仁「從雲端載入」`);
     }catch(e){this.dbState("⚠ 發布失敗");toast("⚠ 發布失敗："+e.message+"（請確認已建立 app_db 資料表）");}
   },
-  async loadDB(silent){
+  async loadDB(silent,notifyOnly){
     if(!silent&&typeof Air!=="undefined"&&(Air._formDirty||Air._replyDirty)){
       if(!confirm("⚠ 偵測到您目前在「線上填單」或「海技對外回覆」還有尚未存檔的輸入內容。\n\n「載入最新資料」會用雲端版本整批覆蓋本機資料，尚未存檔的部分將會遺失且無法復原。\n\n建議先按左側選單最下方「資料暫存於本機瀏覽器」區塊裡的「💾 立即儲存」按鈕，確認狀態變成已儲存後，再回來點這裡載入。\n\n仍要不儲存、直接載入最新資料嗎？"))return;
     }
@@ -21380,6 +21514,7 @@ const Cloud={
       this.dbState("⬇ 已載入（"+when+by+"）");
       if(typeof Audit!=="undefined")Audit.log("載入","資料庫",`從雲端載入 ${info.join("／")} 筆`);
       if(!silent)toast(`✓ 已從雲端載入（${info.join("／")} 筆）${by?"，發布者："+map.inspections.by:""}`);
+      else if(notifyOnly)toast("🔔 已自動載入最新資料");
     }catch(e){this.dbState("⚠ 載入失敗");if(!silent)toast("⚠ 載入失敗："+e.message);}
   },
   /* NCDB（分類清單：問題別/大類/具體名稱）是寫死在程式碼裡的常數，不像其他資料存在 App.xxx 裡，

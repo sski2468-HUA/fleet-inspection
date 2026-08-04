@@ -91,7 +91,13 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
         </label>
         <button class="btn primary" id="submitAllBtn" onclick="submitAll()">🌐 全部送出</button>
         <button class="btn" onclick="openHistoryModal()">🕐 版本歷史（目前這條缺失）</button>
+        <button class="btn" id="changeLogBtn" onclick="toggleChangeLog()">📝 修改紀錄（目前這條缺失）</button>
         <span class="hint" id="autoSaveNote" style="width:100%"></span>
+      </div>
+
+      <div id="changeLogPanel" style="display:none;margin-bottom:14px;background:#fbfbfc;border:1px solid var(--line);border-radius:8px;padding:12px">
+        <p class="hint" style="margin-bottom:8px">每次按「全部送出」，都會把「這次跟上次確認時比起來，哪些欄位被改了、改成什麼、或被清空刪除了」記錄下來，不同人分次修改的紀錄會一直累積、不會互相覆蓋，方便追蹤是誰在什麼時候改了什麼。這裡只顯示目前分頁選到的這條缺失。</p>
+        <div id="changeLogBody"></div>
       </div>
 
       <div id="historyModal" class="modal-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;align-items:center;justify-content:center">
@@ -152,6 +158,16 @@ function notify(msg,tone){
 }
 
 const EN_PLACEHOLDER="(請在此填入英文翻譯)";
+function trimHistory(hist,cap){
+  // 優先淘汰「自動儲存」快照，「全部送出」留下的修改紀錄（帶有 changes）盡量保留，
+  // 讓修改紀錄可以完整留存，不會因為自動儲存太頻繁而被擠掉。
+  while(hist.length>cap){
+    const idx=hist.findIndex(h=>!Array.isArray(h.changes));
+    if(idx===-1)hist.shift(); // 全部都是確認紀錄了，才不得已淘汰最舊的一筆
+    else hist.splice(idx,1);
+  }
+  return hist;
+}
 const REPLY_FIELDS=[
   {key:"opComment",labelZh:"Initial Operator Comment",labelEN:"INITIAL OPERATOR COMMENT"},
   {key:"immediateCause",labelZh:"Immediate Cause 直接原因",labelEN:"IMMEDIATE CAUSE"},
@@ -292,6 +308,7 @@ async function loadDraft(){
     draftRow=null; stage=1; defectMeta=null;
     renderDefMeta();
     renderStage();
+    renderChangeLog();
     return;
   }
   if(!allDrafts.some(r=>r.defect_idx===DIDX))DIDX=allDrafts[0].defect_idx;
@@ -322,6 +339,7 @@ async function switchDefect(idx){
   renderDefTabs();
   renderDefMeta();
   renderStage();
+  renderChangeLog();
 }
 
 /* ════════ 自動即時儲存：內容變更後 debounce 一下就自動存檔，切分頁前也會先存一次，
@@ -345,7 +363,7 @@ async function flushAutoSave(){
   const lastSnap=hist.length?JSON.stringify(hist[hist.length-1].items):null;
   if(JSON.stringify(items[0])!==lastSnap){
     hist.push({by:"（自動儲存）",at:new Date().toISOString(),items:items[0]});
-    while(hist.length>30)hist.shift();
+    trimHistory(hist,40);
   }
   try{
     await api(`${TABLE}?id=eq.${draftRow.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({items,history:hist})});
@@ -473,6 +491,59 @@ function openHistoryModal(){
   document.getElementById("historyModal").style.display="flex";
 }
 function closeHistoryModal(){ document.getElementById("historyModal").style.display="none"; }
+
+/* ════════ 修改紀錄（跟「版本歷史」不同：版本歷史存的是每次的完整快照，
+   修改紀錄存的是「這次跟上次確認時比起來，哪些欄位被改了／清空了」的差異摘要，
+   方便一眼看出誰改了什麼，不用自己比對兩份快照。每筆缺失各自累積自己的 change_log，
+   不同人分次送出時是「累加」進陣列，不會互相覆蓋。════════ */
+let changeLogOpen=false;
+function toggleChangeLog(){
+  changeLogOpen=!changeLogOpen;
+  document.getElementById("changeLogPanel").style.display=changeLogOpen?"":"none";
+  if(changeLogOpen)renderChangeLog();
+}
+function diffFields(oldIt,newIt){
+  const changes=[];
+  REPLY_FIELDS.forEach(f=>{
+    [["cn","（中文）"],["en","（English）"]].forEach(([lang,tag])=>{
+      const k=f.key+(lang==="cn"?"Cn":"En");
+      const before=((oldIt&&oldIt[k])||"").trim();
+      const after=((newIt&&newIt[k])||"").trim();
+      if(before===after)return;
+      let action;
+      if(!before&&after)action="新增填寫";
+      else if(before&&!after)action="清空／刪除";
+      else action="修改";
+      changes.push({field:f.labelZh+tag,action,before,after});
+    });
+  });
+  return changes;
+}
+function renderChangeLog(){
+  const body=document.getElementById("changeLogBody");
+  if(!body)return;
+  const entries=(draftRow&&Array.isArray(draftRow.history)?draftRow.history:[]).filter(h=>Array.isArray(h.changes));
+  if(!entries.length){
+    body.innerHTML=`<p class="hint">目前這條缺失還沒有任何修改紀錄（第一次「全部送出」之後才會開始累積）。</p>`;
+    return;
+  }
+  const trunc=s=>{const t=String(s||"");return t.length>60?esc(t.slice(0,60))+"…":esc(t)||"（空）";};
+  body.innerHTML=entries.slice().reverse().map(entry=>{
+    const rows=(entry.changes||[]).map(c=>`<div style="margin-top:4px;padding-left:8px;border-left:3px solid var(--line-2)">
+        <b>${esc(c.field)}</b>　<span class="hint">${esc(c.action)}</span>
+        ${c.action==="修改"?`<div style="font-size:12px;color:var(--ink-3)">原本：${trunc(c.before)}</div><div style="font-size:12px">改成：${trunc(c.after)}</div>`
+          :(c.action==="清空／刪除"?`<div style="font-size:12px;color:var(--ink-3)">原本：${trunc(c.before)}</div>`
+          :`<div style="font-size:12px">填入：${trunc(c.after)}</div>`)}
+      </div>`).join("")||`<div class="hint" style="margin-top:4px">這次送出跟上次比起來，內容沒有變化。</div>`;
+    return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <b>${esc(entry.by||"（未填寫姓名）")}</b>
+        <span class="hint">${entry.at?new Date(entry.at).toLocaleString("zh-TW",{hour12:false}):""}</span>
+      </div>
+      ${rows}
+    </div>`;
+  }).join("");
+}
 async function restoreHistoryVersion(origIdx){
   const hist=draftRow.history||[];
   const h=hist[origIdx]; if(!h)return;
@@ -494,8 +565,15 @@ async function submitAll(){
   for(const row of allDrafts){
     const items=row.items&&row.items.length?row.items:[{}];
     const hist=Array.isArray(row.history)?row.history.slice():[];
-    hist.push({by:name,at:now,items:items[0]});
-    while(hist.length>30)hist.shift();
+    // 找出「上一次確認送出」時的內容（跳過自動儲存），拿來跟這次送出的內容比對差異；
+    // 如果從來沒有人確認送出過，就整份視為「新增填寫」。
+    const prevConfirmed=hist.slice().reverse().find(h=>h.by&&h.by!=="（自動儲存）");
+    const changes=diffFields(prevConfirmed?prevConfirmed.items:null,items[0]);
+    // changes 直接內嵌在這筆 history 快照裡（history 欄位本身是 JSONB，這樣不用改資料庫結構
+    // 就能多存「這次跟上次確認比起來改了什麼」。「修改紀錄」面板只挑出有 changes 的紀錄來顯示，
+    // 每個人送出各自留一筆，不會覆蓋別人先前留下的紀錄。
+    hist.push({by:name,at:now,items:items[0],changes});
+    trimHistory(hist,40);
     const body={
       stage:"3", // 欄位保留供資料庫相容用，畫面上已經不分階段
       confirmed_by:name, confirmed_at:now,
