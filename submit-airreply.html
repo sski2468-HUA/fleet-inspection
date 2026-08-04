@@ -23,6 +23,12 @@ header p{margin:6px 0 0;font-size:13px;color:#b9c8d6;line-height:1.6}
 .card h2{font-size:15px;margin:0 0 4px}
 .hint{color:var(--ink-3);font-size:12px;line-height:1.7}
 .hint.warn{color:var(--signal-d);background:#fff4e8;border:1px solid #f3d9b8;border-radius:8px;padding:10px 12px}
+.diff-line{font-size:12.5px;line-height:1.8;background:#fafbfc;border-radius:6px;padding:6px 9px;word-break:break-word}
+.diff-line del{color:var(--ink-3);text-decoration:line-through;text-decoration-color:var(--line-2);background:none}
+.diff-line ins{color:var(--bad);background:#fbeaea;text-decoration:none;border-radius:3px;padding:0 1px;font-weight:600}
+.difftoggle-btn{font-size:11px;color:var(--navy-3);cursor:pointer;background:none;border:none;padding:2px 0;text-decoration:underline;margin-top:2px}
+.difftoggle-full{display:none;margin-top:5px;font-size:12px;color:var(--ink-3);background:#fafbfc;border-radius:6px;padding:7px 9px;line-height:1.7}
+.difftoggle-full.show{display:block}
 label{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--ink-2);font-weight:600}
 label.full{grid-column:1/-1}
 textarea{padding:11px 12px;border:1px solid var(--line-2);border-radius:8px;font-size:15px;font-family:var(--sans);color:var(--ink);background:#fff;width:100%;resize:vertical;min-height:64px;line-height:1.5}
@@ -502,6 +508,46 @@ function toggleChangeLog(){
   document.getElementById("changeLogPanel").style.display=changeLogOpen?"":"none";
   if(changeLogOpen)renderChangeLog();
 }
+/* ════════ 逐字／逐詞差異比對（LCS）：修改紀錄用行內標記顯示「哪裡改了」，
+   不用整段對照猜差異。英數字連續字元當一個詞比對（比逐字元比對更準，不會把
+   一個單字被換成另一個單字的情況拆得很碎），中文與標點逐字比對。 ════════ */
+function diffTokenize(s){
+  return s.match(/[A-Za-z0-9']+|[^\sA-Za-z0-9']|[\s]+/g) || [];
+}
+function diffTokens(a,b){
+  const ta=diffTokenize(a), tb=diffTokenize(b);
+  const n=ta.length, m=tb.length;
+  const dp=Array.from({length:n+1},()=>new Array(m+1).fill(0));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)
+    dp[i][j]= ta[i]===tb[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j],dp[i][j+1]);
+  let i=0,j=0,out=[];
+  while(i<n&&j<m){
+    if(ta[i]===tb[j]){out.push(["eq",ta[i]]);i++;j++;}
+    else if(dp[i+1][j]>=dp[i][j+1]){out.push(["del",ta[i]]);i++;}
+    else{out.push(["ins",tb[j]]);j++;}
+  }
+  while(i<n){out.push(["del",ta[i]]);i++;}
+  while(j<m){out.push(["ins",tb[j]]);j++;}
+  return out;
+}
+function renderInlineDiff(a,b){
+  // 差異片段太多（改動範圍太大、逐字標記反而看不懂）時，就不逐字標了，改用「顯示完整原文/改後全文」帶過
+  const parts=diffTokens(a,b);
+  const changedCount=parts.filter(p=>p[0]!=="eq").length;
+  if(changedCount>60)return null;
+  return parts.map(([t,s])=>{
+    const e=esc(s);
+    if(t==="eq")return e;
+    if(t==="del")return `<del>${e}</del>`;
+    return `<ins>${e}</ins>`;
+  }).join("");
+}
+function toggleDiffFull(id,btn){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.classList.toggle("show");
+  btn.textContent=el.classList.contains("show")?"收合完整原文":"顯示完整原文／改後全文";
+}
 function diffFields(oldIt,newIt){
   const changes=[];
   REPLY_FIELDS.forEach(f=>{
@@ -527,14 +573,31 @@ function renderChangeLog(){
     body.innerHTML=`<p class="hint">目前這條缺失還沒有任何修改紀錄（第一次「全部送出」之後才會開始累積）。</p>`;
     return;
   }
-  const trunc=s=>{const t=String(s||"");return t.length>60?esc(t.slice(0,60))+"…":esc(t)||"（空）";};
-  body.innerHTML=entries.slice().reverse().map(entry=>{
-    const rows=(entry.changes||[]).map(c=>`<div style="margin-top:4px;padding-left:8px;border-left:3px solid var(--line-2)">
-        <b>${esc(c.field)}</b>　<span class="hint">${esc(c.action)}</span>
-        ${c.action==="修改"?`<div style="font-size:12px;color:var(--ink-3)">原本：${trunc(c.before)}</div><div style="font-size:12px">改成：${trunc(c.after)}</div>`
-          :(c.action==="清空／刪除"?`<div style="font-size:12px;color:var(--ink-3)">原本：${trunc(c.before)}</div>`
-          :`<div style="font-size:12px">填入：${trunc(c.after)}</div>`)}
-      </div>`).join("")||`<div class="hint" style="margin-top:4px">這次送出跟上次比起來，內容沒有變化。</div>`;
+  const trunc=s=>{const t=String(s||"");return t.length>150?esc(t.slice(0,150))+"…":esc(t)||"（空）";};
+  body.innerHTML=entries.slice().reverse().map((entry,ei)=>{
+    const rows=(entry.changes||[]).map((c,ci)=>{
+      const fid=`clf-${ei}-${ci}`;
+      let contentHtml;
+      if(c.action==="修改"){
+        const inline=renderInlineDiff(c.before,c.after);
+        if(inline){
+          contentHtml=`<div class="diff-line">${inline}</div>
+            <button class="difftoggle-btn" onclick="toggleDiffFull('${fid}',this)">顯示完整原文／改後全文</button>
+            <div class="difftoggle-full" id="${fid}"><b>原本：</b>${esc(c.before)}<br><br><b>改成：</b>${esc(c.after)}</div>`;
+        }else{
+          // 改動範圍太大，逐字標記反而看不懂，直接列出完整前後版本
+          contentHtml=`<div class="diff-line"><b>原本：</b>${trunc(c.before)}</div><div class="diff-line" style="margin-top:4px"><b>改成：</b>${trunc(c.after)}</div>`;
+        }
+      }else if(c.action==="清空／刪除"){
+        contentHtml=`<div class="diff-line"><del>${trunc(c.before)}</del></div>`;
+      }else{
+        contentHtml=`<div class="diff-line"><ins>${trunc(c.after)}</ins></div>`;
+      }
+      return `<div style="margin-top:6px;padding-left:8px;border-left:3px solid var(--line-2)">
+          <b>${esc(c.field)}</b>　<span class="hint">${esc(c.action)}</span>
+          ${contentHtml}
+        </div>`;
+    }).join("")||`<div class="hint" style="margin-top:4px">這次送出跟上次比起來，內容沒有變化。</div>`;
     return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:8px">
         <b>${esc(entry.by||"（未填寫姓名）")}</b>
