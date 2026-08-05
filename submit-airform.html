@@ -97,7 +97,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
           <select id="f-oilco-sel"><option value="">（無／不適用）</option></select>
           <input type="text" id="f-oilco-other" placeholder="輸入新的油公司/單位名稱" style="display:none;margin-top:6px">
         </label>
-        <label>檢查員<input type="text" id="f-inspector"></label>
+        <label>檢查員<input type="text" id="f-inspector" placeholder="打幾個字選現有姓名，或直接輸入新姓名"></label>
         <div style="display:flex;gap:8px">
           <label style="flex:1">缺失數<input type="number" id="f-ndef" min="0" value="0"></label>
           <label style="flex:1">正面評論數<input type="number" id="f-npos" min="0" value="0"></label>
@@ -141,7 +141,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
     <div class="icon">✅</div>
     <h2>已送出，謝謝您！</h2>
     <p class="hint">您的填單資料已送交審核，確認無誤後會正式匯入系統。</p>
-    <button class="btn ghost" onclick="location.reload()">再填一筆</button>
+    <button class="btn primary" onclick="continueNextEntry()">➜ 接著填下一筆（保留船名等基本資料）</button>
+    <button class="btn ghost" onclick="location.reload()" style="margin-left:8px">重新開始（清空全部）</button>
   </div>
 </div>
 
@@ -283,6 +284,7 @@ async function loadFormListsFromCloud(){
       const p = rows && rows[0] && rows[0].payload;
       if(p&&Array.isArray(p.itype)&&p.itype.length) itype=p.itype;
       if(p&&Array.isArray(p.oilco)) oilco=p.oilco;
+      if(p&&Array.isArray(p.inspector)) INSPECTOR_LIST=p.inspector;
     }
   }catch(e){ /* 離線或連線失敗，使用備援清單 */ }
   OILCO_LIST=oilco;
@@ -677,6 +679,70 @@ function bindPortInput(inputId){
 }
 bindPortInput("f-place");
 
+/* 檢查員自動完成：打幾個字建議符合的既有姓名，永遠允許直接輸入新姓名（不像檢查來源那樣鎖定），
+   跟油公司/單位一樣，送出時如果是清單裡沒有的新姓名，會自動同步回雲端清單，下次其他人填單時
+   就看得到這個新姓名可選，不用每次都重打。 */
+let INSPECTOR_LIST=[];
+function bindNameInput(inputId,getList){
+  const inp=document.getElementById(inputId);
+  if(!inp||inp._nameBound)return;
+  inp._nameBound=true;
+  inp.setAttribute("autocomplete","off");
+  const box=document.createElement("div");
+  box.className="port-sugg";box.style.display="none";
+  inp.parentElement.style.position="relative";
+  inp.parentElement.appendChild(box);
+  let active=-1;
+  function close(){box.style.display="none";active=-1;}
+  function pick(v){inp.value=v;close();scheduleAutoSave();}
+  function render(q){
+    q=(q||"").trim().toLowerCase();
+    if(!q){close();return;}
+    const items=getList().filter(p=>p.toLowerCase().includes(q)).slice(0,8);
+    if(!items.length)return close();
+    box.innerHTML=items.map(p=>`<div class="ps-item" data-v="${esc(p)}">${esc(p)}</div>`).join("");
+    box.style.display="block";active=-1;
+    box.querySelectorAll(".ps-item").forEach(el=>el.onmousedown=ev=>{ev.preventDefault();pick(el.getAttribute("data-v"));});
+  }
+  inp.addEventListener("input",()=>render(inp.value));
+  inp.addEventListener("focus",()=>{if(inp.value)render(inp.value);});
+  inp.addEventListener("blur",()=>{setTimeout(close,150);});
+  inp.addEventListener("keydown",e=>{
+    const els=[...box.querySelectorAll(".ps-item")];
+    if(box.style.display==="none"||!els.length)return;
+    if(e.key==="ArrowDown"){e.preventDefault();active=(active+1)%els.length;}
+    else if(e.key==="ArrowUp"){e.preventDefault();active=(active-1+els.length)%els.length;}
+    else if(e.key==="Enter"){if(active>=0){e.preventDefault();els[active].dispatchEvent(new Event("mousedown"));}return;}
+    else if(e.key==="Escape"){close();return;}
+    else return;
+    els.forEach((el,i)=>el.classList.toggle("on",i===active));
+  });
+}
+bindNameInput("f-inspector",()=>INSPECTOR_LIST);
+/* 檢查員姓名跟油公司一樣，如果是清單裡沒有的新名字，送出後同步進雲端的篩選清單額外項目，
+   跟「篩選清單管理」後台新增標籤是同一份資料，之後所有填單、系統後台都看得到。 */
+async function pushCustomInspector(name){
+  name=(name||"").trim();
+  if(!name||INSPECTOR_LIST.includes(name))return;
+  try{
+    const res = await fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=eq.taglist_extras`,
+      { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } });
+    let payload={};
+    if(res.ok){
+      const rows=await res.json();
+      payload=(rows&&rows[0]&&rows[0].payload)||{};
+    }
+    const arr=Array.isArray(payload.inspector)?payload.inspector.slice():[];
+    if(!arr.includes(name))arr.push(name);
+    payload.inspector=arr;
+    await fetch(`${CLOUD.url}/rest/v1/app_db?on_conflict=k`,{
+      method:"POST",
+      headers:{ "apikey":CLOUD.key, "Authorization":"Bearer "+CLOUD.key, "Content-Type":"application/json", "Prefer":"resolution=merge-duplicates" },
+      body: JSON.stringify([{k:"taglist_extras",updated:Date.now(),payload}])
+    });
+  }catch(e){ /* 離線或連線失敗，這次新姓名就只留在這筆填單資料裡，之後可再手動請維護者補上 */ }
+}
+
 function collectPayload(){
   const person_basic = {
     ship: document.getElementById("f-ship").value,
@@ -784,11 +850,24 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
   const payload = collectPayload();
   const err = validatePayload(payload);
   if(err){ notify(err, "err"); return; }
+  const shipObj = SHIP_OPTS.find(s=>s.code===payload.basic.ship);
+  const shipLabel = shipObj ? `${shipObj.code}　${shipObj.name}` : payload.basic.ship;
+  const confirmMsg = `請確認以下資料無誤後送出：\n\n`+
+    `船名：${shipLabel}\n`+
+    `檢查日期：${payload.basic.date}\n`+
+    `檢查來源：${payload.basic.itype}\n`+
+    `缺失：${payload.defects.length} 條\n`+
+    `正面評論：${payload.posComments.length} 條\n\n`+
+    `確定要送出嗎？`;
+  if(!confirm(confirmMsg))return;
   const btn = document.getElementById("btnSubmit");
   btn.disabled = true; btn.textContent = "送出中…";
   try{
     if(document.getElementById("f-oilco-sel").value===OTHER_VAL && payload.basic.oilco){
       pushCustomOilco(payload.basic.oilco); // 不 await：失敗也不擋送出，靜默重試/放棄即可
+    }
+    if(payload.basic.inspector){
+      pushCustomInspector(payload.basic.inspector); // 同上，不擋送出
     }
     const res = await fetch(`${CLOUD.url}/rest/v1/${AIR_TABLE}`, {
       method: "POST",
@@ -886,6 +965,28 @@ document.getElementById("btnTestCloud").addEventListener("click", async ()=>{
     box.style.color = "var(--bad)";
   }
 });
+
+/* ── 送出成功後「接著填下一筆」：保留船名／檢查來源／日期／地點／油公司／檢查員這些
+   基本資料不動（同一次訪查通常連續要記好幾筆），只清空缺失與正面評論明細，
+   讓填單的人不用離開頁面、不用重新選船，直接接著填下一筆。
+   跟旁邊「重新開始」的差別：後者是 location.reload() 整份清空，前者只清明細列表。 ── */
+function continueNextEntry(){
+  document.getElementById("defList").innerHTML = "";
+  document.getElementById("posList").innerHTML = "";
+  defCount = 0; posCount = 0;
+  updateDefCount();
+  updatePosCount();
+  document.getElementById("f-ndef").value = 0;
+  document.getElementById("f-npos").value = 0;
+  document.getElementById("successView").style.display = "none";
+  document.getElementById("formView").style.display = "";
+  const btn = document.getElementById("btnSubmit");
+  btn.disabled = false; btn.textContent = "✓ 送出填單（有網路時優先用這個）";
+  saveDraft();
+  switchTab({kind:"pos"});
+  notify("已保留船名等基本資料，請接著填下一筆缺失／正面評論", "ok2");
+  window.scrollTo({top:0, behavior:"smooth"});
+}
 
 /* ── 清除表單：清掉本機暫存草稿並重新整理頁面，回到全新空白表單 ── */
 document.getElementById("btnClearForm").addEventListener("click", ()=>{

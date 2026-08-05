@@ -12304,7 +12304,10 @@ const SirePos={
     const s1=$("#sire-ymfrom"),s2=$("#sire-ymto");if(!s1)return;
     const yms=[...new Set(App.sirePos.map(d=>d.ym||ymOf(d.date)))].filter(Boolean).sort();
     const opts="<option value=''>不限</option>"+yms.map(m=>`<option value="${m}">${m}</option>`).join("");
+    const vf=s1.value,vt=s2.value;
     s1.innerHTML=opts;s2.innerHTML=opts;
+    if(yms.includes(vf))s1.value=vf;
+    if(yms.includes(vt))s2.value=vt;
   },
   clearFilters(){
     Object.values(this.ms).forEach(m=>m.clear());
@@ -18532,9 +18535,9 @@ const Air={
   DEFAULT_FORM_BASE:"https://sski2468-hua.github.io/fleet-inspection/submit-airform.html",
   REPLY_BASEKEY:"vsm_airreply_base_url",
   DEFAULT_REPLY_BASE:"https://sski2468-hua.github.io/fleet-inspection/submit-airreply.html",
-  /* ════════ 發布「線上填單」外部頁面要用的下拉選單清單（檢查來源／油公司-單位）到雲端。
+  /* ════════ 發布「線上填單」外部頁面要用的下拉選單清單（檢查來源／油公司-單位／檢查員）到雲端。
      檢查來源＝固定官方清單＋篩選清單管理後台新增的項目（刻意不含歷史上打過的雜亂寫法，
-     維持「鎖定、只能用系統設定好的」）；油公司/單位＝目前系統實際在用的完整清單（含
+     維持「鎖定、只能用系統設定好的」）；油公司/單位、檢查員＝目前系統實際在用的完整清單（含
      船上透過「自訂」新增回來的），會隨 TagLists 變動自動重新發布，外部頁面永遠拿得到
      最新清單，不用手動同步維護。 ════════ */
   FORMLISTS_CLOUD_KEY:"airform_lists",
@@ -18543,7 +18546,8 @@ const Air={
     try{
       const itype=[...new Set([...ITYPE_OFFICIAL_BASE,...(typeof TagLists!=="undefined"?TagLists.extrasFor("itype"):[])])].sort();
       const oilco=(typeof TagLists!=="undefined"?TagLists.values("oilco"):[]);
-      const row={k:this.FORMLISTS_CLOUD_KEY,updated:Date.now(),payload:{itype,oilco}};
+      const inspector=(typeof TagLists!=="undefined"?TagLists.values("inspector"):[]);
+      const row={k:this.FORMLISTS_CLOUD_KEY,updated:Date.now(),payload:{itype,oilco,inspector}};
       await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([row])});
     }catch(e){console.warn("publishFormLists failed",e);}
   },
