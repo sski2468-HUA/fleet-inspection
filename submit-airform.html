@@ -103,6 +103,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
           <label style="flex:1">正面評論數<input type="number" id="f-npos" min="0" value="0"></label>
         </div>
       </div>
+      <div class="fw fld" id="f-flag-wrap" style="display:none;margin-top:10px">FLAG項目（檢查來源為 FLAG 時必填，可多選）<div id="f-flag-box" style="display:flex;flex-wrap:wrap;gap:10px;border:1px solid var(--line);border-radius:6px;padding:8px;background:#fafbfb;margin-top:6px"></div></div>
     </div>
 
     <div class="card">
@@ -252,6 +253,26 @@ loadShipsFromCloud();
 const ITYPE_FALLBACK=["SIRE","CDI","RightShip","ASI","Onboard visit","Internal audit","PSC","IHM","LRIT","SMC","ISSC","MLC","The MCC Group","Cross Ship Visit"];
 const OTHER_VAL="__other__";
 let OILCO_LIST=[];
+/* FLAG項目：跟主系統「新增檢查紀錄」的FLAG_OPTS完全一致，是「檢查來源＝FLAG」時才需要
+   多選的細項（哪個FLAG單位來查的），跟頂層「檢查來源」清單是兩件事，不能混在一起。 */
+const FLAG_OPTS=["ASI","Preemptive","SMC","ISSC","MLC","Special","iHM"];
+function flagArr(s){ return (s||"").split(/\s+/).map(x=>x.trim()).filter(Boolean); }
+function flagBoxHtml(s){
+  const sel=new Set(flagArr(s));
+  return FLAG_OPTS.map(f=>`<label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400;white-space:nowrap"><input type="checkbox" class="f-flag-cb" value="${f}" ${sel.has(f)?"checked":""} style="width:14px;height:14px"> ${f}</label>`).join("");
+}
+function flagBoxRead(){
+  return [...document.querySelectorAll(".f-flag-cb:checked")].map(cb=>cb.value).join(" ");
+}
+function isFlagItype(){ return document.getElementById("f-itype-sel").value==="FLAG"; }
+function refreshFlagBox(){
+  const wrap=document.getElementById("f-flag-wrap");
+  const on=isFlagItype();
+  wrap.style.display=on?"":"none";
+  if(!on){ document.querySelectorAll(".f-flag-cb").forEach(cb=>cb.checked=false); }
+}
+document.getElementById("f-flag-box").innerHTML=flagBoxHtml("");
+document.getElementById("f-itype-sel").addEventListener("change",refreshFlagBox);
 
 function fillSelectWithOther(selId,list,otherLabel,placeholderLabel){
   const sel=document.getElementById(selId);
@@ -269,6 +290,18 @@ function bindOtherToggle(selId,otherId){
     scheduleAutoSave();
   });
 }
+/* 需內控（交叉訪船）：跟主系統「缺失紀錄總表」編輯視窗一致，只有「檢查來源＝Cross Ship Visit」
+   時每筆缺失才會出現「需內控」勾選框，勾了代表這個問題全船隊都要比照管控，不只是這艘船。 */
+function normItype(s){ return String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,""); }
+function isCrossShipVisit(){ return normItype(document.getElementById("f-itype-sel").value)==="CROSSSHIPVISIT"; }
+function refreshInternalControlBoxes(){
+  const on=isCrossShipVisit();
+  document.querySelectorAll(".d-internalControl-wrap").forEach(w=>{
+    w.style.display=on?"":"none";
+    if(!on){const cb=w.querySelector(".d-internalControl");if(cb)cb.checked=false;}
+  });
+}
+document.getElementById("f-itype-sel").addEventListener("change",refreshInternalControlBoxes);
 /* 檢查來源／油公司-單位這兩份清單，改成統一從主系統發布的 airform_lists 讀取：
    檢查來源＝鎖定的官方清單（系統後台「篩選清單管理」設定的，不含歷史雜亂寫法），選單沒有的
    一律走「自訂（請聯絡維護者）」，不會自動加入清單，需要維護者到後台正式新增；
@@ -457,9 +490,13 @@ function addDefectRow(data){
       <label>缺失性質判定<select class="d-ncOpinion">${ncOpinionOptsHtml(data.ncOpinion||"none")}</select></label>
     </div>
     <div class="flag-row"><input type="checkbox" class="d-ncFocus" ${data.ncFocus==="是"?"checked":""}> 重點關注</div>
+    <div class="flag-row d-internalControl-wrap" style="display:none">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" class="d-internalControl" ${data.internalControl?"checked":""}> 🔒 需內控（全船隊比照管控，交叉訪船專用）</label>
+    </div>
   `;
   div.style.display = "none";
   document.getElementById("defList").appendChild(div);
+  refreshInternalControlBoxes();
 
   const peopleWrap = div.querySelector(".peopleWrap");
   const people = (data.people && data.people.length) ? data.people : [{rank:RANK_OPTIONS[0],person:""}];
@@ -619,6 +656,8 @@ function applyDraftToItypeOilco(){
     if(hasOpt){sel.value=val;other.style.display="none";}
     else{sel.value=OTHER_VAL;other.value=val;other.style.display="";}
   });
+  document.getElementById("f-flag-box").innerHTML=flagBoxHtml(b.flagType||"");
+  refreshFlagBox();
 }
 /* 地點自動完成：比照主系統「新增檢查紀錄」的地點欄位行為——打幾個字建議符合的港口，
    永遠提供「At Sea」與「其他（自行輸入）」，選了「其他」清空讓使用者自己打，
@@ -754,6 +793,7 @@ function collectPayload(){
     inspector: document.getElementById("f-inspector").value.trim(),
     ndef: +document.getElementById("f-ndef").value || 0,
     npos: +document.getElementById("f-npos").value || 0,
+    flagType: flagBoxRead(),
   };
   const defects = [];
   document.querySelectorAll(".defbox").forEach(box=>{
@@ -780,6 +820,7 @@ function collectPayload(){
       risk: box.querySelector(".d-risk").value,
       ncOpinion: box.querySelector(".d-ncOpinion").value,
       ncFocus: box.querySelector(".d-ncFocus").checked ? "是" : "否",
+      internalControl: box.querySelector(".d-internalControl") ? box.querySelector(".d-internalControl").checked : false,
     });
   });
   const posComments = [];
@@ -836,6 +877,7 @@ function notify(msg, tone){
 function validatePayload(p){
   if(!p.basic.ship) return "請選擇船名";
   if(!p.basic.itype) return "請選擇檢查來源";
+  if(p.basic.itype==="FLAG" && !p.basic.flagType) return "檢查來源選了 FLAG，請至少勾選一個 FLAG 項目";
   if(!p.basic.date) return "請填寫檢查日期";
   if(!p.basic.place) return "請填寫檢查地點";
   // 沒有缺失也可以送出（例如這次檢查沒發現任何缺失、或只有正面評論），
@@ -897,7 +939,7 @@ function downloadExcelFile(payload){
 
   const wb = XLSX.utils.book_new();
   const b = payload.basic;
-  const shipRow = { 船名:b.ship, 船型:b.vtype, 檢查來源:b.itype, 檢查日期:b.date, 檢查地點:b.place,
+  const shipRow = { 船名:b.ship, 船型:b.vtype, 檢查來源:b.itype, "FLAG項目":b.flagType||"", 檢查日期:b.date, 檢查地點:b.place,
     "檢查單位/油公司":b.oilco, 檢查員:b.inspector, 缺失數:payload.defects.length, 正面評論數:(payload.posComments||[]).length };
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([shipRow]), "基本資料");
 
@@ -921,6 +963,7 @@ function downloadExcelFile(payload){
     三要素: d.ncFactor,
     重要程度: d.ncImp,
     重點關注: d.ncFocus,
+    需內控: d.internalControl ? "是" : "否",
     缺失性質判定: NC_OPINION_LABEL[d.ncOpinion] || "無",
     風險: d.risk,
   }));

@@ -7218,7 +7218,7 @@ const ITYPE_EXTRA_OPTS=["The MCC Group","Cross Ship Visit"];
 /* 「線上填單」外部頁面用的乾淨官方清單基礎（不像 itypeOptions() 會把歷史上打過的各種
    大小寫/錯字寫法也混進來）；加上「篩選清單管理」後台新增的 extras，就是要發布給外部
    頁面的完整官方清單。 */
-const ITYPE_OFFICIAL_BASE=["SIRE","CDI","RightShip","ASI","Internal audit","onboard visit","PSC","LRIT","SMC","ISSC","MLC","IHM",...ITYPE_EXTRA_OPTS];
+const ITYPE_OFFICIAL_BASE=["SIRE","CDI","RightShip","FLAG","Internal audit","onboard visit","PSC","LRIT","IHM",...ITYPE_EXTRA_OPTS];
 function withItypeExtras(arr){return [...new Set([...(arr||[]),...ITYPE_EXTRA_OPTS,...(typeof TagLists!=="undefined"?TagLists.extrasFor("itype"):[])])].filter(Boolean).sort();}
 function icatOf(itype){
   const s=String(itype||"").trim().toLowerCase();
@@ -17700,6 +17700,7 @@ const Air={
         rootCauseReply:rp.rootCauseCn||"",
         preventiveReply:rp.preventiveCn||"",
         rank:r.rank||"",person:r.person||"",risk:r.risk||"",needControl:!!r.needControl,
+        internalControl:!!(r.internalControl||r.needControl),
         ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||""};
       const existing=(mode==="overwrite"&&r.pushedDefId!=null)?App.defs.find(x=>x.id===r.pushedDefId):null;
       if(existing){
@@ -19159,13 +19160,14 @@ const AirQueue={
     const rec={
       id:Air.nextId(),ship:b.ship,vtype:b.vtype||"",itype:b.itype||"",date:normDateSlash(b.date),
       place:b.place||"",oilco:b.oilco||"",inspector:b.inspector||"",
-      ndef:(p.defects||[]).length,npos:(p.posComments||[]).length,flagType:"",
+      ndef:(p.defects||[]).length,npos:(p.posComments||[]).length,flagType:b.flagType||"",
       defects:(p.defects||[]).map(d=>({psc:"",code:d.code||"",actual:d.actual||"",detail:d.detail||"",
         opComment:d.opComment||"",immediateCause:d.immediateCause||"",
         corrective:d.corrective||"",rootCause:d.rootCause||"",preventive:d.preventive||"",
         rank:d.rank||"",person:d.person||"",people:Array.isArray(d.people)?d.people.filter(x=>x.rank||x.person):[],
         ncProb:d.ncProb||"",ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",ncFactor:d.ncFactor||"",
         ncImp:d.ncImp||"",ncFocus:d.ncFocus||"",ncMethod:"",ncOpinion:d.ncOpinion||"",risk:d.risk||"",
+        internalControl:!!d.internalControl,
         pushedDefId:null,followUp:{on:false,assignee:"",status:"open",log:[],closedAt:0}})),
       posComments:(p.posComments||[]).map(pc=>({code:pc.code||"",item:pc.item||"",comment:pc.comment||"",
         people:Array.isArray(pc.people)?pc.people.filter(x=>x.rank||x.person):[],pushedPosIds:null})),
