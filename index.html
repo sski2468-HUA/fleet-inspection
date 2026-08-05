@@ -2544,9 +2544,13 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <div class="card">
           <h3>☁ 線上填單審核佇列
             <span class="hint" style="font-weight:400;margin-left:8px">船上透過外部網頁送出、尚未審核匯入的填單</span>
-            <button class="btn sm" style="margin-left:auto" onclick="AirQueue.refresh()">🔄 重新整理</button>
+            <span style="margin-left:auto;display:flex;gap:6px">
+              <button class="btn sm" id="air-cq-tab-pending" onclick="AirQueue.setView('pending')">待審核</button>
+              <button class="btn sm" id="air-cq-tab-rejected" onclick="AirQueue.setView('rejected')">已拒絕</button>
+              <button class="btn sm" onclick="AirQueue.refresh()">🔄 重新整理</button>
+            </span>
           </h3>
-          <p class="hint" style="line-height:1.7">每一筆是船上用獨立填單網頁送出的資料，尚未寫入系統。點「👀 預覽」可展開查看內容；「✓ 匯入」會把這筆轉成正式的線上填單記錄（比照手動新增），並可接著進行對外回覆；「✕ 拒絕」僅標記為不匯入，不會刪除原始資料。</p>
+          <p class="hint" style="line-height:1.7">每一筆是船上用獨立填單網頁送出的資料，尚未寫入系統。點「👀 預覽」可展開查看內容；「✓ 匯入」會把這筆轉成正式的線上填單記錄（比照手動新增），並可接著進行對外回覆；「✕ 拒絕」僅標記為不匯入，不會刪除原始資料，之後可切到「已拒絕」分頁找回、按「↩ 恢復為待審核」重新排入審核。</p>
           <div id="air-cq-list"></div>
         </div>
       </div>
@@ -2568,13 +2572,24 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
               <button class="btn sm" onclick="Air.exportXlsx()" title="若已勾選特定幾筆，只匯出勾選的；未勾選任何一筆則匯出全部">⬇ 匯出 Excel</button>
               <button class="btn sm" onclick="Air.exportTemplate()">📋 下載匯入模板</button>
               <button class="btn sm dark" onclick="Air.openNewOrImportModal()">＋ 新增／匯入</button>
+              <span class="hint" id="air-sel-count" style="align-self:center"></span>
+              <button class="btn sm" onclick="Air.clearSel()">✕ 取消勾選</button>
               <button class="btn sm dark" onclick="Air.openPushModal()">➜ 轉入紀錄</button>
             </span>
           </h3>
           <div class="tblwrap" style="max-height:520px">
             <table class="tbl"><thead><tr>
               <th><input type="checkbox" id="air-selall" onchange="Air.toggleAll(this.checked)"></th>
-              <th>操作</th><th>狀態</th><th>督導確認</th><th>船名</th><th>日期</th><th>檢查來源</th><th>檢查地點</th><th>缺失數</th><th>正評數</th><th>建立者</th>
+              <th>操作</th>
+              <th style="cursor:pointer" onclick="Air.sortBy('status')">狀態 <span id="sh-air-status"></span></th>
+              <th style="cursor:pointer" onclick="Air.sortBy('reviewed')">督導確認 <span id="sh-air-reviewed"></span></th>
+              <th style="cursor:pointer" onclick="Air.sortBy('ship')">船名 <span id="sh-air-ship"></span></th>
+              <th style="cursor:pointer" onclick="Air.sortBy('date')">日期 <span id="sh-air-date"></span></th>
+              <th style="cursor:pointer" onclick="Air.sortBy('itype')">檢查來源 <span id="sh-air-itype"></span></th>
+              <th style="cursor:pointer" onclick="Air.sortBy('place')">檢查地點 <span id="sh-air-place"></span></th>
+              <th style="cursor:pointer" onclick="Air.sortBy('ndef')">缺失數 <span id="sh-air-ndef"></span></th>
+              <th style="cursor:pointer" onclick="Air.sortBy('npos')">正評數 <span id="sh-air-npos"></span></th>
+              <th style="cursor:pointer" onclick="Air.sortBy('createdBy')">建立者 <span id="sh-air-createdBy"></span></th>
             </tr></thead><tbody id="air-tbody"></tbody></table>
           </div>
           <div class="pager" id="air-pager"></div>
@@ -16778,7 +16793,7 @@ const Air={
     };
     r.readAsArrayBuffer(file);
   },
-  ms:{},page:1,PER:30,selected:new Set(),editId:null,defRows:[],defSeq:0,posRows:[],posSeq:0,defMs:{},defSel:new Set(),posSel:new Set(),_lastCount:0,
+  ms:{},page:1,PER:30,selected:new Set(),editId:null,defRows:[],defSeq:0,posRows:[],posSeq:0,defMs:{},defSel:new Set(),posSel:new Set(),_lastCount:0,sortKey:null,sortDir:"asc",
   init(){
     this.ms.ship=MSel("ms-air-ship","船舶",()=>[...new Set(App.air.map(d=>d.ship))].filter(Boolean).sort(),()=>{this.page=1;this.renderList();});
     this.ms.itype=MSel("ms-air-itype","檢查來源",()=>[...new Set(App.air.map(d=>d.itype))].filter(Boolean).sort(),()=>{this.page=1;this.renderList();});
@@ -16804,13 +16819,41 @@ const Air={
     return used===1?`已轉${parts[0]}`:"部分轉入";
   },
   filtered(){
-    return App.air.filter(d=>{
+    const arr=App.air.filter(d=>{
       if(this.ms.ship&&!this.ms.ship.pass(d.ship))return false;
       if(this.ms.itype&&!this.ms.itype.pass(d.itype))return false;
       if(this.ms.status&&!this.ms.status.pass(this.statusText(d)))return false;
       if(this.ms.reviewed&&!this.ms.reviewed.pass(d.reviewed?"已確認":"尚未確認"))return false;
       return true;
-    }).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    });
+    if(!this.sortKey)return arr.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    const k=this.sortKey,dir=this.sortDir==="desc"?-1:1;
+    return arr.sort((a,b)=>{
+      if(k==="date"){
+        // 日期欄位不能直接比字串：字串比較會讓「2026/6/7」被誤判成大於「2026/6/13」，要先解析成真正的日期
+        const ad=parseDate(a.date),bd=parseDate(b.date);
+        if(ad&&bd)return (ad-bd)*dir;
+        if(ad&&!bd)return -1*dir;
+        if(!ad&&bd)return 1*dir;
+        return 0;
+      }
+      if(k==="ndef"||k==="npos")return ((+a[k]||0)-(+b[k]||0))*dir;
+      if(k==="status")return (this.statusText(a).localeCompare(this.statusText(b),"zh-Hant"))*dir;
+      if(k==="reviewed")return ((a.reviewed?1:0)-(b.reviewed?1:0))*dir;
+      const av=(a[k]||"").toString(),bv=(b[k]||"").toString();
+      return av.localeCompare(bv,"zh-Hant")*dir;
+    });
+  },
+  sortBy(key){
+    if(this.sortKey===key){this.sortDir=this.sortDir==="asc"?"desc":"asc";}
+    else{this.sortKey=key;this.sortDir="asc";}
+    this.page=1;this.renderList();
+  },
+  updateSortIndicators(){
+    ["status","reviewed","ship","date","itype","place","ndef","npos","createdBy"].forEach(k=>{
+      const el=$("#sh-air-"+k);if(!el)return;
+      el.textContent=this.sortKey===k?(this.sortDir==="asc"?"▲":"▼"):"";
+    });
   },
   showList(){
     if(!$("#tab-air"))return;
@@ -17696,8 +17739,12 @@ const Air={
     toast(msg);
   },
   toggleAll(on){this.selected=on?new Set(this.filtered().map(d=>String(d.id))):new Set();this.renderList();},
+  clearSel(){this.selected=new Set();this.renderList();},
   toggleSel(id,on){id=String(id);on?this.selected.add(id):this.selected.delete(id);this.refreshStat();},
-  refreshStat(){const el=$("#air-stat");if(el)el.textContent=`共 ${this._lastCount} 筆 · 勾選 ${this.selected.size} 筆`;},
+  refreshStat(){
+    const el=$("#air-stat");if(el)el.textContent=`共 ${this._lastCount} 筆 · 勾選 ${this.selected.size} 筆`;
+    const el2=$("#air-sel-count");if(el2)el2.textContent=this.selected.size?`已勾選 ${this.selected.size} 筆`:"";
+  },
   async delAir(id){
     if(!await Guard.requireDelete())return;
     if(!confirm("確定刪除此筆填單？"))return;
@@ -17738,12 +17785,19 @@ const Air={
     const pg2=$("#air-pager");
     if(pg2)pg2.innerHTML=total?`<button class="btn sm" ${this.page<=1?"disabled":""} onclick="Air.page--;Air.renderList()">‹ 上一頁</button><span>第 ${this.page} / ${pages} 頁</span><button class="btn sm" ${this.page>=pages?"disabled":""} onclick="Air.page++;Air.renderList()">下一頁 ›</button>`:"";
     this.refreshStat();
+    this.updateSortIndicators();
+    this.refreshStat();
   },
   openPushModal(){
-    if(!this.selected.size){toast("⚠ 請先勾選要轉入的項目");return;}
-    $("#air-push-summary").textContent=`已勾選 ${this.selected.size} 筆填單紀錄，請選擇要轉入的地方（可複選）：`;
-    $("#air-push-insp").checked=false;$("#air-push-defs").checked=false;$("#air-push-sirepos").checked=false;
-    $("#airPushModal").classList.add("show");
+    try{
+      if(!this.selected.size){toast("⚠ 請先勾選要轉入的項目");return;}
+      $("#air-push-summary").textContent=`已勾選 ${this.selected.size} 筆填單紀錄，請選擇要轉入的地方（可複選）：`;
+      $("#air-push-insp").checked=false;$("#air-push-defs").checked=false;$("#air-push-sirepos").checked=false;
+      $("#airPushModal").classList.add("show");
+    }catch(e){
+      console.error("openPushModal failed",e);
+      toast("⚠ 開啟轉入視窗失敗："+e.message+"（請截圖此訊息回報）");
+    }
   },
   closePushModal(){$("#airPushModal").classList.remove("show");},
   openNewOrImportModal(){$("#airNewOrImportModal").classList.add("show");},
@@ -18976,6 +19030,8 @@ const AirQueue={
   TABLE:"air_submissions",
   rows:[],
   expandedId:null,
+  view:"pending", // "pending" 或 "rejected"
+  setView(v){this.view=v;this.refresh();},
   open(){
     if(!$("#tab-air"))return;
     $("#air-list-page").style.display="none";
@@ -18990,9 +19046,13 @@ const AirQueue={
   async refresh(){
     const box=$("#air-cq-list");if(!box)return;
     box.innerHTML=`<p class="hint">讀取中…</p>`;
+    const btnP=$("#air-cq-tab-pending"),btnR=$("#air-cq-tab-rejected");
+    if(btnP)btnP.className=this.view==="pending"?"btn sm primary":"btn sm";
+    if(btnR)btnR.className=this.view==="rejected"?"btn sm primary":"btn sm";
     if(typeof Cloud==="undefined"||!Cloud.enabled()){box.innerHTML=`<p class="hint">⚠ 雲端未連線，無法讀取審核佇列</p>`;return;}
     try{
-      this.rows=await Cloud.api(`${this.TABLE}?status=eq.pending&order=created_at.desc`)||[];
+      const status=this.view==="rejected"?"rejected":"pending";
+      this.rows=await Cloud.api(`${this.TABLE}?status=eq.${status}&order=created_at.desc`)||[];
     }catch(e){
       box.innerHTML=`<p class="hint">⚠ 讀取失敗：${esc(e.message)}</p>`;return;
     }
@@ -19001,15 +19061,20 @@ const AirQueue={
   },
   updateBadge(){
     const b=$("#air-cq-badge");if(!b)return;
+    if(this.view!=="pending")return; // 已拒絕分頁的筆數不代表「待處理」，不要覆蓋徽章數字
     if(this.rows.length){b.textContent=this.rows.length;b.style.display="";}
     else b.style.display="none";
   },
   render(){
     const box=$("#air-cq-list");if(!box)return;
-    if(!this.rows.length){box.innerHTML=`<p class="hint">目前沒有待審核的線上填單。</p>`;return;}
+    if(!this.rows.length){box.innerHTML=`<p class="hint">${this.view==="rejected"?"目前沒有已拒絕的線上填單。":"目前沒有待審核的線上填單。"}</p>`;return;}
     box.innerHTML=this.rows.map(r=>{
       const p=r.payload||{};const b=p.basic||{};const defs=p.defects||[];const pos=p.posComments||[];
       const open=this.expandedId===r.id;
+      const actionBtns=this.view==="rejected"
+        ?`<button class="btn sm dark" onclick="AirQueue.restoreRow(${r.id})">↩ 恢復為待審核</button>`
+        :`<button class="btn sm dark" onclick="AirQueue.importRow(${r.id})">✓ 匯入</button>
+          <button class="btn sm" onclick="AirQueue.rejectRow(${r.id})">✕ 拒絕</button>`;
       return `<div class="card" style="margin-bottom:10px;background:#fafbfc">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <b>${esc(b.ship||"（未填船名）")}</b>
@@ -19018,8 +19083,7 @@ const AirQueue={
           <span class="hint">送出時間 ${esc((r.created_at||"").slice(0,16).replace("T"," "))}</span>
           <span style="margin-left:auto;display:flex;gap:6px">
             <button class="btn sm" onclick="AirQueue.toggle(${r.id})">${open?"收合":"👀 預覽"}</button>
-            <button class="btn sm dark" onclick="AirQueue.importRow(${r.id})">✓ 匯入</button>
-            <button class="btn sm" onclick="AirQueue.rejectRow(${r.id})">✕ 拒絕</button>
+            ${actionBtns}
           </span>
         </div>
         ${open?this.renderPreview(b,defs,pos):""}
@@ -19071,13 +19135,23 @@ const AirQueue={
   },
   async rejectRow(id){
     if(!await Guard.require()){toast("⚠ 僅限維護者操作");return;}
-    if(!confirm("確定要拒絕這筆線上填單嗎？（不會刪除原始資料，只是標記為不匯入）"))return;
+    if(!confirm("確定要拒絕這筆線上填單嗎？（不會刪除原始資料，只是標記為不匯入，之後可到「已拒絕」分頁找回）"))return;
     try{
       await Cloud.api(`${this.TABLE}?id=eq.${id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
         body:JSON.stringify({status:"rejected"})});
     }catch(e){toast("⚠ 更新失敗："+e.message);return;}
     this.rows=this.rows.filter(x=>x.id!==id);this.updateBadge();this.render();
-    toast("已標記為拒絕");
+    toast("已標記為拒絕，可到「已拒絕」分頁找回");
+  },
+  async restoreRow(id){
+    if(!await Guard.require()){toast("⚠ 僅限維護者操作");return;}
+    if(!confirm("確定要把這筆恢復為待審核嗎？"))return;
+    try{
+      await Cloud.api(`${this.TABLE}?id=eq.${id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+        body:JSON.stringify({status:"pending"})});
+    }catch(e){toast("⚠ 更新失敗："+e.message);return;}
+    this.rows=this.rows.filter(x=>x.id!==id);this.render();
+    toast("✓ 已恢復為待審核，請切到「待審核」分頁查看");
   }
 };
 /* 海技對外回覆／線上填單都有自動儲存（停手2秒後存檔），但如果使用者在那2秒防抖動視窗內就
@@ -20976,8 +21050,11 @@ const Role={
   personName(){return this.cur?(this.cur.personName||this.cur.name):this.name();},
   isOwner(){return this.tier()==="owner";},
   isAdmin(){return this.tier()==="owner"||this.tier()==="admin";},
-  /* 各項細部權限判斷：owner/admin 永遠通過；op1 額外擁有 OP1_EXTRA 清單之權限；op2/op3 僅 BASELINE */
-  OP1_EXTRA:new Set(["air_edit_content","air_supervisor_confirm","selfcheck_create_task","selfcheck_import_task","selfcheck_export_task","defs_edit","inspctrl_edit"]),
+  /* 各項細部權限判斷：owner/admin 永遠通過；op1 額外擁有 OP1_EXTRA 清單之權限；op2/op3 僅 BASELINE
+     air_edit_content（線上填單缺失/正評內容編輯）已從 op1 預設移除，改為僅 owner/admin 可編輯，
+     督導如需這項權限，請在後台「人員與權限」矩陣中另行開啟（正式權限判定以矩陣為準，這裡只是
+     矩陣尚未載入完成前的備援保底值）。 */
+  OP1_EXTRA:new Set(["air_supervisor_confirm","selfcheck_create_task","selfcheck_import_task","selfcheck_export_task","defs_edit","inspctrl_edit"]),
   BASELINE:new Set(["selfcheck_check_item","selfcheck_export_task"]),
   /* 權限判定已改由 Perms（後台可編輯的矩陣）統一負責。
      這裡保留 OP1_EXTRA/BASELINE 僅作為 Perms 尚未載入時的保底值。 */
