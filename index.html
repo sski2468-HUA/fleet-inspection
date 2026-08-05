@@ -4361,8 +4361,8 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         </div>
       </div>
       <div class="card" style="margin-bottom:14px;border-left:4px solid var(--teal)">
-        <h3>⬇ 一鍵下載全部備份（Excel ＋ JS）</h3>        <p class="hint" style="line-height:1.8">一次下載<b>兩種格式</b>的完整備份，涵蓋系統全部資料表（檢查紀錄、缺失紀錄、船舶資料、檢查管控、內稽動態、年度計畫、操演紀錄、AIR、正面評價/優秀案例、船隊通報單、海技參考資料、人員名冊等）：<br>
-          ・<b>Excel（.xlsx）</b>—— 每個資料表一個工作表，供人閱讀、查核、離線分析。<br>
+        <h3>⬇ 一鍵下載全部備份（Excel ＋ JS）</h3>        <p class="hint" style="line-height:1.8">一次下載<b>兩種格式</b>的完整備份，涵蓋系統全部資料表（檢查紀錄、缺失紀錄、船舶資料、檢查管控、內稽動態、年度計畫、操演紀錄、AIR<b>（含每艘船每條缺失的對外回覆完整內容）</b>、正面評價/優秀案例、船隊通報單、海技參考資料、人員名冊等）：<br>
+          ・<b>Excel（.xlsx）</b>—— 每個資料表一個工作表，供人閱讀、查核、離線分析，其中「對外回覆內容」工作表會列出所有已產生對外回覆的缺失，中英文各欄位完整內容都在裡面。<br>
           ・<b>JS（.json）</b>—— 完整結構備份，是<b>唯一可以原樣還原回系統</b>的格式；Excel 因為只保留人看得懂的欄位，無法完整還原。<br>
           建議定期執行並異地保存。兩個檔案會依序下載，瀏覽器可能會詢問是否允許多重下載，請按允許。</p>
         <div class="toolbar">
@@ -20445,10 +20445,34 @@ const DM={
       return {船名:d.ship,船型:d.vtype,檢查來源:d.itype,檢查日期:d.date,檢查地點:d.place,"油公司/單位":d.oilco,檢查員:d.inspector,缺失數:d.ndef??0,正面評論數:d.npos??0,缺失明細筆數:(d.defects||[]).length,正向評論明細筆數:(d.posComments||[]).length,督導確認:d.reviewed?"已確認":"尚未確認",確認人:d.reviewedBy||"",已轉檢查紀錄:d.usedInsp?"是":"否",已轉缺失紀錄:d.usedDef?"是":"否",已轉正向評論:d.usedPos?"是":"否",對外回覆已確認筆數:`${nConfirmed}/${(d.defects||[]).length}`,建立者:d.createdBy||""};
     });
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(airRows),"填單");
-    // 5. 船舶資料
+    // 5. 對外回覆內容（每艘船每條缺失的完整回覆文字，不只是確認筆數摘要；
+    //    剛才已經 syncAllReplyDrafts() 同步過雲端最新版本，這裡直接讀 App.air 裡的巢狀內容）
+    const replyRows=[];
+    App.air.forEach(d=>{
+      const items=(d.reply&&Array.isArray(d.reply.items))?d.reply.items:[];
+      (d.defects||[]).forEach((df,i)=>{
+        const rp=items[i];
+        if(!rp)return; // 這條缺失還沒有人開過對外回覆頁面，沒有回覆資料可列
+        const hasContent=["opComment","immediateCause","rootCause","corrective","preventive"].some(k=>rp[k+"Cn"]||rp[k+"En"]);
+        if(!hasContent)return;
+        replyRows.push({
+          船名:d.ship,檢查來源:d.itype,檢查日期:d.date,序號:i+1,CODE:df.code||"",
+          "Initial Operator Comment（中文）":rp.opCommentCn||"","Initial Operator Comment（English）":rp.opCommentEn||"",
+          "直接原因（中文）":rp.immediateCauseCn||"","直接原因（English）":rp.immediateCauseEn||"",
+          "根本原因（中文）":rp.rootCauseCn||"","根本原因（English）":rp.rootCauseEn||"",
+          "改善措施（中文）":rp.correctiveCn||"","改善措施（English）":rp.correctiveEn||"",
+          "預防措施（中文）":rp.preventiveCn||"","預防措施（English）":rp.preventiveEn||"",
+          目前階段:rp._replyStage==="3"?"③主管確認":(rp._replyStage==="2"?"②英文擬稿":(rp._replyStage==="1"?"①中文填寫":"")),
+          已確認次數:rp._confirmCount||0,最後確認人:rp._confirmedBy||"",最後確認時間:rp._confirmedAt||""
+        });
+      });
+    });
+    const wsReply=XLSX.utils.json_to_sheet(replyRows.length?replyRows:[{提示:"目前沒有任何缺失已產生對外回覆內容"}]);
+    XLSX.utils.book_append_sheet(wb,wsReply,"對外回覆內容");
+    // 6. 船舶資料
     const shipRows=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).map(s=>({代碼:s.code,"Vessel Name":s.name,船名:s.zh,船型:s.vtype,Type:s.type1,交船日:s.delivery,"IMO No.":s.imo,"C/S":s.cs,DWT:s.dwt,GRT:s.grt,LOA:s.loa,Breadth:s.breadth,船廠:s.yard,船廠地點:s.yardLoc,FLAG:s.flag,Class:s.cls,登記公司:s.registry,海技經管:s.mgr,甲板督導:s.deckSup,機艙督導:s.engineSup,CSO:s.cso,備註:s.note}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(shipRows),"船舶資料");
-    // 6. 其他現有資料表：船舶缺失自查任務（概要）
+    // 7. 其他現有資料表：船舶缺失自查任務（概要）
     const taskRows=(App.tasks||[]).map(t=>{
       const n=t.items.length,done=t.items.filter(i=>i.status!=="pending").length,
         sim=t.items.filter(i=>i.status==="similar").length,cls=t.items.filter(i=>i.status==="similar"&&i.closed).length;
@@ -20456,8 +20480,8 @@ const DM={
     });
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(taskRows),"船舶缺失自查任務");
     XLSX.writeFile(wb,`船隊資料_一鍵匯出_${todayStr()}.xlsx`);
-    if(typeof Audit!=="undefined")Audit.log("匯出","資料管理","一鍵匯出所有資料（含6個工作表）");
-    toast("✓ 已匯出所有資料（檢查紀錄／缺失紀錄／SIRE正向評論／AIR／船舶資料／船舶缺失自查任務，共6個工作表）");
+    if(typeof Audit!=="undefined")Audit.log("匯出","資料管理","一鍵匯出所有資料（含7個工作表，含對外回覆內容）");
+    toast("✓ 已匯出所有資料（檢查紀錄／缺失紀錄／SIRE正向評論／AIR／對外回覆內容／船舶資料／船舶缺失自查任務，共7個工作表）");
   },
   async importAllXlsx(){
     if(!hasXLSXLib())return;
