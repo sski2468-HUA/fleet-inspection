@@ -5687,7 +5687,7 @@ const DefsGrid={
   COLS:[
     {k:"ncProb", t:"問題別",   opts:()=>["设备问题","作业问题"]},
     {k:"ncMain", t:"大類",     opts:r=>r.ncProb?ncMainsOfProb(r.ncProb).sort():ncAllMains().sort()},
-    {k:"ncLeaf", t:"具體名稱", opts:r=>r.ncMain?ncLeavesOfMain(r.ncMain).sort():[]},
+    {k:"ncLeaf", t:"具體名稱", opts:r=>r.ncMain?ncLeavesOfMain(r.ncMain).sort():ncAllLeaves().sort()},
     {k:"ncFactor",t:"三要素",  multi:true, opts:()=>{const v=(typeof TagLists!=="undefined"?TagLists.values("ncFactor"):[...new Set(App.defs.map(d=>d.ncFactor).filter(Boolean))].sort());return v.length?v:["人員因素","設備因素","系統因素"];}},
     {k:"ncImp",  t:"重要程度", opts:()=>["高","中","低"]},
     {k:"risk",   t:"風險",     opts:()=>["1","2","3"]},
@@ -5931,6 +5931,16 @@ const DefsGrid={
     /* 連動：上層改變時清空下層，避免出現不合法的組合 */
     if(col.k==="ncProb"){d.ncMain="";d.ncLeaf="";}
     if(col.k==="ncMain"){d.ncLeaf="";}
+    /* 反推：先選具體名稱時（問題別／大類都還沒選），自動反查它屬於哪個問題別／大類並帶入，
+       不用一定要照「問題別→大類→具體名稱」的順序選。 */
+    if(col.k==="ncLeaf"&&j>=0&&!d.ncProb&&!d.ncMain){
+      const hits=ncFindProbMainByLeaf(d.ncLeaf);
+      if(hits.length){
+        const [fp,fm]=hits[0];
+        d.ncProb=fp;d.ncMain=fm;
+        if(hits.length>1)toast(`⚠「${d.ncLeaf}」在多個大類下都有，已自動選第一個（${fp==="设备问题"?"設備問題":"作業問題"}／${fm}），如不對請手動調整`);
+      }
+    }
     if(d.ncMethod&&d.ncMethod.includes("自動"))d.ncMethod="人工";
     if(this.sug[d.id]){delete this.sug[d.id][col.k];
       if(!Object.keys(this.sug[d.id]).length)delete this.sug[d.id];}
@@ -6660,6 +6670,14 @@ function fallbackCopyText(text,okMsg){
   }catch(e){toast("⚠ 自動複製失敗，請手動選取文字後複製");}
 }
 function parseDate(s){if(!s)return null;const m=String(s).match(/(\d{4})[\/\-\.](\d{1,2})(?:[\/\-\.](\d{1,2}))?/);if(!m)return null;return new Date(+m[1],+m[2]-1,+(m[3]||1));}
+/* 線上填單外部網頁的「檢查日期」是瀏覽器原生 <input type="date">，一律吐出「YYYY-MM-DD」格式，
+   跟系統其他地方慣用的「YYYY/M/D」（不補零、用斜線）不一致，混在一起顯示會很亂。
+   這個函式統一轉成系統慣用格式，在資料從外部進來、或從AIR轉入各資料表時呼叫，讓格式保持一致。 */
+function normDateSlash(s){
+  const m=String(s||"").match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+  if(!m)return s||"";
+  return `${+m[1]}/${+m[2]}/${+m[3]}`;
+}
 function ymOf(s){const d=parseDate(s);return d?d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"):"";}
 function yearOf(s){const d=parseDate(s);return d?String(d.getFullYear()):"";}
 function todayStr(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
@@ -9102,7 +9120,7 @@ const Ov={
       <td><input type="checkbox" ${this.selRows.has(String(r.id))?"checked":""} onchange="Ov.toggleSelRow('${r.id}',this.checked)"></td>
       <td><b>${esc(r.ship)}</b></td><td>${esc(r.vtype)}</td><td>${itypeChip(r.itype)}<span class="io-chip ${isInternal(r.itype)?"io-int":"io-ext"}">${isInternal(r.itype)?"內":"外"}</span></td>
       <td>${icatChip(icatOf(r.itype))}</td>
-      <td style="font-family:var(--mono)">${esc(r.date)}</td><td>${esc(r.loc)}</td><td>${esc(r.inspector)}</td><td>${esc(r.unit)}</td>
+      <td style="font-family:var(--mono)">${esc(normDateSlash(r.date))}</td><td>${esc(r.loc)}</td><td>${esc(r.inspector)}</td><td>${esc(r.unit)}</td>
       <td style="text-align:center;font-family:var(--mono);${(+r.ndef||0)>=4?"color:var(--bad);font-weight:700":""}">${esc(r.ndef||"0")}</td>
       <td style="text-align:center;font-family:var(--mono);color:var(--ok)">${esc(r.npos||"0")}</td>
       <td style="font-size:11px">${esc(r.flagType)}</td>
@@ -10805,6 +10823,14 @@ function ncLeavesForProbsMains(probSel,mainSel){
   }
   return ncAllLeaves();
 }
+/* 反查：給一個具體名稱，找出它屬於哪個問題別／大類（可能不只一組，同名具體名稱理論上可能
+   掛在不同大類下）。用於「先選具體名稱，問題別／大類自動帶出來」這個反向填寫流程。 */
+function ncFindProbMainByLeaf(leaf){
+  const hits=[],seen=new Set();
+  NCDB.equip.forEach(x=>{if(x[1]===leaf){const k="设备问题|"+x[0];if(!seen.has(k)){seen.add(k);hits.push(["设备问题",x[0]]);}}});
+  NCDB.ops.forEach(x=>{if(x[1]===leaf){const k="作业问题|"+x[0];if(!seen.has(k)){seen.add(k);hits.push(["作业问题",x[0]]);}}});
+  return hits;
+}
 /* 問題別/大類/具體名稱欄位若因「多選」存成多重標籤，彼此用 ‖ 分隔（注意：不可用「、」，因為許多分類名稱本身就含有「、」，例如「救生、消防、应急及安全设备」「01.文件、证书和管理作业」） */
 function ncTags(v){return (v||"").split("‖").map(s=>s.trim()).filter(Boolean);}
 function ncFactorSplit(v){return (v||"").split(/[、,，]/).map(s=>s.trim()).filter(Boolean);}
@@ -11158,7 +11184,7 @@ const Defs={
   ALL_COLS:[
     {k:"ship",t:"船名",sort:true,cell:d=>`<td><b>${esc(d.ship)}</b></td>`},
     {k:"itype",t:"檢查來源",sort:true,cell:d=>`<td>${itypeChip(d.itype)}</td>`},
-    {k:"date",t:"檢查日期",sort:true,cell:d=>`<td style="font-family:var(--mono);white-space:nowrap">${esc(d.date)}</td>`},
+    {k:"date",t:"檢查日期",sort:true,cell:d=>`<td style="font-family:var(--mono);white-space:nowrap">${esc(normDateSlash(d.date))}</td>`},
     {k:"place",t:"檢查地點",sort:true,cell:d=>`<td class="col-narrow">${esc(d.place)}</td>`},
     {k:"ncImp",t:"重要程度",sort:true,cell:d=>DefsGrid.cell(d,"ncImp")},
     {k:"ncFocus",t:"重要關注",sort:true,cell:d=>DefsGrid.cell(d,"ncFocus")},
@@ -17309,7 +17335,22 @@ const Air={
       };
       const prob=MSel(`ms-air-prob-${rid}`,"問題別",()=>["设备问题","作业问题"],()=>{r.ncProb=ncJoin(prob.sel);ncPruneCascade(prob,main,leaf);r.ncMain=ncJoin(main.sel);r.ncLeaf=ncJoin(leaf.sel);showVal(`ms-air-prob-${rid}`,prob);showVal(`ms-air-main-${rid}`,main);showVal(`ms-air-leaf-${rid}`,leaf);this.scheduleFormAutoSave();});
       const main=MSel(`ms-air-main-${rid}`,"大類",()=>ncMainsForProbs(prob.sel).sort(),()=>{r.ncMain=ncJoin(main.sel);ncPruneCascade(prob,main,leaf);r.ncLeaf=ncJoin(leaf.sel);showVal(`ms-air-main-${rid}`,main);showVal(`ms-air-leaf-${rid}`,leaf);this.scheduleFormAutoSave();});
-      const leaf=MSel(`ms-air-leaf-${rid}`,"具體名稱",()=>ncLeavesForProbsMains(prob.sel,main.sel).sort(),()=>{r.ncLeaf=ncJoin(leaf.sel);showVal(`ms-air-leaf-${rid}`,leaf);this.scheduleFormAutoSave();});
+      const leaf=MSel(`ms-air-leaf-${rid}`,"具體名稱",()=>ncLeavesForProbsMains(prob.sel,main.sel).sort(),()=>{
+        r.ncLeaf=ncJoin(leaf.sel);
+        // 反推：問題別／大類都還沒選、且這次只選了一個具體名稱時，自動查出它屬於哪個問題別／大類並帶入，
+        // 不用先選問題別、大類才能選具體名稱，可以倒過來先選具體名稱。
+        if(!prob.sel.size&&!main.sel.size&&leaf.sel.size===1){
+          const hits=ncFindProbMainByLeaf([...leaf.sel][0]);
+          if(hits.length){
+            const [fp,fm]=hits[0];
+            prob.set([fp]);main.set([fm]);
+            r.ncProb=fp;r.ncMain=fm;
+            showVal(`ms-air-prob-${rid}`,prob);showVal(`ms-air-main-${rid}`,main);
+            if(hits.length>1)toast(`⚠「${[...leaf.sel][0]}」在多個大類下都有，已自動選第一個（${fp==="设备问题"?"設備問題":"作業問題"}／${fm}），如不對請手動調整`);
+          }
+        }
+        showVal(`ms-air-leaf-${rid}`,leaf);this.scheduleFormAutoSave();
+      });
       const factor=MSel(`ms-air-factor-${rid}`,"三要素",()=>{const v=(typeof TagLists!=="undefined"?TagLists.values("ncFactor"):[]);return v.length?v:["人員因素","設備因素","系統因素"];},()=>{r.ncFactor=[...factor.sel].join("、");showVal(`ms-air-factor-${rid}`,factor);this.scheduleFormAutoSave();});
       prob.set(ncTags(r.ncProb));main.set(ncTags(r.ncMain));leaf.set(ncTags(r.ncLeaf));
       factor.set(ncFactorSplit(r.ncFactor));
@@ -17774,7 +17815,7 @@ const Air={
         <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span></td>
         <td>${d.reviewed?'<span style="font-size:11.5px;font-weight:700;color:var(--ok)">✅ 已確認</span>':'<span style="font-size:11.5px;color:var(--ink-3)">⬜ 尚未確認</span>'}</td>
         <td><b>${esc(d.ship)}</b></td>
-        <td style="font-family:var(--mono);white-space:nowrap">${esc(d.date)}</td>
+        <td style="font-family:var(--mono);white-space:nowrap">${esc(normDateSlash(d.date))}</td>
         <td>${itypeChip(d.itype)}</td>
         <td class="col-narrow">${esc(d.place)}</td>
         <td style="text-align:center">${d.ndef??0}</td>
@@ -17809,8 +17850,15 @@ const Air={
     if($("#air-push-sirepos").checked)targets.push("sirepos");
     if(!targets.length){toast("⚠ 請至少勾選一個要轉入的地方");return;}
     this.closePushModal();
-    // 依序轉入各個勾選的地方，沿用各自既有的驗證／重複轉入警示邏輯（每個地方跳一次確認視窗）
-    for(const t of targets)await this.pushSelected(t);
+    // 依序轉入各個勾選的地方，沿用各自既有的驗證／重複轉入警示邏輯（每個地方跳一次確認視窗）；
+    // 個別目標失敗時記下來繼續跑下一個，不要讓其中一個出錯就整批卡住，最後統一告知結果。
+    const failed=[];
+    const labelMap={insp:"檢查紀錄",defs:"缺失紀錄總表",sirepos:"正面評價/優秀案例記錄"};
+    for(const t of targets){
+      try{ await this.pushSelected(t); }
+      catch(e){ console.error("pushSelected failed for target="+t,e); failed.push(`${labelMap[t]}（${e.message}）`); }
+    }
+    if(failed.length)toast(`⚠ 以下轉入失敗，請截圖回報：${failed.join("；")}`);
   },
   async pushSelected(target){
     if(!await Guard.require())return;
@@ -17845,9 +17893,9 @@ const Air={
     let n=0,m=0;
     if(target==="insp"){
       items.forEach(d=>{
-        const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:d.date,loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:d.flagType||""};
+        const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:normDateSlash(d.date),loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:d.flagType||""};
         let existing=d.pushedInspId!=null?App.insp.find(x=>x.id===d.pushedInspId):null;
-        if(!existing&&d.usedInsp)existing=App.insp.find(x=>x.ship===d.ship&&x.itype===d.itype&&x.date===d.date)||null;
+        if(!existing&&d.usedInsp)existing=App.insp.find(x=>x.ship===d.ship&&x.itype===d.itype&&x.date===payload.date)||null;
         if(existing){Object.assign(existing,payload);d.pushedInspId=existing.id;}
         else{const newId=App.nextInspId();App.insp.push({id:newId,...payload,detain:""});d.pushedInspId=newId;}
         d.usedInsp=true;n++;
@@ -17861,7 +17909,7 @@ const Air={
         defects.forEach(df=>{
           App.defs.push({
             id:App.nextId(),
-            ship:d.ship,vtype:d.vtype,itype:d.itype,date:d.date,ym:ymOf(d.date),place:d.place,oilco:d.oilco,inspector:d.inspector,
+            ship:d.ship,vtype:d.vtype,itype:d.itype,date:normDateSlash(d.date),ym:ymOf(normDateSlash(d.date)),place:d.place,oilco:d.oilco,inspector:d.inspector,
             psc:df.psc||"",code:df.code||"",detail:df.detail||"",actual:df.actual||"",preventive:df.preventive||"",corrective:df.corrective||"",rootCause:df.rootCause||"",
             attn:false,rank:df.rank||"",person:df.person||"",risk:df.risk||"",
             ncProb:df.ncProb||"",ncMain:df.ncMain||"",ncLeaf:df.ncLeaf||"",ncFactor:df.ncFactor||"",ncImp:df.ncImp||"",ncFocus:df.ncFocus||"",ncMethod:df.ncMethod||"",ncOpinion:df.ncOpinion||""
@@ -17881,7 +17929,7 @@ const Air={
           const list=people.length?people:[{rank:"",person:""}];
           list.forEach(p=>{
             App.sirePos.push({id:(typeof SirePos!=="undefined"?SirePos.nextId():(App.sirePos.reduce((mm,x)=>Math.max(mm,+x.id||0),0)+1)),
-              ship:d.ship,date:d.date,ym:ymOf(d.date),code:pc.code||"",item:pc.item||"",comment:pc.comment||"",rank:p.rank||"",person:p.person||""});
+              ship:d.ship,date:normDateSlash(d.date),ym:ymOf(normDateSlash(d.date)),code:pc.code||"",item:pc.item||"",comment:pc.comment||"",rank:p.rank||"",person:p.person||""});
             m++;
           });
         });
@@ -19109,7 +19157,7 @@ const AirQueue={
     const p=r.payload||{};const b=p.basic||{};
     if(!b.ship||!b.date){toast("⚠ 這筆資料缺少船名或日期，無法匯入");return;}
     const rec={
-      id:Air.nextId(),ship:b.ship,vtype:b.vtype||"",itype:b.itype||"",date:b.date,
+      id:Air.nextId(),ship:b.ship,vtype:b.vtype||"",itype:b.itype||"",date:normDateSlash(b.date),
       place:b.place||"",oilco:b.oilco||"",inspector:b.inspector||"",
       ndef:(p.defects||[]).length,npos:(p.posComments||[]).length,flagType:"",
       defects:(p.defects||[]).map(d=>({psc:"",code:d.code||"",actual:d.actual||"",detail:d.detail||"",
