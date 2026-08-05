@@ -7186,6 +7186,10 @@ function itypeChip(t){const c=ITYPE_COLORS[t]||["#52656f","#eef2f4"];return `<sp
 const ICAT_LIST=["PSC","第三方檢查","公司","業界案例"];
 /* 固定可選的檢查來源選項(即使尚無歷史資料亦可於新增/編輯/批量新增時選用) */
 const ITYPE_EXTRA_OPTS=["The MCC Group","Cross Ship Visit"];
+/* 「線上填單」外部頁面用的乾淨官方清單基礎（不像 itypeOptions() 會把歷史上打過的各種
+   大小寫/錯字寫法也混進來）；加上「篩選清單管理」後台新增的 extras，就是要發布給外部
+   頁面的完整官方清單。 */
+const ITYPE_OFFICIAL_BASE=["SIRE","CDI","RightShip","ASI","Internal audit","onboard visit","PSC","LRIT","SMC","ISSC","MLC","IHM",...ITYPE_EXTRA_OPTS];
 function withItypeExtras(arr){return [...new Set([...(arr||[]),...ITYPE_EXTRA_OPTS,...(typeof TagLists!=="undefined"?TagLists.extrasFor("itype"):[])])].filter(Boolean).sort();}
 function icatOf(itype){
   const s=String(itype||"").trim().toLowerCase();
@@ -10436,6 +10440,8 @@ const NCTree={
       const row={k:this.CLOUD_KEY,updated:Date.now(),by:usr,payload:this.list};
       await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([row])});
     }catch(e){console.warn("nctree cloud push failed",e);}
+    // 順便立即推送一次「ncdb」這個給外部線上填單頁面讀取的舊版鍵值，不用等下次排程同步才更新
+    if(Cloud.pushNcdbIfChanged)Cloud.pushNcdbIfChanged();
   },
   refreshDependents(){
     try{if(typeof Ov!=="undefined"&&Ov.render)Ov.render();}catch(e){}
@@ -16617,6 +16623,8 @@ const Air={
     namedRange("lst_ship",shipCodes);
     namedRange("lst_vtype",vtypeList);
     namedRange("lst_itype",itypeList);
+    namedRange("lst_place",(typeof PORTS!=="undefined"?PORTS:[]).concat(["At Sea","其他"]));
+    namedRange("lst_oilco",(typeof TagLists!=="undefined"?TagLists.values("oilco"):[]));
     const mainByProb={"设备问题":[...new Set(equip.map(x=>x[0]))],"作业问题":[...new Set(ops.map(x=>x[0]))]};
     const probAlias={"设备问题":"eqMain","作业问题":"opsMain"};
     Object.entries(mainByProb).forEach(([p,mains])=>namedRange(probAlias[p],mains));
@@ -18528,6 +18536,21 @@ const Air={
   DEFAULT_FORM_BASE:"https://sski2468-hua.github.io/fleet-inspection/submit-airform.html",
   REPLY_BASEKEY:"vsm_airreply_base_url",
   DEFAULT_REPLY_BASE:"https://sski2468-hua.github.io/fleet-inspection/submit-airreply.html",
+  /* ════════ 發布「線上填單」外部頁面要用的下拉選單清單（檢查來源／油公司-單位）到雲端。
+     檢查來源＝固定官方清單＋篩選清單管理後台新增的項目（刻意不含歷史上打過的雜亂寫法，
+     維持「鎖定、只能用系統設定好的」）；油公司/單位＝目前系統實際在用的完整清單（含
+     船上透過「自訂」新增回來的），會隨 TagLists 變動自動重新發布，外部頁面永遠拿得到
+     最新清單，不用手動同步維護。 ════════ */
+  FORMLISTS_CLOUD_KEY:"airform_lists",
+  async publishFormLists(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const itype=[...new Set([...ITYPE_OFFICIAL_BASE,...(typeof TagLists!=="undefined"?TagLists.extrasFor("itype"):[])])].sort();
+      const oilco=(typeof TagLists!=="undefined"?TagLists.values("oilco"):[]);
+      const row={k:this.FORMLISTS_CLOUD_KEY,updated:Date.now(),payload:{itype,oilco}};
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([row])});
+    }catch(e){console.warn("publishFormLists failed",e);}
+  },
   getExternalFormBase(){
     let v="";try{v=localStorage.getItem(this.BASEKEY)||"";}catch(e){}
     if(!v){
@@ -19923,8 +19946,35 @@ const TagLists={
     if(this.open)this.render();
   },
   EXKEY:"vsm_taglist_extras_v1",
+  EX_CLOUD_KEY:"taglist_extras",
   loadExtras(){try{const s=localStorage.getItem(this.EXKEY);if(s)this.extras=JSON.parse(s)||{};}catch(e){this.extras={};}},
   saveExtras(){try{localStorage.setItem(this.EXKEY,JSON.stringify(this.extras||{}));}catch(e){}},
+  /* ════════ 自訂項目原本只存在自己這台瀏覽器（localStorage），別人看不到，等於後台加了
+     也沒用。這裡補上雲端同步，跟 NCTree／Classify 同一套 app_db key-value 模式：開機時
+     loadCloudExtras() 拉一次雲端最新版本蓋過本機快取，每次新增/刪除/改名後 pushCloudExtras()
+     把最新結果寫回雲端，让其他人下次開機或手動載入時就能看到。 ════════ */
+  async loadCloudExtras(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api("app_db?select=payload&k=eq."+encodeURIComponent(this.EX_CLOUD_KEY));
+      const p=rows&&rows[0]&&rows[0].payload;
+      if(p&&typeof p==="object"&&!Array.isArray(p)){
+        this.extras=p;
+        this.saveExtras();
+        if(this.open)this.render();
+        if(typeof Air!=="undefined"&&Air.publishFormLists)Air.publishFormLists();
+      }
+    }catch(e){console.warn("taglist extras cloud load failed",e);}
+  },
+  async pushCloudExtras(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const usr=(typeof Audit!=="undefined")?Audit.user():"";
+      const row={k:this.EX_CLOUD_KEY,updated:Date.now(),by:usr,payload:this.extras};
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([row])});
+    }catch(e){console.warn("taglist extras cloud push failed",e);}
+    if(typeof Air!=="undefined"&&Air.publishFormLists)Air.publishFormLists();
+  },
   extrasFor(key){this.loadExtras();return this.extras[key]||[];},
   values(key){
     const f=this.FIELDS.find(x=>x.key===key);if(!f)return [];
@@ -19988,7 +20038,7 @@ const TagLists={
       });
     }
     const exArr=this.extrasFor(key);
-    const ei=exArr.indexOf(oldVal);if(ei>=0){exArr[ei]=newVal;this.extras[key]=exArr;this.saveExtras();}
+    const ei=exArr.indexOf(oldVal);if(ei>=0){exArr[ei]=newVal;this.extras[key]=exArr;this.saveExtras();this.pushCloudExtras();}
     App.saveAll();App.refreshMeta();
     Audit.log("編輯","篩選清單",`${f.label}：「${oldVal}」→「${newVal}」`);
     toast(`✓ 已將「${oldVal}」更新為「${newVal}」，所有使用此標籤的位置皆已同步`);
@@ -20005,7 +20055,7 @@ const TagLists={
     if(["ncProb","ncMain","ncLeaf"].includes(key)){toast("⚠「問題別／大類／具體名稱」為連動階層分類，請改用下方「🌳 缺失分類階層管理」新增，才能維持正確的連動關係");return;}
     if(!await Guard.require())return;
     if(this.values(key).includes(v)){toast("⚠ 此標籤已存在");return;}
-    const exArr=this.extrasFor(key);exArr.push(v);this.extras[key]=exArr;this.saveExtras();
+    const exArr=this.extrasFor(key);exArr.push(v);this.extras[key]=exArr;this.saveExtras();this.pushCloudExtras();
     $("#tl-newval").value="";
     Audit.log("新增","篩選清單",`${f.label}：新增「${v}」`);
     toast(`✓ 已新增標籤「${v}」，可於新增缺失／新增檢查紀錄與篩選清單中選用`);
@@ -20041,7 +20091,7 @@ const TagLists={
       });
     });
     const exArr=this.extrasFor(key);
-    const ei=exArr.indexOf(oldVal);if(ei>=0){exArr.splice(ei,1);this.extras[key]=exArr;this.saveExtras();}
+    const ei=exArr.indexOf(oldVal);if(ei>=0){exArr.splice(ei,1);this.extras[key]=exArr;this.saveExtras();this.pushCloudExtras();}
     App.saveAll();App.refreshMeta();
     Audit.log("刪除","篩選清單",`${f.label}：刪除「${oldVal}」（影響 ${affected} 筆紀錄）`);
     toast(`✓ 已刪除標籤「${oldVal}」`);
@@ -21525,6 +21575,8 @@ const Cloud={
       ()=>typeof RolePrompts!=="undefined"&&RolePrompts.loadCloud(),
       ()=>typeof Classify!=="undefined"&&Classify.loadCloud(),
       ()=>typeof NCTree!=="undefined"&&NCTree.loadCloud(),
+      ()=>typeof TagLists!=="undefined"&&TagLists.loadCloudExtras(),
+      ()=>typeof Air!=="undefined"&&Air.publishFormLists(),
       ()=>typeof Snap!=="undefined"&&Snap.loadCloudInfo(),
       ()=>typeof NavConfig!=="undefined"&&NavConfig.loadCloud(),
       ()=>typeof RefDocs!=="undefined"&&RefDocs.loadCloud(),

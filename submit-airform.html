@@ -63,6 +63,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
 .tabpill.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .tabpill.pos{border-color:#2e8b57}
 .tabpill.pos.on{background:#2e8b57;border-color:#2e8b57}
+.port-sugg{position:absolute;z-index:80;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1px solid var(--line-2);border-radius:6px;box-shadow:0 8px 24px rgba(12,36,51,.18);max-height:240px;overflow:auto}
+.ps-item{padding:7px 12px;font-size:12.5px;cursor:pointer;border-bottom:1px solid #f0f4f6}
+.ps-item:hover,.ps-item.on{background:#eaf1f7}
+.ps-item.ps-extra{color:var(--navy-3);font-weight:600}
+.port-warn{font-size:11px;color:var(--bad);margin-top:3px;line-height:1.4}
 </style>
 </head>
 <body>
@@ -78,14 +83,20 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
   <div id="formView">
     <div class="card">
       <h2>檢查基本資料</h2>
-      <p class="sub">船名／檢查來源這幾個選單，之後會接上系統目前最新的清單（不用擔心選項過期）；目前先用範例資料呈現版面。</p>
+      <p class="sub">船名／檢查來源／油公司-單位／地點都接上系統目前最新的清單，選單裡沒有的話請選「自訂」。</p>
       <div class="grid two">
         <label>船名 *<select id="f-ship"></select></label>
         <label>船型<input type="text" id="f-vtype" readonly placeholder="選船名後自動帶出"></label>
-        <label>檢查來源 *<input type="text" id="f-itype" list="dl-itypes" placeholder="例：SIRE（打幾個字會有建議選項，也可以輸入清單沒有的新類型）"></label>
+        <label>檢查來源 *
+          <select id="f-itype-sel"><option value="">請選擇</option></select>
+          <input type="text" id="f-itype-other" placeholder="請說明檢查來源類型" style="display:none;margin-top:6px">
+        </label>
         <label>檢查日期 *<input type="date" id="f-date"></label>
-        <label>檢查地點 *<input type="text" id="f-place" list="dl-places" placeholder="例：Mailiao, Taiwan（打幾個字會有建議地點跳出來，也可以自己輸入新地點）"></label>
-        <label>油公司/單位<input type="text" id="f-oilco"></label>
+        <label>檢查地點 *<input type="text" id="f-place" placeholder="打幾個字選港口，或選「其他」自行輸入"></label>
+        <label>油公司/單位
+          <select id="f-oilco-sel"><option value="">（無／不適用）</option></select>
+          <input type="text" id="f-oilco-other" placeholder="輸入新的油公司/單位名稱" style="display:none;margin-top:6px">
+        </label>
         <label>檢查員<input type="text" id="f-inspector"></label>
         <div style="display:flex;gap:8px">
           <label style="flex:1">缺失數<input type="number" id="f-ndef" min="0" value="0"></label>
@@ -135,8 +146,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
 </div>
 
 <div id="toast"></div>
-<datalist id="dl-places"></datalist>
-<datalist id="dl-itypes"></datalist>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -168,16 +177,17 @@ const SHIP_OPTS=[
   {code:"B108",name:"B108",vtype:"bulk"},
   {code:"B202",name:"B202",vtype:"bulk"},
 ];
-/* 檢查地點：跟系統「內稽動態」原本規劃的做法一樣，是從歷史紀錄裡出現過的地點彙整成建議清單，
-   打幾個字（不分大小寫、不用打完整）瀏覽器就會列出符合的地點，也可以直接輸入清單裡沒有的新地點，
-   不會被卡住。目前先用範例港口撐版面，之後系統端整合時會改成抓取系統裡實際出現過的所有地點。 */
-const PLACE_OPTS=[
-  "Mailiao, Taiwan","Kaohsiung, Taiwan","Taichung, Taiwan",
-  "Newcastle, Australia","Dampier, Australia","Port Hedland, Australia","Esperance, Australia","Gladstone, Australia",
-  "Jiaxing, China","Zhoushan, China","Ningbo, China",
-  "Rotterdam, Netherlands","Trois-Rivieres, Canada","Jacksonville, USA","Pascagoula, USA",
-  "Ramallo, Argentina","Muara, Brunei","Sigapore",
-];
+/* 檢查地點：跟主系統「新增檢查紀錄」用同一份港口清單（462個），比對輸入內容自動建議，
+   找不到就選「其他（自行輸入）」，不會被卡住。這份清單是靜態複製自主系統，港口清單異動頻率
+   很低，之後若主系統新增/調整港口，需要請維護者一併更新這個檔案裡的 PORTS。 */
+const PORTS=["Aarhus, Denmark", "Abbot Point, Australia", "Abidjan, Ivory Coast", "Abu Dhabi, UAE", "Adelaide, Australia", "Alexandria, Egypt", "Algeciras, Spain", "Algiers, Algeria", "Aliaga, Turkey", "Altamira, Mexico", "Ambarli, Turkey", "Amsterdam, Netherlands", "Anping, Taiwan", "Antofagasta, Chile", "Antwerp, Belgium", "Aqaba, Jordan", "Arzew, Algeria", "Ashdod, Israel", "Auckland, New Zealand", "Augusta, Italy", "Bahia Blanca, Argentina", "Bahrain, Bahrain", "Balboa, Panama", "Balikpapan, Indonesia", "Baltimore, USA", "Bandar Abbas, Iran", "Bandar Imam Khomeini, Iran", "Bangkok, Thailand", "Banjarmasin, Indonesia", "Barcelona, Spain", "Barranquilla, Colombia", "Basrah, Iraq", "Batangas, Philippines", "Baton Rouge, USA", "Beaumont, USA", "Beihai, China", "Beira, Mozambique", "Beirut, Lebanon", "Belawan, Indonesia", "Bergen, Norway", "Bilbao, Spain", "Bintulu, Malaysia", "Bluff, New Zealand", "Bontang, Indonesia", "Bordeaux, France", "Boston, USA", "Bremen, Germany", "Bremerhaven, Germany", "Brisbane, Australia", "Bristol, UK", "Brunsbuttel, Germany", "Brunswick, USA", "Buenaventura, Colombia", "Buenos Aires, Argentina", "Burgas, Bulgaria", "Busan, South Korea", "Cagayan de Oro, Philippines", "Cai Mep, Vietnam", "Callao, Peru", "Cam Pha, Vietnam", "Caofeidian, China", "Cape Town, South Africa", "Cartagena, Colombia", "Cartagena, Spain", "Casablanca, Morocco", "Cebu, Philippines", "Changshu, China", "Changzhou, China", "Charleston, USA", "Chattogram, Bangladesh", "Chennai, India", "Chiba, Japan", "Chittagong, Bangladesh", "Cigading, Indonesia", "Cilegon, Indonesia", "Coatzacoalcos, Mexico", "Cochin, India", "Colombo, Sri Lanka", "Colon, Panama", "Come By Chance, Canada", "Conakry, Guinea", "Constanta, Romania", "Copenhagen, Denmark", "Corpus Christi, USA", "Cristobal, Panama", "Da Nang, Vietnam", "Daesan, Korea", "Daesan, South Korea", "Dahej, India", "Dakar, Senegal", "Dalian, China", "Dalrymple Bay, Australia", "Damietta, Egypt", "Dammam, Saudi Arabia", "Dampier, Australia", "Dar es Salaam, Tanzania", "Davao, Philippines", "Djeno, Congo", "Djibouti, Djibouti", "Doha, Qatar", "Dong Nai, Vietnam", "Douala, Cameroon", "Dumai, Indonesia", "Dung Quat, Vietnam", "Dunkirk, France", "Duqm, Oman", "Durban, South Africa", "Ennore, India", "Esperance, Australia", "Fangcheng, China", "Fazendinha, Brazil", "Felixstowe, UK", "Ferrol, Spain", "Fos, France", "Freeport, Bahamas", "Freeport, USA", "Freetown, Sierra Leone", "Fremantle, Australia", "Fujairah, UAE", "Fuzhou, China", "Galveston, USA", "Gangavaram, India", "Gdansk, Poland", "Gdynia, Poland", "Genoa, Italy", "Geraldton, Australia", "Ghent, Belgium", "Gijon, Spain", "Gioia Tauro, Italy", "Gladstone, Australia", "Gore Bay, Australia", "Gothenburg, Sweden", "Gove, Australia", "Gresik, Indonesia", "Grimsby, UK", "Guangzhou, China", "Guayaquil, Ecuador", "Guaymas, Mexico", "Gwadar, Pakistan", "Gwangyang, South Korea", "Hai Phong, Vietnam", "Haifa, Israel", "Halifax, Canada", "Halul, Qatar", "Hamburg, Germany", "Hamilton, Canada", "Hamriyah, UAE", "Hay Point, Australia", "Hazira, India", "Helsingborg, Sweden", "Helsinki, Finland", "Ho Chi Minh City, Vietnam", "Hon Gai, Vietnam", "Hong Kong, Hong Kong", "Houston, USA", "Hualien, Taiwan", "Huanghua, China", "Huasco, Chile", "Huelva, Spain", "Hull, UK", "Immingham, UK", "Incheon, South Korea", "Isabel, Philippines", "Iskenderun, Turkey", "Istanbul, Turkey", "Itaguai, Brazil", "Itaqui, Brazil", "Izmir, Turkey", "Jaigarh, India", "Jakarta, Indonesia", "Jebel Ali, UAE", "Jeddah, Saudi Arabia", "Jiangyin, China", "Jiaxing, China", "Jieyang, China", "Jingtang, China", "Jorf Lasfar, Morocco", "Jubail, Saudi Arabia", "Jurong, Singapore", "Kamsar, Guinea", "Kandla, India", "Kaohsiung, Taiwan", "Karachi, Pakistan", "Kashima, Japan", "Kawasaki, Japan", "Keelung, Taiwan", "Kemaman, Malaysia", "Khalifa Port, UAE", "King Abdullah Port, Saudi Arabia", "Kinmen, Taiwan", "Kitakyushu, Japan", "Klaipeda, Lithuania", "Kobe, Japan", "Kolkata, India", "Kotka, Finland", "Krishnapatnam, India", "Kuantan, Malaysia", "Kuwait City, Kuwait", "Kwangyang, Korea", "Kwinana, Australia", "La Plata, Argentina", "Labuan, Malaysia", "Laem Chabang, Thailand", "Lagos (Apapa), Nigeria", "Lagos, Nigeria", "Lake Charles, USA", "Latakia, Syria", "Lazaro Cardenas, Mexico", "Le Havre, France", "Leixoes, Portugal", "Lianyungang, China", "Libreville, Gabon", "Lisbon, Portugal", "Liverpool, UK", "Livorno, Italy", "Lobito, Angola", "London, UK", "Long Beach, USA", "Longview, USA", "Los Angeles, USA", "Luanda, Angola", "Lyttelton, New Zealand", "Macau, China", "Mailiao, Taiwan", "Makassar, Indonesia", "Manaus, Brazil", "Mangalore, India", "Manila, Philippines", "Manzanillo, Mexico", "Map Ta Phut, Thailand", "Maputo, Mozambique", "Marseille, France", "Masan, South Korea", "Matarani, Peru", "Mawan, China", "Mejillones, Chile", "Melbourne, Australia", "Mersin, Turkey", "Mesaieed, Qatar", "Milford Haven, UK", "Mina Al Ahmadi, Kuwait", "Mina Zayed, UAE", "Misurata, Libya", "Mizushima, Japan", "Mobile, USA", "Mombasa, Kenya", "Mongla, Bangladesh", "Monrovia, Liberia", "Montevideo, Uruguay", "Montreal, Canada", "Mormugao, India", "Mumbai, India", "Mundra, India", "Murmansk, Russia", "Muscat, Oman", "Nacala, Mozambique", "Nagoya, Japan", "Nakhodka, Russia", "Nanjing, China", "Nansha, China", "Nantes, France", "Nantong, China", "Napier, New Zealand", "Naples, Italy", "New Orleans, USA", "New York, USA", "Newcastle, Australia", "Nghi Son, Vietnam", "Nhava Sheva, India", "Ningbo, China", "Norco, USA", "Norfolk, USA", "Noumea, New Caledonia", "Novorossiysk, Russia", "Nueva Palmira, Uruguay", "Oakland, USA", "Odessa, Ukraine", "Oita, Japan", "Onne, Nigeria", "Onsan, South Korea", "Osaka, Japan", "Oslo, Norway", "Panama, Panama", "Paradip, India", "Paranagua, Brazil", "Pascagoula, USA", "Pasir Gudang, Malaysia", "Paulsboro, USA", "Penang, Malaysia", "Philadelphia, USA", "Piraeus, Greece", "Pivdennyi, Ukraine", "Pohang, Korea", "Pohang, South Korea", "Pointe-Noire, Congo", "Ponta da Madeira, Brazil", "Port Arthur, USA", "Port Boffa, Guinea", "Port Elizabeth, South Africa", "Port Harcourt, Nigeria", "Port Hedland, Australia", "Port Kamsar, Guinea", "Port Klang, Malaysia", "Port Marsden, New Zealand", "Port Moresby, Papua New Guinea", "Port Qasim, Pakistan", "Port Reading, USA", "Port Said, Egypt", "Port Sudan, Sudan", "Port Walcott, Australia", "Portland, Australia", "Portland, USA", "Primorsk, Russia", "Prince Rupert, Canada", "Puerto Cabello, Venezuela", "Puerto Cortes, Honduras", "Puerto Quetzal, Guatemala", "Pyeongtaek, Korea", "Pyeongtaek, South Korea", "Qingdao, China", "Quanzhou, China", "Quebec, Canada", "Quy Nhon, Vietnam", "Rabigh, Saudi Arabia", "Ras Laffan, Qatar", "Ras Tanura, Saudi Arabia", "Ravenna, Italy", "Rayong, Thailand", "Richards Bay, South Africa", "Riga, Latvia", "Rio Grande, Brazil", "Rio de Janeiro, Brazil", "Rizhao, China", "Rosario, Argentina", "Rotterdam, Netherlands", "Rouen, France", "Ruwais, UAE", "Sakai, Japan", "Sakaide, Japan", "Salalah, Oman", "Saldanha Bay, South Africa", "Samarinda, Indonesia", "San Antonio, Chile", "San Francisco, USA", "San Lorenzo, Argentina", "San Nicolas, Argentina", "San Vicente, Chile", "Santa Marta, Colombia", "Santos, Brazil", "Sao Luis, Brazil", "Sariaya, Philippines", "Savannah, USA", "Seattle, USA", "Semarang, Indonesia", "Sept-Iles, Canada", "Shanghai, China", "Shantou, China", "Sharjah, UAE", "Shekou, China", "Shenzhen, China", "Shuaiba, Kuwait", "Shuwaikh, Kuwait", "Sihanoukville, Cambodia", "Sikka, India", "Sines, Portugal", "Singapore (Anchorage), Singapore", "Singapore, Singapore", "Sitra, Bahrain", "Sohar, Oman", "Sokhna, Egypt", "Son Duong, Vietnam", "Songkhla, Thailand", "Southampton, UK", "Sriracha, Thailand", "St Croix, USA", "St Petersburg, Russia", "St. Croix, USA", "St. Eustatius, Caribbean Netherlands", "Suao, Taiwan", "Suape, Brazil", "Subic Bay, Philippines", "Suez, Egypt", "Surabaya, Indonesia", "Sydney, Australia", "Szczecin, Poland", "Taboneo, Indonesia", "Tacoma, USA", "Taicang, China", "Taichung, Taiwan", "Taipei, Taiwan", "Taizhou, China", "Takoradi, Ghana", "Tallinn, Estonia", "Tampa, USA", "Tampico, Mexico", "Tanga, Tanzania", "Tangier, Morocco", "Tangshan (Jingtang Port), China", "Tanjung Pelepas, Malaysia", "Tanjung Perak, Indonesia", "Tanjung Priok, Indonesia", "Tarahan, Indonesia", "Taranto, Italy", "Tarragona, Spain", "Tauranga, New Zealand", "Teesport, UK", "Tema, Ghana", "Texas City, USA", "Thames, UK", "Thamesport, UK", "Thessaloniki, Greece", "Thilawa, Myanmar", "Thunder Bay, Canada", "Tianjin, China", "Tilbury, UK", "Tokyo, Japan", "Tomakomai, Japan", "Townsville, Australia", "Trieste, Italy", "Tripoli, Libya", "Trois-Rivieres, Canada", "Tubarao, Brazil", "Tunis, Tunisia", "Tuticorin, India", "Ube, Japan", "Ulsan, Korea", "Ulsan, South Korea", "Umm Qasr, Iraq", "Ust-Luga, Russia", "Vadinar, India", "Valencia, Spain", "Valparaiso, Chile", "Vancouver, Canada", "Varna, Bulgaria", "Venice, Italy", "Veracruz, Mexico", "Visakhapatnam, India", "Vitoria, Brazil", "Vladivostok, Russia", "Vostochny, Russia", "Vung Ang, Vietnam", "Vung Tau, Vietnam", "Wakayama, Japan", "Walvis Bay, Namibia", "Wenzhou, China", "Whyalla, Australia", "Wilhelmshaven, Germany", "Xiamen, China", "Yanbu, Saudi Arabia", "Yangon, Myanmar", "Yangpu, China", "Yantai, China", "Yeosu, South Korea", "Yingkou, China", "Yokohama, Japan", "Yuzhny, Ukraine", "Zeebrugge, Belgium", "Zhangjiagang, China", "Zhanjiang, China", "Zhapu, China", "Zhenjiang, China", "Zhoushan, China"];
+function isValidPort(v){
+  const s=(v||"").trim();
+  if(!s)return false;
+  if(s==="At Sea"||s==="其他"||s.startsWith("其他"))return true;
+  if(PORTS.includes(s))return true;
+  return /,\s*\S+/.test(s); // 允許「港口, 國家」格式的自訂地點
+}
 const NCDB_PROB=["设备问题","作业问题"];
 const NCDB_MAIN={"设备问题": ["驾驶台设备", "系泊和锚泊设备", "动力与推进", "机舱设备", "救生、消防、应急及安全设备", "防污染设备", "货物操作设备", "甲板机械", "船体/结构", "生活区/MLC设备", "保安/保全设备", "个人防护/作业安全设备", "医疗/急救设备", "测试/测量/校验工具", "电子管理平台/数据系统"], "作业问题": ["01.文件、证书和管理作业", "02.人员管理作业", "03.培训作业", "04.MLC和船员福利作业", "05.航行和通信作业", "06.靠离泊、系泊和锚泊作业", "07.PTW和高风险作业", "08.通用货物和压载作业", "09.散货船专项作业", "10.油化船专项作业", "11.气体船专项作业", "12.集装箱船专项作业", "13.机舱作业", "14.防污染和环保作业", "15.消防、救生和应急响应作业", "16.保安和网络安全作业", "17.船容船貌、通道和区域检查作业", "18.冰区和低温作业"]};
 const NCDB_LEAF={"驾驶台设备": ["雷达", "ECDIS电子海图系统", "驾驶台操舵系统", "陀螺/磁罗经", "测深仪", "计程仪", "AIS自动识别系统", "GMDSS全球海上遇险与安全系统", "SSAS船舶保安报警系统", "驾驶台主机遥控系统", "航行灯系统", "其他驾驶台设备", "GPS/GNSS定位系统", "VDR/S-VDR航行数据记录仪", "BNWAS驾驶台航行值班报警系统", "自动舵", "NAVTEX/EGC安全信息接收设备", "风速风向仪", "舵角/转速/推进状态指示器"], "系泊和锚泊设备": ["系泊和锚泊设备", "系泊绞车", "锚机", "锚", "其他系泊和锚泊设备", "缆绳/钢丝缆/尾缆", "导缆孔/导缆滚轮/缆桩", "绞车刹车及刹车试验装置", "锚链/止链器/制链器", "应急拖带装置"], "动力与推进": ["主机", "电站及配电系统", "机舱操舵系统", "液压动力系统", "其他动力或推进设备", "发电柴油机/辅助发动机", "主配电板/应急配电板", "轴系/艉轴/螺旋桨", "主空压机/空气瓶", "燃油供给和燃油转换设备"], "机舱设备": ["油雾探测器", "锅炉", "应急空压机", "应急照明系统", "造水机", "空调系统", "泵浦/阀门/管系", "燃油/滑油分油机", "热交换器", "机舱监控报警系统", "冷却水/锅炉水处理设备", "生活污水处理装置"], "救生、消防、应急及安全设备": ["火警探测和报警系统", "固定灭火系统", "应急消防泵", "救生艇和吊艇架", "救生筏", "EPIRB应急无线电示位标", "SART雷达应答器", "应急发电机", "应急通风和燃油切断系统", "应急舱底系统", "便携式气体检测仪", "固定式气体检测系统", "应急拖带装置", "应急照明系统", "其他救生/消防/应急/安全设备", "手提灭火器", "消防栓/水带/水枪", "防火门/防火挡板", "速闭阀/远程停止", "SCBA呼吸器/EEBD逃生呼吸装置", "救生衣/浸水保温服/救生圈", "抛绳设备", "救助艇及降落装置", "洗眼器/紧急冲淋"], "防污染设备": ["ODME排油监控设备", "油水分离器", "压载水系统", "废气清洗系统", "选择性催化还原系统", "焚烧炉", "舱底水系统", "其他防污染设备", "SOPEP/SMPEP应急器材柜", "围油栏/吸油毡/堵漏工具", "甲板排水孔堵头/集油盘", "生活污水系统", "垃圾储存和分类设施", "燃油取样和封存设备", "压载水处理系统"], "货物操作设备": ["货泵控制系统", "货泵", "货舱/货罐监控系统", "高/高高位报警", "蒸汽排放控制系统", "惰气/氮气发生系统", "货物计算机", "泵舱通风系统", "货物加热系统", "货物冷却系统", "阀门遥控系统", "UTI量舱及取样设备", "其他货物操作设备", "货物软管/管线/歧管", "P/V阀和P/V破真空器", "洗舱机/洗舱系统", "密闭取样/密闭量舱设备", "化学品防护服及防化PPE", "货物压缩机/再液化装置", "ESD紧急切断系统/ERC释放接头", "低温防护PPE", "干粉灭火/水喷淋系统", "货舱舱盖/舱盖液压系统", "货舱污水井/货舱污水报警", "甲板吊/抓斗", "集装箱导轨/绑扎桥", "扭锁/绑扎杆/花篮螺丝", "冷藏箱插座和监控系统"], "甲板机械": ["吊机", "舷梯/跳板", "其他甲板机械", "引航员软梯/组合梯", "物料吊/伙食吊", "吊索具/卸扣/吊带", "甲板绞盘/卷车"], "船体/结构": ["船体/结构", "空气管头/透气筒/关闭装置", "水密门/风雨密门", "舱口围板/舱盖密封", "甲板开口/人孔盖", "栏杆/扶手/梯道/平台", "船壳板/甲板/结构腐蚀区域"], "生活区/MLC设备": ["厨房设备和排烟系统", "食品冷藏/冷冻库", "饮用水柜/饮水机/净水器", "热水供应系统", "卫生间/淋浴/洗衣设施", "空调通风和居住照明", "病房/药品柜/急救箱", "船员娱乐设施"], "保安/保全设备": ["SSAS船舶保安报警系统", "CCTV监控系统", "门禁/锁闭装置", "舷梯值班和访客登记设备", "探照灯/保安照明", "防海盗铁丝网/水炮/物理屏障", "安全舱设备", "偷渡人员搜查工具", "网络保安设备/防火墙/路由器"], "个人防护/作业安全设备": ["安全帽/安全鞋/工作服", "防护手套/护目镜/面罩", "安全带/防坠器", "救生绳/三脚架/救援绞盘", "呼吸防护用品/防尘口罩/滤罐", "听力保护用品", "化学品防护服/防化靴/围裙", "低温防护用品"], "医疗/急救设备": ["船舶药品柜", "急救箱", "氧气复苏器", "担架/救援担架", "自动体外除颤器AED", "病房/医务室设备", "洗眼液/应急药品"], "测试/测量/校验工具": ["压力表/真空表", "温度计/测温仪", "万用表", "绝缘电阻表", "扭矩扳手", "气体检测仪校验气瓶", "CO2称重秤", "负荷试验砝码/测力计", "饮用水检测工具包", "测厚仪", "油水界面仪"], "电子管理平台/数据系统": ["PMS计划保养系统", "SMS电子文件库", "船舶证书管理系统", "电子日志/电子油类记录簿", "装载/稳性计算软件", "货物/冷藏箱监控平台"], "01.文件、证书和管理作业": ["证书和法定文件管理作业", "SMS/手册/技术资料维护作业", "缺陷、变更和证据链管理作业", "PSC/船级社/租家检查准备作业"], "02.人员管理作业": ["配员、证书和适任性核对作业", "船员上船、交接、评价和离船管理作业", "疲劳、酒精、药物和多国籍沟通管理作业"], "03.培训作业": ["新上船熟悉和岗位专项培训", "应急演习和关键程序培训", "安全会议、工具箱会议和检查前专项培训"], "04.MLC和船员福利作业": ["SEA、工资和支付证据链管理", "工时和休息时间管理", "食品、伙食、饮用水和起居卫生管理", "船员投诉、医疗照护和遣返安排"], "05.航行和通信作业": ["航次计划和ECDIS航线验证作业", "驾驶台值班、避碰和航行监控作业", "定位核对、UKC和受限水域航行作业", "引航、锚泊值班和特殊天气航行作业", "船岸/船内/应急通信作业"], "06.靠离泊、系泊和锚泊作业": ["靠泊、离泊和拖轮协作作业", "系泊布置、收放缆和缆绳张力监控作业", "锚泊、起锚和锚泊值班作业", "引航员登离船和安全通道布置作业", "STS/SPM系泊作业"], "07.PTW和高风险作业": ["热工作业", "密闭空间进入和救援准备作业", "高处/舷外作业", "起重吊装和索具作业", "电气隔离、LOTO和临时用电作业", "同时作业和承包商作业控制"], "08.通用货物和压载作业": ["货前会议、货物计划和货物信息确认作业", "装卸货和货物监控作业", "货物取样、量舱和文件交接作业", "货舱/货罐清洁和验舱作业", "稳性、强度和装载计算作业", "压载、排压载和压载水管理作业"], "09.散货船专项作业": ["散货装卸、水尺计量和货物平舱作业", "货舱清洁、舱盖和货舱污水管理作业", "IMSBC货物信息和易流态化货物控制作业", "煤炭、熏蒸、粮食和其他特殊散货作业"], "10.油化船专项作业": ["油品/化学品装卸和货物转驳作业", "惰化、驱气、除气和气体检测作业", "洗舱、放残、扫线和COW作业", "货物兼容性、抑制剂和P&A手册管理作业", "密闭取样、密闭量舱、歧管值班和回气作业", "有毒货物/H2S货物控制作业"], "11.气体船专项作业": ["冷却、置换、驱气和氮气作业", "LNG/LPG/液化气装卸作业", "货臂连接/脱离、ESD测试和紧急释放准备作业", "货物压缩机、再液化、BOG和舱压管理作业", "低温防护和货物区域消防准备作业"], "12.集装箱船专项作业": ["配载计划、VGM和装载计算核对作业", "集装箱装卸、绑扎和绑扎巡查作业", "冷藏箱接电和温度监控作业", "IMDG危险品隔离和文件核对作业", "超限箱、特殊箱和集装箱火灾应急作业"], "13.机舱作业": ["机舱值班、巡检和机械状态确认作业", "主机、发电机、锅炉和电站操作", "燃油加装、驳油和燃油转换作业", "舵机、应急发电机和应急消防泵测试作业", "舱底水、污油、污泥、OWS、生活污水和垃圾处理作业", "失电/黑船、PMS和关键设备测试作业"], "14.防污染和环保作业": ["油类、垃圾和压载水记录簿作业", "甲板/机舱防污染和溢油应急作业", "压载水、生活污水、垃圾和焚烧管理作业", "ECA、燃油转换、洗涤塔和空气排放管理作业"], "15.消防、救生和应急响应作业": ["消防、弃船和救生艇/救生筏演习", "人员落水、救助艇和密闭空间救援演习", "应急操舵、失电和堵漏应急作业", "碰撞、搁浅、货物泄漏和危险品应急作业", "医疗急救和船员伤病应急作业"], "16.保安和网络安全作业": ["船舶保安计划执行和SSAS测试作业", "舷梯值班、访客控制和偷渡人员搜查作业", "高风险区、防海盗和安全舱准备作业", "网络安全维护和网络事件应急作业"], "17.船容船貌、通道和区域检查作业": ["船体、甲板、起居处所和机舱清洁维护作业", "腐蚀、泄漏、标识和安全张贴检查作业", "舷梯、引航梯、安全通道和临边防护检查作业"], "18.冰区和低温作业": ["冰区航行和冰区作业准备", "低温救生、消防、机舱、甲板机械和货物/压载作业"]};
@@ -212,7 +222,6 @@ function fillShipOpts(sel){
   el.innerHTML='<option value="">請選擇</option>'+SHIP_OPTS.map(s=>`<option value="${esc(s.code)}"${sel===s.code?" selected":""}>${esc(s.code)} ${esc(s.name)}</option>`).join("");
 }
 fillShipOpts("");
-document.getElementById("dl-places").innerHTML = PLACE_OPTS.map(p=>`<option value="${esc(p)}">`).join("");
 
 /* 船名清單改為開場時向雲端即時抓取（跟正式系統共用同一份 app_db 資料，k="ships"），
    失敗（離線等）時保留上面的範例清單當備援，不會讓表單整個打不開。 */
@@ -239,26 +248,76 @@ loadShipsFromCloud();
 /* 檢查來源清單改為即時抓取系統裡「檢查紀錄」＋「缺失紀錄」曾經出現過的所有 itype 值（跟主系統
    withItypeExtras() 同一套邏輯），永遠反映系統目前實際在用的分類，不會過期也不用手動同步維護。
    離線或抓取失敗時，保留一組常見類型當備援，不會讓表單打不開。 */
-const ITYPE_FALLBACK=["SIRE","CDI","RightShip","ASI","Onboard visit","Internal audit","PSC","IHM","Preemptive","Special","Cross Ship Visit"];
-async function loadItypesFromCloud(){
-  const dl = document.getElementById("dl-itypes");
-  let list = ITYPE_FALLBACK.slice();
+const ITYPE_FALLBACK=["SIRE","CDI","RightShip","ASI","Onboard visit","Internal audit","PSC","IHM","LRIT","SMC","ISSC","MLC","The MCC Group","Cross Ship Visit"];
+const OTHER_VAL="__other__";
+let OILCO_LIST=[];
+
+function fillSelectWithOther(selId,list,otherLabel,placeholderLabel){
+  const sel=document.getElementById(selId);
+  const cur=sel.value;
+  sel.innerHTML=(placeholderLabel?`<option value="">${esc(placeholderLabel)}</option>`:"")
+    + list.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("")
+    + `<option value="${OTHER_VAL}">${esc(otherLabel)}</option>`;
+  if(cur&&(list.includes(cur)||cur===OTHER_VAL))sel.value=cur;
+}
+function bindOtherToggle(selId,otherId){
+  const sel=document.getElementById(selId),other=document.getElementById(otherId);
+  sel.addEventListener("change",()=>{
+    other.style.display=sel.value===OTHER_VAL?"":"none";
+    if(sel.value===OTHER_VAL)other.focus();
+    scheduleAutoSave();
+  });
+}
+/* 檢查來源／油公司-單位這兩份清單，改成統一從主系統發布的 airform_lists 讀取：
+   檢查來源＝鎖定的官方清單（系統後台「篩選清單管理」設定的，不含歷史雜亂寫法），選單沒有的
+   一律走「自訂（請聯絡維護者）」，不會自動加入清單，需要維護者到後台正式新增；
+   油公司/單位＝目前系統實際在用的清單，選「自訂」送出後會自動同步回雲端，之後所有人都看得到。
+   離線或抓取失敗時使用備援清單，不會讓表單打不開。 */
+async function loadFormListsFromCloud(){
+  let itype=ITYPE_FALLBACK.slice(), oilco=[];
   try{
-    const res = await fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=in.(inspections,deficiencies)`,
+    const res = await fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=eq.airform_lists`,
       { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } });
     if(res.ok){
       const rows = await res.json();
-      const found = new Set();
-      (rows||[]).forEach(r=>{
-        const arr = Array.isArray(r.payload) ? r.payload : (r.payload&&r.payload.inspections) || (r.payload&&r.payload.deficiencies) || [];
-        (arr||[]).forEach(x=>{ if(x&&x.itype) found.add(x.itype); });
-      });
-      if(found.size) list = [...found].sort();
+      const p = rows && rows[0] && rows[0].payload;
+      if(p&&Array.isArray(p.itype)&&p.itype.length) itype=p.itype;
+      if(p&&Array.isArray(p.oilco)) oilco=p.oilco;
     }
   }catch(e){ /* 離線或連線失敗，使用備援清單 */ }
-  dl.innerHTML = list.map(t=>`<option value="${esc(t)}">`).join("");
+  OILCO_LIST=oilco;
+  fillSelectWithOther("f-itype-sel",itype,"自訂（請聯絡維護者）","");
+  fillSelectWithOther("f-oilco-sel",oilco,"自訂（新增）","（無／不適用）");
+  applyDraftToItypeOilco();
 }
-loadItypesFromCloud();
+bindOtherToggle("f-itype-sel","f-itype-other");
+bindOtherToggle("f-oilco-sel","f-oilco-other");
+loadFormListsFromCloud();
+
+/* 油公司/單位選「自訂」送出後，直接把新名稱同步進「篩選清單管理」的雲端額外項目清單
+   （跟主系統後台新增標籤是同一份資料），下次任何人打開表單或主系統，這個新名稱就會出現在清單裡。
+   用讀取-修改-寫回的方式合併，避免蓋掉同時間別人新增的其他項目。 */
+async function pushCustomOilco(name){
+  name=(name||"").trim();
+  if(!name)return;
+  try{
+    const res = await fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=eq.taglist_extras`,
+      { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } });
+    let payload={};
+    if(res.ok){
+      const rows=await res.json();
+      payload=(rows&&rows[0]&&rows[0].payload)||{};
+    }
+    const arr=Array.isArray(payload.oilco)?payload.oilco.slice():[];
+    if(!arr.includes(name))arr.push(name);
+    payload.oilco=arr;
+    await fetch(`${CLOUD.url}/rest/v1/app_db?on_conflict=k`,{
+      method:"POST",
+      headers:{ "apikey":CLOUD.key, "Authorization":"Bearer "+CLOUD.key, "Content-Type":"application/json", "Prefer":"resolution=merge-duplicates" },
+      body: JSON.stringify([{k:"taglist_extras",updated:Date.now(),payload}])
+    });
+  }catch(e){ /* 離線或連線失敗，這個新名稱這次就只留在這筆填單資料裡，不會同步進清單，之後可再手動請維護者補上 */ }
+}
 
 /* NCDB_MAIN/NCDB_LEAF 上面已經內嵌一份範例快照當離線備援，但主系統那邊分類清單如果之後調整，
    這份快照不會自動跟著變。改成打開表單時向雲端抓一次最新版本，直接覆蓋這兩個物件的內容
@@ -539,14 +598,93 @@ document.getElementById("f-npos").addEventListener("change", function(){
 });
 
 /* ── 收集目前表單內容成統一的 payload 物件（送出／下載／自動暫存共用）── */
+function getSelOrOther(selId,otherId){
+  const sel=document.getElementById(selId).value;
+  if(sel===OTHER_VAL)return document.getElementById(otherId).value.trim();
+  return sel;
+}
+/* 檢查來源／油公司清單是非同步從雲端抓的，抓回來、選單填好選項之後，才有辦法把本機暫存
+   草稿裡原本存的值套回去（如果選單填好前就設定 select.value，因為選項還不存在會被忽略掉）。
+   如果暫存的值不在目前清單裡（例如清單後來被改過、或原本就是自訂輸入的），就自動走「自訂」
+   那條路，把值填回自訂文字框，不會讓使用者發現自己填過的內容不見了。 */
+function applyDraftToItypeOilco(){
+  const d=loadDraft();
+  const b=(d&&d.basic)||{};
+  [["f-itype-sel","f-itype-other",b.itype],["f-oilco-sel","f-oilco-other",b.oilco]].forEach(([selId,otherId,val])=>{
+    if(!val)return;
+    const sel=document.getElementById(selId),other=document.getElementById(otherId);
+    const hasOpt=[...sel.options].some(o=>o.value===val);
+    if(hasOpt){sel.value=val;other.style.display="none";}
+    else{sel.value=OTHER_VAL;other.value=val;other.style.display="";}
+  });
+}
+/* 地點自動完成：比照主系統「新增檢查紀錄」的地點欄位行為——打幾個字建議符合的港口，
+   永遠提供「At Sea」與「其他（自行輸入）」，選了「其他」清空讓使用者自己打，
+   格式不符合「港口, 國家」時顯示提醒但不擋送出（避免真的有特殊地點打不進去）。 */
+function bindPortInput(inputId){
+  const inp=document.getElementById(inputId);
+  if(!inp||inp._portBound)return;
+  inp._portBound=true;
+  inp.setAttribute("autocomplete","off");
+  const box=document.createElement("div");
+  box.className="port-sugg";box.style.display="none";
+  inp.parentElement.style.position="relative";
+  inp.parentElement.appendChild(box);
+  let active=-1;
+  function close(){box.style.display="none";active=-1;}
+  function pick(v){inp.value=v;close();validate();scheduleAutoSave();}
+  function validate(){
+    const ok=isValidPort(inp.value);
+    inp.style.borderColor=ok?"":"var(--bad)";
+    let warn=inp.parentElement.querySelector(".port-warn");
+    if(!ok){
+      if(!warn){warn=document.createElement("div");warn.className="port-warn";inp.parentElement.appendChild(warn);}
+      warn.textContent="⚠ 格式需為「港口, 國家」，特殊地點請選「其他」";
+    }else if(warn)warn.remove();
+    return ok;
+  }
+  function render(q){
+    q=(q||"").trim().toLowerCase();
+    if(!q){close();return;}
+    const items=PORTS.filter(p=>p.toLowerCase().includes(q)).slice(0,8);
+    const extras=[];
+    if("at sea".includes(q)||q.length<2)extras.push("At Sea");
+    extras.push("其他（自行輸入）");
+    if(!items.length&&!q)return close();
+    box.innerHTML=items.map(p=>`<div class="ps-item" data-v="${esc(p)}">${esc(p)}</div>`).join("")
+      +extras.map(e=>`<div class="ps-item ps-extra" data-v="${e==="其他（自行輸入）"?"__OTHER__":esc(e)}">${esc(e)}</div>`).join("");
+    box.style.display="block";active=-1;
+    box.querySelectorAll(".ps-item").forEach(el=>el.onmousedown=ev=>{
+      ev.preventDefault();
+      const v=el.getAttribute("data-v");
+      if(v==="__OTHER__"){inp.value="";inp.placeholder="請輸入：港口, 國家";inp.focus();close();}
+      else pick(v);
+    });
+  }
+  inp.addEventListener("input",()=>{render(inp.value);validate();});
+  inp.addEventListener("focus",()=>{if(inp.value)render(inp.value);});
+  inp.addEventListener("blur",()=>{setTimeout(()=>{close();validate();},150);});
+  inp.addEventListener("keydown",e=>{
+    const els=[...box.querySelectorAll(".ps-item")];
+    if(box.style.display==="none"||!els.length)return;
+    if(e.key==="ArrowDown"){e.preventDefault();active=(active+1)%els.length;}
+    else if(e.key==="ArrowUp"){e.preventDefault();active=(active-1+els.length)%els.length;}
+    else if(e.key==="Enter"){if(active>=0){e.preventDefault();els[active].dispatchEvent(new Event("mousedown"));}return;}
+    else if(e.key==="Escape"){close();return;}
+    else return;
+    els.forEach((el,i)=>el.classList.toggle("on",i===active));
+  });
+}
+bindPortInput("f-place");
+
 function collectPayload(){
   const person_basic = {
     ship: document.getElementById("f-ship").value,
     vtype: document.getElementById("f-vtype").value,
-    itype: document.getElementById("f-itype").value,
+    itype: getSelOrOther("f-itype-sel","f-itype-other"),
     date: document.getElementById("f-date").value,
     place: document.getElementById("f-place").value.trim(),
-    oilco: document.getElementById("f-oilco").value.trim(),
+    oilco: getSelOrOther("f-oilco-sel","f-oilco-other"),
     inspector: document.getElementById("f-inspector").value.trim(),
     ndef: +document.getElementById("f-ndef").value || 0,
     npos: +document.getElementById("f-npos").value || 0,
@@ -603,10 +741,8 @@ function collectPayload(){
   fillShipOpts(b.ship||"");
   document.getElementById("f-ship").value = b.ship||"";
   document.getElementById("f-vtype").value = b.vtype||"";
-  document.getElementById("f-itype").value = b.itype||"";
   document.getElementById("f-date").value = b.date||"";
   document.getElementById("f-place").value = b.place||"";
-  document.getElementById("f-oilco").value = b.oilco||"";
   document.getElementById("f-inspector").value = b.inspector||"";
   if(d.posComments && d.posComments.length){
     d.posComments.forEach(pc=>addPosRow(pc));
@@ -651,6 +787,9 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
   const btn = document.getElementById("btnSubmit");
   btn.disabled = true; btn.textContent = "送出中…";
   try{
+    if(document.getElementById("f-oilco-sel").value===OTHER_VAL && payload.basic.oilco){
+      pushCustomOilco(payload.basic.oilco); // 不 await：失敗也不擋送出，靜默重試/放棄即可
+    }
     const res = await fetch(`${CLOUD.url}/rest/v1/${AIR_TABLE}`, {
       method: "POST",
       headers: {
