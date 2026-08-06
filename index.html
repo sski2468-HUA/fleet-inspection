@@ -2546,11 +2546,12 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <span class="hint" style="font-weight:400;margin-left:8px">船上透過外部網頁送出、尚未審核匯入的填單</span>
             <span style="margin-left:auto;display:flex;gap:6px">
               <button class="btn sm" id="air-cq-tab-pending" onclick="AirQueue.setView('pending')">待審核</button>
+              <button class="btn sm" id="air-cq-tab-imported" onclick="AirQueue.setView('imported')">已匯入</button>
               <button class="btn sm" id="air-cq-tab-rejected" onclick="AirQueue.setView('rejected')">已拒絕</button>
               <button class="btn sm" onclick="AirQueue.refresh()">🔄 重新整理</button>
             </span>
           </h3>
-          <p class="hint" style="line-height:1.7">每一筆是船上用獨立填單網頁送出的資料，尚未寫入系統。點「👀 預覽」可展開查看內容；「✓ 匯入」會把這筆轉成正式的線上填單記錄（比照手動新增），並可接著進行對外回覆；「✕ 拒絕」僅標記為不匯入，不會刪除原始資料，之後可切到「已拒絕」分頁找回、按「↩ 恢復為待審核」重新排入審核。</p>
+          <p class="hint" style="line-height:1.7">每一筆是船上用獨立填單網頁送出的資料，尚未寫入系統。點「👀 預覽」可展開查看內容；「✓ 匯入」會把這筆轉成正式的線上填單記錄（比照手動新增），並可接著進行對外回覆；「✕ 拒絕」僅標記為不匯入，不會刪除原始資料，之後可切到「已拒絕」分頁找回、按「↩ 恢復為待審核」重新排入審核。「已匯入」分頁列出標記為已匯入的紀錄——如果多人同時在系統中操作導致存檔互相覆蓋，匯入後卻在「線上填單記錄」找不到，不用回去重填，直接在這裡按「🔁 重新匯入」補建一筆即可（若原本其實已匯入成功，重新匯入會多一筆重複紀錄，動手前請先自行確認）。</p>
           <div id="air-cq-list"></div>
         </div>
       </div>
@@ -4579,9 +4580,10 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <label>船名<select id="e-ship" onchange="if(vtypeOfShip(this.value))$('#e-vtype').value=vtypeOfShip(this.value)"></select></label>
         <label>船型<select id="e-vtype"><option>tanker</option><option>bulk</option><option>other</option></select></label>
         <label>檢查來源<div style="display:flex;gap:6px;flex-wrap:wrap">
-            <select id="e-itype" onchange="$('#e-itype-other').style.display=this.value==='其他'?'':'none';Defs.refreshPscBox();Defs.refreshChapterName();Defs.refreshInternalControlVisibility();"></select>
+            <select id="e-itype" onchange="$('#e-itype-other').style.display=this.value==='其他'?'':'none';Defs.refreshPscBox();Defs.refreshChapterName();Defs.refreshInternalControlVisibility();Defs.refreshFlagVisibility();"></select>
             <input type="text" id="e-itype-other" placeholder="請說明檢查來源" style="display:none;flex:1;min-width:120px">
           </div></label>
+        <div class="fw fld" id="e-flag-wrap" style="display:none">FLAG項目（檢查來源為 FLAG 時必填，可多選）<div id="e-flag-box" style="display:flex;flex-wrap:wrap;gap:8px;border:1px solid var(--line);border-radius:6px;padding:8px;background:#fafbfb"></div></div>
         <label>檢查日期<input type="text" id="e-date" placeholder="2025/1/1" oninput="Defs.syncYm()"></label>
         <label>年月<input type="text" id="e-ym" placeholder="2025-01"></label>
         <label>地點<input type="text" id="e-place" list="dl-places"></label>
@@ -11184,6 +11186,7 @@ const Defs={
   ALL_COLS:[
     {k:"ship",t:"船名",sort:true,cell:d=>`<td><b>${esc(d.ship)}</b></td>`},
     {k:"itype",t:"檢查來源",sort:true,cell:d=>`<td>${itypeChip(d.itype)}</td>`},
+    {k:"flagType",t:"FLAG項目",sort:true,cell:d=>`<td class="col-narrow">${esc(d.flagType||"")}</td>`},
     {k:"date",t:"檢查日期",sort:true,cell:d=>`<td style="font-family:var(--mono);white-space:nowrap">${esc(normDateSlash(d.date))}</td>`},
     {k:"place",t:"檢查地點",sort:true,cell:d=>`<td class="col-narrow">${esc(d.place)}</td>`},
     {k:"ncImp",t:"重要程度",sort:true,cell:d=>DefsGrid.cell(d,"ncImp")},
@@ -11899,6 +11902,8 @@ const Defs={
       icWrap.style.display=isCrossVisit?"":"none";
       const icBox=$("#e-internalControl");if(icBox)icBox.checked=(d.internalControl===true||d.internalControl==="是");
     }
+    const flagBox=$("#e-flag-box");if(flagBox)flagBox.innerHTML=flagBoxHtml(d.flagType||"","e-flag");
+    this.refreshFlagVisibility();
     set("#e-ncMethod",d.ncMethod||"");
     const mWrap=$("#e-ncMethod-wrap");if(mWrap)mWrap.style.display=id==null?"none":"";
     set("#e-ncOpinion",ncOpinionNormalize(d.ncOpinion));
@@ -11914,11 +11919,20 @@ const Defs={
     icWrap.style.display=(norm==="CROSSSHIPVISIT")?"":"none";
     if(norm!=="CROSSSHIPVISIT"){const icBox=$("#e-internalControl");if(icBox)icBox.checked=false;}
   },
+  refreshFlagVisibility(){
+    const wrap=$("#e-flag-wrap");if(!wrap)return;
+    const v=$("#e-itype")?$("#e-itype").value:"";
+    const norm=String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+    wrap.style.display=(norm==="FLAG")?"":"none";
+    if(norm!=="FLAG"){FLAG_OPTS.forEach(f=>{const el=document.getElementById(`e-flag-${f}`);if(el)el.checked=false;});}
+  },
   saveEdit(){
     const g=i=>$(i).value.trim();
     let _itype=$("#e-itype").value;if(_itype==="其他"){const _o=g("#e-itype-other");_itype=_o?"其他-"+_o:"其他";}
-    const rec={ship:g("#e-ship"),vtype:g("#e-vtype"),itype:_itype,date:g("#e-date"),ym:g("#e-ym")||ymOf(g("#e-date")),place:g("#e-place"),inspector:canonInspector(g("#e-inspector")),oilco:canonUnit(g("#e-oilco")),psc:pscBoxRead("e-psc"),code:g("#e-code"),detail:g("#e-detail"),actual:g("#e-actual"),opComment:g("#e-opcomment"),opCommentReply:g("#e-opcomment-reply"),immediateCause:g("#e-immediatecause"),immediateCauseReply:g("#e-immediatecause-reply"),preventive:g("#e-preventive"),preventiveReply:g("#e-preventive-reply"),corrective:g("#e-corrective"),correctiveReply:g("#e-corrective-reply"),rootCause:g("#e-rootcause"),rootCauseReply:g("#e-rootcause-reply"),attn:$("#e-attn").checked,rank:g("#e-rank"),person:g("#e-person"),risk:g("#e-risk"),ncProb:ncJoin(this.emProb?this.emProb.sel:[]),ncMain:ncJoin(this.emMain?this.emMain.sel:[]),ncLeaf:ncJoin(this.emLeaf?this.emLeaf.sel:[]),ncFactor:[...(this.emFactor?this.emFactor.sel:[])].join("、"),ncImp:g("#e-ncImp"),ncFocus:$("#e-ncFocus").checked?"是":"否",ncMethod:g("#e-ncMethod"),ncOpinion:ncOpinionNormalize(g("#e-ncOpinion")),internalControl:($("#e-internalControl")&&$("#e-internalControl").checked)?true:false};
+    const _flagType=flagBoxRead("e-flag");
+    const rec={ship:g("#e-ship"),vtype:g("#e-vtype"),itype:_itype,flagType:_flagType,date:g("#e-date"),ym:g("#e-ym")||ymOf(g("#e-date")),place:g("#e-place"),inspector:canonInspector(g("#e-inspector")),oilco:canonUnit(g("#e-oilco")),psc:pscBoxRead("e-psc"),code:g("#e-code"),detail:g("#e-detail"),actual:g("#e-actual"),opComment:g("#e-opcomment"),opCommentReply:g("#e-opcomment-reply"),immediateCause:g("#e-immediatecause"),immediateCauseReply:g("#e-immediatecause-reply"),preventive:g("#e-preventive"),preventiveReply:g("#e-preventive-reply"),corrective:g("#e-corrective"),correctiveReply:g("#e-corrective-reply"),rootCause:g("#e-rootcause"),rootCauseReply:g("#e-rootcause-reply"),attn:$("#e-attn").checked,rank:g("#e-rank"),person:g("#e-person"),risk:g("#e-risk"),ncProb:ncJoin(this.emProb?this.emProb.sel:[]),ncMain:ncJoin(this.emMain?this.emMain.sel:[]),ncLeaf:ncJoin(this.emLeaf?this.emLeaf.sel:[]),ncFactor:[...(this.emFactor?this.emFactor.sel:[])].join("、"),ncImp:g("#e-ncImp"),ncFocus:$("#e-ncFocus").checked?"是":"否",ncMethod:g("#e-ncMethod"),ncOpinion:ncOpinionNormalize(g("#e-ncOpinion")),internalControl:($("#e-internalControl")&&$("#e-internalControl").checked)?true:false};
     if(!rec.ship){toast("⚠ 請填寫船名");return;}
+    if(String(rec.itype||"").toUpperCase().replace(/[^A-Z0-9]/g,"")==="FLAG" && !rec.flagType){toast("⚠ 檢查來源選了 FLAG，請至少勾選一個 FLAG 項目才能儲存");return;}
     if(this.editId==null){rec.id=App.nextId();App.defs.push(rec);toast("✓ 已新增");Audit.log("新增","缺失紀錄",`${rec.ship} ${rec.date}：${(rec.detail||"").slice(0,40)}`);}
     else{const d=App.defs.find(x=>x.id===this.editId);Object.assign(d,rec);toast("✓ 已更新");Audit.log("編輯","缺失紀錄",`#${this.editId} ${rec.ship}：${(rec.detail||"").slice(0,40)}`);}
     App.saveAll();App.refreshMeta();this.closeEdit();this.render();
@@ -19079,7 +19093,7 @@ const AirQueue={
   TABLE:"air_submissions",
   rows:[],
   expandedId:null,
-  view:"pending", // "pending" 或 "rejected"
+  view:"pending", // "pending" 或 "imported" 或 "rejected"
   setView(v){this.view=v;this.refresh();},
   open(){
     if(!$("#tab-air"))return;
@@ -19095,12 +19109,13 @@ const AirQueue={
   async refresh(){
     const box=$("#air-cq-list");if(!box)return;
     box.innerHTML=`<p class="hint">讀取中…</p>`;
-    const btnP=$("#air-cq-tab-pending"),btnR=$("#air-cq-tab-rejected");
+    const btnP=$("#air-cq-tab-pending"),btnR=$("#air-cq-tab-rejected"),btnI=$("#air-cq-tab-imported");
     if(btnP)btnP.className=this.view==="pending"?"btn sm primary":"btn sm";
     if(btnR)btnR.className=this.view==="rejected"?"btn sm primary":"btn sm";
+    if(btnI)btnI.className=this.view==="imported"?"btn sm primary":"btn sm";
     if(typeof Cloud==="undefined"||!Cloud.enabled()){box.innerHTML=`<p class="hint">⚠ 雲端未連線，無法讀取審核佇列</p>`;return;}
     try{
-      const status=this.view==="rejected"?"rejected":"pending";
+      const status=this.view==="rejected"?"rejected":this.view==="imported"?"imported":"pending";
       this.rows=await Cloud.api(`${this.TABLE}?status=eq.${status}&order=created_at.desc`)||[];
     }catch(e){
       box.innerHTML=`<p class="hint">⚠ 讀取失敗：${esc(e.message)}</p>`;return;
@@ -19116,12 +19131,14 @@ const AirQueue={
   },
   render(){
     const box=$("#air-cq-list");if(!box)return;
-    if(!this.rows.length){box.innerHTML=`<p class="hint">${this.view==="rejected"?"目前沒有已拒絕的線上填單。":"目前沒有待審核的線上填單。"}</p>`;return;}
+    if(!this.rows.length){box.innerHTML=`<p class="hint">${this.view==="rejected"?"目前沒有已拒絕的線上填單。":this.view==="imported"?"目前沒有已匯入的線上填單。":"目前沒有待審核的線上填單。"}</p>`;return;}
     box.innerHTML=this.rows.map(r=>{
       const p=r.payload||{};const b=p.basic||{};const defs=p.defects||[];const pos=p.posComments||[];
       const open=this.expandedId===r.id;
       const actionBtns=this.view==="rejected"
         ?`<button class="btn sm dark" onclick="AirQueue.restoreRow(${r.id})">↩ 恢復為待審核</button>`
+        :this.view==="imported"
+        ?`<button class="btn sm dark" onclick="AirQueue.reimportRow(${r.id})">🔁 重新匯入</button>`
         :`<button class="btn sm dark" onclick="AirQueue.importRow(${r.id})">✓ 匯入</button>
           <button class="btn sm" onclick="AirQueue.rejectRow(${r.id})">✕ 拒絕</button>`;
       return `<div class="card" style="margin-bottom:10px;background:#fafbfc">
@@ -19152,12 +19169,9 @@ const AirQueue={
       </div>`).join("")}
     </div>`;
   },
-  async importRow(id){
-    if(!await Guard.require()){toast("⚠ 匯入僅限維護者操作");return;}
-    const r=this.rows.find(x=>x.id===id);if(!r)return;
+  buildAirRecFromQueueRow(r){
     const p=r.payload||{};const b=p.basic||{};
-    if(!b.ship||!b.date){toast("⚠ 這筆資料缺少船名或日期，無法匯入");return;}
-    const rec={
+    return {
       id:Air.nextId(),ship:b.ship,vtype:b.vtype||"",itype:b.itype||"",date:normDateSlash(b.date),
       place:b.place||"",oilco:b.oilco||"",inspector:b.inspector||"",
       ndef:(p.defects||[]).length,npos:(p.posComments||[]).length,flagType:b.flagType||"",
@@ -19173,6 +19187,13 @@ const AirQueue={
         people:Array.isArray(pc.people)?pc.people.filter(x=>x.rank||x.person):[],pushedPosIds:null})),
       updatedAt:Date.now(),importedFromQueueId:r.id
     };
+  },
+  async importRow(id){
+    if(!await Guard.require()){toast("⚠ 匯入僅限維護者操作");return;}
+    const r=this.rows.find(x=>x.id===id);if(!r)return;
+    const b=(r.payload||{}).basic||{};
+    if(!b.ship||!b.date){toast("⚠ 這筆資料缺少船名或日期，無法匯入");return;}
+    const rec=this.buildAirRecFromQueueRow(r);
     App.air.push(rec);
     App.saveAll();if(App.refreshMeta)App.refreshMeta();
     if(typeof Audit!=="undefined")Audit.log("匯入","AIR審核佇列",`#${rec.id} ${rec.ship} ${rec.date}（來自線上填單 #${r.id}）`);
@@ -19182,6 +19203,23 @@ const AirQueue={
     }catch(e){console.warn("AirQueue mark imported failed",e);}
     toast("✓ 已匯入為線上填單記錄 #"+rec.id);
     this.rows=this.rows.filter(x=>x.id!==r.id);this.updateBadge();this.render();
+  },
+  /* 補救用：這筆在「已匯入」分頁裡，狀態上已經標記過匯入，但實務上常有多人同時在系統操作、
+     App.saveAll() 互相覆蓋導致這筆其實沒真的寫進 App.air 的情況。不用回頭叫船上重填，
+     這裡直接重新用原始送出的資料補建一筆線上填單記錄。因為分不出「真的漏掉」還是
+     「其實有進去、這次是重複」，所以動手前一定要跳出明確警告，交給操作者自己確認過再繼續。 */
+  async reimportRow(id){
+    if(!await Guard.require()){toast("⚠ 匯入僅限維護者操作");return;}
+    const r=this.rows.find(x=>x.id===id);if(!r)return;
+    const b=(r.payload||{}).basic||{};
+    if(!b.ship||!b.date){toast("⚠ 這筆資料缺少船名或日期，無法匯入");return;}
+    if(!confirm(`這筆先前已標記為「已匯入」（${b.ship||""} ${b.date||""}）。\n\n如果是因為多人同時操作、存檔互相覆蓋導致實際上沒進到系統，才需要重新匯入補一筆；\n如果原本其實已經匯入成功，重新匯入會多出一筆重複紀錄，之後要自己去「線上填單記錄」手動刪掉多的那筆。\n\n請先確認「線上填單記錄」裡真的找不到這筆（船名／日期），確定後再繼續。\n\n要繼續重新匯入嗎？`))return;
+    const rec=this.buildAirRecFromQueueRow(r);
+    App.air.push(rec);
+    App.saveAll();if(App.refreshMeta)App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("重新匯入","AIR審核佇列",`#${rec.id} ${rec.ship} ${rec.date}（補救重匯，來自線上填單 #${r.id}）`);
+    toast("✓ 已補建一筆線上填單記錄 #"+rec.id+"，請自行確認沒有重複");
+    this.render();
   },
   async rejectRow(id){
     if(!await Guard.require()){toast("⚠ 僅限維護者操作");return;}
