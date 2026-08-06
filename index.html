@@ -20340,6 +20340,7 @@ const DM={
      其餘鍵一律視為系統使用中，不提供刪除，避免誤刪現行資料。═ */
   lsCleanableInfo(key){
     let m;
+    if(key.indexOf("vsm_syncsnap_")===0)return{type:"synccache",label:"逐筆同步差異快取（純快取，可安全清除，下次存檔會自動重建）"};
     if((m=key.match(/^vsm_defs_v(\d+)$/))&&+m[1]<8)return{type:"stale",label:"舊版缺失紀錄（已升級，可清除）"};
     if((m=key.match(/^vsm_insp_v(\d+)$/))&&+m[1]<8)return{type:"stale",label:"舊版檢查紀錄（已升級，可清除）"};
     if(key==="vsm_tasks_v1")return{type:"stale",label:"舊版自查任務（已升級，可清除）"};
@@ -20409,7 +20410,8 @@ const DM={
       if(typeof Audit!=="undefined")Audit.log("刪除","資料管理","清除匯入前安全備份（已先下載留存）");
       toast("✓ 已刪除匯入前安全備份（已先自動下載一份留存）");
     }else{
-      if(!confirm(`確定要刪除「${info.label}」（${key}）嗎？\n此為舊版格式資料，系統已改用新版鍵儲存，刪除不影響現有資料。`))return;
+      const explain=info.type==="synccache"?"此為逐筆同步用的差異快取，刪除不影響任何現有資料，下次存檔時會自動重建。":"此為舊版格式資料，系統已改用新版鍵儲存，刪除不影響現有資料。";
+      if(!confirm(`確定要刪除「${info.label}」（${key}）嗎？\n${explain}`))return;
       try{localStorage.removeItem(key);}catch(e){}
       if(typeof Audit!=="undefined")Audit.log("刪除","資料管理",`清除舊版本機儲存鍵 ${key}`);
       toast("✓ 已清除舊版資料鍵");
@@ -22019,8 +22021,8 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
   },
   SNAP_PREFIX:"vsm_syncsnap_",
   _pending:{},_busy:{},
-  loadSnap(key){ try{return JSON.parse(localStorage.getItem(this.SNAP_PREFIX+key)||"{}");}catch(e){return {};} },
-  saveSnap(key,map){ try{localStorage.setItem(this.SNAP_PREFIX+key,JSON.stringify(map));}catch(e){} },
+  loadSnap(key){ try{return JSON.parse(LZGet(this.SNAP_PREFIX+key)||"{}");}catch(e){return {};} },
+  saveSnap(key,map){ try{LZSet(this.SNAP_PREFIX+key,JSON.stringify(map));}catch(e){} },
   /* 比對目前陣列跟「上次成功同步」的快照：找出新增/修改過的紀錄（upserts）跟已經不在陣列裡的舊 id（deletes）。*/
   diff(key){
     const cfg=this.TABLES[key];
@@ -22105,8 +22107,23 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
       console.warn("RecordSync pullOrMigrate 失敗（可能是還沒建立資料表，請參考 RecordSync.SETUP_SQL）",key,e);
       return {source:"error",error:e};
     }
+  },
+  /* 一次性清理：早期版本的同步快照（vsm_syncsnap_*）不小心用未壓縮的方式存進 localStorage，
+     資料表一多，本機空間很快就被占滿（出現「空間約120%」這種警示）。快照只是拿來比對差異用的
+     快取，清掉不會遺失任何資料——下次存檔時會自動重新比對重建，頂多那一次會把所有紀錄當成
+     「有變動」整批重傳一次，不影響資料正確性。這裡用一個旗標確保只清一次，不會每次開機都重建。 */
+  _cleanupBloatedSnapshotsOnce(){
+    const FLAG="vsm_syncsnap_cleanup_v1_done";
+    try{
+      if(localStorage.getItem(FLAG))return;
+      Object.keys(this.TABLES).forEach(key=>{
+        try{localStorage.removeItem(this.SNAP_PREFIX+key);}catch(e){}
+      });
+      localStorage.setItem(FLAG,"1");
+    }catch(e){}
   }
 };
+RecordSync._cleanupBloatedSnapshotsOnce();
 const Cloud={
 
   KEY:"vsm_cloud_v1",cfg:{url:CLOUD_DEFAULT.url,key:CLOUD_DEFAULT.key,auto:CLOUD_DEFAULT.auto},_snap:{},_timer:null,_busy:false,
