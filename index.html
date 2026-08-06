@@ -2290,11 +2290,17 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
           <div class="fgrid">
             <label>船名<select id="ic-e-ship" onchange="InspCtrl.refreshOwnerShipHint()"></select></label>
             <label>檢查項目
-              <select id="ic-e-itype-sel" onchange="$('#ic-e-itype-other').style.display=this.value==='__other'?'':'none';InspCtrl.refreshEnhanceUI();"></select>
+              <select id="ic-e-itype-sel" onchange="$('#ic-e-itype-other').style.display=this.value==='__other'?'':'none';InspCtrl.refreshEnhanceUI();InspCtrl.applyOwnerCat();"></select>
               <input type="text" id="ic-e-itype-other" placeholder="自訂檢查項目名稱" style="display:none;margin-top:6px" oninput="InspCtrl.refreshEnhanceUI()">
             </label>
             <label>效期(月)<input type="text" id="ic-e-valid" placeholder="例：12，無則填 -"></label>
-            <label>最近一次檢查日（手動，自動項目會被覆蓋顯示）<input type="date" id="ic-e-last"></label>
+            <label>最近一次檢查日（手動，自動項目會被覆蓋顯示）
+              <input type="date" id="ic-e-last">
+              <span style="display:flex;align-items:center;gap:5px;margin-top:4px;font-weight:400" id="ic-e-createinsp-wrap">
+                <input type="checkbox" id="ic-e-createinsp" style="width:14px;height:14px">
+                <span class="hint" style="font-size:11px">同時在「檢查紀錄」建立一筆對應紀錄（船名／檢查來源／日期／檢查員會自動帶入，缺失數填0，之後可自行去補實際內容）</span>
+              </span>
+            </label>
             <label>到期日<input type="date" id="ic-e-due"></label>
             <label class="fw" id="ic-e-lritfixed-wrap" style="display:none;background:#eef4ff;border:1px solid #cfe0f9;border-radius:6px;padding:8px 10px">
               <span style="display:flex;align-items:center;gap:6px;font-weight:700;color:#1f52c4">
@@ -2311,7 +2317,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <label>中間檢驗實際完成日（僅SMC/ISSC/MLC適用；視窗為到期日往前3年~2年，系統自動算出，不必手動填視窗日期；未完成則留空）<input type="date" id="ic-e-midactual"></label>
             <label>檢查安排人（新增時自動帶入目前登入操作者，可修改；未來onboard visit可改派甲板／機艙督導）
               <span style="display:flex;gap:6px;align-items:center">
-                <select id="ic-e-owner-cat" onchange="InspCtrl.switchOwnerCat('ic-e-owner',this.value)" style="max-width:90px"><option value="haiji">海技</option><option value="deck">甲板</option><option value="engine">機艙</option></select>
+                <select id="ic-e-owner-cat" onchange="InspCtrl.switchOwnerCat('ic-e-owner',this.value);InspCtrl.applyOwnerCat();" style="max-width:90px"><option value="haiji">海技</option><option value="deck">甲板</option><option value="engine">機艙</option></select>
                 <input type="text" id="ic-e-owner" list="dl-owner-haiji" style="flex:1">
               </span>
               <span class="hint" id="ic-e-owner-shiphint" style="font-size:10.5px;display:block;margin-top:2px"></span></label>
@@ -2406,6 +2412,10 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
               <span style="font-size:13px">個月</span>
               <button class="btn sm dark" onclick="InspCtrl.quickSchedShortcutCustom()">帶入</button>
             </div>
+          </div>
+          <div id="icDateModalRecent" style="display:none;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+            <p class="hint" style="margin-bottom:6px;font-size:11.5px">📋 「檢查紀錄／缺失紀錄」裡最近幾筆同項目紀錄（僅供參考，點「採用」可帶入日期）：</p>
+            <div id="icDateModalRecentList" style="display:flex;flex-direction:column;gap:5px"></div>
           </div>
           <div class="modal-actions" style="margin-top:14px">
             <button class="btn" id="icDateModalClear" onclick="InspCtrl.clearDateField()">清除</button>
@@ -13137,15 +13147,28 @@ const InspCtrl={
     if(!m)return t;
     return m[1]+"-"+m[2].padStart(2,"0")+"-"+m[3].padStart(2,"0");
   },
-  autoLastDate(ship,itype,owner){
+  autoLastDate(ship,itype,owner,ownerCat){
     const target=this.normItype(itype);
     const isFlagSub=this.FLAG_SUB_ITYPES.includes(target);
     // Onboard visit 比較特別：船上常常好幾位督導輪流去訪，光比對「船名＋檢查項目」
     // 只會抓到「這艘船最近一次有人去訪」，不代表是「這位被指派的督導本人」去訪的。
     // 所以這裡額外比對「檢查紀錄」的檢查員欄位是否等於這筆管控紀錄的檢查安排人，
     // 才算數；其餘檢查項目（PSC/SIRE/RightShip等）維持原本只比船名＋項目的邏輯不變。
-    const matchInspector=target==="ONBOARDVISIT"&&owner&&String(owner).trim();
-    const ownerNorm=matchInspector?String(owner).trim():"";
+    // 身份類別＝甲板／機艙時，不是拿這一列存的舊姓名比對，而是「即時」去查「船舶資料」
+    // 目前指派的甲板／機艙督導是誰──這樣督導換人／換船時，追蹤對象會自動跟著換，
+    // 不用手動回來逐一修改每艘船的這一列。身份類別＝海技（或未設定，相容舊資料）時，
+    // 才維持用這一列存的 owner 姓名去比對。
+    let matchName="";
+    if(target==="ONBOARDVISIT"){
+      if(ownerCat==="deck"||ownerCat==="engine"){
+        const s=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(x=>x.code===ship);
+        matchName=s?String((ownerCat==="deck"?s.deckSup:s.engineSup)||"").trim():"";
+      }else if(owner){
+        matchName=String(owner).trim();
+      }
+    }
+    const matchInspector=target==="ONBOARDVISIT"&&!!matchName;
+    const ownerNorm=matchName;
     let best=null;
     [...App.insp,...App.defs].forEach(r=>{
       if(r.ship!==ship)return;
@@ -13191,7 +13214,7 @@ const InspCtrl={
     let lastDateCalc=this.normDate(d.lastDate);
     let autoLast=null;
     if(isAuto){
-      autoLast=this.autoLastDate(d.ship,d.itype,d.owner);
+      autoLast=this.autoLastDate(d.ship,d.itype,d.owner,d.ownerCat);
       if(autoLast&&(!lastDateCalc||autoLast>lastDateCalc))lastDateCalc=autoLast;
     }
     let dueDateCalc=this.normDate(d.dueDate);
@@ -13370,6 +13393,30 @@ const InspCtrl={
     toast(d.midDate?`✓ 已記錄中間檢驗完成日：${d.midDate}`:"已清除中間檢驗完成日");
     this.render();
   },
+  /* 供「最近一次檢查日」彈窗參考用：列出某船某檢查項目最近幾筆紀錄的「日期＋檢查員」，
+     不篩檢查員（跟 autoLastDate 不同）——這樣即使因為督導換人、目前抓不到符合條件的紀錄，
+     使用者也能看到「其實有紀錄，只是檢查員對不上目前指派的人」，自行判斷要不要採用。 */
+  recentRecordsFor(ship,itype,limit){
+    const target=this.normItype(itype);
+    const isFlagSub=this.FLAG_SUB_ITYPES.includes(target);
+    const out=[];
+    [...App.insp,...App.defs].forEach(r=>{
+      if(r.ship!==ship)return;
+      if(isFlagSub){
+        if(this.normItype(r.itype)!=="FLAG")return;
+        if(!flagArr(r.flagType||"").some(f=>this.normItype(f)===target))return;
+      }else{
+        if(this.normItype(r.itype)!==target)return;
+      }
+      const d=this.normDate(r.date);if(!d)return;
+      out.push({date:d,inspector:String(r.inspector||"").trim()});
+    });
+    out.sort((a,b)=>b.date<a.date?-1:b.date>a.date?1:0);
+    return out.slice(0,limit||4);
+  },
+  useRecentDate(dateStr){
+    const input=$("#icDateModalInput");if(input)input.value=dateStr;
+  },
   FIELD_LABEL_MAP:{ship:"船名",itype:"檢查項目",validityMonths:"效期(月)",dueDate:"到期日",owner:"檢查安排人",note:"備註",lastDate:"最近一次檢查日",schedDate:"預排檢查日",midDate:"中間檢驗實際完成日",dueDateOverride:"自訂到期日（覆寫）",fixedAnnualDate:"固定週期（每年月/日）"},
   openDateField(id,field){
     const d=App.inspCtrl.find(x=>x.id===id);if(!d)return;
@@ -13387,6 +13434,7 @@ const InspCtrl={
       $("#icDateModalInput").value=this.dateInputVal(d.dueDateOverride||this.computeRow(d).dueDateDefault);
       $("#icDateModalClear").style.display="";
       const qb=$("#icDateModalQuick");if(qb)qb.style.display="none";
+      const rb=$("#icDateModalRecent");if(rb)rb.style.display="none";
       $("#icDateModal").classList.add("show");
       return;
     }
@@ -13398,6 +13446,33 @@ const InspCtrl={
     const prefill=field==="lastDate"?this.computeRow(d).lastDateCalc:d[field];
     $("#icDateModalInput").value=this.dateInputVal(prefill);
     $("#icDateModalClear").style.display=(field==="ship"||field==="dueDate"||field==="lastDate")?"none":"";
+    // 「最近一次檢查日」：額外列出最近幾筆同項目的紀錄（不篩檢查員），方便使用者發現
+    // 「其實有紀錄，只是檢查員跟目前指派的督導對不上」這種情況，自行判斷要不要採用。
+    const recentBox=$("#icDateModalRecent");
+    if(recentBox){
+      if(field==="lastDate"){
+        const rc=this.computeRow(d);
+        const curName=(d.ownerCat==="deck"||d.ownerCat==="engine")
+          ?((typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(x=>x.code===d.ship)||{})[d.ownerCat==="deck"?"deckSup":"engineSup"]
+          :(d.owner||"");
+        const recents=this.recentRecordsFor(d.ship,d.itype,4);
+        if(recents.length){
+          const list=$("#icDateModalRecentList");
+          list.innerHTML=recents.map(r=>{
+            const matched=curName&&r.inspector&&r.inspector===String(curName).trim();
+            return `<div style="display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;background:${matched?"#eaf5ee":"#fff8e6"};font-size:12px">
+              <span style="flex:1">${esc(r.date)}　${r.inspector?esc(r.inspector):"<span class=hint>（未填檢查員）</span>"}${matched?" ✓":""}</span>
+              <button class="btn sm" onclick="InspCtrl.useRecentDate('${esc(r.date)}')">採用</button>
+            </div>`;
+          }).join("");
+          recentBox.style.display="";
+        }else{
+          recentBox.style.display="none";
+        }
+      }else{
+        recentBox.style.display="none";
+      }
+    }
     // ═ 預排檢查日快捷：通常都是抓到期日往前推幾個月（等船期出來再微調），
     //   提供「到期前N個月」快捷鍵回推日期，帶入輸入框後仍需按「儲存」才生效。═
     const quickBox=$("#icDateModalQuick");
@@ -14264,7 +14339,7 @@ const InspCtrl={
       try{ownerVal=(typeof Role!=="undefined"&&Role.cur&&Role.cur.name)?Role.cur.name:(localStorage.getItem(Audit.NAMEKEY)||"");}catch(e){}
     }
     set("#ic-e-owner",ownerVal);set("#ic-e-note",d.note);
-    const cat=this.ownerCatOf(ownerVal);
+    const cat=d.ownerCat||this.ownerCatOf(ownerVal);
     const catSel=$("#ic-e-owner-cat");if(catSel)catSel.value=cat;
     this.switchOwnerCat("ic-e-owner",cat);
     this.refreshOwnerShipHint();
@@ -14274,6 +14349,7 @@ const InspCtrl={
     $("#ic-e-enhance-since").value=this._enhanceSinceEdit;
     bindDatePicker("ic-e-enhance-since");
     this.refreshEnhanceUI();
+    const createInspBox=$("#ic-e-createinsp");if(createInspBox)createInspBox.checked=false;
     $("#icEditModal").classList.add("show");
   },
   refreshEnhanceUI(){
@@ -14370,6 +14446,32 @@ const InspCtrl={
     const hint=$("#ic-e-owner-shiphint");if(!hint)return;
     const s=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(x=>x.code===code);
     hint.textContent=s?`📌 本船甲板督導：${s.deckSup||"未設定"}　機艙督導：${s.engineSup||"未設定"}（可至「船舶資料」調整）`:"";
+    this.applyOwnerCat();
+  },
+  /* 「檢查安排人」身份類別＝甲板／機艙時，onboard visit 這一列改成自動追蹤：
+     即時去「船舶資料」查這艘船目前指派的甲板／機艙督導是誰，直接帶入並鎖住輸入框
+     （不給手動改，避免打錯字或忘記更新），之後船舶資料異動，這裡下次開啟／重新整理
+     時會自動顯示新的人；autoLastDate() 那邊比對紀錄時也是即時查船舶資料，
+     不是吃這一列存的舊 owner 值，所以督導換人時，不需要回來逐一手動修改每艘船的這一列。 */
+  applyOwnerCat(){
+    const catSel=$("#ic-e-owner-cat");if(!catSel)return;
+    const cat=catSel.value;
+    const itypeSel=$("#ic-e-itype-sel");
+    const itype=itypeSel?itypeSel.value:"";
+    const isOnboard=this.normItype(itype)==="ONBOARDVISIT";
+    const input=$("#ic-e-owner");
+    const hint=$("#ic-e-owner-shiphint");
+    if(!isOnboard||(cat!=="deck"&&cat!=="engine")){
+      if(input)input.readOnly=false;
+      return;
+    }
+    const code=$("#ic-e-ship")?$("#ic-e-ship").value:"";
+    const s=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(x=>x.code===code);
+    const name=s?(cat==="deck"?s.deckSup:s.engineSup):"";
+    if(input){input.value=name||"";input.readOnly=true;}
+    if(hint)hint.textContent=name
+      ?`✓ 已自動帶入本船${cat==="deck"?"甲板":"機艙"}督導「${name}」，之後「船舶資料」若異動指派，會自動改追蹤新的人，不需要手動修改這裡`
+      :`⚠ 本船尚未在「船舶資料」設定${cat==="deck"?"甲板":"機艙"}督導，請先去「船舶資料」設定，或暫時改選「海技」自行輸入姓名`;
   },
   itypeOptions(){
     const base=["SIRE","CDI","RightShip","ASI","Internal audit","onboard visit","PSC","LRIT","SMC","ISSC","MLC","IHM"];
@@ -14405,7 +14507,7 @@ const InspCtrl={
     const g=i=>$(i).value.trim();
     let itype=$("#ic-e-itype-sel").value;
     if(itype==="__other")itype=g("#ic-e-itype-other");
-    const rec={ship:g("#ic-e-ship"),itype,validityMonths:g("#ic-e-valid"),lastDate:g("#ic-e-last"),dueDate:g("#ic-e-due"),schedDate:g("#ic-e-sched"),midDate:g("#ic-e-midactual"),owner:g("#ic-e-owner"),note:g("#ic-e-note")};
+    const rec={ship:g("#ic-e-ship"),itype,validityMonths:g("#ic-e-valid"),lastDate:g("#ic-e-last"),dueDate:g("#ic-e-due"),schedDate:g("#ic-e-sched"),midDate:g("#ic-e-midactual"),owner:g("#ic-e-owner"),ownerCat:($("#ic-e-owner-cat")?$("#ic-e-owner-cat").value:"haiji"),note:g("#ic-e-note")};
     if(!rec.ship||!rec.itype){toast("⚠ 請填寫船名與檢查項目");return;}
     const enhanceOn=this.normItype(itype)==="INTERNALAUDIT"&&$("#ic-e-enhance").checked;
     if(enhanceOn&&!g("#ic-e-enhance-reason")){toast("⚠ 勾選「加強稽核」需填寫原因");return;}
@@ -14432,6 +14534,21 @@ const InspCtrl={
     }
     if(this.editId==null){rec.id=this.nextId();App.inspCtrl.push(rec);toast("✓ 已新增");if(typeof Audit!=="undefined")Audit.log("新增","檢查管控",`${rec.ship} ${rec.itype}`);}
     else{const d=App.inspCtrl.find(x=>x.id===this.editId);Object.assign(d,rec);toast("✓ 已更新");if(typeof Audit!=="undefined")Audit.log("編輯","檢查管控",`#${this.editId} ${rec.ship} ${rec.itype}${enhanceOn?"（加強稽核）":""}`);}
+    // 「同時建立檢查紀錄」：手動填的「最近一次檢查日」只是這張管控表自己的欄位，
+    // 不會自動出現在「檢查紀錄」裡（自動抓取是反過來，從檢查紀錄去抓，不是從管控表推回去建立）。
+    // 勾了這個選項，才會順手在「檢查紀錄」也建一筆一致的資料，讓兩邊對得起來、之後也抓得到。
+    if($("#ic-e-createinsp")&&$("#ic-e-createinsp").checked&&rec.lastDate){
+      let inspectorName=rec.owner||"";
+      if(rec.ownerCat==="deck"||rec.ownerCat==="engine"){
+        const s=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(x=>x.code===rec.ship);
+        if(s)inspectorName=(rec.ownerCat==="deck"?s.deckSup:s.engineSup)||inspectorName;
+      }
+      const newInspId=App.nextInspId();
+      App.insp.push({id:newInspId,ship:rec.ship,vtype:(typeof SHIPINFO!=="undefined"?((SHIPINFO.find(x=>x.code===rec.ship)||{}).vtype||"tanker"):"tanker"),
+        itype:rec.itype,date:normDateSlash(rec.lastDate),loc:"",inspector:inspectorName,unit:"",ndef:"0",npos:"0",flagType:"",detain:""});
+      if(typeof Audit!=="undefined")Audit.log("新增","檢查紀錄",`（由檢查管控自動建立）${rec.ship} ${rec.itype} ${rec.lastDate}`);
+      toast(`✓ 已新增「檢查管控」，並同步在「檢查紀錄」建立對應紀錄（#${newInspId}），請記得去補實際內容`);
+    }
     // 加強稽核狀態轉換（開始／結束）另外寫一筆不可被清空的歷史紀錄，供「加強管理歷史」子頁查詢
     if(typeof EnhAuditLog!=="undefined"){
       if(!wasEnhanced&&enhanceOn){
