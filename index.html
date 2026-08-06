@@ -17907,12 +17907,22 @@ const Air={
       try{ await this.pushSelected(t); }
       catch(e){ console.error("pushSelected failed for target="+t,e); failed.push(`${labelMap[t]}（${e.message}）`); }
     }
-    if(failed.length)toast(`⚠ 以下轉入失敗，請截圖回報：${failed.join("；")}`);
+    // 用 alert() 而不是 toast()：toast 會在幾秒後自動消失、也可能被後面接著跳出的訊息蓋掉，
+    // 轉入失敗這種事必須讓使用者確實看到、按確定才會消失，避免以為轉成功了其實沒有。
+    if(failed.length){
+      alert(`⚠ 轉入時發生問題，以下項目沒有成功轉入，請重新勾選再試一次，若持續失敗請截圖回報：\n\n${failed.join("\n")}`);
+    }else{
+      toast(`✓ 已完成轉入（${targets.map(t=>labelMap[t]).join("、")}）`);
+    }
   },
   async pushSelected(target){
     if(!await Guard.require())return;
     if(!this.selected.size){toast("⚠ 請先勾選要轉入的項目");return;}
     const items=App.air.filter(d=>this.selected.has(String(d.id)));
+    if(!items.length){
+      toast("⚠ 找不到勾選的紀錄（可能清單剛好被重新整理過），請重新勾選後再試一次");
+      throw new Error("勾選的紀錄已找不到，可能清單被重新整理過，請重新勾選再試一次");
+    }
     if(target==="defs"&&typeof AirDefReq!=="undefined"){
       const reqFields=AirDefReq.load();
       if(reqFields.length){
@@ -20224,8 +20234,14 @@ const TagLists={
     const newVal=(input.value||"").trim();
     if(!newVal){toast("⚠ 標籤名稱不可空白");return;}
     if(newVal===oldVal)return;
-    if(!await Guard.require())return;
     const f=this.FIELDS.find(x=>x.key===key);
+    // FLAG項目這類「以空白分隔多選」的欄位，項目名稱本身不能包含空白，
+    // 否則同一筆紀錄勾選多個項目存起來後，系統會把名稱裡的空白誤判成兩個不同項目，資料會亂掉。
+    if(f&&f.kind==="token"&&f.splitRegex&&/\s/.test(f.splitRegex.source)&&/\s/.test(newVal)){
+      toast(`⚠「${f.label}」的名稱不能包含空白（會被系統誤拆成多個項目），請改用「-」或「_」，例如「Safety-Bi-Annual」`);
+      return;
+    }
+    if(!await Guard.require())return;
     if(f.kind==="icat"){
       const i=ICAT_LIST.indexOf(oldVal);if(i>=0)ICAT_LIST[i]=newVal;
       if(ICAT_COLORS[oldVal]){ICAT_COLORS[newVal]=ICAT_COLORS[oldVal];delete ICAT_COLORS[oldVal];}
@@ -20262,6 +20278,10 @@ const TagLists={
     const f=this.FIELDS.find(x=>x.key===key);
     if(f.kind==="icat"){toast("⚠「檢查類型」固定4類，僅可編輯名稱，不可新增");return;}
     if(["ncProb","ncMain","ncLeaf"].includes(key)){toast("⚠「問題別／大類／具體名稱」為連動階層分類，請改用下方「🌳 缺失分類階層管理」新增，才能維持正確的連動關係");return;}
+    if(f.kind==="token"&&f.splitRegex&&/\s/.test(f.splitRegex.source)&&/\s/.test(v)){
+      toast(`⚠「${f.label}」的名稱不能包含空白（會被系統誤拆成多個項目），請改用「-」或「_」，例如「Safety-Bi-Annual」`);
+      return;
+    }
     if(!await Guard.require())return;
     if(this.values(key).includes(v)){toast("⚠ 此標籤已存在");return;}
     const exArr=this.extrasFor(key);exArr.push(v);this.extras[key]=exArr;this.saveExtras();this.pushCloudExtras();
@@ -22020,7 +22040,12 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
       setArr:(a)=>{ if(typeof SHIPINFO!=="undefined"){SHIPINFO.length=0;a.forEach(s=>SHIPINFO.push(s));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){} } }}
   },
   SNAP_PREFIX:"vsm_syncsnap_",
-  _pending:{},_busy:{},
+  _pending:{},_busy:{},_failedKeys:new Set(),_retryTimer:null,
+  retryFailed(){
+    if(!this._failedKeys.size)return;
+    toast("🔄 正在重試同步…");
+    [...this._failedKeys].forEach(k=>this.flush(k));
+  },
   loadSnap(key){ try{return JSON.parse(LZGet(this.SNAP_PREFIX+key)||"{}");}catch(e){return {};} },
   saveSnap(key,map){ try{LZSet(this.SNAP_PREFIX+key,JSON.stringify(map));}catch(e){} },
   /* 比對目前陣列跟「上次成功同步」的快照：找出新增/修改過的紀錄（upserts）跟已經不在陣列裡的舊 id（deletes）。*/
@@ -22048,7 +22073,7 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
     return true;
   },
   flushNow(key){ if(this._pending[key])clearTimeout(this._pending[key]); return this.flush(key); },
-  hasPending(){ return Object.keys(this._pending).some(k=>this._pending[k]!=null); },
+  hasPending(){ return Object.keys(this._pending).some(k=>this._pending[k]!=null)||this._failedKeys.size>0; },
   /* 文字型 id（例如船舶代碼）在 PostgREST 的 in.() 篩選語法裡要用雙引號包起來，
      數字型 id 則不需要——這裡統一處理，呼叫端不用管兩種差異。 */
   _quoteId(cfg,rid){ return cfg.idIsText?`"${String(rid).replace(/"/g,'""')}"`:rid; },
@@ -22075,8 +22100,16 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
         }
       }
       this.saveSnap(key,curMap); // 成功才更新快照；失敗的話下次還是會被判定為「有差異」而重試
+      this._failedKeys.delete(key);
+      if(!this._failedKeys.size&&typeof Cloud!=="undefined"&&!Cloud._failedKeys.size&&!Cloud._conflictKeys.size)Cloud.hideSyncFail();
     }catch(e){
       console.warn("RecordSync flush 失敗",key,e);
+      this._failedKeys.add(key);
+      if(typeof Cloud!=="undefined"){
+        Cloud.showSyncFail(`「${(typeof EditLock!=="undefined"&&EditLock.LABELS[key])||key}」同步失敗：${e.message}`);
+        clearTimeout(this._retryTimer);
+        this._retryTimer=setTimeout(()=>this.retryFailed(),15000);
+      }
     }finally{
       this._busy[key]=false;
     }
@@ -22353,7 +22386,7 @@ const Cloud={
       keys.forEach(k=>this.markSeen(k,now)); // 我們自己寫入的版本視為「已看過」
       this.dbState("☁ 已自動同步 "+new Date().toLocaleTimeString());
       keys.forEach(k=>this._failedKeys.delete(k));
-      if(!this._failedKeys.size&&!this._conflictKeys.size)this.hideSyncFail();
+      if(!this._failedKeys.size&&!this._conflictKeys.size&&(typeof RecordSync==="undefined"||!RecordSync._failedKeys.size))this.hideSyncFail();
     }catch(e){
       this.dbState("⚠ 自動同步失敗");
       console.warn("auto publish",e);
@@ -22384,7 +22417,8 @@ const Cloud={
     toast("已隱藏提示，系統仍會持續嘗試自動同步");
   },
   retryAutoPublish(){
-    if(!this._failedKeys.size){this.hideSyncFail();return;}
+    if(typeof RecordSync!=="undefined"&&RecordSync._failedKeys.size)RecordSync.retryFailed();
+    if(!this._failedKeys.size){if(typeof RecordSync==="undefined"||!RecordSync._failedKeys.size)this.hideSyncFail();return;}
     toast("🔄 正在重試同步…");
     clearTimeout(this._retryTimer);
     this._flushAutoPublish();
