@@ -9014,7 +9014,7 @@ const Ov={
     if(errs.length){toast("⚠ "+errs.slice(0,3).join("；")+(errs.length>3?" …":""));return;}
     if(!recs.length){toast("⚠ 請至少填寫一列（船名＋檢查日期）");return;}
     recs.forEach(r=>{r.id=App.nextInspId();App.insp.push(r);});
-    App.saveAll();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
     if(typeof Audit!=="undefined")Audit.log("新增","檢查紀錄",`批量新增 ${recs.length} 筆`);
     this.closeBatch();this.render();
     toast(`✓ 已批量新增 ${recs.length} 筆檢查紀錄`);
@@ -11824,7 +11824,7 @@ const Defs={
     });
     if(!recs.length){toast("⚠ 請至少填寫一列缺失詳情");return;}
     recs.forEach(r=>App.defs.push(r));
-    App.saveAll();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
     if(typeof Audit!=="undefined")Audit.log("新增","缺失紀錄",`批量新增 ${recs.length} 筆（${ship} ${date}）`);
     this.closeBatch();this.page=1;this.render();
     toast(`✓ 已批量新增 ${recs.length} 筆缺失`);
@@ -12331,7 +12331,7 @@ const ImportUI={
       this.pending.forEach(r=>{r.id=App.nextInspId();App.insp.push(r);});
       Dash.init();
     }
-    App.saveAll();App.refreshMeta();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();App.refreshMeta();
     toast(`✓ 已匯入 ${this.pending.length} 筆（${mode==="overwrite"?"覆蓋":"新增"}）`);
     if(this.target==="sirepos"&&typeof Cloud!=="undefined")Cloud.queueAutoPublish("sirePositive");
     this.close();
@@ -17652,7 +17652,7 @@ const Air={
       toast("✓ 已轉入檢查紀錄");
     }
     d.usedInsp=true;
-    App.saveAll();if(App.refreshMeta)App.refreshMeta();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
     if(typeof Ov!=="undefined"){Ov.init();Ov.render();}
     if(typeof InspCtrl!=="undefined")InspCtrl.render();
   },
@@ -17816,7 +17816,7 @@ const Air={
     const _delAir=App.air.find(x=>x.id===id);
     if(_delAir&&typeof RecycleBin!=="undefined")RecycleBin.add("air",_delAir,`${_delAir.ship||""} ${_delAir.date||""}`);
     App.air=App.air.filter(x=>x.id!==id);this.selected.delete(id);
-    App.saveAll();this.renderList();toast("已刪除");
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();this.renderList();toast("已刪除");
   },
   renderList(){
     const rows=this.filtered();
@@ -17962,7 +17962,7 @@ const Air={
       if(typeof Audit!=="undefined")Audit.log("轉入","正面評價/優秀案例記錄",`由AIR轉入 ${items.length} 筆AIR資料，共 ${m} 筆正面評價`);
       if(typeof SirePos!=="undefined")SirePos.init();
     }
-    App.saveAll();if(App.refreshMeta)App.refreshMeta();this.selected.clear();this.renderList();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();this.selected.clear();this.renderList();
     toast(target==="insp"?`✓ 已將 ${n} 筆轉入檢查紀錄`:target==="defs"?`✓ 已將 ${n} 筆填單資料（共 ${m} 筆缺失明細）轉入缺失紀錄總表`:`✓ 已將 ${n} 筆填單資料（共 ${m} 筆正面評價）轉入正面評價/優秀案例記錄`);
   },
 
@@ -19255,7 +19255,10 @@ const AirQueue={
 /* 海技對外回覆／線上填單都有自動儲存（停手2秒後存檔），但如果使用者在那2秒防抖動視窗內就
    關閉分頁／重新整理，還是會漏存。這裡補一道瀏覽器原生的離開前確認當最後防線。 */
 window.addEventListener("beforeunload",e=>{
-  if(typeof Air!=="undefined"&&(Air._replyDirty||Air._formDirty)){
+  const airDirty = typeof Air!=="undefined"&&(Air._replyDirty||Air._formDirty);
+  const cloudPending = typeof Cloud!=="undefined"&&Cloud.enabled()&&Cloud.cfg.auto&&
+    (Cloud._autoKeys.size>0||Cloud._failedKeys.size>0||Cloud._conflictKeys.size>0);
+  if(airDirty||cloudPending){
     e.preventDefault();
     e.returnValue="";
   }
@@ -21934,7 +21937,15 @@ const Cloud={
     if(!this.enabled()||!this.cfg.auto)return; // 沿用既有「自動同步」開關
     this._autoKeys.add(key);
     clearTimeout(this._autoTimer);
-    this._autoTimer=setTimeout(()=>this._flushAutoPublish(),4000);
+    this._autoTimer=setTimeout(()=>this._flushAutoPublish(),1500);
+  },
+  /* 供「刪除」「轉入紀錄」「匯入」等一次性重要操作呼叫：跳過原本4秒防抖動，立即把目前
+     排隊中的變更送上雲端，避免使用者操作完馬上重新整理，這筆變更還在防抖動視窗內、
+     還沒真的送到雲端，就被下次載入雲端舊版蓋掉（這是「刪除不了」「轉入後重整就不見」的成因）。 */
+  flushNow(){
+    if(!this.enabled()||!this.cfg.auto)return;
+    clearTimeout(this._autoTimer);
+    this._flushAutoPublish();
   },
   async _flushAutoPublish(){
     let keys=[...new Set([...this._autoKeys,...this._failedKeys])].filter(k=>this.AUTO_PAYLOAD[k]);
