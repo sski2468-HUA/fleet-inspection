@@ -895,12 +895,20 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
   if(err){ notify(err, "err"); return; }
   const shipObj = SHIP_OPTS.find(s=>s.code===payload.basic.ship);
   const shipLabel = shipObj ? `${shipObj.code}　${shipObj.name}` : payload.basic.ship;
+  const icCount = payload.defects.filter(d=>d.internalControl).length;
+  const focusCount = payload.defects.filter(d=>d.ncFocus==="是").length;
+  const highRiskCount = payload.defects.filter(d=>d.risk==="3").length;
+  const alertLines = [];
+  if(icCount) alertLines.push(`🔒 需內控（交叉訪船）：${icCount} 條`);
+  if(focusCount) alertLines.push(`⚠ 重點關注：${focusCount} 條`);
+  if(highRiskCount) alertLines.push(`🔴 高風險（風險3）：${highRiskCount} 條`);
   const confirmMsg = `請確認以下資料無誤後送出：\n\n`+
     `船名：${shipLabel}\n`+
     `檢查日期：${payload.basic.date}\n`+
-    `檢查來源：${payload.basic.itype}\n`+
+    `檢查來源：${payload.basic.itype}${payload.basic.flagType?`（${payload.basic.flagType}）`:""}\n`+
     `缺失：${payload.defects.length} 條\n`+
     `正面評論：${payload.posComments.length} 條\n\n`+
+    (alertLines.length ? `請特別注意：\n${alertLines.join("\n")}\n\n` : "")+
     `確定要送出嗎？`;
   if(!confirm(confirmMsg))return;
   const btn = document.getElementById("btnSubmit");
