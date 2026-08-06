@@ -253,9 +253,10 @@ loadShipsFromCloud();
 const ITYPE_FALLBACK=["SIRE","CDI","RightShip","ASI","Onboard visit","Internal audit","PSC","IHM","LRIT","SMC","ISSC","MLC","The MCC Group","Cross Ship Visit"];
 const OTHER_VAL="__other__";
 let OILCO_LIST=[];
-/* FLAG項目：跟主系統「新增檢查紀錄」的FLAG_OPTS完全一致，是「檢查來源＝FLAG」時才需要
-   多選的細項（哪個FLAG單位來查的），跟頂層「檢查來源」清單是兩件事，不能混在一起。 */
-const FLAG_OPTS=["ASI","Preemptive","SMC","ISSC","MLC","Special","iHM"];
+/* FLAG項目：跟主系統「篩選清單管理」後台的FLAG項目清單同步，是「檢查來源＝FLAG」時才需要
+   多選的細項（哪個FLAG單位來查的），跟頂層「檢查來源」清單是兩件事，不能混在一起。
+   先給一組內建預設值，loadFormListsFromCloud() 拿到雲端最新清單後會覆寫並重繪勾選框。 */
+let FLAG_OPTS=["ASI","Preemptive","SMC","ISSC","MLC","Special","iHM"];
 function flagArr(s){ return (s||"").split(/\s+/).map(x=>x.trim()).filter(Boolean); }
 function flagBoxHtml(s){
   const sel=new Set(flagArr(s));
@@ -318,12 +319,13 @@ async function loadFormListsFromCloud(){
       if(p&&Array.isArray(p.itype)&&p.itype.length) itype=p.itype;
       if(p&&Array.isArray(p.oilco)) oilco=p.oilco;
       if(p&&Array.isArray(p.inspector)) INSPECTOR_LIST=p.inspector;
+      if(p&&Array.isArray(p.flagType)&&p.flagType.length) FLAG_OPTS=p.flagType;
     }
   }catch(e){ /* 離線或連線失敗，使用備援清單 */ }
   OILCO_LIST=oilco;
   fillSelectWithOther("f-itype-sel",itype,"自訂（請聯絡維護者）","");
   fillSelectWithOther("f-oilco-sel",oilco,"自訂（新增）","（無／不適用）");
-  applyDraftToItypeOilco();
+  applyDraftToItypeOilco(); // 內部會重新用最新的 FLAG_OPTS 重繪 #f-flag-box，並還原草稿裡已勾選的項目
 }
 bindOtherToggle("f-itype-sel","f-itype-other");
 bindOtherToggle("f-oilco-sel","f-oilco-other");

@@ -10859,10 +10859,19 @@ function ncPruneCascade(probMs,mainMs,leafMs){
   }
 }
 const TM_MAINS=[["01","證書與文件"],["02","船體結構狀況"],["03","水密/風雨密狀況"],["04","應急系統"],["05","無線電通信"],["06","貨物作業(含設備)"],["07","消防安全"],["08","警報系統"],["09","工作與生活條件"],["10","航行安全"],["11","救生設備"],["12","危險品"],["13","推進與輔助機械"],["14","防污染"],["15","ISM安全管理"],["18","勞工條件(MLC)"],["19","工業人員"],["99","其他"]];
-const FLAG_OPTS=["ASI","Preemptive","SMC","ISSC","MLC","Special","iHM"];
+const FLAG_OPTS_DEFAULT=["ASI","Preemptive","SMC","ISSC","MLC","Special","iHM"];
+function currentFlagOpts(){
+  try{
+    if(typeof TagLists!=="undefined"){
+      const v=TagLists.values("flagType");
+      if(v&&v.length)return v;
+    }
+  }catch(e){}
+  return FLAG_OPTS_DEFAULT;
+}
 function flagArr(s){return (s||"").split(/\s+/).map(x=>x.trim()).filter(Boolean);}
-function flagBoxHtml(s,idPrefix){const sel=new Set(flagArr(s));return FLAG_OPTS.map(f=>`<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:400;white-space:nowrap"><input type="checkbox" id="${idPrefix}-${f}" value="${f}" ${sel.has(f)?"checked":""} style="width:14px;height:14px"> ${f}</label>`).join("");}
-function flagBoxRead(idPrefix){return FLAG_OPTS.filter(f=>{const el=document.getElementById(`${idPrefix}-${f}`);return el&&el.checked;}).join(" ");}
+function flagBoxHtml(s,idPrefix){const sel=new Set(flagArr(s));return currentFlagOpts().map(f=>`<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:400;white-space:nowrap"><input type="checkbox" id="${idPrefix}-${f}" value="${f}" ${sel.has(f)?"checked":""} style="width:14px;height:14px"> ${f}</label>`).join("");}
+function flagBoxRead(idPrefix){return currentFlagOpts().filter(f=>{const el=document.getElementById(`${idPrefix}-${f}`);return el&&el.checked;}).join(" ");}
 const SIRE_CHAPTERS=[
 "1 Vessel, Operator and Inspection Particulars｜船舶、營運人及檢驗基本資料",
 "2.1 Certification｜證書","2.2 Management Oversight｜管理監督","2.3 Structural Assessment｜結構評估","2.4 Defect Management｜缺陷管理","2.5 Management of Change｜變更管理","2.6 Statutory Management Plans｜法定管理計畫","2.7 Safety Management System｜安全管理系統","2.8 General Information｜一般資訊",
@@ -11924,7 +11933,7 @@ const Defs={
     const v=$("#e-itype")?$("#e-itype").value:"";
     const norm=String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
     wrap.style.display=(norm==="FLAG")?"":"none";
-    if(norm!=="FLAG"){FLAG_OPTS.forEach(f=>{const el=document.getElementById(`e-flag-${f}`);if(el)el.checked=false;});}
+    if(norm!=="FLAG"){currentFlagOpts().forEach(f=>{const el=document.getElementById(`e-flag-${f}`);if(el)el.checked=false;});}
   },
   saveEdit(){
     const g=i=>$(i).value.trim();
@@ -12971,7 +12980,7 @@ const InspCtrl={
   /* 這些項目在「檢查紀錄」裡不是獨立的檢查來源，而是 itype="FLAG" 底下用 flagType 勾選的細項
      （對照後台「FLAG_OPTS」），所以比對「最近一次檢查日」時要改成比對 flagType 是否包含該細項，
      而不是直接比對 itype。 */
-  FLAG_SUB_ITYPES:(typeof FLAG_OPTS!=="undefined"?FLAG_OPTS:["ASI","Preemptive","SMC","ISSC","MLC","Special","iHM"]).map(f=>String(f||"").toUpperCase().replace(/[^A-Z0-9]/g,"")),
+  FLAG_SUB_ITYPES:(typeof FLAG_OPTS_DEFAULT!=="undefined"?FLAG_OPTS_DEFAULT:["ASI","Preemptive","SMC","ISSC","MLC","Special","iHM"]).map(f=>String(f||"").toUpperCase().replace(/[^A-Z0-9]/g,"")),
   THRESH_KEY:"vsm_inspctrl_thresh_v1",
   thresh(){try{const j=JSON.parse(localStorage.getItem(this.THRESH_KEY));if(j&&j.yellow&&j.red)return j;}catch(e){}return {yellow:90,red:30};},
   saveThreshFromUI(){
@@ -18664,7 +18673,8 @@ const Air={
       const itype=[...new Set([...ITYPE_OFFICIAL_BASE,...(typeof TagLists!=="undefined"?TagLists.extrasFor("itype"):[])])].sort();
       const oilco=(typeof TagLists!=="undefined"?TagLists.values("oilco"):[]);
       const inspector=(typeof TagLists!=="undefined"?TagLists.values("inspector"):[]);
-      const row={k:this.FORMLISTS_CLOUD_KEY,updated:Date.now(),payload:{itype,oilco,inspector}};
+      const flagType=(typeof TagLists!=="undefined"?TagLists.values("flagType"):FLAG_OPTS_DEFAULT);
+      const row={k:this.FORMLISTS_CLOUD_KEY,updated:Date.now(),payload:{itype,oilco,inspector,flagType}};
       await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([row])});
     }catch(e){console.warn("publishFormLists failed",e);}
   },
@@ -19181,7 +19191,7 @@ const AirQueue={
         rank:d.rank||"",person:d.person||"",people:Array.isArray(d.people)?d.people.filter(x=>x.rank||x.person):[],
         ncProb:d.ncProb||"",ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",ncFactor:d.ncFactor||"",
         ncImp:d.ncImp||"",ncFocus:d.ncFocus||"",ncMethod:"",ncOpinion:d.ncOpinion||"",risk:d.risk||"",
-        internalControl:!!d.internalControl,
+        internalControl:!!d.internalControl,needControl:!!d.internalControl,
         pushedDefId:null,followUp:{on:false,assignee:"",status:"open",log:[],closedAt:0}})),
       posComments:(p.posComments||[]).map(pc=>({code:pc.code||"",item:pc.item||"",comment:pc.comment||"",
         people:Array.isArray(pc.people)?pc.people.filter(x=>x.rank||x.person):[],pushedPosIds:null})),
@@ -20091,6 +20101,7 @@ const TagLists={
     {key:"inspector",label:"檢查員",kind:"data",sources:[["defs","inspector"],["insp","inspector"]]},
     {key:"icat",label:"檢查類型",kind:"icat"},
     {key:"itype",label:"檢查來源",kind:"data",sources:[["defs","itype"],["insp","itype"]]},
+    {key:"flagType",label:"FLAG項目",kind:"token",sources:[["defs","flagType"],["insp","flagType"]],splitRegex:/\s+/,joinSep:" "},
     {key:"oilco",label:"檢查單位/油公司",kind:"data",sources:[["defs","oilco"],["insp","unit"]]},
     /* 問題別／大類／具體名稱為連動階層分類，改由「缺失分類階層管理」（NCTree）統一管理，
        此處不再列出，避免與該工具混用、誤新增不連動的獨立字串。 */
@@ -20137,7 +20148,14 @@ const TagLists={
     }catch(e){console.warn("taglist extras cloud push failed",e);}
     if(typeof Air!=="undefined"&&Air.publishFormLists)Air.publishFormLists();
   },
-  extrasFor(key){this.loadExtras();return this.extras[key]||[];},
+  extrasFor(key){
+    this.loadExtras();
+    if(key==="flagType" && this.extras.flagType===undefined){
+      this.extras.flagType=(typeof FLAG_OPTS_DEFAULT!=="undefined"?FLAG_OPTS_DEFAULT.slice():[]);
+      this.saveExtras();this.pushCloudExtras();
+    }
+    return this.extras[key]||[];
+  },
   values(key){
     const f=this.FIELDS.find(x=>x.key===key);if(!f)return [];
     const vals=new Set();
@@ -20145,7 +20163,7 @@ const TagLists={
     else if(f.kind==="token"){
       f.sources.forEach(([arrName,field])=>{
         (arrName==="defs"?App.defs:App.insp).forEach(r=>{
-          String(r[field]||"").split(/[、,，]/).map(s=>s.trim()).filter(Boolean).forEach(v=>vals.add(v));
+          String(r[field]||"").split(f.splitRegex||/[、,，]/).map(s=>s.trim()).filter(Boolean).forEach(v=>vals.add(v));
         });
       });
     }else{
@@ -20190,8 +20208,8 @@ const TagLists={
     }else if(f.kind==="token"){
       f.sources.forEach(([arrName,field])=>{
         (arrName==="defs"?App.defs:App.insp).forEach(r=>{
-          const parts=String(r[field]||"").split(/[、,，]/).map(s=>s.trim()).filter(Boolean);
-          if(parts.includes(oldVal))r[field]=parts.map(p=>p===oldVal?newVal:p).join("、");
+          const parts=String(r[field]||"").split(f.splitRegex||/[、,，]/).map(s=>s.trim()).filter(Boolean);
+          if(parts.includes(oldVal))r[field]=parts.map(p=>p===oldVal?newVal:p).join(f.joinSep||"、");
         });
       });
     }else{
@@ -20234,7 +20252,7 @@ const TagLists={
     f.sources.forEach(([arrName,field])=>{
       (arrName==="defs"?App.defs:App.insp).forEach(r=>{
         if(f.kind==="token"){
-          const parts=String(r[field]||"").split(/[、,，]/).map(s=>s.trim()).filter(Boolean);
+          const parts=String(r[field]||"").split(f.splitRegex||/[、,，]/).map(s=>s.trim()).filter(Boolean);
           if(parts.includes(oldVal))affected++;
         }else if(r[field]===oldVal)affected++;
       });
@@ -20247,8 +20265,8 @@ const TagLists={
     f.sources.forEach(([arrName,field])=>{
       (arrName==="defs"?App.defs:App.insp).forEach(r=>{
         if(f.kind==="token"){
-          const parts=String(r[field]||"").split(/[、,，]/).map(s=>s.trim()).filter(Boolean);
-          if(parts.includes(oldVal))r[field]=parts.filter(p=>p!==oldVal).join("、");
+          const parts=String(r[field]||"").split(f.splitRegex||/[、,，]/).map(s=>s.trim()).filter(Boolean);
+          if(parts.includes(oldVal))r[field]=parts.filter(p=>p!==oldVal).join(f.joinSep||"、");
         }else if(r[field]===oldVal)r[field]="";
       });
     });
