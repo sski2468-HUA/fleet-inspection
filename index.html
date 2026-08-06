@@ -4500,6 +4500,9 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         </p>
         <div class="toolbar">
           <button class="btn dark" id="tl-toggle-btn" onclick="TagLists.toggle()">📂 顯示／編輯篩選清單</button>
+          <button class="btn" onclick="TagLists.exportXlsx()">⬇ 匯出 Excel</button>
+          <button class="btn" onclick="TagLists.exportJson()">⬇ 匯出 JS 備份</button>
+          <button class="btn" onclick="TagLists.importJson()">⬆ 從 JS 還原</button>
         </div>
         <div id="tl-body" style="display:none;margin-top:10px">
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px" id="tl-fieldtabs"></div>
@@ -4522,6 +4525,9 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <div class="toolbar">
           <button class="btn dark" id="nct-toggle-btn" onclick="NCTree.toggle()">📂 顯示／編輯分類階層</button>
           <button class="btn" onclick="NCTree.undoLast()">↩ 復原上一步</button>
+          <button class="btn" onclick="NCTree.exportXlsx()">⬇ 匯出 Excel</button>
+          <button class="btn" onclick="NCTree.exportJson()">⬇ 匯出 JS 備份</button>
+          <button class="btn" onclick="NCTree.importJson()">⬆ 從 JS 還原</button>
           <span class="hint" id="nct-undo-hint"></span>
         </div>
         <div id="nct-body" style="display:none;margin-top:10px">
@@ -8516,6 +8522,15 @@ function bindDatePicker(elOrId){
 function MSel(elId,label,getOptions,onChange){
   const root=document.getElementById(elId);
   const st={sel:new Set(),q:"",composing:false};
+  if(!root){
+    // 容器還沒被畫出來（通常是使用者尚未切換到那個分頁，該分頁內容還沒渲染），
+    // 不能整個丟例外中斷呼叫端（例如 Ov.init()）——那樣後面該設定的篩選器物件
+    // 會全部沒設定到，之後任何地方一呼叫 .pass() 就整個當掉。這裡改成回傳一個
+    // 「沒有畫面、但資料邏輯正常」的替代物件：沒選任何條件＝全部放行，等真的
+    // 切換到那個分頁時，該分頁自己的 init()/render() 會再呼叫一次 MSel() 正常建立。
+    return {get sel(){return st.sel;},clear(){st.sel.clear();},pass(v){return st.sel.size===0||st.sel.has(v);},
+      set(arr){st.sel=new Set(arr);},refresh(){}};
+  }
   function btnHtml(){return `<button type="button">${label}${st.sel.size?` <span class="cnt">${st.sel.size}</span>`:""} <span class="car">▼</span></button><div class="panel"></div>`;}
   function renderPanel(){
     const opts=getOptions().filter(o=>!st.q||String(o).toLowerCase().includes(st.q));
@@ -8561,6 +8576,9 @@ function MSel(elId,label,getOptions,onChange){
 function SSel(elId,getOptions,placeholder,onPick){
   const root=document.getElementById(elId);
   const st={value:"",q:"",composing:false};
+  if(!root){
+    return {get value(){return st.value;},set(v){st.value=v||"";},refresh(){}};
+  }
   function btnHtml(){return `<button type="button" style="text-align:left;min-width:160px;max-width:100%"><span class="ssel-val" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:calc(100% - 16px)"></span> <span class="car">▼</span></button><div class="panel"></div>`;}
   function refreshBtn(){const v=root.querySelector(".ssel-val");if(v)v.textContent=st.value||placeholder||"（未選擇，點擊篩選）";}
   function close(){root.classList.remove("open");}
@@ -10457,6 +10475,53 @@ const NCTree={
     this.render();this.refreshDependents();
   },
   apply(){ NCDB.equip=this.list.equip; NCDB.ops=this.list.ops; },
+  /* ════════ 缺失分類階層管理備份：Excel（給人看）＋ JS（可還原）══════ */
+  async exportXlsx(){
+    if(!requireExport())return;
+    const wb=new ExcelJS.Workbook();
+    const addSheet=(name,rows)=>{
+      const ws=wb.addWorksheet(name);
+      ws.addRow(["大類","具體名稱","適用船型"]);
+      ws.getRow(1).font={bold:true};
+      rows.forEach(row=>ws.addRow(row));
+      ws.getColumn(1).width=22;ws.getColumn(2).width=30;ws.getColumn(3).width=30;
+    };
+    addSheet("設備問題",this.list.equip);
+    addSheet("作業問題",this.list.ops);
+    const buf=await wb.xlsx.writeBuffer();
+    dl(new Blob([buf],{type:"application/octet-stream"}),`缺失分類階層管理_備份_${todayStr()}.xlsx`);
+    toast("✓ 已下載 Excel（僅供閱讀留存，無法還原，還原請用 JS 備份）");
+  },
+  exportJson(){
+    if(!requireExport())return;
+    const bundle={type:"vsm_nctree_backup",exportedAt:new Date().toISOString(),exportedBy:(typeof Audit!=="undefined")?Audit.user():"",list:this.list};
+    dl(new Blob([JSON.stringify(bundle,null,1)],{type:"application/json"}),`缺失分類階層管理_備份_${todayStr()}.json`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","缺失分類階層管理",`JS備份（設備${this.list.equip.length}項／作業${this.list.ops.length}項）`);
+    toast("✓ 已下載 JS 備份，可用「⬆ 從 JS 還原」匯回");
+  },
+  importJson(){
+    if(typeof Role==="undefined"||!Role.isOwner()){toast("⚠ 還原僅限 Owner 執行");return;}
+    const fp=$("#filepick");fp.accept=".json";fp.value="";
+    fp.onchange=()=>{if(fp.files[0])this._readImportJson(fp.files[0]);};
+    fp.click();
+  },
+  _readImportJson(file){
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const bundle=JSON.parse(r.result);
+        if(!bundle||bundle.type!=="vsm_nctree_backup"||!bundle.list||typeof bundle.list!=="object"){toast("⚠ 檔案格式不正確，請確認是用「⬇ 匯出 JS 備份」產生的檔案");return;}
+        const when=bundle.exportedAt?new Date(bundle.exportedAt).toLocaleString():"未知時間";
+        if(!confirm(`即將以此備份（匯出於 ${when}）覆蓋目前的「缺失分類階層管理」全部內容，此動作會影響所有已用到分類的缺失紀錄比對，確定繼續？`))return;
+        this.list={equip:Array.isArray(bundle.list.equip)?bundle.list.equip:[],ops:Array.isArray(bundle.list.ops)?bundle.list.ops:[]};
+        this._saveLocal();this.apply();if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
+        if(typeof Audit!=="undefined")Audit.log("匯入","缺失分類階層管理",`從JS備份還原（來源檔：${file.name}）`);
+        toast("✓ 已還原缺失分類階層管理");
+        this.render();this.refreshDependents();
+      }catch(e){toast("⚠ 檔案解析失敗："+e.message);}
+    };
+    r.readAsText(file);
+  },
   async loadCloud(){
     if(typeof Cloud==="undefined"||!Cloud.enabled())return;
     try{
@@ -13399,6 +13464,7 @@ const InspCtrl={
   recentRecordsFor(ship,itype,limit){
     const target=this.normItype(itype);
     const isFlagSub=this.FLAG_SUB_ITYPES.includes(target);
+    const seen=new Set();
     const out=[];
     [...App.insp,...App.defs].forEach(r=>{
       if(r.ship!==ship)return;
@@ -13409,7 +13475,13 @@ const InspCtrl={
         if(this.normItype(r.itype)!==target)return;
       }
       const d=this.normDate(r.date);if(!d)return;
-      out.push({date:d,inspector:String(r.inspector||"").trim()});
+      const inspector=String(r.inspector||"").trim();
+      // 同一次到訪，如果在「缺失紀錄總表」裡開了好幾筆缺失（同船名/日期/檢查員各一列），
+      // 不要被算成好幾次到訪——用「日期＋檢查員」去重複，同一次到訪只顯示一筆。
+      const key=d+"|"+inspector;
+      if(seen.has(key))return;
+      seen.add(key);
+      out.push({date:d,inspector});
     });
     out.sort((a,b)=>b.date<a.date?-1:b.date>a.date?1:0);
     return out.slice(0,limit||4);
@@ -20282,6 +20354,52 @@ const TagLists={
   EX_CLOUD_KEY:"taglist_extras",
   loadExtras(){try{const s=localStorage.getItem(this.EXKEY);if(s)this.extras=JSON.parse(s)||{};}catch(e){this.extras={};}},
   saveExtras(){try{localStorage.setItem(this.EXKEY,JSON.stringify(this.extras||{}));}catch(e){}},
+  /* ════════ 篩選清單管理備份：Excel（給人看，含每個欄位目前完整的清單內容）＋ JS（可還原）══════ */
+  async exportXlsx(){
+    if(!requireExport())return;
+    const wb=new ExcelJS.Workbook();
+    const ws=wb.addWorksheet("篩選清單");
+    ws.addRow(["欄位","標籤值"]);
+    ws.getRow(1).font={bold:true};
+    this.FIELDS.forEach(f=>{
+      if(f.kind==="icat")return; // 檢查類型固定4類，不算自訂清單，不列入備份
+      this.values(f.key).forEach(v=>ws.addRow([f.label,v]));
+    });
+    ws.getColumn(1).width=16;ws.getColumn(2).width=36;
+    const buf=await wb.xlsx.writeBuffer();
+    dl(new Blob([buf],{type:"application/octet-stream"}),`篩選清單管理_備份_${todayStr()}.xlsx`);
+    toast("✓ 已下載 Excel（僅供閱讀留存，無法還原，還原請用 JS 備份）");
+  },
+  exportJson(){
+    if(!requireExport())return;
+    this.loadExtras();
+    const bundle={type:"vsm_taglist_backup",exportedAt:new Date().toISOString(),exportedBy:(typeof Audit!=="undefined")?Audit.user():"",extras:this.extras||{}};
+    dl(new Blob([JSON.stringify(bundle,null,1)],{type:"application/json"}),`篩選清單管理_備份_${todayStr()}.json`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","篩選清單管理",`JS備份（${Object.keys(this.extras||{}).length}個欄位）`);
+    toast("✓ 已下載 JS 備份，可用「⬆ 從 JS 還原」匯回");
+  },
+  importJson(){
+    if(typeof Role==="undefined"||!Role.isOwner()){toast("⚠ 還原僅限 Owner 執行");return;}
+    const fp=$("#filepick");fp.accept=".json";fp.value="";
+    fp.onchange=()=>{if(fp.files[0])this._readImportJson(fp.files[0]);};
+    fp.click();
+  },
+  _readImportJson(file){
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const bundle=JSON.parse(r.result);
+        if(!bundle||bundle.type!=="vsm_taglist_backup"||!bundle.extras||typeof bundle.extras!=="object"){toast("⚠ 檔案格式不正確，請確認是用「⬇ 匯出 JS 備份」產生的檔案");return;}
+        const when=bundle.exportedAt?new Date(bundle.exportedAt).toLocaleString():"未知時間";
+        if(!confirm(`即將以此備份（匯出於 ${when}）覆蓋目前的「篩選清單管理」自訂標籤，確定繼續？`))return;
+        this.extras=bundle.extras;this.saveExtras();this.pushCloudExtras();
+        if(typeof Audit!=="undefined")Audit.log("匯入","篩選清單管理",`從JS備份還原（來源檔：${file.name}）`);
+        toast("✓ 已還原篩選清單管理");
+        this.render();
+      }catch(e){toast("⚠ 檔案解析失敗："+e.message);}
+    };
+    r.readAsText(file);
+  },
   /* ════════ 自訂項目原本只存在自己這台瀏覽器（localStorage），別人看不到，等於後台加了
      也沒用。這裡補上雲端同步，跟 NCTree／Classify 同一套 app_db key-value 模式：開機時
      loadCloudExtras() 拉一次雲端最新版本蓋過本機快取，每次新增/刪除/改名後 pushCloudExtras()
@@ -20630,7 +20748,11 @@ const DM={
         roster:(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[]),
         voyCatalog:(typeof VoyRecv!=="undefined"?VoyRecv.cat:[]),
         voySubmissions:(typeof VoyRecv!=="undefined"?VoyRecv.subs:[]),
-        auditLog:(typeof Audit!=="undefined"?Audit.list:[])
+        auditLog:(typeof Audit!=="undefined"?Audit.list:[]),
+        // 篩選清單管理（各欄位手動新增的標籤）與缺失分類階層管理（問題別/大類/具體名稱），
+        // 之前完整備份完全沒包含這兩塊，代表萬一瀏覽器資料遺失或要換裝置，這兩塊救不回來。這裡補上。
+        tagListExtras:(typeof TagLists!=="undefined"?(TagLists.loadExtras(),TagLists.extras):{}),
+        ncTreeList:(typeof NCTree!=="undefined"?NCTree.list:null)
       }
     };
     const counts=Object.entries(bundle.data).map(([k,v])=>`${k}:${Array.isArray(v)?v.length:"-"}`).join("、");
@@ -20676,6 +20798,8 @@ const DM={
         auditDash:App.auditDash,defsProjects:App.defsProjects,projectMembers:App.projectMembers,
         ships:(typeof SHIPINFO!=="undefined"?SHIPINFO:[]),roster:(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[]),
         voyCatalog:(typeof VoyRecv!=="undefined"?VoyRecv.cat:[]),voySubmissions:(typeof VoyRecv!=="undefined"?VoyRecv.subs:[]),
+        tagListExtras:(typeof TagLists!=="undefined"?(TagLists.loadExtras(),TagLists.extras):{}),
+        ncTreeList:(typeof NCTree!=="undefined"?NCTree.list:null),
         savedAt:Date.now(),savedBy:(typeof Audit!=="undefined")?Audit.user():""
       };
       localStorage.setItem("vsm_pre_importalljson_backup_v1",JSON.stringify(safety));
@@ -20693,6 +20817,13 @@ const DM={
     if(Array.isArray(d.roster)&&typeof GateIdentity!=="undefined"){GateIdentity.saveRoster(d.roster);n++;}
     if(Array.isArray(d.voyCatalog)&&typeof VoyRecv!=="undefined"){VoyRecv.cat=d.voyCatalog;try{localStorage.setItem(VoyRecv.LSK_CAT,JSON.stringify(VoyRecv.cat));}catch(e){}n++;}
     if(Array.isArray(d.voySubmissions)&&typeof VoyRecv!=="undefined"){VoyRecv.subs=d.voySubmissions;try{localStorage.setItem(VoyRecv.LSK_SUB,JSON.stringify(VoyRecv.subs));}catch(e){}n++;}
+    if(d.tagListExtras&&typeof d.tagListExtras==="object"&&typeof TagLists!=="undefined"){
+      TagLists.extras=d.tagListExtras;TagLists.saveExtras();TagLists.pushCloudExtras();n++;
+    }
+    if(d.ncTreeList&&typeof d.ncTreeList==="object"&&typeof NCTree!=="undefined"){
+      NCTree.list={equip:Array.isArray(d.ncTreeList.equip)?d.ncTreeList.equip:[],ops:Array.isArray(d.ncTreeList.ops)?d.ncTreeList.ops:[]};
+      NCTree._saveLocal();NCTree.apply();if(typeof Cloud!=="undefined"&&Cloud.enabled())NCTree.pushCloud();n++;
+    }
     App.curTaskId=null;
     App.saveAll();if(App.refreshMeta)App.refreshMeta();
     ["Dash","Ov","Sp","Defs","Recur","Ref","SirePos","Air","SelfCheck","InspCtrl","AnnualPlan","AuditDash","DrillRecord","VoyRecv"].forEach(name=>{try{if(typeof window[name]!=="undefined"){window[name].init&&window[name].init();window[name].render&&window[name].render();}}catch(e){}});
@@ -20714,6 +20845,8 @@ const DM={
       if(s.voyCatalog){VoyRecv.cat=s.voyCatalog;try{localStorage.setItem(VoyRecv.LSK_CAT,JSON.stringify(VoyRecv.cat));}catch(e){}}
       if(s.voySubmissions){VoyRecv.subs=s.voySubmissions;try{localStorage.setItem(VoyRecv.LSK_SUB,JSON.stringify(VoyRecv.subs));}catch(e){}}
     }
+    if(s.tagListExtras&&typeof TagLists!=="undefined"){TagLists.extras=s.tagListExtras;TagLists.saveExtras();TagLists.pushCloudExtras();}
+    if(s.ncTreeList&&typeof NCTree!=="undefined"){NCTree.list=s.ncTreeList;NCTree._saveLocal();NCTree.apply();if(typeof Cloud!=="undefined"&&Cloud.enabled())NCTree.pushCloud();}
     App.saveAll();if(App.refreshMeta)App.refreshMeta();
     ["Dash","Ov","Sp","Defs","Recur","Ref","SirePos","Air","SelfCheck","InspCtrl","AnnualPlan","AuditDash","DrillRecord","VoyRecv"].forEach(name=>{try{if(typeof window[name]!=="undefined"){window[name].init&&window[name].init();window[name].render&&window[name].render();}}catch(e){}});
     if(typeof Audit!=="undefined")Audit.log("還原","資料管理","回復至上次從完整備份JS還原前的安全備份");
