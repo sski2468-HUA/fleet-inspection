@@ -7734,7 +7734,7 @@ const App={
     this.defs.forEach(d=>{if(d.inspector)d.inspector=canonInspector(d.inspector);if(d.oilco)d.oilco=canonUnit(d.oilco);});
     if(typeof Classify!=="undefined")Classify.init();
     if(typeof NCTree!=="undefined")NCTree.init();
-    Dash.init();Ov.init();if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();
+    Dash.init();Ov.init();if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();// 編輯鎖定功能已停用(全部資料表都已改為逐筆同步,不再需要)：不建立浮動按鈕/面板，EditLock.guard() 保留為恆真空操作。
     refreshInspectorList();refreshPlaceList();
     this.refreshMeta();
     NavConfig.apply();
@@ -7785,11 +7785,11 @@ const App={
       const jobs=[
         [this.LSK.i ,()=>JSON.stringify(this.insp),"inspections"],
         [this.LSK.d ,()=>JSON.stringify(this.defs),"deficiencies"],
-        [this.LSK.sp,()=>JSON.stringify(this.sirePos),null],
+        [this.LSK.sp,()=>JSON.stringify(this.sirePos),"sirePositive"],
         [this.LSK.air,()=>JSON.stringify(this.air),"airReviews"],
         [this.LSK.s ,()=>JSON.stringify({tasks:this.tasks,cur:this.curTaskId}),null],
         [this.LSK.ch,()=>JSON.stringify(this.chapterOverrides),null],
-        [this.LSK.ic,()=>JSON.stringify(this.inspCtrl),null],
+        [this.LSK.ic,()=>JSON.stringify(this.inspCtrl),"inspctrl"],
         [this.LSK.rd,()=>JSON.stringify(this.refDocs),null],
         [this.LSK.rd2,()=>JSON.stringify(this.refDocs2),null],
         [this.LSK.dr,()=>JSON.stringify(this.drillRecords),null],
@@ -7821,7 +7821,10 @@ const App={
       }catch(e){}
       if(typeof Cloud!=="undefined"){
         Cloud.onTasksMaybeChanged();
-        if(!skipPublish)changed.forEach(k=>Cloud.queueAutoPublish(k));
+        if(!skipPublish)changed.forEach(k=>{
+          if(typeof RecordSync!=="undefined"&&RecordSync.TABLES[k])RecordSync.queuePush(k);
+          else Cloud.queueAutoPublish(k);
+        });
       }
       const kb=Math.round(((this._lastSaved[this.LSK.d]||"").length+(this._lastSaved[this.LSK.i]||"").length)/1024);
       // ═ 容量監控：以常見 5MB 配額估算 localStorage 用量，70% 起提醒、85% 起紅色警示 ═
@@ -9292,6 +9295,7 @@ const Ov={
     const wrap=$("#i-flag-wrap");if(wrap)wrap.style.display=isFlag?"":"none";
   },
   saveEdit(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("inspections"))return;
     const g=i=>$(i).value.trim();
     if(!g("#i-ship")){toast("⚠ 請填寫船名");return;}
     if(!g("#i-date")){toast("⚠ 請填寫檢查日期");return;}
@@ -9306,15 +9310,16 @@ const Ov={
     const rec={ship:g("#i-ship"),vtype:$("#i-vtype").value,itype:itype,date:g("#i-date"),loc:_loc,inspector:canonInspector(g("#i-inspector")),unit:canonUnit(g("#i-unit")),ndef:g("#i-ndef")||"0",npos:g("#i-npos")||"0",flagType:_flagVal,detain:$("#i-detain").checked?"Y":"N"};
     if(this.editIdx==null){rec.id=App.nextInspId();App.insp.push(rec);toast("✓ 已新增檢查紀錄");Audit.log("新增","檢查紀錄",`${rec.ship} ${rec.itype} ${rec.date}`);}
     else{Object.assign(App.insp[this.editIdx],rec);toast("✓ 已更新檢查紀錄");Audit.log("編輯","檢查紀錄",`${rec.ship} ${rec.itype} ${rec.date}`);}
-    App.saveAll();App.refreshMeta();this.closeEdit();this.render();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();App.refreshMeta();this.closeEdit();this.render();
   },
   async delCurrent(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("inspections"))return;
     if(!await Guard.requireDelete())return;
     if(!confirm("確定刪除此筆檢查紀錄？"))return;
     const _del=App.insp[this.editIdx];Audit.log("刪除","檢查紀錄",`${_del.ship} ${_del.itype} ${_del.date}`);
     if(typeof RecycleBin!=="undefined")RecycleBin.add("insp",_del,`${_del.ship} ${_del.itype} ${_del.date}`);
     App.insp.splice(this.editIdx,1);
-    App.saveAll();App.refreshMeta();this.closeEdit();this.render();toast("已刪除");
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();App.refreshMeta();this.closeEdit();this.render();toast("已刪除");
   },
   /* ─────────────────────────────────────────
      批量編輯（僅維護者）
@@ -9622,6 +9627,7 @@ const Sp={
   },
   closeEdit(){$("#shipModal").classList.remove("show");},
   saveEdit(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("ships"))return;
     const g=f=>($("#s-"+f).value||"").trim();
     const code=g("code");
     if(!code){toast("⚠ 請填寫 FPMC 代碼");return;}
@@ -9634,13 +9640,14 @@ const Sp={
       if(i>=0)Object.assign(SHIPINFO[i],rec);
       toast("✓ 已更新船舶："+code);if(typeof Audit!=="undefined")Audit.log("編輯","船舶資料",code+" "+rec.name);
     }
-    this.persist();this.closeEdit();this.render();
+    this.persist();App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();this.closeEdit();this.render();
     // 同步重繪用到船型/船名清單的篩選
     try{this.ms.ship&&this.ms.ship.refresh&&this.ms.ship.refresh();}catch(e){}
     // 船舶的甲板/機艙督導若有變動，同步更新「檢查管控」檢查安排人的身份類別建議清單
     try{if(typeof InspCtrl!=="undefined")InspCtrl.refreshRosterNames();}catch(e){}
   },
   async delCurrent(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("ships"))return;
     if(!this.editCode)return;
     if(!await Guard.requireDelete())return;
     if(!confirm("確定刪除船舶「"+this.editCode+"」？（不影響既有檢查/缺失紀錄）"))return;
@@ -9648,7 +9655,7 @@ const Sp={
     if(s&&typeof RecycleBin!=="undefined")RecycleBin.add("ships",s,`${s.code} ${s.name||""}`);
     SHIPINFO=SHIPINFO.filter(x=>x.code!==this.editCode);
     if(typeof Audit!=="undefined")Audit.log("刪除","船舶資料",this.editCode+(s?" "+s.name:""));
-    this.persist();this.closeEdit();this.render();toast("已刪除船舶");
+    this.persist();App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();this.closeEdit();this.render();toast("已刪除船舶");
   },
   exportXlsx(){
     if(!hasXLSX())return;
@@ -11936,6 +11943,7 @@ const Defs={
     if(norm!=="FLAG"){currentFlagOpts().forEach(f=>{const el=document.getElementById(`e-flag-${f}`);if(el)el.checked=false;});}
   },
   saveEdit(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("deficiencies"))return;
     const g=i=>$(i).value.trim();
     let _itype=$("#e-itype").value;if(_itype==="其他"){const _o=g("#e-itype-other");_itype=_o?"其他-"+_o:"其他";}
     const _flagType=flagBoxRead("e-flag");
@@ -11944,20 +11952,22 @@ const Defs={
     if(String(rec.itype||"").toUpperCase().replace(/[^A-Z0-9]/g,"")==="FLAG" && !rec.flagType){toast("⚠ 檢查來源選了 FLAG，請至少勾選一個 FLAG 項目才能儲存");return;}
     if(this.editId==null){rec.id=App.nextId();App.defs.push(rec);toast("✓ 已新增");Audit.log("新增","缺失紀錄",`${rec.ship} ${rec.date}：${(rec.detail||"").slice(0,40)}`);}
     else{const d=App.defs.find(x=>x.id===this.editId);Object.assign(d,rec);toast("✓ 已更新");Audit.log("編輯","缺失紀錄",`#${this.editId} ${rec.ship}：${(rec.detail||"").slice(0,40)}`);}
-    App.saveAll();App.refreshMeta();this.closeEdit();this.render();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();App.refreshMeta();this.closeEdit();this.render();
   },
   async delCurrent(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("deficiencies"))return;
     if(!await Guard.requireDelete())return;
     if(!confirm("確定刪除此筆缺失紀錄？"))return;
     const _delD=App.defs.find(x=>x.id===this.editId);
     if(_delD&&typeof RecycleBin!=="undefined")RecycleBin.add("defs",_delD,`${_delD.ship||""} ${_delD.date||""}：${(_delD.detail||"").slice(0,40)}`);
     App.defs=App.defs.filter(x=>x.id!==this.editId);
     this.selected.delete(this.editId);
-    App.saveAll();App.refreshMeta();this.closeEdit();this.render();toast("已刪除");
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();App.refreshMeta();this.closeEdit();this.render();toast("已刪除");
   },
   async batchDelete(){
     if(!await Guard.requireDelete())return;
     const ids=new Set(this.selected);
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("deficiencies"))return;
     if(!ids.size){toast("⚠ 請先勾選要刪除的缺失紀錄");return;}
     if(!confirm(`確定要刪除已勾選的 ${ids.size} 筆缺失紀錄？\n\n每一筆都會先存進「資源回收桶」，30天內可還原；此動作一經確認送出即立即生效。確定繼續？`))return;
     const toDelete=App.defs.filter(d=>ids.has(String(d.id)));
@@ -11966,9 +11976,8 @@ const Defs={
     }
     App.defs=App.defs.filter(d=>!ids.has(String(d.id)));
     this.selected.clear();
-    App.saveAll();App.refreshMeta();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();App.refreshMeta();
     if(typeof Audit!=="undefined")Audit.log("批量刪除","缺失紀錄",`共 ${toDelete.length} 筆：${toDelete.slice(0,5).map(d=>`${d.ship||""}#${d.id}`).join("、")}${toDelete.length>5?" 等":""}`);
-    if(typeof Cloud!=="undefined")Cloud.queueAutoPublish("deficiencies");
     this.render();
     toast(`✓ 已刪除 ${toDelete.length} 筆（已存入資源回收桶，30天內可還原）`);
   },
@@ -12571,8 +12580,8 @@ const SirePos={
   removePersonRow(i){if(this._people.length<=1)return;this._people.splice(i,1);this.renderPeopleRows(this._people);},
   closeEdit(){$("#sireEditModal").classList.remove("show");},
   saveEdit(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("sirePositive"))return;
     const g=i=>$(i).value.trim();
-    const shared={ship:g("#se-ship"),date:g("#se-date"),ym:ymOf(g("#se-date")),code:g("#se-code"),item:g("#se-item"),comment:g("#se-comment")};
     if(!shared.ship){toast("⚠ 請填寫船名");return;}
     if(!shared.date){toast("⚠ 請填寫日期");return;}
     let people=(this._people||[]).filter(p=>(p.rank||"").trim()||(p.person||"").trim());
@@ -12597,16 +12606,17 @@ const SirePos={
     toast(isNew?`✓ 已新增（${people.length} 位人員）`:"✓ 已更新");
     if(typeof Audit!=="undefined")Audit.log(isNew?"新增":"編輯","SIRE正向評論",`${shared.ship} ${shared.date}：共 ${people.length} 位人員`);
     App.saveAll();App.refreshMeta();this.closeEdit();this.init();
-    if(typeof Cloud!=="undefined")Cloud.queueAutoPublish("sirePositive");
+    if(typeof Cloud!=="undefined"){Cloud.queueAutoPublish("sirePositive");Cloud.flushNow();}
   },
   async delCurrent(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("sirePositive"))return;
     if(!await Guard.requireDelete())return;
     if(!confirm("確定刪除此筆正向評論？"))return;
     const _delSp=App.sirePos.find(x=>x.id===this.editId);
     if(_delSp&&typeof RecycleBin!=="undefined")RecycleBin.add("sirePos",_delSp,`${_delSp.ship||""} ${_delSp.date||""}`);
     App.sirePos=App.sirePos.filter(x=>x.id!==this.editId);
     App.saveAll();App.refreshMeta();this.closeEdit();this.init();toast("已刪除");
-    if(typeof Cloud!=="undefined")Cloud.queueAutoPublish("sirePositive");
+    if(typeof Cloud!=="undefined"){Cloud.queueAutoPublish("sirePositive");Cloud.flushNow();}
   },
   exportSet(){return this.filtered();},
   rowsToAoa(rows){
@@ -14383,6 +14393,7 @@ const InspCtrl={
   },
   closeEdit(){$("#icEditModal").classList.remove("show");},
   async saveEdit(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("inspctrl"))return;
     if(this.editId==null){
       if(!Role.can("inspctrl_edit")){toast("⚠ 您的權限僅可查看，無法編輯檢查管控資料");return;}
     }else{
@@ -14431,9 +14442,10 @@ const InspCtrl={
       }
     }
     App.saveAll();this.closeEdit();this.render();
-    if(typeof Cloud!=="undefined")Cloud.queueAutoPublish("inspctrl");
+    if(typeof Cloud!=="undefined"){Cloud.queueAutoPublish("inspctrl");Cloud.flushNow();}
   },
   async delCurrent(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("inspctrl"))return;
     const rec=App.inspCtrl.find(x=>x.id===this.editId);
     if(!this.canEditRow(rec)){toast("⚠ 僅該筆「檢查安排人」本人或Owner可刪除此筆紀錄");return;}
     if(!await Guard.requireDelete())return;
@@ -14442,7 +14454,7 @@ const InspCtrl={
     App.saveAll();
     if(typeof Audit!=="undefined")Audit.log("刪除","檢查管控",`#${this.editId}`);
     toast("已刪除");this.closeEdit();this.render();
-    if(typeof Cloud!=="undefined")Cloud.queueAutoPublish("inspctrl");
+    if(typeof Cloud!=="undefined"){Cloud.queueAutoPublish("inspctrl");Cloud.flushNow();}
   },
   openImportModal(){
     /* 匯入（含「覆蓋」模式）可一次取代整張檢查管控表，破壞力遠大於一般編輯，
@@ -14800,6 +14812,7 @@ const AnnualPlan={
   cellEntry(year,planType,ship,month){return App.annualPlan.find(e=>e.year===year&&e.planType===planType&&e.ship===ship&&e.month===month);},
   isExtraRowKey(pt,ship){return (this.PLAN_TYPES[pt].extraRows||[]).some(e=>e.key===ship);},
   toggleCell(ship,month){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("annualPlan"))return;
     if(!this.requireEdit())return;
     const year=this.curYear,pt=this.curType;
     const ex=this.cellEntry(year,pt,ship,month);
@@ -14811,6 +14824,7 @@ const AnnualPlan={
           if(confirm(`此格已標記完成（${ex.actualDate}）。要取消完成狀態嗎？`)){
             ex.actualDate="";ex.actualInspId=null;
             App.saveAll();
+            if(typeof Cloud!=="undefined")Cloud.flushNow();
             if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月 取消完成標記`);
             this.render();
           }
@@ -14821,6 +14835,7 @@ const AnnualPlan={
         if(v.trim()===""){
           App.annualPlan=App.annualPlan.filter(e=>e!==ex);
           App.saveAll();
+          if(typeof Cloud!=="undefined")Cloud.flushNow();
           if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月 取消排程`);
           this.render();
           return;
@@ -14829,6 +14844,7 @@ const AnnualPlan={
         if(!d){toast("⚠ 日期格式錯誤，請用 YYYY-MM-DD");return;}
         ex.actualDate=d;
         App.saveAll();
+        if(typeof Cloud!=="undefined")Cloud.flushNow();
         if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月 標記完成 ${d}`);
         this.render();
         return;
@@ -14836,6 +14852,7 @@ const AnnualPlan={
       if(!confirm(`確定要新增「${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月」排程？`))return;
       App.annualPlan.push({id:this.nextId(),year,ship,planType:pt,month,actualDate:"",actualInspId:null,source:"manual",note:""});
       App.saveAll();
+      if(typeof Cloud!=="undefined")Cloud.flushNow();
       if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月 新增排程`);
       this.render();
       return;
@@ -14849,6 +14866,7 @@ const AnnualPlan={
       App.annualPlan.push({id:this.nextId(),year,ship,planType:pt,month,actualDate:"",actualInspId:null,source:"manual",note:""});
     }
     App.saveAll();
+    if(typeof Cloud!=="undefined")Cloud.flushNow();
     if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月 ${ex?"取消":"新增"}排程`);
     this.render();
   },
@@ -15466,6 +15484,7 @@ const DrillRecord={
     const dateEl=$("#dr-e-date");if(dateEl)dateEl.focus();
   },
   save(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("drillRecords"))return;
     if(!this.requireEdit())return;
     const shipSel=$("#dr-e-ship"),ptSel=$("#dr-e-plantype"),catSel=$("#dr-e-category"),dateEl=$("#dr-e-date"),noteEl=$("#dr-e-note");
     const ship=shipSel?shipSel.value:"";
@@ -15515,6 +15534,7 @@ const DrillRecord={
     const cancelBtn=$("#dr-cancel-btn");if(cancelBtn)cancelBtn.style.display="none";
   },
   async delRec(id){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("drillRecords"))return;
     if(!this.requireEdit("僅 Owner 或指定人員可刪除"))return;
     const rec=(App.drillRecords||[]).find(x=>x.id===id);if(!rec)return;
     if(!await Guard.requireDelete())return;
@@ -16014,10 +16034,11 @@ const AuditDash={
   },
   sort(k){if(this.sortKey===k)this.sortAsc=!this.sortAsc;else{this.sortKey=k;this.sortAsc=true;}this.render();},
   setField(id,field,val){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("auditDash"))return;
     if(!this.requireEdit())return;
     const row=this.rowsRaw().find(r=>r.id===id);if(!row)return;
     row[field]=val;
-    App.saveAll();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
     if(typeof Audit!=="undefined")Audit.log("編輯","內稽動態",`${row.ship} ${field}=${val}`);
   },
   setSchedMonth(id,val){
@@ -16116,12 +16137,13 @@ const AuditDash={
     this.addRowCopy(code);
   },
   delRow(id){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("auditDash"))return;
     if(!this.requireEdit())return;
     if(!confirm("確定要刪除這一列嗎？（僅刪除內稽動態表這筆紀錄，不影響原始檢查紀錄）"))return;
     const _delAd=this.rowsRaw().find(r=>r.id===id);
     if(_delAd&&typeof RecycleBin!=="undefined")RecycleBin.add("auditDash",_delAd,`${_delAd.ship||""}`);
     App.auditDash=this.rowsRaw().filter(r=>r.id!==id);
-    App.saveAll();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
     if(typeof Audit!=="undefined")Audit.log("刪除","內稽動態",`#${id}`);
     this.render();
   },
@@ -17515,6 +17537,7 @@ const Air={
   /* ── 流程：先建立基本資料 ── */
   cancelForm(){this.showList();},
   saveBasic(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("airReviews"))return;
     if(!Role.can('air_edit_content')){toast("⚠ 新增／編輯填單僅限督導／維護者操作");return;}
     const ship=$("#air-ship").value.trim();
     const date=$("#air-date").value.trim();
@@ -17534,7 +17557,7 @@ const Air={
       usedInsp:false,usedDef:false,usedPos:false
     };
     App.air.push(rec);
-    App.saveAll();if(App.refreshMeta)App.refreshMeta();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
     toast("✓ 已儲存基本資料，請繼續填寫缺失改善明細與正向評論明細");
     if(typeof Audit!=="undefined")Audit.log("新增","AIR",`${rec.ship} ${rec.date}`);
     this.showForm(rec.id);
@@ -17549,6 +17572,7 @@ const Air={
   },
   saveForm(){
     if(this.editId==null){this.saveBasic();return;}
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("airReviews"))return;
     if(!Role.can('air_edit_content')){toast("⚠ 編輯填單僅限督導／維護者操作");return;}
     if(this._formSaveTimer){clearTimeout(this._formSaveTimer);this._formSaveTimer=null;}
     const ship=$("#air-ship").value.trim();
@@ -17571,7 +17595,7 @@ const Air={
     Object.assign(old,rec);old.updatedAt=Date.now();
     toast("✓ 已更新");
     if(typeof Audit!=="undefined")Audit.log("編輯","AIR",`#${this.editId} ${rec.ship} ${rec.date}`);
-    App.saveAll();if(App.refreshMeta)App.refreshMeta();this.showList();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();this.showList();
   },
   /* ════════ 線上填單自動儲存（基本資料＋缺失改善明細＋正向評論明細）════════
      跟「海技對外回覆」同一套邏輯：停手2秒後自動存檔，畫面上有狀態提示，
@@ -17811,6 +17835,7 @@ const Air={
     const el2=$("#air-sel-count");if(el2)el2.textContent=this.selected.size?`已勾選 ${this.selected.size} 筆`:"";
   },
   async delAir(id){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("airReviews"))return;
     if(!await Guard.requireDelete())return;
     if(!confirm("確定刪除此筆填單？"))return;
     const _delAir=App.air.find(x=>x.id===id);
@@ -19258,7 +19283,8 @@ window.addEventListener("beforeunload",e=>{
   const airDirty = typeof Air!=="undefined"&&(Air._replyDirty||Air._formDirty);
   const cloudPending = typeof Cloud!=="undefined"&&Cloud.enabled()&&Cloud.cfg.auto&&
     (Cloud._autoKeys.size>0||Cloud._failedKeys.size>0||Cloud._conflictKeys.size>0);
-  if(airDirty||cloudPending){
+  const syncPending = typeof RecordSync!=="undefined"&&RecordSync.hasPending();
+  if(airDirty||cloudPending||syncPending){
     e.preventDefault();
     e.returnValue="";
   }
@@ -21195,6 +21221,171 @@ const Role={
     location.reload();
   }
 };
+/* ════════ 🔒 編輯鎖定：讓使用者可以針對某個主要資料表「先鎖定再編輯」，避免多人同時
+   改同一份資料時互相覆蓋（目前雲端同步是整包陣列覆蓋，不是逐筆合併，見上方 Cloud 模組）。
+   鎖是存在同一張 app_db 表，key 前綴 "lock:"，內容 {holder,since,heartbeat}；
+   閒置超過 TTL_MS 視為過期自動失效，避免有人忘記解鎖或瀏覽器當掉就一直卡住。
+   這不是資料庫層級的強制鎖（Supabase 匿名金鑰沒有這種機制），是「大家都遵守」的協調機制：
+   guard() 會在真正寫入前擋下被別人鎖住的操作，但無法阻止完全不理會提示、硬要繼續的人。 ════════ */
+const EditLock={
+  TTL_MS:15*60*1000,        // 閒置15分鐘視為過期，自動當作已解鎖
+  HEARTBEAT_MS:60*1000,     // 鎖著的人每60秒續約一次，證明還在線上
+  POLL_MS:20*1000,          // 其他人每20秒檢查一次鎖是否已解除
+  LABELS:{
+    inspections:"檢查紀錄",deficiencies:"缺失紀錄總表",airReviews:"AIR／線上填單",
+    drillRecords:"操演紀錄",sirePositive:"正面評價/優秀案例",inspctrl:"檢查管控",
+    annualPlan:"年度計畫暨執行情形",auditDash:"內稽動態",defsProjects:"缺失專案分析",
+    ships:"船舶資料",refDocs:"船隊通報單",refDocs2:"海技參考資料"
+  },
+  remote:{},   // key -> {holder,since,heartbeat} | null（最近一次從雲端讀到的狀態）
+  mine:{},     // key -> {holder,since,heartbeat}（我自己持有的鎖）
+  _hb:{},_watch:{},
+  me(){ return (typeof Role!=="undefined"&&Role.personName)?Role.personName():((typeof Audit!=="undefined")?Audit.user():"未具名"); },
+  cloudKey(k){ return "lock:"+k; },
+  isExpired(p){ return !p||!p.holder||(Date.now()-(p.heartbeat||p.since||0))>this.TTL_MS; },
+  /* 目前這個 key 是否被「別人」鎖住（同步、給畫面渲染用；資料來自上次 refreshAll() 快取，非即時查雲端）。 */
+  lockedByOther(key){
+    const p=this.remote[key];
+    if(this.isExpired(p))return null;
+    if(p.holder===this.me())return null;
+    return p;
+  },
+  /* 編輯鎖定功能已停用（全部資料表都已改為逐筆同步，不再需要靠鎖避免互相覆蓋）。
+     guard() 保留為恆真的空操作，讓程式碼裡幾十個呼叫點（Ov/Defs/Air/DrillRecord/SirePos/
+     InspCtrl/AnnualPlan/AuditDash/DefsProj/Sp 的存檔/刪除函式開頭）不用逐一移除，
+     它們原本的寫法是「guard() 回傳 false 才擋下」，這裡永遠回傳 true 等於直接放行。 */
+  guard(key){ return true; },
+  async acquire(key){
+    if(typeof Role==="undefined"||!Role.isOwner()){toast("⚠ 編輯鎖定僅限 Owner 使用");return false;}
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){toast("⚠ 雲端未連線，無法使用編輯鎖定（單機模式沒有多人衝突風險，不需要鎖）");return false;}
+    await this.refreshOne(key);
+    const p=this.lockedByOther(key);
+    if(p){
+      const mins=Math.max(1,Math.round((Date.now()-(p.since||Date.now()))/60000));
+      toast(`🔒 ${p.holder} 正在編輯「${this.LABELS[key]||key}」（已鎖定 ${mins} 分鐘），暫時無法搶鎖`);
+      this._watchFor(key);
+      return false;
+    }
+    const payload={holder:this.me(),since:(this.mine[key]&&this.mine[key].holder===this.me())?this.mine[key].since:Date.now(),heartbeat:Date.now()};
+    try{
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.cloudKey(key),updated:Date.now(),by:payload.holder,payload}])});
+    }catch(e){toast("⚠ 鎖定寫入失敗："+e.message.slice(0,60));return false;}
+    this.mine[key]=payload;this.remote[key]=payload;
+    clearInterval(this._hb[key]);
+    this._hb[key]=setInterval(()=>this.renew(key),this.HEARTBEAT_MS);
+    toast(`🔒 已鎖定「${this.LABELS[key]||key}」，編輯完成後記得按「解鎖」，讓其他人可以繼續`);
+    this.refreshUI();
+    return true;
+  },
+  async renew(key){
+    if(!this.mine[key])return;
+    this.mine[key].heartbeat=Date.now();
+    try{
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.cloudKey(key),updated:Date.now(),by:this.mine[key].holder,payload:this.mine[key]}])});
+    }catch(e){/* 續約失敗不中斷，下次輪詢會再試 */}
+  },
+  async release(key){
+    clearInterval(this._hb[key]);delete this._hb[key];
+    delete this.mine[key];
+    this.remote[key]=null;
+    this.refreshUI();
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.cloudKey(key),updated:Date.now(),by:"",payload:{}}])});
+      toast(`🔓 已解除「${this.LABELS[key]||key}」的編輯鎖定`);
+    }catch(e){toast("⚠ 解鎖同步失敗："+e.message.slice(0,60));}
+  },
+  async forceUnlock(key){
+    if(typeof Role==="undefined"||!Role.isOwner()){toast("⚠ 僅 Owner 可強制解鎖");return;}
+    if(!confirm(`確定要強制解除「${this.LABELS[key]||key}」目前的編輯鎖定嗎？（若對方還在編輯中，可能導致他的變更遺失，請先確認對方已離開）`))return;
+    delete this.mine[key];clearInterval(this._hb[key]);delete this._hb[key];
+    this.remote[key]=null;
+    try{
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.cloudKey(key),updated:Date.now(),by:"",payload:{}}])});
+      toast("✓ 已強制解鎖");
+    }catch(e){toast("⚠ 強制解鎖失敗："+e.message.slice(0,60));}
+    this.refreshUI();
+  },
+  async refreshOne(key){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api("app_db?select=payload&k=eq."+encodeURIComponent(this.cloudKey(key)));
+      const p=rows&&rows[0]&&rows[0].payload;
+      this.remote[key]=(p&&p.holder)?p:null;
+    }catch(e){/* 讀取失敗維持原本快取值 */}
+  },
+  async refreshAll(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    const keys=Object.keys(this.LABELS);
+    try{
+      const rows=await Cloud.api("app_db?select=k,payload&k=in.("+keys.map(k=>this.cloudKey(k)).join(",")+")");
+      const byKey={}; (rows||[]).forEach(r=>{byKey[r.k]=r.payload;});
+      keys.forEach(key=>{
+        const p=byKey[this.cloudKey(key)];
+        this.remote[key]=(p&&p.holder)?p:null;
+        // 我自己持有的鎖如果被別人強制解鎖或過期，清掉本機的續約計時器，避免一直空續約
+        if(this.mine[key]&&(!this.remote[key]||this.remote[key].holder!==this.me())){
+          clearInterval(this._hb[key]);delete this._hb[key];delete this.mine[key];
+        }
+      });
+    }catch(e){/* 離線時維持原本快取值 */}
+    this.refreshUI();
+  },
+  _watchFor(key){
+    if(this._watch[key])return;
+    this._watch[key]=setInterval(async ()=>{
+      await this.refreshOne(key);
+      if(!this.lockedByOther(key)){
+        clearInterval(this._watch[key]);delete this._watch[key];
+        toast(`🔓「${this.LABELS[key]||key}」已解鎖，可以重新整理後繼續編輯`);
+      }
+    },this.POLL_MS);
+  },
+  /* ── 迷你狀態面板：固定在畫面右下角，列出所有可鎖定的資料表跟目前狀態，
+     不用特地跑到每個分頁自己找按鈕，任何頁面都看得到、鎖得到。 ── */
+  panelOpen:false,
+  togglePanel(){ this.panelOpen=!this.panelOpen; this.refreshUI(); if(this.panelOpen)this.refreshAll(); },
+  ensureWidget(){
+    if($("#editlock-widget"))return;
+    const el=document.createElement("div");
+    el.id="editlock-widget";
+    el.style.cssText="position:fixed;right:14px;bottom:14px;z-index:5000;font-family:var(--sans,inherit)";
+    document.body.appendChild(el);
+    this.refreshUI();
+    setInterval(()=>this.refreshAll(),this.POLL_MS);
+  },
+  refreshUI(){
+    const el=$("#editlock-widget");if(!el)return;
+    const anyLocked=Object.keys(this.LABELS).some(k=>this.remote[k]&&this.remote[k].holder);
+    if(!this.panelOpen){
+      el.innerHTML=`<button class="btn sm dark" style="box-shadow:0 4px 12px rgba(0,0,0,.25)" onclick="EditLock.togglePanel()">🔒 編輯鎖定${anyLocked?` <span style="background:var(--signal);color:#fff;border-radius:10px;padding:0 6px;margin-left:4px">使用中</span>`:""}</button>`;
+      return;
+    }
+    const canLock=typeof Role!=="undefined"&&Role.isOwner();
+    const rows=Object.keys(this.LABELS).map(key=>{
+      const p=this.remote[key];
+      const label=this.LABELS[key];
+      let stateHtml;
+      if(this.isExpired(p)){
+        stateHtml=canLock
+          ?`<button class="btn sm" onclick="EditLock.acquire('${key}')">🔒 鎖定</button>`
+          :`<span class="hint" title="編輯鎖定僅限 Owner 使用">🔒 鎖定（僅 Owner 可用）</span>`;
+      }else if(p.holder===this.me()){
+        stateHtml=`<span class="hint" style="color:var(--ok)">🔒 你正鎖定中</span> <button class="btn sm" onclick="EditLock.release('${key}')">🔓 解鎖</button>`;
+      }else{
+        const mins=Math.max(1,Math.round((Date.now()-(p.since||Date.now()))/60000));
+        stateHtml=`<span class="hint" title="鎖定於 ${new Date(p.since).toLocaleString()}">🔒 ${esc(p.holder)}（${mins}分）</span>`+
+          ((typeof Role!=="undefined"&&Role.isOwner())?` <button class="btn sm" style="color:var(--bad)" onclick="EditLock.forceUnlock('${key}')" title="僅Owner可用，緊急狀況才用">強制解鎖</button>`:"");
+      }
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)"><span style="font-size:12.5px">${esc(label)}</span><span>${stateHtml}</span></div>`;
+    }).join("");
+    el.innerHTML=`<div class="card" style="width:300px;max-height:70vh;overflow:auto;box-shadow:0 8px 24px rgba(0,0,0,.3);margin:0">
+      <div style="display:flex;align-items:center;margin-bottom:6px"><b style="font-size:13.5px">🔒 編輯鎖定</b><span style="flex:1"></span><button class="btn sm" onclick="EditLock.togglePanel()">✕</button></div>
+      <p class="hint" style="margin:0 0 8px">開始大量編輯某個資料表前先按「鎖定」，避免跟其他人同時改動互相覆蓋；改完記得「解鎖」讓其他人能繼續。閒置超過15分鐘會自動失效。</p>
+      ${rows}
+    </div>`;
+  }
+};
 const Guard={
   /* 沿用舊函式名稱以相容既有呼叫點；新架構下，身份已於第二道關卡（GateIdentity）確認，
      此處僅再次確認該身份是否具備 Owner／管理員 等級，不再另外彈出帳密輸入框。 */
@@ -21748,7 +21939,176 @@ const CLOUD_DEFAULT={
   key:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY",
   auto:true
 };
+/* ════════════════════════════════════════════════════════════════
+   RecordSync：檢查紀錄／缺失紀錄總表／AIR 的「逐筆同步」引擎
+   ════════════════════════════════════════════════════════════════
+   背景：這三個資料表原本跟其他設定值一樣，整包陣列存成雲端一個 key（app_db 裡的一列），
+   每次存檔就是「整包覆蓋」。多人同時編輯時，後存的人會把先存的人的變更整個蓋掉——
+   這正是「刪除不了」「轉入後重整就不見」「匯入衝突」的根本原因。
+
+   改法：比照「線上填單審核佇列」「航次報表收件」的作法，每一筆紀錄各自存成雲端資料表的
+   一列（用紀錄本來就有的數字 id 當主鍵），寫入時只送「有變動的那幾筆」（upsert）跟
+   「被刪除的那幾筆」（delete），Postgres 對同一列的併發寫入本來就是安全的，
+   不會有「整包覆蓋」的問題；不同紀錄之間更是完全獨立，不會互相影響。
+
+   注意：App.insp / App.defs / App.air 這三個陣列本身完全不變，其他幾百個讀寫它們的地方
+   （新增、編輯、篩選、匯出…）都不用改，只有「怎麼跟雲端同步」這一層换掉。
+
+   首次啟用需要在 Supabase 執行一次 SQL（見下方 SETUP_SQL），啟用後：
+   - 若對應的新表已經有資料 → 以新表為準（表示已完成遷移，後續都走逐筆同步）
+   - 若新表還是空的 → 沿用目前本機／舊整包資料，並自動把它整批寫入新表（僅此一次的遷移動作）
+   ════════════════════════════════════════════════════════════════ */
+const RecordSync={
+  SETUP_SQL:`create table if not exists public.sync_insp (
+  id bigint primary key, updated bigint, payload jsonb
+);
+create table if not exists public.sync_defs (
+  id bigint primary key, updated bigint, payload jsonb
+);
+create table if not exists public.sync_air (
+  id bigint primary key, updated bigint, payload jsonb
+);
+create table if not exists public.sync_inspctrl (
+  id bigint primary key, updated bigint, payload jsonb
+);
+create table if not exists public.sync_annualplan (
+  id bigint primary key, updated bigint, payload jsonb
+);
+create table if not exists public.sync_auditdash (
+  id bigint primary key, updated bigint, payload jsonb
+);
+create table if not exists public.sync_sirepos (
+  id bigint primary key, updated bigint, payload jsonb
+);
+create table if not exists public.sync_defsprojects (
+  id bigint primary key, updated bigint, payload jsonb
+);
+create table if not exists public.sync_ships (
+  id text primary key, updated bigint, payload jsonb
+);
+alter table public.sync_insp enable row level security;
+alter table public.sync_defs enable row level security;
+alter table public.sync_air  enable row level security;
+alter table public.sync_inspctrl enable row level security;
+alter table public.sync_annualplan enable row level security;
+alter table public.sync_auditdash enable row level security;
+alter table public.sync_sirepos enable row level security;
+alter table public.sync_defsprojects enable row level security;
+alter table public.sync_ships enable row level security;
+create policy "sync_insp anon all" on public.sync_insp for all to anon using (true) with check (true);
+create policy "sync_defs anon all" on public.sync_defs for all to anon using (true) with check (true);
+create policy "sync_air anon all" on public.sync_air for all to anon using (true) with check (true);
+create policy "sync_inspctrl anon all" on public.sync_inspctrl for all to anon using (true) with check (true);
+create policy "sync_annualplan anon all" on public.sync_annualplan for all to anon using (true) with check (true);
+create policy "sync_auditdash anon all" on public.sync_auditdash for all to anon using (true) with check (true);
+create policy "sync_sirepos anon all" on public.sync_sirepos for all to anon using (true) with check (true);
+create policy "sync_defsprojects anon all" on public.sync_defsprojects for all to anon using (true) with check (true);
+create policy "sync_ships anon all" on public.sync_ships for all to anon using (true) with check (true);`,
+  TABLES:{
+    inspections:{table:"sync_insp",arr:()=>App.insp,setArr:(a)=>{App.insp=a;}},
+    deficiencies:{table:"sync_defs",arr:()=>App.defs,setArr:(a)=>{App.defs=a;}},
+    airReviews:{table:"sync_air",arr:()=>App.air,setArr:(a)=>{App.air=a;}},
+    inspctrl:{table:"sync_inspctrl",arr:()=>App.inspCtrl,setArr:(a)=>{App.inspCtrl=a;}},
+    annualPlan:{table:"sync_annualplan",arr:()=>App.annualPlan,setArr:(a)=>{App.annualPlan=a;}},
+    auditDash:{table:"sync_auditdash",arr:()=>App.auditDash,setArr:(a)=>{App.auditDash=a;}},
+    sirePositive:{table:"sync_sirepos",arr:()=>App.sirePos,setArr:(a)=>{App.sirePos=a;}},
+    defsProjects:{table:"sync_defsprojects",arr:()=>App.defsProjects,setArr:(a)=>{App.defsProjects=a;}},
+    ships:{table:"sync_ships",idField:"code",idIsText:true,
+      arr:()=>(typeof SHIPINFO!=="undefined"?SHIPINFO:[]),
+      setArr:(a)=>{ if(typeof SHIPINFO!=="undefined"){SHIPINFO.length=0;a.forEach(s=>SHIPINFO.push(s));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){} } }}
+  },
+  SNAP_PREFIX:"vsm_syncsnap_",
+  _pending:{},_busy:{},
+  loadSnap(key){ try{return JSON.parse(localStorage.getItem(this.SNAP_PREFIX+key)||"{}");}catch(e){return {};} },
+  saveSnap(key,map){ try{localStorage.setItem(this.SNAP_PREFIX+key,JSON.stringify(map));}catch(e){} },
+  /* 比對目前陣列跟「上次成功同步」的快照：找出新增/修改過的紀錄（upserts）跟已經不在陣列裡的舊 id（deletes）。*/
+  diff(key){
+    const cfg=this.TABLES[key];
+    const idField=cfg.idField||"id";
+    const arr=cfg.arr()||[];
+    const snap=this.loadSnap(key);
+    const curMap={};const upserts=[];
+    arr.forEach(r=>{
+      if(r==null||r[idField]==null||r[idField]==="")return; // 沒有 id 的異常資料不處理，避免寫壞雲端
+      const rid=String(r[idField]);
+      const s=JSON.stringify(r);
+      curMap[rid]=s;
+      if(snap[rid]!==s)upserts.push(r);
+    });
+    const deletes=Object.keys(snap).filter(rid=>!(rid in curMap));
+    return {curMap,upserts,deletes};
+  },
+  queuePush(key){
+    if(!this.TABLES[key])return false;
+    if(typeof Cloud==="undefined"||!Cloud.enabled()||!Cloud.cfg.auto)return true; // 單機/離線模式不用管，跟原本行為一致
+    clearTimeout(this._pending[key]);
+    this._pending[key]=setTimeout(()=>this.flush(key),1500);
+    return true;
+  },
+  flushNow(key){ if(this._pending[key])clearTimeout(this._pending[key]); return this.flush(key); },
+  hasPending(){ return Object.keys(this._pending).some(k=>this._pending[k]!=null); },
+  /* 文字型 id（例如船舶代碼）在 PostgREST 的 in.() 篩選語法裡要用雙引號包起來，
+     數字型 id 則不需要——這裡統一處理，呼叫端不用管兩種差異。 */
+  _quoteId(cfg,rid){ return cfg.idIsText?`"${String(rid).replace(/"/g,'""')}"`:rid; },
+  async flush(key){
+    if(!this.TABLES[key])return;
+    if(this._busy[key])return; // 避免同一個 key 重疊執行
+    this._busy[key]=true;
+    delete this._pending[key];
+    try{
+      if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+      const cfg=this.TABLES[key];
+      const idField=cfg.idField||"id";
+      const {curMap,upserts,deletes}=this.diff(key);
+      if(upserts.length){
+        const rows=upserts.map(r=>({id:r[idField],updated:Date.now(),payload:r}));
+        for(let i=0;i<rows.length;i+=200){
+          await Cloud.api(`${cfg.table}?on_conflict=id`,{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify(rows.slice(i,i+200))});
+        }
+      }
+      if(deletes.length){
+        const idList=deletes.map(rid=>this._quoteId(cfg,rid));
+        for(let i=0;i<idList.length;i+=200){
+          await Cloud.api(`${cfg.table}?id=in.(${idList.slice(i,i+200).join(",")})`,{method:"DELETE",headers:Cloud.hdr()});
+        }
+      }
+      this.saveSnap(key,curMap); // 成功才更新快照；失敗的話下次還是會被判定為「有差異」而重試
+    }catch(e){
+      console.warn("RecordSync flush 失敗",key,e);
+    }finally{
+      this._busy[key]=false;
+    }
+  },
+  /* 開機／手動「從雲端載入」時呼叫：新表有資料就採用新表；新表是空的就沿用現有資料並自動遷移一次。
+     回傳 {source:"new"|"empty"|"error", count} 給呼叫端決定要不要顯示相關訊息。*/
+  async pullOrMigrate(key){
+    const cfg=this.TABLES[key];if(!cfg)return {source:"error"};
+    const idField=cfg.idField||"id";
+    try{
+      let rows=[],from=0;const page=1000;
+      while(true){
+        const batch=await Cloud.api(`${cfg.table}?select=id,payload&order=id.asc&limit=${page}&offset=${from}`);
+        if(!Array.isArray(batch))throw new Error("非預期的回應格式");
+        rows=rows.concat(batch);
+        if(batch.length<page)break;
+        from+=page;
+      }
+      if(rows.length>0){
+        const arr=rows.map(r=>r.payload).filter(Boolean);
+        cfg.setArr(arr);
+        const snap={};arr.forEach(r=>{if(r&&r[idField]!=null&&r[idField]!=="")snap[String(r[idField])]=JSON.stringify(r);});
+        this.saveSnap(key,snap);
+        return {source:"new",count:arr.length};
+      }
+      return {source:"empty",count:0};
+    }catch(e){
+      console.warn("RecordSync pullOrMigrate 失敗（可能是還沒建立資料表，請參考 RecordSync.SETUP_SQL）",key,e);
+      return {source:"error",error:e};
+    }
+  }
+};
 const Cloud={
+
   KEY:"vsm_cloud_v1",cfg:{url:CLOUD_DEFAULT.url,key:CLOUD_DEFAULT.key,auto:CLOUD_DEFAULT.auto},_snap:{},_timer:null,_busy:false,
   async init(){
     try{const s=localStorage.getItem(this.KEY);if(s){const saved=JSON.parse(s);if(typeof saved.auto==="boolean")this.cfg.auto=saved.auto;}}catch(e){}
@@ -21934,6 +22294,7 @@ const Cloud={
     const t=$("#syncFailText");if(t)t.textContent="⚠ "+msg;
   },
   queueAutoPublish(key){
+    if(typeof RecordSync!=="undefined"&&RecordSync.TABLES[key]){RecordSync.queuePush(key);return;} // 已改逐筆同步的表，統一轉給 RecordSync 處理
     if(!this.enabled()||!this.cfg.auto)return; // 沿用既有「自動同步」開關
     this._autoKeys.add(key);
     clearTimeout(this._autoTimer);
@@ -21943,6 +22304,9 @@ const Cloud={
      排隊中的變更送上雲端，避免使用者操作完馬上重新整理，這筆變更還在防抖動視窗內、
      還沒真的送到雲端，就被下次載入雲端舊版蓋掉（這是「刪除不了」「轉入後重整就不見」的成因）。 */
   flushNow(){
+    if(typeof RecordSync!=="undefined"){
+      Object.keys(RecordSync.TABLES).forEach(k=>RecordSync.flushNow(k));
+    }
     if(!this.enabled()||!this.cfg.auto)return;
     clearTimeout(this._autoTimer);
     this._flushAutoPublish();
@@ -22059,19 +22423,68 @@ const Cloud={
       if(!rows||!rows.length){this.dbState("雲端尚無資料庫");if(!silent)toast("⚠ 雲端尚無已發布的資料庫，請維護者先「發布到雲端」");return;}
       const map={};rows.forEach(r=>map[r.k]=r);
       let info=[];
-      if(map.inspections){App.insp=map.inspections.payload||[];info.push("檢查 "+App.insp.length);}
-      if(map.deficiencies){App.defs=map.deficiencies.payload||[];info.push("缺失 "+App.defs.length);}
-      if(map.sirePositive){App.sirePos=map.sirePositive.payload||[];info.push("SIRE正向評論 "+App.sirePos.length);}
-      if(map.airReviews){App.air=map.airReviews.payload||[];info.push("AIR "+App.air.length);}
-      if(map.inspctrl){App.inspCtrl=map.inspctrl.payload||[];info.push("檢查管控 "+App.inspCtrl.length);}
-      if(map.ships&&typeof SHIPINFO!=="undefined"){SHIPINFO.length=0;(map.ships.payload||[]).forEach(s=>SHIPINFO.push(s));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}info.push("船舶 "+SHIPINFO.length);}
+      // ═ 檢查紀錄／缺失紀錄／AIR：改用逐筆同步（sync_insp/sync_defs/sync_air），
+      //   不再整包覆蓋。新表已有資料就直接採用；新表還是空的，先沿用舊的整包資料，
+      //   稍後在下面自動把它遷移過去（僅此一次）。═
+      const migResult={};
+      if(typeof RecordSync!=="undefined"){
+        for(const key of Object.keys(RecordSync.TABLES)){
+          migResult[key]=await RecordSync.pullOrMigrate(key);
+        }
+      }
+      if(migResult.inspections&&migResult.inspections.source==="new"){
+        info.push("檢查 "+App.insp.length);
+      }else if(map.inspections){
+        App.insp=map.inspections.payload||[];info.push("檢查 "+App.insp.length);
+      }
+      if(migResult.deficiencies&&migResult.deficiencies.source==="new"){
+        info.push("缺失 "+App.defs.length);
+      }else if(map.deficiencies){
+        App.defs=map.deficiencies.payload||[];info.push("缺失 "+App.defs.length);
+      }
+      if(migResult.sirePositive&&migResult.sirePositive.source==="new"){
+        info.push("SIRE正向評論 "+App.sirePos.length);
+      }else if(map.sirePositive){App.sirePos=map.sirePositive.payload||[];info.push("SIRE正向評論 "+App.sirePos.length);}
+      if(migResult.airReviews&&migResult.airReviews.source==="new"){
+        info.push("AIR "+App.air.length);
+      }else if(map.airReviews){
+        App.air=map.airReviews.payload||[];info.push("AIR "+App.air.length);
+      }
+      // 新表若是空的（尚未遷移過），把目前資料（不論來自舊整包或本機）整批寫入新表，
+      // 之後這台裝置、以及其他裝置下次載入時，就都會走逐筆同步了。
+      if(typeof RecordSync!=="undefined"){
+        for(const key of Object.keys(RecordSync.TABLES)){
+          const r=migResult[key];
+          if(r&&r.source==="empty"){
+            const cfg=RecordSync.TABLES[key];
+            if((cfg.arr()||[]).length>0){ try{await RecordSync.flush(key);}catch(e){console.warn("RecordSync 遷移失敗",key,e);} }
+          }
+        }
+      }
+      if(migResult.inspctrl&&migResult.inspctrl.source==="new"){
+        info.push("檢查管控 "+App.inspCtrl.length);
+      }else if(map.inspctrl){
+        App.inspCtrl=map.inspctrl.payload||[];info.push("檢查管控 "+App.inspCtrl.length);
+      }
+      if(migResult.ships&&migResult.ships.source==="new"){
+        info.push("船舶 "+(typeof SHIPINFO!=="undefined"?SHIPINFO.length:0));
+      }else if(map.ships&&typeof SHIPINFO!=="undefined"){SHIPINFO.length=0;(map.ships.payload||[]).forEach(s=>SHIPINFO.push(s));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}info.push("船舶 "+SHIPINFO.length);}
       if(map.roster&&typeof GateIdentity!=="undefined"&&Array.isArray(map.roster.payload)){GateIdentity.saveRosterFromCloud(map.roster.payload);info.push("人員名單 "+map.roster.payload.length);if(typeof RosterMgr!=="undefined")RosterMgr.refreshCount();}
       if(map.refDocs&&Array.isArray(map.refDocs.payload)){App.refDocs=map.refDocs.payload;try{LZSet(App.LSK.rd,JSON.stringify(App.refDocs));}catch(e){}info.push("參考連結 "+App.refDocs.length);if(typeof RefDocs!=="undefined")RefDocs.render();}
       if(map.refDocs2&&Array.isArray(map.refDocs2.payload)){App.refDocs2=map.refDocs2.payload;try{LZSet(App.LSK.rd2,JSON.stringify(App.refDocs2));}catch(e){}info.push("海技參考資料 "+App.refDocs2.length);if(typeof RefDocs2!=="undefined")RefDocs2.render();}
       if(map.drillRecords&&Array.isArray(map.drillRecords.payload)){App.drillRecords=map.drillRecords.payload;try{LZSet(App.LSK.dr,JSON.stringify(App.drillRecords));}catch(e){}info.push("操演紀錄 "+App.drillRecords.length);if(typeof DrillRecord!=="undefined"){DrillRecord.render();}if(typeof DrillPlan!=="undefined"){DrillPlan.render("isps");DrillPlan.render("cepfm");}}
-      if(map.annualPlan&&Array.isArray(map.annualPlan.payload)){App.annualPlan=map.annualPlan.payload;try{LZSet(App.LSK.ap,JSON.stringify(App.annualPlan));}catch(e){}info.push("年度計畫 "+App.annualPlan.length);if(typeof AnnualPlan!=="undefined")AnnualPlan.render();}
-      if(map.auditDash&&Array.isArray(map.auditDash.payload)){App.auditDash=map.auditDash.payload;try{LZSet(App.LSK.ad,JSON.stringify(App.auditDash));}catch(e){}info.push("內稽動態紀錄 "+App.auditDash.length);if(typeof AuditDash!=="undefined")AuditDash.render();}
-      if(map.defsProjects&&Array.isArray(map.defsProjects.payload)){App.defsProjects=map.defsProjects.payload;try{LZSet(App.LSK.dp,JSON.stringify(App.defsProjects));}catch(e){}info.push("缺失專案分析 "+App.defsProjects.length);if(typeof DefsProj!=="undefined")DefsProj.render();}
+      if(migResult.annualPlan&&migResult.annualPlan.source==="new"){
+        try{LZSet(App.LSK.ap,JSON.stringify(App.annualPlan));}catch(e){}
+        info.push("年度計畫 "+App.annualPlan.length);if(typeof AnnualPlan!=="undefined")AnnualPlan.render();
+      }else if(map.annualPlan&&Array.isArray(map.annualPlan.payload)){App.annualPlan=map.annualPlan.payload;try{LZSet(App.LSK.ap,JSON.stringify(App.annualPlan));}catch(e){}info.push("年度計畫 "+App.annualPlan.length);if(typeof AnnualPlan!=="undefined")AnnualPlan.render();}
+      if(migResult.auditDash&&migResult.auditDash.source==="new"){
+        try{LZSet(App.LSK.ad,JSON.stringify(App.auditDash));}catch(e){}
+        info.push("內稽動態紀錄 "+App.auditDash.length);if(typeof AuditDash!=="undefined")AuditDash.render();
+      }else if(map.auditDash&&Array.isArray(map.auditDash.payload)){App.auditDash=map.auditDash.payload;try{LZSet(App.LSK.ad,JSON.stringify(App.auditDash));}catch(e){}info.push("內稽動態紀錄 "+App.auditDash.length);if(typeof AuditDash!=="undefined")AuditDash.render();}
+      if(migResult.defsProjects&&migResult.defsProjects.source==="new"){
+        try{LZSet(App.LSK.dp,JSON.stringify(App.defsProjects));}catch(e){}
+        info.push("缺失專案分析 "+App.defsProjects.length);if(typeof DefsProj!=="undefined")DefsProj.render();
+      }else if(map.defsProjects&&Array.isArray(map.defsProjects.payload)){App.defsProjects=map.defsProjects.payload;try{LZSet(App.LSK.dp,JSON.stringify(App.defsProjects));}catch(e){}info.push("缺失專案分析 "+App.defsProjects.length);if(typeof DefsProj!=="undefined")DefsProj.render();}
       App.refreshMeta&&App.refreshMeta();
       // ═ 併發覆蓋保護：記錄本次載入時各 key 的雲端時間戳，並解除先前因衝突而暫停的自動上傳 ═
       rows.forEach(r=>this.markSeen(r.k,r.updated));
@@ -22086,11 +22499,12 @@ const Cloud={
       App._lastSaved={};
       // 重繪各頁
       ["Dash","Ov","Sp","Defs","Recur","Ref","SirePos","Air","InspCtrl"].forEach(n=>{try{if(typeof window[n]!=="undefined"){window[n].init&&window[n].init();window[n].render&&window[n].render();}}catch(e){}});
-      const when=map.inspections?new Date(map.inspections.updated).toLocaleString():"";
-      const by=map.inspections&&map.inspections.by?("／"+map.inspections.by):"";
+      const usedNewSync=migResult.inspections&&migResult.inspections.source==="new";
+      const when=usedNewSync?new Date().toLocaleString():(map.inspections?new Date(map.inspections.updated).toLocaleString():"");
+      const by=(!usedNewSync&&map.inspections&&map.inspections.by)?("／"+map.inspections.by):"";
       this.dbState("⬇ 已載入（"+when+by+"）");
       if(typeof Audit!=="undefined")Audit.log("載入","資料庫",`從雲端載入 ${info.join("／")} 筆`);
-      if(!silent)toast(`✓ 已從雲端載入（${info.join("／")} 筆）${by?"，發布者："+map.inspections.by:""}`);
+      if(!silent)toast(`✓ 已從雲端載入（${info.join("／")} 筆）${(!usedNewSync&&by)?"，發布者："+map.inspections.by:""}`);
       else if(notifyOnly)toast("🔔 已自動載入最新資料");
     }catch(e){this.dbState("⚠ 載入失敗");if(!silent)toast("⚠ 載入失敗："+e.message);}
   },
@@ -22325,6 +22739,7 @@ const DefsProj={
     $("#dfp-c-preview").textContent=`符合 ${rows.length} 筆`;
   },
   createProject(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("defsProjects"))return;
     const name=$("#dfp-c-name").value.trim();
     if(!name){toast("⚠ 請輸入專案名稱");return;}
     const rows=this.matchByCreateFilter();
@@ -22340,7 +22755,7 @@ const DefsProj={
     };
     App.defsProjects=App.defsProjects||[];
     App.defsProjects.push(p);
-    App.saveAll();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
     if(typeof Audit!=="undefined")Audit.log("新增","缺失專案分析",`${name}（${rows.length}筆）`);
     this.closeCreate();
     toast(`✓ 已建立專案「${name}」，共鎖定 ${rows.length} 筆紀錄`);
@@ -22350,11 +22765,12 @@ const DefsProj={
   openProject(id){this.curId=id;this.render();},
   backToList(){this.curId=null;this.render();},
   deleteProject(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("defsProjects"))return;
     const p=this.getProject(this.curId);if(!p)return;
     if(!confirm(`確定要刪除專案「${p.name}」？已建立的自查任務不會被刪除，但專案本身（含報告與Checklist）將無法復原。`))return;
     if(typeof RecycleBin!=="undefined")RecycleBin.add("defsProjects",p,p.name||"");
     App.defsProjects=App.defsProjects.filter(x=>x.id!==this.curId);
-    App.saveAll();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
     if(typeof Audit!=="undefined")Audit.log("刪除","缺失專案分析",p.name);
     this.curId=null;
     toast("已刪除");
@@ -22642,6 +23058,7 @@ const SelfCheck={
   async openExternalEditor(taskId){
     const t=App.tasks.find(x=>x.id===taskId);
     if(!t){toast("⚠ 找不到此任務");return;}
+    if(!this.canCheck(t)){toast(`⚠ 僅「${t.ship}」本船帳號或管理員可開啟編輯，其他角色請用「👀 查看」瀏覽進度`);return;}
     const base=this.getExternalBase();
     if(!base){toast("⚠ 未設定外部網頁網址");return;}
     if(typeof Cloud!=="undefined"&&Cloud.enabled()){
@@ -22843,9 +23260,11 @@ const SelfCheck={
         pct=n?Math.round(done/n*100):0;
       const supCanEdit=this.isSup();
       const supDis=supCanEdit?"":"disabled";
+      const canOpen=this.canCheck(t);
+      const openTitle=canOpen?"開啟編輯":`僅「${esc(t.ship)}」本船帳號或管理員可開啟編輯，請改用「查看」`;
       return `<div class="task-card">
-        <div class="tc-main" onclick="SelfCheck.openExternalEditor(${t.id})">
-          <div class="tc-name">${esc(t.ship)} <span>·</span> ${esc(t.date)} <span>·</span> ${esc(t.title||"自檢")}</div>
+        <div class="tc-main" style="${canOpen?"":"cursor:default"}" onclick="${canOpen?`SelfCheck.openExternalEditor(${t.id})`:`SelfCheck.viewExternalDraft(${t.id})`}">
+          <div class="tc-name">${esc(t.ship)} <span>·</span> ${esc(t.date)} <span>·</span> ${esc(t.title||"自檢")}${canOpen?"":` <span class="hint" style="color:#a06b2b">🔒 唯讀</span>`}</div>
           <div class="tc-meta">${t.inspector?`✍ ${esc(t.inspector)} · `:""}共 ${n} 項 · 已查核 ${done}（${pct}%）${sim?` · <b style="color:var(--bad)">⚠ 類似缺失 ${sim}</b>（結案 ${cls}）`:""} · 建立 ${esc(t.created||"")}${t.createdBy?`（${esc(t.createdBy)}）`:""}</div>
           <div class="progressbar"><div style="width:${pct}%"></div></div>
         </div>
@@ -22854,7 +23273,7 @@ const SelfCheck={
             <input type="checkbox" ${t.supConfirmed?"checked":""} ${supDis} onchange="SelfCheck.toggleSupConfirm(${t.id},this.checked)">
             🧭 督導確認${t.supConfirmed?`（${esc(t.supConfirmedBy||"")}）`:""}
           </label>
-          <button class="btn sm primary" onclick="event.stopPropagation();SelfCheck.openExternalEditor(${t.id})">📤 開啟</button>
+          <button class="btn sm primary" ${canOpen?"":"disabled title=\""+openTitle+"\""} onclick="event.stopPropagation();SelfCheck.openExternalEditor(${t.id})">📤 開啟</button>
           <button class="btn sm" onclick="event.stopPropagation();SelfCheck.viewExternalDraft(${t.id})">👀 查看</button>
           <button class="btn sm" onclick="event.stopPropagation();SelfCheck.openTaskDownload(${t.id})">下載</button>
           <button class="btn sm danger" onclick="event.stopPropagation();SelfCheck.delTask(${t.id})">刪除</button>
