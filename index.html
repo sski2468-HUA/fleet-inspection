@@ -11678,6 +11678,7 @@ const Defs={
       return b[1].items.length-a[1].items.length;
     });
     const stat=$("#dfperson-stat");if(stat)stat.textContent=`共 ${list.length} 位責任人（依目前篩選條件）`;
+    this._personGroups=list; // 供列印功能取用
     const box=$("#dfperson-list");if(!box)return;
     if(!list.length){box.innerHTML=`<p class="hint" style="text-align:center;padding:30px">目前篩選條件下沒有已填「姓名-責任人」的缺失紀錄。</p>`;return;}
     box.innerHTML=list.map(([name,g],idx)=>{
@@ -11685,12 +11686,15 @@ const Defs={
         .map(([it,n])=>`<span class="tag" style="margin:2px">${esc(it)} ×${n}</span>`).join("");
       const rankTxt=g.ranks.size?[...g.ranks].join("／"):"";
       return `<div class="card" style="margin-bottom:10px;padding:12px 14px">
-        <div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="Defs.togglePersonDetail(${idx})">
-          <div style="font-size:15px;font-weight:700;color:var(--navy)">${esc(name)}${rankTxt?`<span class="hint" style="font-weight:400;margin-left:6px">（${esc(rankTxt)}）</span>`:""}</div>
-          <span class="spacer" style="flex:1"></span>
-          <span class="hint">涉及船舶 ${g.ships.size} 艘</span>
-          <span style="background:var(--navy);color:#fff;border-radius:10px;padding:2px 10px;font-size:12.5px;font-weight:700">共 ${g.items.length} 次</span>
-          <span id="dfperson-caret-${idx}">▾</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1" onclick="Defs.togglePersonDetail(${idx})">
+            <div style="font-size:15px;font-weight:700;color:var(--navy)">${esc(name)}${rankTxt?`<span class="hint" style="font-weight:400;margin-left:6px">（${esc(rankTxt)}）</span>`:""}</div>
+            <span class="spacer" style="flex:1"></span>
+            <span class="hint">涉及船舶 ${g.ships.size} 艘</span>
+            <span style="background:var(--navy);color:#fff;border-radius:10px;padding:2px 10px;font-size:12.5px;font-weight:700">共 ${g.items.length} 次</span>
+            <span id="dfperson-caret-${idx}">▾</span>
+          </div>
+          <button class="btn sm" onclick="event.stopPropagation();Defs.printPersonPdf(${idx})" title="單獨列印這位責任人的完整紀錄">🖨 列印</button>
         </div>
         <div style="margin-top:8px">${itypeBadges}</div>
         <div id="dfperson-detail-${idx}" style="display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
@@ -11698,7 +11702,7 @@ const Defs={
             <thead><tr><th>船名</th><th>檢查日期</th><th>檢查來源</th><th>缺失內容</th></tr></thead>
             <tbody>${g.items.sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(d=>`<tr>
               <td>${esc(d.ship)}</td><td>${esc(d.date)}</td><td>${esc(d.itype)}</td>
-              <td style="text-align:left;white-space:pre-wrap;max-width:420px">${esc((d.detail||"").slice(0,140))}${(d.detail||"").length>140?"…":""}</td>
+              <td style="text-align:left;white-space:pre-wrap;max-width:420px">${esc(d.detail||"")}</td>
             </tr>`).join("")}</tbody>
           </table>
         </div>
@@ -11710,6 +11714,28 @@ const Defs={
     const open=el.style.display!=="none";
     el.style.display=open?"none":"";
     const caret=$("#dfperson-caret-"+idx);if(caret)caret.textContent=open?"▾":"▴";
+  },
+  printPersonPdf(idx){
+    const entry=this._personGroups&&this._personGroups[idx];if(!entry)return;
+    const [name,g]=entry;
+    const rankTxt=g.ranks.size?[...g.ranks].join("／"):"";
+    const items=g.items.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    const rows=items.map((d,i)=>`<tr>
+      <td style="text-align:center">${i+1}</td>
+      <td style="text-align:center">${esc(d.ship)}</td>
+      <td style="text-align:center">${esc(d.date)}</td>
+      <td style="text-align:center">${esc(d.itype)}</td>
+      <td style="text-align:left;white-space:pre-wrap">${esc(d.detail||"")}</td>
+    </tr>`).join("");
+    $("#printArea").innerHTML=`
+      <h1>責任人缺失紀錄 － ${esc(name)}${rankTxt?`（${esc(rankTxt)}）`:""}</h1>
+      <div class="pmeta">共 ${g.items.length} 筆　涉及船舶 ${g.ships.size} 艘　匯出：${todayStr()}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:12px">
+        <thead><tr><th>#</th><th>船名</th><th>檢查日期</th><th>檢查來源</th><th style="text-align:left">缺失內容</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    doPrint(true);
+    if(typeof Audit!=="undefined")Audit.log("匯出","缺失紀錄",`責任人紀錄 PDF：${name}（${g.items.length}筆）`);
   },
   /* ── 查看模式：顯示欄位設定（全公司統一，僅 Owner／管理員可調整）── */
   loadViewFields(){
@@ -13381,26 +13407,13 @@ const InspCtrl={
   autoLastDate(ship,itype,owner,ownerCat){
     const target=this.normItype(itype);
     const isFlagSub=this.FLAG_SUB_ITYPES.includes(target);
-    // Onboard visit 比較特別：船上常常好幾位督導輪流去訪，光比對「船名＋檢查項目」
-    // 只會抓到「這艘船最近一次有人去訪」，不代表是「這位被指派的督導本人」去訪的。
-    // 所以這裡額外比對「檢查紀錄」的檢查員欄位是否等於這筆管控紀錄的檢查安排人，
-    // 才算數；其餘檢查項目（PSC/SIRE/RightShip等）維持原本只比船名＋項目的邏輯不變。
-    // 身份類別＝甲板／機艙時，不是拿這一列存的舊姓名比對，而是「即時」去查「船舶資料」
-    // 目前指派的甲板／機艙督導是誰──這樣督導換人／換船時，追蹤對象會自動跟著換，
-    // 不用手動回來逐一修改每艘船的這一列。身份類別＝海技（或未設定，相容舊資料）時，
-    // 才維持用這一列存的 owner 姓名去比對。
-    let matchName="";
-    if(target==="ONBOARDVISIT"){
-      if(ownerCat==="deck"||ownerCat==="engine"){
-        const s=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(x=>x.code===ship);
-        matchName=s?String((ownerCat==="deck"?s.deckSup:s.engineSup)||"").trim():"";
-      }else if(owner){
-        matchName=String(owner).trim();
-      }
-    }
-    const matchInspector=target==="ONBOARDVISIT"&&!!matchName;
-    const ownerNorm=matchName;
-    let best=null;
+    // 2026-08 調整：公司程序書規定「每半年訪船一次」是看「這艘船」有沒有被訪過，
+    // 不分是甲板督導或機艙督導去的，兩者都算數；「同一位督導連續實施的間隔不應超過
+    // 14個月」是另一條獨立規定，已經用「督導間隔警示」單獨追蹤，不影響這裡的到期日判斷。
+    // 所以 onboard visit 不再要求檢查員姓名要跟「檢查安排人」對上，比對邏輯統一跟
+    // 其他檢查項目一樣，只比對船名＋檢查項目，取最新一筆；同時記錄該筆的檢查員是誰，
+    // 供「最近訪船員」欄位顯示參考（純資訊性質，不影響到期日判斷）。
+    let best=null,bestInspector="";
     [...App.insp,...App.defs].forEach(r=>{
       if(r.ship!==ship)return;
       if(isFlagSub){
@@ -13411,12 +13424,11 @@ const InspCtrl={
       }else{
         if(this.normItype(r.itype)!==target)return;
       }
-      if(matchInspector&&String(r.inspector||"").trim()!==ownerNorm)return;
       const d=this.normDate(r.date);
       if(!d)return;
-      if(!best||d>best)best=d;
+      if(!best||d>best){best=d;bestInspector=String(r.inspector||"").trim();}
     });
-    return best;
+    return {date:best,inspector:bestInspector};
   },
   CERT60_TYPES:["SMC","ISSC","MLC"],
   addMonths(dateStr,delta){
@@ -13443,10 +13455,13 @@ const InspCtrl={
     const t=this.thresh();
     const isAuto=this.AUTO_ITYPES.includes(this.normItype(d.itype));
     let lastDateCalc=this.normDate(d.lastDate);
-    let autoLast=null;
+    let autoLast=null,lastInspector="";
     if(isAuto){
-      autoLast=this.autoLastDate(d.ship,d.itype,d.owner,d.ownerCat);
-      if(autoLast&&(!lastDateCalc||autoLast>lastDateCalc))lastDateCalc=autoLast;
+      const r=this.autoLastDate(d.ship,d.itype,d.owner,d.ownerCat);
+      autoLast=r.date;
+      // 用 >= 而不是 >：手動填的「最近一次檢查日」如果剛好跟自動抓到的日期一樣，
+      // 「最近訪船員」的姓名之前會因為嚴格大於比較漏掉，改成 >= 就能正確帶出姓名。
+      if(autoLast&&(!lastDateCalc||autoLast>=lastDateCalc)){lastDateCalc=autoLast;lastInspector=r.inspector;}
     }
     let dueDateCalc=this.normDate(d.dueDate);
     const isEnhancedAudit=!!d.enhancedAudit&&this.normItype(d.itype)==="INTERNALAUDIT";
@@ -13523,7 +13538,7 @@ const InspCtrl={
       const es=this.normDate(d.enhancedSince);
       if(es){const diff=Math.round((new Date(todayStr())-new Date(es+"T00:00:00"))/86400000);enhancedLockDays=Math.max(0,365-diff);}
     }
-    return {...d,lastDateCalc,dueDateCalc,dueDateDefault,dueDateOverrideActive,autoLast,isAuto,status,daysLeft,
+    return {...d,lastDateCalc,dueDateCalc,dueDateDefault,dueDateOverrideActive,autoLast,lastInspector,isAuto,status,daysLeft,
       midStatus,midDaysLeft,
       isCert60,midStartCalc,midEndCalc,midWindowOpen,midDone,activeStage,isEnhancedAudit,enhancedLockDays,
       isLritFixed,canOverrideDue};
@@ -13699,8 +13714,10 @@ const InspCtrl={
           const list=$("#icDateModalRecentList");
           list.innerHTML=recents.map(r=>{
             const matched=curName&&r.inspector&&r.inspector===String(curName).trim();
+            const cat=r.inspector?this.ownerCatOf(r.inspector):null;
+            const catTxt=cat==="deck"?"甲板":cat==="engine"?"機艙":cat==="haiji"?"海技":"";
             return `<div style="display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;background:${matched?"#eaf5ee":"#fff8e6"};font-size:12px">
-              <span style="flex:1">${esc(r.date)}　${r.inspector?esc(r.inspector):"<span class=hint>（未填檢查員）</span>"}${matched?" ✓":""}</span>
+              <span style="flex:1">${esc(r.date)}　${r.inspector?esc(r.inspector)+(catTxt?`（${catTxt}）`:""):"<span class=hint>（未填檢查員）</span>"}${matched?" ✓":""}</span>
               <button class="btn sm" onclick="InspCtrl.useRecentDate('${esc(r.date)}')">採用</button>
             </div>`;
           }).join("");
@@ -14002,7 +14019,10 @@ const InspCtrl={
     const shipInput=`<span class="ic-fixed" title="船名為追蹤標的，如需修改請按左側 ✎ 編輯">${esc(r.ship)||"—"}</span>`;
     const itypeInput=`<span class="ic-fixed" title="檢查項目為追蹤標的，如需修改請按左側 ✎ 編輯">${esc(r.itype)||"—"}</span>`;
     const validInput=`<input type="text" class="ic-sched-inline" style="text-align:center" value="${esc(r.validityMonths)}" ${dis} onchange="InspCtrl.quickSetField(${r.id},'validityMonths',this.value)" title="${canEdit?"點選直接修改效期(月)":lockTitle}">`;
-    const lastInput=dateCell("lastDate",r.lastDateCalc,"-","點選設定／修改最近一次檢查日");
+    const lastInspCat=(this.normItype(r.itype)==="ONBOARDVISIT"&&r.lastInspector)?this.ownerCatOf(r.lastInspector):null;
+    const lastInspCatTxt=lastInspCat==="deck"?"甲板":lastInspCat==="engine"?"機艙":lastInspCat==="haiji"?"海技":"";
+    const lastInput=dateCell("lastDate",r.lastDateCalc,"-","點選設定／修改最近一次檢查日")+
+      (this.normItype(r.itype)==="ONBOARDVISIT"&&r.lastInspector?`<div class="hint" style="font-size:10.5px;margin-top:1px" title="身份是依「船舶資料」目前的名冊猜的，不代表當時去訪時他就是這個身份（可能後來輪調過）">👤 ${esc(r.lastInspector)}${lastInspCatTxt?`（${lastInspCatTxt}）`:""}</div>`:"");
     const dueInput=dateCell("dueDate",r.dueDateCalc,"無到期日");
     const schedInput=dateCell("schedDate",r.schedDate,"未排程","點選設定／修改預排檢查日");
     const ownerCat=this.ownerCatOf(r.owner);
@@ -14589,11 +14609,14 @@ const InspCtrl={
     set("#ic-e-sched",this.dateInputVal(d.schedDate));
     set("#ic-e-midactual",this.dateInputVal(d.midDate));
     let ownerVal=d.owner;
-    if(id==null&&!ownerVal){
+    const initItypeNorm=this.normItype(itypeSel.value==="__other"?otherInp.value:itypeSel.value);
+    // 新增 onboard visit 紀錄時，「檢查安排人」預設改成甲板督導優先（身份類別預設選甲板，
+    // 之後選了船會自動帶入該船的甲板督導姓名），不再預設成登入者本人；其餘檢查項目維持原邏輯。
+    if(id==null&&!ownerVal&&initItypeNorm!=="ONBOARDVISIT"){
       try{ownerVal=(typeof Role!=="undefined"&&Role.cur&&Role.cur.name)?Role.cur.name:(localStorage.getItem(Audit.NAMEKEY)||"");}catch(e){}
     }
     set("#ic-e-owner",ownerVal);set("#ic-e-note",d.note);
-    const cat=d.ownerCat||this.ownerCatOf(ownerVal);
+    const cat=d.ownerCat||(id==null&&!d.owner&&initItypeNorm==="ONBOARDVISIT"?"deck":this.ownerCatOf(ownerVal));
     const catSel=$("#ic-e-owner-cat");if(catSel)catSel.value=cat;
     this.switchOwnerCat("ic-e-owner",cat);
     this.refreshOwnerShipHint();
