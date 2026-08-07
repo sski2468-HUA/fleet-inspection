@@ -2774,7 +2774,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
     <!-- ════════ 2. 缺失紀錄總表 ════════ -->
     <section id="tab-defs" class="tabpage">
       <div class="toolbar">
-        <input type="text" class="kw" id="f-kw" placeholder="🔍 關鍵字（例：應急消防泵、emergency fire pump）多詞以空格分隔" oninput="Defs.page=1;Defs.render()">
+        <input type="text" class="kw" id="f-kw" placeholder="🔍 關鍵字（船名/檢查來源/地點/檢查員/責任人/缺失內容等全欄位）多詞以空格分隔" oninput="Defs.page=1;Defs.render()">
         <span class="lbl">區間年月</span>
         <select id="f-ymfrom" onchange="Defs.page=1;Defs.render()"></select>
         <span>～</span>
@@ -2806,6 +2806,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
         <button class="btn sm df-tabbtn active" data-p="view" onclick="Defs.setSubTab('view')">👁 查看模式</button>
         <button class="btn sm df-tabbtn" data-p="list" onclick="Defs.setSubTab('list')">📋 列表模式</button>
         <button class="btn sm df-tabbtn" data-p="proj" id="df-tab-proj-btn" onclick="Defs.setSubTab('proj')" style="display:none">📊 專案分析</button>
+        <button class="btn sm df-tabbtn" data-p="person" onclick="Defs.setSubTab('person')">🧑 責任人紀錄</button>
       </div>
 
       <!-- ── 查看模式：卡片式，不需左右滑動，方便督導/操作者快速閱讀缺失內容 ── -->
@@ -2936,6 +2937,28 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <p class="hint" style="margin-bottom:8px" id="dfp-checklist-tasks-hint"></p>
             <div id="dfp-checklist-list"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- ── 責任人紀錄：依「姓名-責任人」彙總，仿正面評價的清單樣式 ── -->
+      <div id="defs-page-person" class="df-subpage" style="display:none">
+        <div class="card">
+          <h3>🧑 責任人紀錄
+            <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+              <span class="hint" id="dfperson-stat"></span>
+            </span>
+          </h3>
+          <p class="hint" style="margin-bottom:10px">依「缺失紀錄總表」的「姓名-責任人」欄位彙總，套用上方篩選條件；同一人可能因不同檢查而多次出現，這裡把它們合併統計。點列可展開看明細。</p>
+          <div class="toolbar" style="margin-bottom:10px">
+            <input type="text" id="dfperson-kw" placeholder="🔍 搜尋姓名" style="padding:5px 8px" oninput="Defs.renderPersonPage()">
+            <span class="hint">排序：</span>
+            <select id="dfperson-sort" onchange="Defs.renderPersonPage()" style="padding:5px 8px">
+              <option value="count">被記錄次數（高到低）</option>
+              <option value="name">姓名</option>
+              <option value="ships">涉及船舶數（高到低）</option>
+            </select>
+          </div>
+          <div id="dfperson-list"></div>
         </div>
       </div>
     </section>
@@ -3240,6 +3263,23 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
       <div class="card">
         <div id="ap-cur-heading" style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--navy-3)"></div>
         <div id="ap-grid" style="overflow-x:auto"></div>
+      </div>
+      <div class="modal-bg" id="apExtraCellModal">
+        <div class="modal" style="max-width:520px">
+          <h3 id="apExtraCellTitle">標記完成</h3>
+          <p class="hint" style="margin-bottom:10px">這幾列不是實際船舶，「檢查紀錄」不會有對應資料可自動核對，改為在這裡手動標記。</p>
+          <label>完成日期<input type="date" id="ap-extra-date"></label>
+          <label style="margin-top:8px">備註<textarea id="ap-extra-note" rows="3" placeholder="例：拜訪對象、內容摘要…"></textarea></label>
+          <div class="modal-actions" style="margin-top:12px">
+            <button class="btn" onclick="AnnualPlan.closeExtraCellModal()">取消</button>
+            <button class="btn danger" id="ap-extra-del-btn" onclick="AnnualPlan.deleteExtraCellEntry()" style="display:none">刪除這筆</button>
+            <button class="btn primary" onclick="AnnualPlan.saveExtraCellModal()">儲存</button>
+          </div>
+          <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
+            <div style="font-weight:700;margin-bottom:6px">📖 歷年全部紀錄</div>
+            <div id="ap-extra-history" style="max-height:220px;overflow:auto;font-size:13px;line-height:1.9"></div>
+          </div>
+        </div>
       </div>
       <div class="card" style="margin-top:14px">
         <h3>📖 使用說明</h3>
@@ -4946,31 +4986,15 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
 </div>
 
 <div class="modal-bg" id="advFilterModal">
-  <div class="modal" style="max-width:520px">
+  <div class="modal" style="max-width:600px">
     <div class="mh"><h3>🔎 進階篩選</h3><button class="x" onclick="AdvFilterEngine.close()">✕</button></div>
     <div class="mb">
-      <p class="hint" style="margin-bottom:12px;line-height:1.7">選一個欄位，用「清單選擇」精準比對既有值，或用「關鍵字」做包含比對（例如找 CODE 為 5.8.1 的缺失）；可疊加多條件，彼此為「同時符合」。</p>
-      <div class="fgrid">
-        <label>欄位<select id="adv-field" onchange="AdvFilterEngine.onFieldChange()"></select></label>
-        <label>比對方式
-          <select id="adv-mode" onchange="AdvFilterEngine.onModeChange()">
-            <option value="list">清單選擇（精準比對）</option>
-            <option value="kw">關鍵字（包含比對）</option>
-          </select>
-        </label>
-      </div>
-      <div id="adv-value-list-wrap">
-        <label style="display:block;margin-top:8px">值<select id="adv-value-list" style="width:100%"></select></label>
-      </div>
-      <div id="adv-value-kw-wrap" style="display:none">
-        <label style="display:block;margin-top:8px">關鍵字<input type="text" id="adv-value-kw" placeholder="輸入要包含比對的文字，例如 5.8.1" style="width:100%" onkeydown="if(event.key==='Enter'){event.preventDefault();AdvFilterEngine.addFilter();}"></label>
-      </div>
-      <div class="toolbar" style="margin-top:10px">
-        <button class="btn primary" onclick="AdvFilterEngine.addFilter()">＋ 新增這條篩選</button>
-      </div>
+      <p class="hint" style="margin-bottom:10px;line-height:1.7">點欄位展開勾選要篩的值——同一欄位勾多個＝符合其中任一，不同欄位＝同時符合；勾了就立刻套用，不用另外按「加入」，取消勾選也是立刻生效，不用先刪掉整條再重篩。</p>
+      <input type="text" id="adv-field-search" placeholder="🔍 搜尋欄位名稱" style="width:100%;margin-bottom:8px" oninput="AdvFilterEngine.renderFieldList()">
+      <div id="adv-field-list" style="display:flex;flex-direction:column;gap:0;max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:6px"></div>
       <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
-        <p class="hint" style="margin-bottom:6px">目前已套用</p>
-        <div id="adv-active-list" style="display:flex;flex-direction:column;gap:6px"></div>
+        <p class="hint" style="margin-bottom:6px">目前套用中</p>
+        <div id="adv-active-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
       </div>
     </div>
     <div class="mf">
@@ -11126,98 +11150,139 @@ const FilterVisEngine={
 /* ════════ 通用：進階篩選（任何頁面都可用 AdvFilterEngine.register(key,{...}) 註冊，
    共用同一顆彈窗；可挑選該頁任一欄位，用清單精準比對或關鍵字包含比對，可疊加多條件）════════ */
 const AdvFilterEngine={
-  registry:{},curKey:null,
-  register(key,cfg){this.registry[key]={active:[],...cfg};},
+  registry:{},curKey:null,_openField:null,
+  register(key,cfg){this.registry[key]={sel:{},...cfg};},
   cfg(key){return this.registry[key||this.curKey];},
+  _jsStr(v){return String(v).replace(/\\/g,"\\\\").replace(/'/g,"\\'");},
   open(key){
     this.curKey=key;
     const c=this.cfg();if(!c)return;
-    const sel=$("#adv-field");
-    if(sel)sel.innerHTML=c.fieldsFn().map(f=>`<option value="${f.k}">${esc(f.t)}</option>`).join("");
-    this.onFieldChange();this.onModeChange();this.renderActive();
+    this._openField=null;
+    const search=$("#adv-field-search");if(search)search.value="";
+    this.renderFieldList();this.renderActive();
     $("#advFilterModal").classList.add("show");
   },
   close(){$("#advFilterModal").classList.remove("show");},
-  onFieldChange(){this.populateValueList();},
-  onModeChange(){
-    const mode=$("#adv-mode").value;
-    $("#adv-value-list-wrap").style.display=mode==="list"?"":"none";
-    $("#adv-value-kw-wrap").style.display=mode==="kw"?"":"none";
-  },
-  populateValueList(){
+  toggleFieldOpen(field){this._openField=this._openField===field?null:field;this.renderFieldList();},
+  /* 點欄位展開，勾選值就立刻套用（不用另外按「加入」）；同一欄位再勾別的值＝加進OR條件，
+     不會跟舊的值互相打架，也不用先手動刪掉舊條件才能重新篩選。 */
+  toggleValue(field,value){
     const c=this.cfg();if(!c)return;
-    const field=$("#adv-field").value;
-    const getter=c.getVal||((d,f)=>d[f]);
-    const vals=[...new Set(c.dataFn().map(d=>String(getter(d,field)??"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
-    const sel=$("#adv-value-list");
-    if(sel)sel.innerHTML=vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("")||`<option value="">（無資料）</option>`;
+    if(!c.sel[field]||c.sel[field].mode!=="list")c.sel[field]={mode:"list",values:new Set()};
+    const s=c.sel[field].values;
+    if(s.has(value))s.delete(value);else s.add(value);
+    if(!s.size)delete c.sel[field];
+    this.renderFieldList();this.renderActive();this.syncChips(this.curKey);
+    c.onChange&&c.onChange();
   },
-  addFilter(){
+  setFieldMode(field,mode){
     const c=this.cfg();if(!c)return;
-    const field=$("#adv-field").value;
-    const fieldObj=c.fieldsFn().find(f=>f.k===field);
-    const mode=$("#adv-mode").value;
-    let value;
-    if(mode==="kw"){
-      value=($("#adv-value-kw").value||"").trim();
-      if(!value){toast("⚠ 請輸入關鍵字");return;}
-      $("#adv-value-kw").value="";
-    }else{
-      value=$("#adv-value-list").value;
-      if(!value){toast("⚠ 請選擇值");return;}
-    }
-    c.active.push({field,label:fieldObj?fieldObj.t:field,mode,value});
+    if(mode==="kw")c.sel[field]={mode:"kw",text:(c.sel[field]&&c.sel[field].text)||""};
+    else delete c.sel[field];
+    this.renderFieldList();this.renderActive();this.syncChips(this.curKey);
+    c.onChange&&c.onChange();
+  },
+  setKw(field,text){
+    const c=this.cfg();if(!c)return;
+    if(!text.trim())delete c.sel[field];
+    else c.sel[field]={mode:"kw",text:text.trim()};
     this.renderActive();this.syncChips(this.curKey);
     c.onChange&&c.onChange();
-    toast(`✓ 已加入篩選：${fieldObj?fieldObj.t:field} ${mode==="kw"?"包含":"＝"}「${value}」`);
   },
-  removeFilter(i){
-    const key=this.curKey;const c=this.cfg();if(!c)return;
-    c.active.splice(i,1);
-    this.renderActive();this.syncChips(key);
+  clearField(field){
+    const c=this.cfg();if(!c)return;
+    delete c.sel[field];
+    this.renderFieldList();this.renderActive();this.syncChips(this.curKey);
     c.onChange&&c.onChange();
   },
-  removeFilterFor(key,i){
+  removeFilterFor(key,field){
     const c=this.registry[key];if(!c)return;
-    c.active.splice(i,1);
+    delete c.sel[field];
     this.syncChips(key);
-    if(this.curKey===key)this.renderActive();
+    if(this.curKey===key){this.renderFieldList();this.renderActive();}
     c.onChange&&c.onChange();
   },
   clearAll(key,silent){
     const c=this.registry[key];if(!c)return;
-    c.active=[];
-    if(this.curKey===key)this.renderActive();
+    c.sel={};
+    if(this.curKey===key){this.renderFieldList();this.renderActive();}
     this.syncChips(key);
     if(!silent)c.onChange&&c.onChange();
   },
+  renderFieldList(){
+    const c=this.cfg();if(!c)return;
+    const box=$("#adv-field-list");if(!box)return;
+    const kw=($("#adv-field-search")?$("#adv-field-search").value.trim().toLowerCase():"");
+    const fields=c.fieldsFn().filter(f=>!kw||f.t.toLowerCase().includes(kw));
+    const getter=c.getVal||((d,f)=>d[f]);
+    box.innerHTML=fields.map(f=>{
+      const active=c.sel[f.k];
+      const isOpen=this._openField===f.k;
+      const countBadge=active?(active.mode==="kw"?`包含「${esc(active.text)}」`:`${active.values.size} 項`):"";
+      let inner="";
+      if(isOpen){
+        if(active&&active.mode==="kw"){
+          inner=`<div style="padding:8px 10px 10px 26px">
+            <input type="text" value="${esc(active.text||"")}" placeholder="輸入要包含比對的文字，例如 5.8.1" style="width:100%" oninput="AdvFilterEngine.setKw('${f.k}',this.value)">
+            <button class="btn sm" style="margin-top:6px" onclick="AdvFilterEngine.setFieldMode('${f.k}','list')">改用清單勾選</button>
+          </div>`;
+        }else{
+          const vals=[...new Set(c.dataFn().map(d=>String(getter(d,f.k)??"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+          const sel=active?active.values:new Set();
+          inner=`<div style="padding:8px 10px 10px 26px;max-height:220px;overflow:auto">
+            ${vals.map(v=>`<label style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:12.5px;cursor:pointer"><input type="checkbox" ${sel.has(v)?"checked":""} onchange="AdvFilterEngine.toggleValue('${f.k}','${this._jsStr(v)}')">${esc(v)}</label>`).join("")||'<span class="hint">（無資料）</span>'}
+            <button class="btn sm" style="margin-top:6px" onclick="AdvFilterEngine.setFieldMode('${f.k}','kw')">改用關鍵字搜尋</button>
+          </div>`;
+        }
+      }
+      return `<div style="border-bottom:1px solid var(--line)">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 8px;cursor:pointer;${active?"background:#fff4e5":""}" onclick="AdvFilterEngine.toggleFieldOpen('${f.k}')">
+          <span>${isOpen?"▾":"▸"}</span><b style="font-size:13px">${esc(f.t)}</b>
+          ${countBadge?`<span class="hint" style="margin-left:auto">${countBadge}</span>`:""}
+          ${active?`<button class="btn sm" style="padding:1px 6px" onclick="event.stopPropagation();AdvFilterEngine.clearField('${f.k}')">✕</button>`:""}
+        </div>
+        ${inner}
+      </div>`;
+    }).join("")||`<div class="hint" style="padding:10px">找不到符合的欄位</div>`;
+  },
   renderActive(){
     const c=this.cfg();const box=$("#adv-active-list");if(!box||!c)return;
-    box.innerHTML=c.active.map((f,i)=>`<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;background:#f2f5f7;border:1px solid var(--line);border-radius:5px;padding:5px 8px">
-      <b>${esc(f.label)}</b> ${f.mode==="kw"?"包含":"＝"}「${esc(f.value)}」
-      <span style="flex:1"></span>
-      <button class="btn sm" onclick="AdvFilterEngine.removeFilter(${i})">✕ 移除</button>
-    </div>`).join("")||`<span class="hint">尚未新增任何進階篩選</span>`;
+    const entries=Object.entries(c.sel||{});
+    box.innerHTML=entries.length?entries.map(([field,s])=>{
+      const f=c.fieldsFn().find(x=>x.k===field);
+      const label=f?f.t:field;
+      const valTxt=s.mode==="kw"?`包含「${esc(s.text)}」`:[...s.values].map(esc).join("、");
+      return `<span style="display:inline-flex;align-items:center;gap:4px;background:#f2f5f7;border:1px solid var(--line);border-radius:4px;padding:3px 8px;font-size:12px">
+        <b>${esc(label)}</b>：${valTxt}
+        <button class="btn sm" style="padding:0 4px" onclick="AdvFilterEngine.clearField('${field}')">✕</button>
+      </span>`;
+    }).join(""):`<span class="hint">尚未套用任何進階篩選</span>`;
   },
   syncChips(key){
     const c=this.registry[key];if(!c)return;
     const wrap=document.getElementById(c.chipsElId),cnt=document.getElementById(c.countElId);
-    if(cnt)cnt.textContent=c.active.length?`（${c.active.length}）`:"";
+    const entries=Object.entries(c.sel||{});
+    if(cnt)cnt.textContent=entries.length?`（${entries.length}）`:"";
     if(!wrap)return;
-    if(!c.active.length){wrap.style.display="none";wrap.innerHTML="";return;}
+    if(!entries.length){wrap.style.display="none";wrap.innerHTML="";return;}
     wrap.style.display="";
-    wrap.innerHTML=c.active.map((f,i)=>`<span style="display:inline-flex;align-items:center;gap:4px;background:#fff4e5;border:1px solid var(--orange);border-radius:4px;padding:3px 8px;font-size:12px">
-      🔎 ${esc(f.label)} ${f.mode==="kw"?"包含":"＝"}「${esc(f.value)}」
-      <button class="btn sm" style="padding:0 4px" onclick="AdvFilterEngine.removeFilterFor('${key}',${i})">✕</button>
-    </span>`).join("");
+    wrap.innerHTML=entries.map(([field,s])=>{
+      const f=c.fieldsFn().find(x=>x.k===field);
+      const label=f?f.t:field;
+      const valTxt=s.mode==="kw"?`包含「${esc(s.text)}」`:[...s.values].map(esc).join("、");
+      return `<span style="display:inline-flex;align-items:center;gap:4px;background:#fff4e5;border:1px solid var(--orange);border-radius:4px;padding:3px 8px;font-size:12px">
+        🔎 <b>${esc(label)}</b>：${valTxt}
+        <button class="btn sm" style="padding:0 4px" onclick="AdvFilterEngine.removeFilterFor('${key}','${field}')">✕</button>
+      </span>`;
+    }).join("");
   },
   pass(key,d){
-    const c=this.registry[key];if(!c||!c.active.length)return true;
+    const c=this.registry[key];if(!c||!c.sel||!Object.keys(c.sel).length)return true;
     const getter=c.getVal||((d,f)=>d[f]);
-    return c.active.every(f=>{
-      const raw=String(getter(d,f.field)??"");
-      if(f.mode==="kw")return raw.toLowerCase().includes(f.value.toLowerCase());
-      return raw===f.value;
+    return Object.entries(c.sel).every(([field,s])=>{
+      const raw=String(getter(d,field)??"");
+      if(s.mode==="kw")return raw.toLowerCase().includes(s.text.toLowerCase());
+      return s.values.has(raw);
     });
   }
 };
@@ -11240,8 +11305,6 @@ AdvFilterEngine.register("defs",{
 const DefsFilterVis={apply(){FilterVisEngine.apply("defs");},loadCloud(){return FilterVisEngine.loadCloud("defs");},renderSettingsUI(){FilterVisEngine.renderSettingsUI();}};
 const DefsAdvFilter={
   open(){AdvFilterEngine.open("defs");},close(){AdvFilterEngine.close();},
-  onFieldChange(){AdvFilterEngine.onFieldChange();},onModeChange(){AdvFilterEngine.onModeChange();},
-  addFilter(){AdvFilterEngine.addFilter();},removeFilter(i){AdvFilterEngine.removeFilter(i);},
   pass(d){return AdvFilterEngine.pass("defs",d);},clearAll(silent){AdvFilterEngine.clearAll("defs",silent);}
 };
 
@@ -11579,14 +11642,74 @@ const Defs={
     if(tab==="proj"&&typeof DefsProj!=="undefined"&&!DefsProj.canUse()){toast("⚠ 僅 Owner／指定人員可使用專案分析");return;}
     this.subTab=tab;
     $$(".df-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.p===tab));
-    const vp=$("#defs-page-view"),lp=$("#defs-page-list"),pp=$("#defs-page-proj");
+    const vp=$("#defs-page-view"),lp=$("#defs-page-list"),pp=$("#defs-page-proj"),pep=$("#defs-page-person");
     if(vp)vp.style.display=tab==="view"?"":"none";
     if(lp)lp.style.display=tab==="list"?"":"none";
     if(pp)pp.style.display=tab==="proj"?"":"none";
+    if(pep)pep.style.display=tab==="person"?"":"none";
     const btn=$("#dfv-field-btn");if(btn)btn.style.display=(typeof Role!=="undefined"&&Role.isAdmin())?"":"none";
     this.page=1;
     if(tab==="proj"){if(typeof DefsProj!=="undefined")DefsProj.render();return;}
+    if(tab==="person"){this.renderPersonPage();return;}
     if(!skipRender)this.render();
+  },
+  /* 責任人紀錄：套用跟其他分頁一樣的上方篩選條件(filtered())，依「姓名-責任人」彙總，
+     一人可能因為分屬不同缺失/檢查來源出現很多筆，這裡合併成一張人頭統計。 */
+  renderPersonPage(){
+    const rows=this.filtered();
+    const groups=new Map(); // person -> {items:[], itypeCount:{}, ships:Set, ranks:Set}
+    rows.forEach(d=>{
+      const person=String(d.person||"").trim();
+      if(!person)return;
+      if(!groups.has(person))groups.set(person,{items:[],itypeCount:{},ships:new Set(),ranks:new Set()});
+      const g=groups.get(person);
+      g.items.push(d);
+      const it=d.itype||"（未分類）";
+      g.itypeCount[it]=(g.itypeCount[it]||0)+1;
+      if(d.ship)g.ships.add(d.ship);
+      if(d.rank)g.ranks.add(d.rank);
+    });
+    const kw=($("#dfperson-kw")?$("#dfperson-kw").value.trim().toLowerCase():"");
+    let list=[...groups.entries()].filter(([name])=>!kw||name.toLowerCase().includes(kw));
+    const sortKey=$("#dfperson-sort")?$("#dfperson-sort").value:"count";
+    list.sort((a,b)=>{
+      if(sortKey==="name")return a[0].localeCompare(b[0],"zh-Hant");
+      if(sortKey==="ships")return b[1].ships.size-a[1].ships.size;
+      return b[1].items.length-a[1].items.length;
+    });
+    const stat=$("#dfperson-stat");if(stat)stat.textContent=`共 ${list.length} 位責任人（依目前篩選條件）`;
+    const box=$("#dfperson-list");if(!box)return;
+    if(!list.length){box.innerHTML=`<p class="hint" style="text-align:center;padding:30px">目前篩選條件下沒有已填「姓名-責任人」的缺失紀錄。</p>`;return;}
+    box.innerHTML=list.map(([name,g],idx)=>{
+      const itypeBadges=Object.entries(g.itypeCount).sort((a,b)=>b[1]-a[1])
+        .map(([it,n])=>`<span class="tag" style="margin:2px">${esc(it)} ×${n}</span>`).join("");
+      const rankTxt=g.ranks.size?[...g.ranks].join("／"):"";
+      return `<div class="card" style="margin-bottom:10px;padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="Defs.togglePersonDetail(${idx})">
+          <div style="font-size:15px;font-weight:700;color:var(--navy)">${esc(name)}${rankTxt?`<span class="hint" style="font-weight:400;margin-left:6px">（${esc(rankTxt)}）</span>`:""}</div>
+          <span class="spacer" style="flex:1"></span>
+          <span class="hint">涉及船舶 ${g.ships.size} 艘</span>
+          <span style="background:var(--navy);color:#fff;border-radius:10px;padding:2px 10px;font-size:12.5px;font-weight:700">共 ${g.items.length} 次</span>
+          <span id="dfperson-caret-${idx}">▾</span>
+        </div>
+        <div style="margin-top:8px">${itypeBadges}</div>
+        <div id="dfperson-detail-${idx}" style="display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
+          <table class="tbl" style="width:100%;font-size:12.5px">
+            <thead><tr><th>船名</th><th>檢查日期</th><th>檢查來源</th><th>缺失內容</th></tr></thead>
+            <tbody>${g.items.sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(d=>`<tr>
+              <td>${esc(d.ship)}</td><td>${esc(d.date)}</td><td>${esc(d.itype)}</td>
+              <td style="text-align:left;white-space:pre-wrap;max-width:420px">${esc((d.detail||"").slice(0,140))}${(d.detail||"").length>140?"…":""}</td>
+            </tr>`).join("")}</tbody>
+          </table>
+        </div>
+      </div>`;
+    }).join("");
+  },
+  togglePersonDetail(idx){
+    const el=$("#dfperson-detail-"+idx);if(!el)return;
+    const open=el.style.display!=="none";
+    el.style.display=open?"none":"";
+    const caret=$("#dfperson-caret-"+idx);if(caret)caret.textContent=open?"▾":"▴";
   },
   /* ── 查看模式：顯示欄位設定（全公司統一，僅 Owner／管理員可調整）── */
   loadViewFields(){
@@ -11666,7 +11789,9 @@ const Defs={
       if(!this.ms.person.pass(d.person||""))return false;
       if($("#f-attn").checked&&!d.attn)return false;
       if(terms.length){
-        const hay=`${d.ship} ${d.itype} ${icatOf(d.itype)} ${d.date} ${d.place} ${d.inspector} ${d.oilco} ${d.code} ${d.ncProb||""} ${d.ncMain||""} ${d.ncLeaf||""} ${d.detail} ${d.actual} ${d.preventive} ${d.ncOpinion||""}`.toLowerCase();
+        // 補上原本漏掉沒被搜到的欄位：姓名-責任人(person)是最常被找的，其餘幾個也一併補齊，
+        // 這樣關鍵字搜尋才算真的涵蓋所有看得到的欄位，不是只搜一部分。
+        const hay=`${d.ship} ${d.itype} ${icatOf(d.itype)} ${d.date} ${d.place} ${d.inspector} ${d.oilco} ${d.code} ${d.psc||""} ${d.rank||""} ${d.person||""} ${d.ncProb||""} ${d.ncMain||""} ${d.ncLeaf||""} ${d.ncFactor||""} ${d.ncMethod||""} ${d.detail} ${d.actual} ${d.preventive} ${d.ncOpinion||""}`.toLowerCase();
         if(!terms.every(t=>hay.includes(t)))return false;
       }
       if(typeof DefsAdvFilter!=="undefined"&&!DefsAdvFilter.pass(d))return false;
@@ -11743,6 +11868,7 @@ const Defs={
     const pg=rows.slice((this.page-1)*this.PER,this.page*this.PER);
     this._pageRows=pg;   // 供 toggleAll 使用：表頭核取方塊應只作用於「目前這一頁」
     if(this.subTab==="view")this.renderViewMode(pg,total,pages);
+    else if(this.subTab==="person"){this.renderPersonPage();return;}
     else this.renderListMode(pg,total,pages);
     this.refreshStat();
   },
@@ -15080,42 +15206,7 @@ const AnnualPlan={
     if(this.isExtraRowKey(pt,ship)){
       // 公司/勞務公司/高層訪船 這幾個不是實際船舶,「檢查紀錄」不會有對應資料可自動核對,
       // 所以完成狀態改為直接在計畫表裡手動標記,而不是等系統自動比對。
-      if(ex){
-        if(ex.actualDate){
-          if(confirm(`此格已標記完成（${ex.actualDate}）。要取消完成狀態嗎？`)){
-            ex.actualDate="";ex.actualInspId=null;
-            App.saveAll();
-            if(typeof Cloud!=="undefined")Cloud.flushNow();
-            if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月 取消完成標記`);
-            this.render();
-          }
-          return;
-        }
-        const v=prompt("此格已排程。請輸入完成日期（YYYY-MM-DD）標記為已完成；留空按確定＝取消整筆排程：",todayStr());
-        if(v===null)return; // 按取消,不做任何變動
-        if(v.trim()===""){
-          App.annualPlan=App.annualPlan.filter(e=>e!==ex);
-          App.saveAll();
-          if(typeof Cloud!=="undefined")Cloud.flushNow();
-          if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月 取消排程`);
-          this.render();
-          return;
-        }
-        const d=InspCtrl.normDate(v.trim());
-        if(!d){toast("⚠ 日期格式錯誤，請用 YYYY-MM-DD");return;}
-        ex.actualDate=d;
-        App.saveAll();
-        if(typeof Cloud!=="undefined")Cloud.flushNow();
-        if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月 標記完成 ${d}`);
-        this.render();
-        return;
-      }
-      if(!confirm(`確定要新增「${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月」排程？`))return;
-      App.annualPlan.push({id:this.nextId(),year,ship,planType:pt,month,actualDate:"",actualInspId:null,source:"manual",note:""});
-      App.saveAll();
-      if(typeof Cloud!=="undefined")Cloud.flushNow();
-      if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月 新增排程`);
-      this.render();
+      this.openExtraCellModal(ship,month);
       return;
     }
     if(ex){
@@ -15129,6 +15220,58 @@ const AnnualPlan={
     App.saveAll();
     if(typeof Cloud!=="undefined")Cloud.flushNow();
     if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月 ${ex?"取消":"新增"}排程`);
+    this.render();
+  },
+  /* 公司/勞務公司/高層訪船 這幾個「假船舶」列專用的彈窗：填完成日期＋備註，
+     並且不分年度、把這一列（同一個 ship key＋planType）歷年所有紀錄都列出來，
+     不用切換年度下拉選單才看得到過去的。 */
+  openExtraCellModal(ship,month){
+    this._extraShip=ship;this._extraMonth=month;
+    const year=this.curYear,pt=this.curType;
+    const label=(this.PLAN_TYPES[pt].extraRows||[]).find(e=>e.key===ship);
+    const ex=this.cellEntry(year,pt,ship,month);
+    this._extraEditId=ex?ex.id:null;
+    $("#apExtraCellTitle").textContent=`${label?label.label:ship} － ${year}年${month}月`;
+    $("#ap-extra-date").value=ex?(ex.actualDate||""):"";
+    $("#ap-extra-note").value=ex?(ex.note||""):"";
+    $("#ap-extra-del-btn").style.display=ex?"":"none";
+    const hist=(App.annualPlan||[]).filter(e=>e.ship===ship&&e.planType===pt).sort((a,b)=>(b.year-a.year)||(b.month-a.month));
+    const histBox=$("#ap-extra-history");
+    histBox.innerHTML=hist.length?hist.map(e=>`<div style="padding:5px 0;border-bottom:1px solid var(--line)">
+        <b>${e.year}年${e.month}月</b>　${e.actualDate?`✅ ${esc(e.actualDate)}`:'<span class="hint">未填完成日</span>'}
+        ${e.note?`<br><span class="hint">${esc(e.note)}</span>`:""}
+      </div>`).join(""):`<div class="hint">尚無歷史紀錄</div>`;
+    $("#apExtraCellModal").classList.add("show");
+  },
+  closeExtraCellModal(){$("#apExtraCellModal").classList.remove("show");},
+  saveExtraCellModal(){
+    if(!this.requireEdit())return;
+    const year=this.curYear,pt=this.curType,ship=this._extraShip,month=this._extraMonth;
+    const date=$("#ap-extra-date").value.trim();
+    const note=$("#ap-extra-note").value.trim();
+    let ex=this._extraEditId?App.annualPlan.find(e=>e.id===this._extraEditId):null;
+    if(!ex){
+      ex={id:this.nextId(),year,ship,planType:pt,month,actualDate:"",actualInspId:null,source:"manual",note:""};
+      App.annualPlan.push(ex);
+    }
+    ex.actualDate=date;ex.note=note;
+    App.saveAll();
+    if(typeof Cloud!=="undefined")Cloud.flushNow();
+    if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 ${ship} ${month}月 手動標記${date?"（完成 "+date+"）":"（僅備註）"}`);
+    toast("✓ 已儲存");
+    this.closeExtraCellModal();
+    this.render();
+  },
+  deleteExtraCellEntry(){
+    if(!this.requireEdit())return;
+    if(!this._extraEditId)return;
+    if(!confirm("確定刪除這筆紀錄？"))return;
+    App.annualPlan=App.annualPlan.filter(e=>e.id!==this._extraEditId);
+    App.saveAll();
+    if(typeof Cloud!=="undefined")Cloud.flushNow();
+    if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`刪除 ${this._extraShip} ${this.curYear}年 ${this._extraMonth}月 手動紀錄`);
+    toast("✓ 已刪除");
+    this.closeExtraCellModal();
     this.render();
   },
   viewCell(entry){
