@@ -3023,7 +3023,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
           </div>
           <div id="dfedit-batchpanel" style="display:none;margin-bottom:14px"></div>
           <div id="dfedit-list" style="display:flex;flex-direction:column;gap:0"></div>
-          <div class="pager" id="dfedit-pager" style="margin-top:12px;display:flex;gap:8px;align-items:center;justify-content:center"></div>
+          <div class="pager" id="dfedit-pager" style="margin-top:12px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap"></div>
         </div>
       </div>
     </section>
@@ -12466,10 +12466,21 @@ const Defs={
     if(selAll)selAll.checked=pg.length>0&&pg.every(d=>this.editSel.has(d.id));
     const pager=$("#dfedit-pager");
     if(pager){
+      const showSkip=pages>10;
+      const jumpExpr=n=>`{var n=${n};if(!isNaN(n)){n=Math.max(1,Math.min(${pages},n));Defs.editPage=n;Defs.renderEditMode();}}`;
       pager.innerHTML=`
-        <button class="btn sm" ${this.editPage<=1?"disabled":""} onclick="Defs.editPage--;Defs.renderEditMode()">‹ 上一頁</button>
-        <span class="hint">第 ${this.editPage} / ${pages} 頁</span>
-        <button class="btn sm" ${this.editPage>=pages?"disabled":""} onclick="Defs.editPage++;Defs.renderEditMode()">下一頁 ›</button>`;
+        <button class="btn sm" ${this.editPage<=1?"disabled":""} onclick="Defs.editPage=1;Defs.renderEditMode()" title="第一頁">« 首頁</button>
+        ${showSkip?`<button class="btn sm" ${this.editPage<=1?"disabled":""} onclick="Defs.editPage=Math.max(1,Defs.editPage-10);Defs.renderEditMode()" title="往前跳10頁">‹‹ 10頁</button>`:""}
+        <button class="btn sm" ${this.editPage<=1?"disabled":""} onclick="Defs.editPage--;Defs.renderEditMode()">‹ 上頁</button>
+        <span class="hint">第 ${this.editPage} / ${pages} 頁 · 共 ${total} 筆</span>
+        <button class="btn sm" ${this.editPage>=pages?"disabled":""} onclick="Defs.editPage++;Defs.renderEditMode()">下頁 ›</button>
+        ${showSkip?`<button class="btn sm" ${this.editPage>=pages?"disabled":""} onclick="Defs.editPage=Math.min(${pages},Defs.editPage+10);Defs.renderEditMode()" title="往後跳10頁">10頁 ››</button>`:""}
+        <button class="btn sm" ${this.editPage>=pages?"disabled":""} onclick="Defs.editPage=${pages};Defs.renderEditMode()" title="最後一頁">末頁 »</button>
+        <span style="display:inline-flex;align-items:center;gap:4px;margin-left:6px;font-size:12.5px;color:var(--ink-2)">跳至第
+          <input type="number" id="pgjump-dfedit" min="1" max="${pages}" value="${this.editPage}" style="width:56px;padding:3px 4px;text-align:center"
+            onkeydown="if(event.key==='Enter')${jumpExpr(`parseInt(this.value,10)`)}">
+          頁　<button class="btn sm" onclick="${jumpExpr(`parseInt(document.getElementById('pgjump-dfedit').value,10)`)}">GO</button>
+        </span>`;
     }
   },
   printPersonPdf(idx){
