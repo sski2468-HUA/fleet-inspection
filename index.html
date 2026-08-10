@@ -583,7 +583,13 @@ body.locked #sidebar,body.locked #main{display:none}
 .gate-card button.go{width:100%;padding:10px;background:#1e7f8c;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer}
 .gate-card button.go:hover{background:#176470}
 .gate-err{color:#c0392b;font-size:12px;margin:-6px 0 10px;min-height:14px}
-#sidebar{width:212px;min-width:212px;background:var(--navy);color:#cfe0ea;display:flex;flex-direction:column;height:100vh;height:100dvh}
+#sidebar{width:212px;min-width:212px;background:var(--navy);color:#cfe0ea;display:flex;flex-direction:column;height:100vh;height:100dvh;transition:width .18s,min-width .18s}
+#sidebar.desktop-collapsed{width:0;min-width:0;overflow:hidden}
+#sidebar-collapse-btn{position:absolute;top:10px;right:-13px;width:26px;height:26px;border-radius:50%;background:var(--navy);
+  border:2px solid #fff;color:#fff;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;z-index:5}
+#sidebar-reopen-btn{position:fixed;top:12px;left:12px;z-index:50;background:var(--navy);color:#fff;border:none;border-radius:6px;
+  padding:8px 10px;cursor:pointer;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,.25);display:none}
+#sidebar-reopen-btn.show{display:block}
 #sidebar>.brand,#sidebar>.portal-back,#sidebar>.role-box,#sidebar>.foot{flex-shrink:0}
 #sidebar .brand{padding:12px 18px 10px;border-bottom:1px solid rgba(255,255,255,.12)}
 #sidebar .brand h1{font-size:15px;font-weight:700;color:#fff;letter-spacing:1px;line-height:1.25}
@@ -632,6 +638,8 @@ header.topbar .spacer{flex:1}
   #hamburgerBtn{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid var(--line);border-radius:6px;background:var(--card);cursor:pointer;font-size:18px;flex-shrink:0}
   #sidebar{position:fixed;left:0;top:0;bottom:0;height:100vh;height:100dvh;z-index:700;transform:translateX(-100%);transition:transform .22s ease;width:250px;min-width:250px;box-shadow:3px 0 16px rgba(0,0,0,.35)}
   #sidebar.open{transform:translateX(0)}
+  #sidebar-collapse-btn{display:none}
+  #sidebar-reopen-btn{display:none!important}
   #sidebarOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:650}
   #sidebarOverlay.show{display:block}
   #main{width:100%}
@@ -1081,6 +1089,9 @@ body.dg-on td.dg-empty{background:rgba(232,132,44,.10)}   /* 未填：更明顯�
 .dfe-left{display:flex;flex-direction:column;gap:10px;min-width:0}
 .dfe-right{display:flex;flex-direction:column;gap:10px;min-width:0;padding-left:16px;border-left:1px solid var(--line)}
 .dfe-pp-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:8px;border-top:1px dashed var(--line);font-size:12.5px}
+.dfe-extra-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;padding-top:8px;border-top:1px dashed var(--line)}
+.dfe-exlabel{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--ink-3)}
+.dfe-exlabel select,.dfe-exlabel input{font-size:12.5px;padding:3px 5px;color:var(--ink)}
 .dfe-detail{font-size:12.5px;line-height:1.6;color:var(--ink)}
 .dfe-classify{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:10px;background:var(--paper);border-radius:6px}
 .dfe-cgroup{display:flex;flex-direction:column;min-width:0}
@@ -1801,7 +1812,8 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
   <button class="btn sm" style="background:#fff;color:var(--bad);border:none" onclick="Cloud.retryAutoPublish()">🔄 立即重試</button>
   <button class="btn sm" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4)" onclick="Cloud.dismissSyncFail()">先關閉提示</button>
 </div>
-<aside id="sidebar">
+<aside id="sidebar" style="position:relative">
+  <button id="sidebar-collapse-btn" onclick="toggleDesktopSidebar()" title="收合側邊欄">◀</button>
   <div class="portal-back" style="padding:6px 14px 0">
     <a href="https://ttwonder.github.io/fpmc-marine-portal/" style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#cfe0ea;text-decoration:none;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:5px 8px;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.16)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">⟵ 回管理平台入口</a>
   </div>
@@ -1855,6 +1867,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
     <button class="btn sm dark" onclick="App.saveAll(true)">💾 立即儲存</button>
   </div>
 </aside>
+<button id="sidebar-reopen-btn" onclick="toggleDesktopSidebar()" title="展開側邊欄">▶ 選單</button>
 <div id="sidebarOverlay" onclick="closeSidebar()"></div>
 
 <div id="main">
@@ -3012,10 +3025,12 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
                 <option value="date_asc">檢查日期（舊到新）</option>
               </select>
               <button class="btn sm" id="dfedit-miss-btn" onclick="DefsGrid.toggleMiss();Defs.renderEditMode();">🔍 只看未分類</button>
+              <button class="btn sm" onclick="Defs.toggleFieldPanel()">⚙ 顯示欄位</button>
               <span class="hint" id="dfedit-stat"></span>
             </span>
           </h3>
-          <p class="hint" style="margin-bottom:10px">套用上方篩選條件（可先用上方「關鍵字」篩出要處理的一批，再勾選批次套用分類）；分類欄位可直接在卡片上點選編輯，不用開視窗。</p>
+          <p class="hint" style="margin-bottom:10px">套用上方篩選條件（可先用上方「關鍵字」篩出要處理的一批，再勾選批次套用分類）；分類欄位可直接在卡片上點選編輯，不用開視窗；點「⚙ 顯示欄位」可選擇卡片上要不要多顯示其他欄位（例如重要程度、風險、責任人等），選了也能直接在卡片上編輯，不用跳去查看模式。</p>
+          <div id="dfedit-fieldpanel" style="display:none;margin-bottom:14px"></div>
           <div class="toolbar" style="margin-bottom:8px;gap:8px" id="dfedit-batchbar">
             <label style="display:flex;align-items:center;gap:5px;font-size:12.5px"><input type="checkbox" id="dfedit-selall" onchange="Defs.editToggleSelAll(this.checked)">全選本頁</label>
             <span class="hint" id="dfedit-selcount">未選取任何項目</span>
@@ -7383,6 +7398,21 @@ function closeSidebar(){
   if(sb)sb.classList.remove("open");
   if(ov)ov.classList.remove("show");
 }
+/* 桌面版側邊欄收合：跟手機版的抽屜式收合是兩套獨立機制（手機用 .open 抽屜滑入，
+   桌面用 .desktop-collapsed 直接把寬度收成0），彼此不衝突。收合狀態記住在
+   localStorage，下次打開網頁時沿用上次的選擇。 */
+function toggleDesktopSidebar(force){
+  const sb=document.getElementById("sidebar"),btn=document.getElementById("sidebar-reopen-btn");
+  if(!sb)return;
+  const collapsed=force!==undefined?force:!sb.classList.contains("desktop-collapsed");
+  sb.classList.toggle("desktop-collapsed",collapsed);
+  if(btn)btn.classList.toggle("show",collapsed);
+  try{localStorage.setItem("vsm_sidebar_collapsed",collapsed?"1":"0");}catch(e){}
+}
+try{
+  if(localStorage.getItem("vsm_sidebar_collapsed")==="1")
+    document.addEventListener("DOMContentLoaded",()=>toggleDesktopSidebar(true));
+}catch(e){}
 function goToTab(tab,after){
   const el=document.querySelector(`.nav-item[data-tab="${tab}"]`);
   if(!el){toast("⚠ 找不到頁籤："+tab);return;}
@@ -12275,6 +12305,7 @@ const Defs={
             <div><b class="hint" style="font-size:11px">責任人</b><br>${d.person?esc(d.person)+(d.rank?"（"+esc(d.rank)+"）":""):'<span class="hint">（未填）</span>'}</div>
             <div><b class="hint" style="font-size:11px">檢查地點</b><br>${d.place?esc(d.place):'<span class="hint">（未填）</span>'}</div>
           </div>
+          ${this.editExtraFieldHtml(d)}
         </div>
         <div class="dfe-right">
           <div class="dfe-classify">
@@ -12312,6 +12343,66 @@ const Defs={
     if(stat){const total=this.filtered().length;stat.textContent=`共 ${total} 筆（依目前篩選條件）　全庫未分類 ${missN} 筆`;}
   },
   editSel:new Set(),
+  /* 編輯模式可自選要不要多顯示的欄位（除了固定的船名/日期/檢查來源/內容/實際情形/分類之外）。
+     選了的欄位會直接以可編輯的輸入框/下拉選單顯示在卡片上，不用跳去查看模式才能改。
+     開關狀態記住在 localStorage，下次打開沿用上次的選擇。 */
+  EDIT_EXTRA_FIELDS:[
+    {k:"ncImp",t:"重要程度",type:"select",opts:["","低","中","高"]},
+    {k:"risk",t:"風險",type:"select",opts:["","1","2","3"]},
+    {k:"ncFocus",t:"重點關注",type:"select",opts:["","是","否"]},
+    {k:"ncOpinion",t:"缺失性質判定",type:"select",opts:[["none","無"],["inspector_opinion","檢查員個人意見"],["best_practice","Best Practice（建議做法）"]]},
+    {k:"person",t:"責任人姓名",type:"text"},
+    {k:"rank",t:"責任人職級",type:"text"},
+    {k:"place",t:"檢查地點",type:"text"},
+    {k:"inspector",t:"檢查員",type:"text"},
+    {k:"code",t:"CODE/章節代碼",type:"text"}
+  ],
+  editVisibleFields(){
+    try{const s=localStorage.getItem("vsm_dfedit_fields");if(s)return JSON.parse(s);}catch(e){}
+    return [];
+  },
+  toggleFieldPanel(){
+    const p=$("#dfedit-fieldpanel");if(!p)return;
+    const show=p.style.display==="none";
+    if(show){
+      const vis=new Set(this.editVisibleFields());
+      p.innerHTML=`<div class="card" style="border:2px solid var(--line-2);background:var(--paper)">
+        <b style="font-size:13px">⚙ 選擇要在卡片上多顯示（並可直接編輯）的欄位</b>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px">
+          ${this.EDIT_EXTRA_FIELDS.map(f=>`<label style="display:flex;align-items:center;gap:5px;font-size:12.5px"><input type="checkbox" ${vis.has(f.k)?"checked":""} onchange="Defs.toggleEditField('${f.k}',this.checked)">${esc(f.t)}</label>`).join("")}
+        </div>
+      </div>`;
+    }
+    p.style.display=show?"":"none";
+  },
+  toggleEditField(k,on){
+    const vis=new Set(this.editVisibleFields());
+    if(on)vis.add(k);else vis.delete(k);
+    try{localStorage.setItem("vsm_dfedit_fields",JSON.stringify([...vis]));}catch(e){}
+    this.renderEditMode();
+  },
+  editSetExtraField(id,k,val){
+    const d=App.defs.find(x=>x.id===id);if(!d)return;
+    d[k]=val;
+    App.saveAll();
+    if(typeof Cloud!=="undefined")Cloud.queueAutoPublish&&Cloud.queueAutoPublish("deficiencies");
+  },
+  editExtraFieldHtml(d){
+    const vis=this.editVisibleFields();
+    if(!vis.length)return "";
+    const fields=this.EDIT_EXTRA_FIELDS.filter(f=>vis.includes(f.k));
+    if(!fields.length)return "";
+    return `<div class="dfe-extra-grid">${fields.map(f=>{
+      if(f.type==="select"){
+        const opts=f.opts.map(o=>{
+          const [val,label]=Array.isArray(o)?o:[o,o||"（未設定）"];
+          return `<option value="${esc(val)}"${(d[f.k]||"")===val?" selected":""}>${esc(label)}</option>`;
+        }).join("");
+        return `<label class="dfe-exlabel">${esc(f.t)}<select onchange="Defs.editSetExtraField(${d.id},'${f.k}',this.value)">${opts}</select></label>`;
+      }
+      return `<label class="dfe-exlabel">${esc(f.t)}<input type="text" value="${esc(d[f.k]||"")}" onchange="Defs.editSetExtraField(${d.id},'${f.k}',this.value)"></label>`;
+    }).join("")}</div>`;
+  },
   editSortOf(rows){
     const sortKey=$("#dfedit-sort")?$("#dfedit-sort").value:"default";
     const arr=rows.slice();
