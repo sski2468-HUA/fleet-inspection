@@ -1084,6 +1084,8 @@ body.dg-on td.dg-empty{background:rgba(232,132,44,.10)}   /* 未填：更明顯�
 .dfe-status{margin-left:auto;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px}
 .dfe-status.ok{background:#e5f3ea;color:#1e7f4a}
 .dfe-status.miss{background:#fdecea;color:#c0392b}
+.dfe-confirm-btn{border:1px solid var(--line-2);background:#fff;color:var(--ink-2);border-radius:10px;padding:2px 10px;font-size:11px;cursor:pointer;white-space:nowrap}
+.dfe-confirm-btn.on{background:#1e7f4a;border-color:#1e7f4a;color:#fff;font-weight:600}
 .dfe-body{display:flex;flex-direction:column;gap:10px;min-width:0}
 .dfe-2col{display:grid;grid-template-columns:1fr 2fr;gap:16px}
 .dfe-left{display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -3024,12 +3026,14 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
               <span class="hint">排序：</span>
               <select id="dfedit-sort" onchange="Defs.editPage=1;Defs.renderEditMode()" style="padding:4px 6px;font-size:12.5px">
                 <option value="default">預設（篩選結果順序）</option>
-                <option value="miss">未分類優先</option>
+                <option value="miss">資料未齊全優先</option>
+                <option value="unconfirmed">未人工確認優先</option>
                 <option value="ship">船名</option>
                 <option value="date_desc">檢查日期（新到舊）</option>
                 <option value="date_asc">檢查日期（舊到新）</option>
               </select>
-              <button class="btn sm" id="dfedit-miss-btn" onclick="DefsGrid.toggleMiss();Defs.renderEditMode();">🔍 只看未分類</button>
+              <button class="btn sm" id="dfedit-miss-btn" onclick="DefsGrid.toggleMiss();Defs.renderEditMode();">🔍 只看資料未齊全</button>
+              <button class="btn sm" id="dfedit-unconfirmed-btn" onclick="Defs.toggleOnlyUnconfirmed();">☐ 只看未確認</button>
               <button class="btn sm" onclick="Defs.toggleFieldPanel()">⚙ 顯示欄位</button>
               <span class="hint" id="dfedit-stat"></span>
             </span>
@@ -11348,7 +11352,7 @@ const NCTree={
     const tabs=$("#nct-probtabs");
     if(!tabs)return;
     tabs.innerHTML=NC_PROBS.map(p=>`<button class="btn sm ${p===this.curProb?"primary":""}" onclick="NCTree.selectProb('${p}')">${esc(p)}</button>`).join("");
-    const mains=this.mainsOf(this.curProb);
+    const mains=this.mainsOf(this.curProb).sort();
     const mainSel=$("#nct-leaf-main");
     if(mainSel)mainSel.innerHTML=mains.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join("");
     const box=$("#nct-tree");
@@ -11356,7 +11360,7 @@ const NCTree={
       this._leafTargets=[];this._mainTargets=[];
       const key=this.arrKey(this.curProb);
       box.innerHTML=mains.map(m=>{
-        const leaves=this.leavesOf(this.curProb,m);
+        const leaves=this.leavesOf(this.curProb,m).sort();
         const isBaseMain=key&&NCDB_BASE[key].some(x=>x[0]===m);
         const mi=this._mainTargets.length;
         this._mainTargets.push([this.curProb,m]);
@@ -12391,6 +12395,23 @@ const Defs={
     NCTree.deleteRootCause(name);
     this.renderEditCard(id);
   },
+  /* 「已分類/未分類」原本只是檢查幾個欄位有沒有填值，不代表「有沒有人真的看過、
+     確認這筆分類是對的」（例如只填了根因、忘了填設備/作業，也會被判定成已分類）。
+     這裡另外加一個獨立的「人工確認」標記，讓編輯人明確按一下表示「這筆我看過、分類沒問題」，
+     並記錄是誰、什麼時候確認的，跟自動判斷的欄位完整度分開呈現。 */
+  editToggleConfirm(id){
+    const d=App.defs.find(x=>x.id===id);if(!d)return;
+    if(d.classifyConfirmedBy){
+      d.classifyConfirmedBy="";d.classifyConfirmedAt="";
+    }else{
+      const me=(typeof Role!=="undefined"&&Role.cur&&Role.cur.name)?Role.cur.name:(typeof Audit!=="undefined"?Audit.user():"");
+      d.classifyConfirmedBy=me||"（未知身份）";
+      d.classifyConfirmedAt=new Date().toISOString();
+    }
+    App.saveAll();
+    if(typeof Cloud!=="undefined")Cloud.queueAutoPublish&&Cloud.queueAutoPublish("deficiencies");
+    this.renderEditCard(id);
+  },
   editCardHtml(d){
     const parts=this._classifyParts(d);
     const eqMainOpts=ncMainsOfProb("设备问题").sort();
@@ -12418,6 +12439,8 @@ const Defs={
       return `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;align-items:center">${chips}${addBtn}</div>`;
     };
     const classified=typeof DefsGrid!=="undefined"?DefsGrid.isClassified(d):true;
+    const confirmed=!!d.classifyConfirmedBy;
+    const confirmDateTxt=confirmed&&d.classifyConfirmedAt?new Date(d.classifyConfirmedAt).toLocaleDateString("zh-TW",{month:"2-digit",day:"2-digit"}):"";
     const selOn=this.editSel.has(d.id);
     return `<div class="dfe-card${selOn?" dfe-selected":""}" id="dfe-card-${d.id}">
       <div class="dfe-2col">
@@ -12427,7 +12450,10 @@ const Defs={
             <div class="dfe-ship">${esc(d.ship)}</div>
             <div class="dfe-date">${esc(d.date)}</div>
             <span class="dfe-itype">${esc(d.itype||"")}</span>
-            <span class="dfe-status ${classified?"ok":"miss"}">${classified?"✓ 已分類":"⚠ 未分類"}</span>
+            <span class="dfe-status ${classified?"ok":"miss"}" title="依欄位是否有填值自動判斷，不代表有人確認過">${classified?"✓ 資料齊全":"⚠ 資料未齊全"}</span>
+            <button class="dfe-confirm-btn ${confirmed?"on":""}" onclick="Defs.editToggleConfirm(${d.id})" title="${confirmed?`${esc(d.classifyConfirmedBy)} 於 ${d.classifyConfirmedAt?new Date(d.classifyConfirmedAt).toLocaleString("zh-TW"):""} 確認過，點一下可取消確認`:"點一下標記「我已看過，這筆分類沒問題」"}">
+              ${confirmed?`✅ ${esc(d.classifyConfirmedBy)}${confirmDateTxt?" · "+confirmDateTxt:""}`:"☐ 標記已確認"}
+            </button>
           </div>
           <div class="dfe-detail"><b class="hint" style="font-size:11px">缺失內容</b><br>${esc(d.detail||"")||'<span class="hint">（未填）</span>'}</div>
           <div class="dfe-detail"><b class="hint" style="font-size:11px">實際情形</b><br>${esc(d.actual||"")||'<span class="hint">（未填）</span>'}</div>
@@ -12464,7 +12490,12 @@ const Defs={
     const d=App.defs.find(x=>x.id===id);
     if(!d)return;
     if(typeof DefsGrid!=="undefined"&&DefsGrid.onlyMiss&&DefsGrid.isClassified(d)){
-      // 開著「只看未分類」時，這筆剛好被分類完成了，要從清單消失，整頁重繪比較保險
+      // 開著「只看資料未齊全」時，這筆剛好齊全了，要從清單消失，整頁重繪比較保險
+      this.renderEditMode();
+      return;
+    }
+    if(this.onlyUnconfirmed&&d.classifyConfirmedBy){
+      // 開著「只看未確認」時，這筆剛好被確認了，同樣整頁重繪讓它消失
       this.renderEditMode();
       return;
     }
@@ -12472,8 +12503,11 @@ const Defs={
     if(!el)return;
     el.outerHTML=this.editCardHtml(d);
     const missN=App.defs.filter(x=>!DefsGrid.isClassified(x)).length;
+    const doneN=App.defs.length-missN;
+    const pct=App.defs.length?Math.round(doneN/App.defs.length*100):0;
+    const unconfN=App.defs.filter(x=>!x.classifyConfirmedBy).length;
     const stat=$("#dfedit-stat");
-    if(stat){const total=this.filtered().length;stat.textContent=`共 ${total} 筆（依目前篩選條件）　全庫未分類 ${missN} 筆`;}
+    if(stat){const total=this.filtered().length;stat.textContent=`共 ${total} 筆（依篩選）　全庫資料齊全 ${pct}%（${doneN}/${App.defs.length}），未齊全 ${missN} 筆　・　根因未標註 ${DefsGrid.missingRootCount()} 筆　・　尚未人工確認 ${unconfN} 筆`;}
   },
   editSel:new Set(),
   /* 編輯模式可自選要不要多顯示的欄位（除了固定的船名/日期/檢查來源/內容/實際情形/分類之外）。
@@ -12540,6 +12574,7 @@ const Defs={
     const sortKey=$("#dfedit-sort")?$("#dfedit-sort").value:"default";
     const arr=rows.slice();
     if(sortKey==="miss")arr.sort((a,b)=>{const ma=DefsGrid.isClassified(a)?1:0,mb=DefsGrid.isClassified(b)?1:0;return ma-mb;});
+    else if(sortKey==="unconfirmed")arr.sort((a,b)=>{const ma=a.classifyConfirmedBy?1:0,mb=b.classifyConfirmedBy?1:0;return ma-mb;});
     else if(sortKey==="ship")arr.sort((a,b)=>String(a.ship||"").localeCompare(String(b.ship||""),"zh-Hant"));
     else if(sortKey==="date_desc")arr.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
     else if(sortKey==="date_asc")arr.sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
@@ -12669,15 +12704,25 @@ const Defs={
     this.closeBatchPanel();
     this.renderEditMode();
   },
+  onlyUnconfirmed:false,
+  toggleOnlyUnconfirmed(){
+    this.onlyUnconfirmed=!this.onlyUnconfirmed;
+    this.editPage=1;
+    this.renderEditMode();
+  },
   renderEditMode(){
     let rows=this.filtered();
+    if(this.onlyUnconfirmed)rows=rows.filter(d=>!d.classifyConfirmedBy);
     rows=this.editSortOf(rows);
     const missBtn=$("#dfedit-miss-btn");
     if(missBtn)missBtn.classList.toggle("dark",typeof DefsGrid!=="undefined"&&DefsGrid.onlyMiss);
+    const ucBtn=$("#dfedit-unconfirmed-btn");
+    if(ucBtn){ucBtn.classList.toggle("dark",this.onlyUnconfirmed);ucBtn.textContent=(this.onlyUnconfirmed?"☑":"☐")+" 只看未確認";}
     const missN=App.defs.filter(d=>!DefsGrid.isClassified(d)).length;
     const doneN=App.defs.length-missN;
     const pct=App.defs.length?Math.round(doneN/App.defs.length*100):0;
-    const stat=$("#dfedit-stat");if(stat)stat.textContent=`共 ${rows.length} 筆（依篩選）　全庫已分類 ${pct}%（${doneN}/${App.defs.length}），未分類 ${missN} 筆　・　根因未標註 ${DefsGrid.missingRootCount()} 筆`;
+    const unconfN=App.defs.filter(d=>!d.classifyConfirmedBy).length;
+    const stat=$("#dfedit-stat");if(stat)stat.textContent=`共 ${rows.length} 筆（依篩選）　全庫資料齊全 ${pct}%（${doneN}/${App.defs.length}），未齊全 ${missN} 筆　・　根因未標註 ${DefsGrid.missingRootCount()} 筆　・　尚未人工確認 ${unconfN} 筆`;
     const box=$("#dfedit-list");if(!box)return;
     this.syncBatchBar();
     const selAll=$("#dfedit-selall");
