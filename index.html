@@ -1099,6 +1099,11 @@ body.dg-on td.dg-empty{background:rgba(232,132,44,.10)}   /* 未填：更明顯�
 .dfe-chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .dfe-chip.root{border-color:#c2621a;color:#a0501a}
 .dfe-chip.root.on{background:#c2621a;border-color:#c2621a;color:#fff;font-weight:600}
+.dfe-chip-wrap{display:inline-flex;align-items:center;gap:2px}
+.dfe-adm-ico{border:none;background:none;cursor:pointer;padding:0 2px;font-size:11px;color:var(--ink-3)}
+.dfe-adm-ico.danger{color:var(--bad)}
+.dfe-adm-btn{border:1px solid var(--line-2);background:#fff;border-radius:4px;cursor:pointer;padding:2px 7px;font-size:11px;color:var(--ink-2);white-space:nowrap}
+.dfe-adm-btn.danger{color:var(--bad);border-color:var(--bad)}
 .dfe-foot{font-size:11.5px;color:var(--ink-3);display:flex;gap:14px;flex-wrap:wrap;padding-top:4px;border-top:1px dashed var(--line)}
 @media (max-width:560px){.dfe-2col{grid-template-columns:1fr}.dfe-right{padding-left:0;border-left:none;border-top:1px solid var(--line);padding-top:10px}}
 
@@ -3283,6 +3288,7 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
             <label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" id="ad-print-unscheduled" checked> 🟡 未排程</label>
             <label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" id="ad-print-doneopen" checked> 🔵 已完成稽核未結案</label>
             <label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" id="ad-print-doneclosed"> ✅ 已完成稽核已結案</label>
+
             <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
               <label style="display:block;margin-bottom:10px">表頭年份
                 <input type="number" id="ad-print-year" style="width:100px;margin-left:8px" min="2000" max="2100">
@@ -11073,6 +11079,38 @@ const NCTree={
     if(this.open)this.render();
     return {ok:true};
   },
+  /* 供「缺失紀錄總表→編輯模式」卡片上直接新增用（不依賴後台設定頁固定的輸入框，改用明確參數）。
+     邏輯跟 addMain()/addLeaf() 完全一樣，只是資料來源改成呼叫時傳入的參數。 */
+  /* 分類階層異動後，如果使用者當下正好在「缺失紀錄總表→編輯模式」，順便刷新那邊的卡片，
+     不然改名/刪除/搬移之後卡片上顯示的還是舊資料，要手動切分頁才會更新。 */
+  _refreshDefsEditIfActive(){
+    if(typeof Defs!=="undefined"&&Defs.subTab==="edit")Defs.renderEditMode();
+  },
+  async addMainQuick(prob,name){
+    const key=this.arrKey(prob);if(!key)return false;
+    if(this.mainsOf(prob).includes(name)){toast(`⚠ 此大類已存在於「${prob==="设备问题"?"設備問題":"作業問題"}」之下`);return false;}
+    if(typeof Guard!=="undefined"&&!await Guard.require())return false;
+    this.list[key].push([name,name,this._shipAll()]);
+    this._saveLocal();this.apply();
+    if(typeof Audit!=="undefined")Audit.log("新增","分類階層",`${prob}：新增大類「${name}」`);
+    if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
+    toast(`✓ 已新增大類「${name}」`);
+    this.render();this.refreshDependents();
+    return true;
+  },
+  async addLeafQuick(prob,main,name){
+    const key=this.arrKey(prob);if(!key)return false;
+    if(this.leavesOf(prob,main).includes(name)){toast(`⚠ 此具體名稱已存在於「${main}」之下`);return false;}
+    if(typeof Guard!=="undefined"&&!await Guard.require())return false;
+    this.list[key].push([main,name,this._shipAll()]);
+    this._removePlaceholderLeaf(key,main,name);
+    this._saveLocal();this.apply();
+    if(typeof Audit!=="undefined")Audit.log("新增","分類階層",`${prob}／${main}：新增具體名稱「${name}」`);
+    if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
+    toast(`✓ 已新增具體名稱「${name}」`);
+    this.render();this.refreshDependents();
+    return true;
+  },
   async addMain(){
     const prob=this.curProb;
     const input=$("#nct-new-main");
@@ -12270,6 +12308,89 @@ const Defs={
     if(typeof Cloud!=="undefined")Cloud.queueAutoPublish&&Cloud.queueAutoPublish("deficiencies");
     this.renderEditCard(id);
   },
+  /* 分類階層／根因分類快速管理：直接呼叫跟後台「資料管理→系統設定」同一套 NCTree 函式，
+     不重新做一套邏輯，改名/刪除一樣會連動更新既有缺失紀錄、一樣可以「復原上一步」。
+     僅限 Owner／管理員可以看到跟操作這些管理按鈕，一般操作者只看得到分類選擇本身。 */
+  editIsAdmin(){return typeof Role!=="undefined"&&Role.isAdmin();},
+  async editAddMain(id,side){
+    if(!this.editIsAdmin())return;
+    const prob=side==="eq"?"设备问题":"作业问题";
+    const name=(prompt(`新增${side==="eq"?"設備":"作業"}大類名稱：`)||"").trim();
+    if(!name)return;
+    const ok=await NCTree.addMainQuick(prob,name);
+    if(ok)this.renderEditCard(id);
+  },
+  async editRenameMain(id,side){
+    if(!this.editIsAdmin())return;
+    const d=App.defs.find(x=>x.id===id);if(!d)return;
+    const parts=this._classifyParts(d);
+    const main=side==="eq"?parts.eqMain:parts.opMain;
+    if(!main){toast("⚠ 請先選擇大類");return;}
+    await NCTree.renameMainPrompt(side==="eq"?"设备问题":"作业问题",main);
+    this.renderEditCard(id);
+  },
+  async editDeleteMain(id,side){
+    if(!this.editIsAdmin())return;
+    const d=App.defs.find(x=>x.id===id);if(!d)return;
+    const parts=this._classifyParts(d);
+    const main=side==="eq"?parts.eqMain:parts.opMain;
+    if(!main){toast("⚠ 請先選擇大類");return;}
+    await NCTree.deleteMainPrompt(side==="eq"?"设备问题":"作业问题",main);
+    this.renderEditCard(id);
+  },
+  async editAddLeaf(id,side){
+    if(!this.editIsAdmin())return;
+    const d=App.defs.find(x=>x.id===id);if(!d)return;
+    const parts=this._classifyParts(d);
+    const main=side==="eq"?parts.eqMain:parts.opMain;
+    if(!main){toast("⚠ 請先選擇大類");return;}
+    const name=(prompt(`新增具體名稱（歸屬於「${main}」）：`)||"").trim();
+    if(!name)return;
+    const ok=await NCTree.addLeafQuick(side==="eq"?"设备问题":"作业问题",main,name);
+    if(ok)this.renderEditCard(id);
+  },
+  async editRenameLeaf(id,side,leaf){
+    if(!this.editIsAdmin())return;
+    const d=App.defs.find(x=>x.id===id);if(!d)return;
+    const parts=this._classifyParts(d);
+    const main=side==="eq"?parts.eqMain:parts.opMain;if(!main)return;
+    await NCTree.renameLeafPrompt(side==="eq"?"设备问题":"作业问题",main,leaf);
+    this.renderEditCard(id);
+  },
+  editMoveLeaf(id,side,leaf){
+    if(!this.editIsAdmin())return;
+    const d=App.defs.find(x=>x.id===id);if(!d)return;
+    const parts=this._classifyParts(d);
+    const main=side==="eq"?parts.eqMain:parts.opMain;if(!main)return;
+    this._pendingEditCardId=id; // 搬移用彈窗完成後(confirmMoveLeaf)，refreshDependents()裡的Defs.render()會自動刷新，這裡不用手動再刷
+    NCTree.moveLeafPrompt(side==="eq"?"设备问题":"作业问题",main,leaf);
+  },
+  async editDeleteLeaf(id,side,leaf){
+    if(!this.editIsAdmin())return;
+    const d=App.defs.find(x=>x.id===id);if(!d)return;
+    const parts=this._classifyParts(d);
+    const main=side==="eq"?parts.eqMain:parts.opMain;if(!main)return;
+    await NCTree.deleteLeaf(side==="eq"?"设备问题":"作业问题",main,leaf);
+    this.renderEditCard(id);
+  },
+  editAddRoot(id){
+    if(!this.editIsAdmin())return;
+    const name=(prompt("新增根因名稱：")||"").trim();
+    if(!name)return;
+    const elem=(prompt("三要素（請輸入：人員／設備／系統）：")||"").trim();
+    if(!elem)return;
+    if(NCTree.addRootCause(name,elem))this.renderEditCard(id);
+  },
+  editRenameRoot(id,name){
+    if(!this.editIsAdmin())return;
+    NCTree.uiRenameRootCause(name);
+    this.renderEditCard(id);
+  },
+  editDeleteRoot(id,name){
+    if(!this.editIsAdmin())return;
+    NCTree.deleteRootCause(name);
+    this.renderEditCard(id);
+  },
   editCardHtml(d){
     const parts=this._classifyParts(d);
     const eqMainOpts=ncMainsOfProb("设备问题").sort();
@@ -12278,15 +12399,24 @@ const Defs={
     const opLeafOpts=parts.opMain?ncLeavesOfMain(parts.opMain).sort():[];
     const rootItems=(typeof NCTree!=="undefined"?NCTree.list.rootCause:[])||[];
     const rootSel=new Set(ncFactorSplit(d.ncRoot));
-    const mainSel=(opts,cur,side)=>`<select onchange="Defs.editSetMain(${d.id},'${side}',this.value)" style="width:100%;font-size:12.5px">
-      <option value="">（未選）</option>
-      ${opts.map(m=>`<option value="${esc(m)}"${m===cur?" selected":""}>${esc(m)}</option>`).join("")}
-    </select>`;
-    const leafChecks=(opts,side)=>opts.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px">
-      ${opts.map(l=>{const on=(side==="eq"?parts.eqLeaves:parts.opLeaves).includes(l);
-        return `<label class="dfe-chip${on?" on":""}"><input type="checkbox" ${on?"checked":""} onchange="Defs.editToggleLeaf(${d.id},'${side}','${esc(l).replace(/'/g,"\\'")}')" style="display:none">${esc(l)}</label>`;
-      }).join("")}
-    </div>`:`<div class="hint" style="font-size:11px;margin-top:4px">請先選大類</div>`;
+    const isAdmin=this.editIsAdmin();
+    const mainSel=(opts,cur,side)=>`<div style="display:flex;gap:4px;align-items:center">
+      <select onchange="Defs.editSetMain(${d.id},'${side}',this.value)" style="flex:1;min-width:0;font-size:12.5px">
+        <option value="">（未選）</option>
+        ${opts.map(m=>`<option value="${esc(m)}"${m===cur?" selected":""}>${esc(m)}</option>`).join("")}
+      </select>
+      ${isAdmin?`<button class="dfe-adm-btn" title="新增大類" onclick="Defs.editAddMain(${d.id},'${side}')">➕</button>${cur?`<button class="dfe-adm-btn" title="大類改名" onclick="Defs.editRenameMain(${d.id},'${side}')">✎</button><button class="dfe-adm-btn danger" title="刪除大類" onclick="Defs.editDeleteMain(${d.id},'${side}')">🗑</button>`:""}`:""}
+    </div>`;
+    const leafChecks=(opts,side,cur)=>{
+      const chips=opts.map(l=>{const on=(side==="eq"?parts.eqLeaves:parts.opLeaves).includes(l);
+        const lj=esc(l).replace(/'/g,"\\'");
+        const adm=isAdmin?`<button class="dfe-adm-ico" title="改名" onclick="Defs.editRenameLeaf(${d.id},'${side}','${lj}')">✎</button><button class="dfe-adm-ico" title="搬移大類" onclick="Defs.editMoveLeaf(${d.id},'${side}','${lj}')">⇄</button><button class="dfe-adm-ico danger" title="刪除" onclick="Defs.editDeleteLeaf(${d.id},'${side}','${lj}')">✕</button>`:"";
+        return `<span class="dfe-chip-wrap"><label class="dfe-chip${on?" on":""}"><input type="checkbox" ${on?"checked":""} onchange="Defs.editToggleLeaf(${d.id},'${side}','${lj}')" style="display:none">${esc(l)}</label>${adm}</span>`;
+      }).join("");
+      const addBtn=isAdmin&&cur?`<button class="dfe-adm-btn" title="新增具體名稱" onclick="Defs.editAddLeaf(${d.id},'${side}')">➕新增</button>`:"";
+      if(!opts.length&&!addBtn)return `<div class="hint" style="font-size:11px;margin-top:4px">請先選大類</div>`;
+      return `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;align-items:center">${chips}${addBtn}</div>`;
+    };
     const classified=typeof DefsGrid!=="undefined"?DefsGrid.isClassified(d):true;
     const selOn=this.editSel.has(d.id);
     return `<div class="dfe-card${selOn?" dfe-selected":""}" id="dfe-card-${d.id}">
@@ -12309,14 +12439,17 @@ const Defs={
         </div>
         <div class="dfe-right">
           <div class="dfe-classify">
-            <div class="dfe-cgroup"><label class="hint" style="font-size:11px">🔧 設備大類</label>${mainSel(eqMainOpts,parts.eqMain,"eq")}${leafChecks(eqLeafOpts,"eq")}</div>
-            <div class="dfe-cgroup"><label class="hint" style="font-size:11px">⚙️ 作業大類</label>${mainSel(opMainOpts,parts.opMain,"op")}${leafChecks(opLeafOpts,"op")}</div>
+            <div class="dfe-cgroup"><label class="hint" style="font-size:11px">🔧 設備大類</label>${mainSel(eqMainOpts,parts.eqMain,"eq")}${leafChecks(eqLeafOpts,"eq",parts.eqMain)}</div>
+            <div class="dfe-cgroup"><label class="hint" style="font-size:11px">⚙️ 作業大類</label>${mainSel(opMainOpts,parts.opMain,"op")}${leafChecks(opLeafOpts,"op",parts.opMain)}</div>
             <div class="dfe-cgroup" style="grid-column:1/-1">
               <label class="hint" style="font-size:11px">🧩 根因分類（18項，可多選，自動帶出三要素）</label>
-              <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px">
+              <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;align-items:center">
                 ${rootItems.length?rootItems.map(([name,elem])=>{const on=rootSel.has(name);
-                  return `<label class="dfe-chip root${on?" on":""}"><input type="checkbox" ${on?"checked":""} onchange="Defs.editToggleRoot(${d.id},'${esc(name).replace(/'/g,"\\'")}')" style="display:none">${esc(name)}（${esc(elem)}）</label>`;
-                }).join(""):'<span class="hint" style="font-size:11px">尚未設定根因清單，請至「資料管理→系統設定→缺失根因分類」新增</span>'}
+                  const nj=esc(name).replace(/'/g,"\\'");
+                  const adm=isAdmin?`<button class="dfe-adm-ico" title="改名/改三要素" onclick="Defs.editRenameRoot(${d.id},'${nj}')">✎</button><button class="dfe-adm-ico danger" title="刪除" onclick="Defs.editDeleteRoot(${d.id},'${nj}')">✕</button>`:"";
+                  return `<span class="dfe-chip-wrap"><label class="dfe-chip root${on?" on":""}"><input type="checkbox" ${on?"checked":""} onchange="Defs.editToggleRoot(${d.id},'${nj}')" style="display:none">${esc(name)}（${esc(elem)}）</label>${adm}</span>`;
+                }).join(""):'<span class="hint" style="font-size:11px">尚未設定根因清單</span>'}
+                ${isAdmin?`<button class="dfe-adm-btn" title="新增根因項目" onclick="Defs.editAddRoot(${d.id})">➕新增根因</button>`:""}
               </div>
             </div>
           </div>
@@ -17632,18 +17765,20 @@ const AuditDash={
     if(!sel.size){toast("⚠ 請至少勾選一個區塊");return;}
     const year=($("#ad-print-year").value||"").trim()||String(new Date().getFullYear());
     const note=$("#ad-print-note").value||"";
+    const includeSchedMonth=false; // 已固定不列印這欄，直接看 Last Audit 就好，不再開放勾選
     this.savePrintYear(year);this.savePrintNote(note);
     this.closePrintModal();
-    this.exportPdf(sel,year,note);
+    this.exportPdf(sel,year,note,includeSchedMonth);
   },
-  exportPdf(sectionSet,year,note){
+  exportPdf(sectionSet,year,note,includeSchedMonth){
     year=year||this.loadPrintYear();
     note=note!=null?note:this.loadPrintNote();
     const rows=this.filteredRows();
     const groups={scheduled:[],unscheduled:[],done_open:[],done_closed:[]};
     rows.forEach(r=>{const k=this.schedStatus(r);if(sectionSet.has(k))groups[k].push(r);});
     const rowHtmlFull=r=>`<tr${r.enhanced?' style="background:#fff3e0"':""}>
-      <td style="text-align:center">${esc(this.monthDisplay(r.schedMonth))}</td><td style="text-align:left">${r.enhanced?"⭐":""}${esc(r.vesselName)}</td>
+      ${includeSchedMonth?`<td style="text-align:center">${esc(r.schedMonth)||"-"}</td>`:""}
+      <td style="text-align:left">${r.enhanced?"⭐":""}${esc(r.vesselName)}</td>
       <td style="text-align:center">${esc(r.lastAuditDate)||"-"}</td><td style="text-align:center">${esc(r.actualAuditDate?this.actualPortFor(r):r.plannedPort)||"-"}</td><td style="text-align:center">${esc(r.plannedDate)||"未排程"}</td>
       <td style="text-align:center">${esc(r.actualAuditDate)||"-"}</td><td style="text-align:center">${r.defCount||"-"}</td><td style="text-align:center">${r.closedOut?"✓":"✗"}</td>
       <td style="text-align:center">${esc(r.cso)||"-"}</td><td style="text-align:center">${esc(r.auditor)||"-"}</td><td style="text-align:left;white-space:pre-wrap">${esc(r.remark)||""}</td>
@@ -17651,12 +17786,13 @@ const AuditDash={
     // 已進入排程／未排程：只列 Sched.Month／Vessel／Last Audit／Plan Port／Plan Date／CSO／Auditor／Remark，
     // 不含 Actual Date／缺失數／結案（這兩區船都還沒完成稽核，這幾欄本來就沒有意義）。
     const rowHtmlBrief=r=>`<tr${r.enhanced?' style="background:#fff3e0"':""}>
-      <td style="text-align:center">${esc(this.monthDisplay(r.schedMonth))}</td><td style="text-align:left">${r.enhanced?"⭐":""}${esc(r.vesselName)}</td>
+      ${includeSchedMonth?`<td style="text-align:center">${esc(r.schedMonth)||"-"}</td>`:""}
+      <td style="text-align:left">${r.enhanced?"⭐":""}${esc(r.vesselName)}</td>
       <td style="text-align:center">${esc(r.lastAuditDate)||"-"}</td><td style="text-align:center">${esc(r.plannedPort)||"-"}</td><td style="text-align:center">${esc(r.plannedDate)||"未排程"}</td>
       <td style="text-align:center">${esc(r.cso)||"-"}</td><td style="text-align:center">${esc(r.auditor)||"-"}</td><td style="text-align:left;white-space:pre-wrap">${esc(r.remark)||""}</td>
     </tr>`;
-    const BRIEF_HEAD=`<tr><th style="text-align:center">Sched.Month</th><th style="text-align:left">Vessel</th><th style="text-align:center">Last Audit</th><th style="text-align:center">Planned Port</th><th style="text-align:center">Planned Date</th><th style="text-align:center">CSO</th><th style="text-align:center">Auditor</th><th style="text-align:left">Remark（完整內容）</th></tr>`;
-    const FULL_HEAD=`<tr><th style="text-align:center">Sched.Month</th><th style="text-align:left">Vessel</th><th style="text-align:center">Last Audit</th><th style="text-align:center">Planned Port</th><th style="text-align:center">Planned Date</th><th style="text-align:center">Actual Date</th><th style="text-align:center">缺失數</th><th style="text-align:center">結案</th><th style="text-align:center">CSO</th><th style="text-align:center">Auditor</th><th style="text-align:left">Remark（完整內容）</th></tr>`;
+    const BRIEF_HEAD=`<tr>${includeSchedMonth?'<th style="text-align:center">Sched. Month</th>':""}<th style="text-align:left">Vessel</th><th style="text-align:center">Last Audit</th><th style="text-align:center">Planned Port</th><th style="text-align:center">Planned Date</th><th style="text-align:center">CSO</th><th style="text-align:center">Auditor</th><th style="text-align:left">Remark</th></tr>`;
+    const FULL_HEAD=`<tr>${includeSchedMonth?'<th style="text-align:center">Sched. Month</th>':""}<th style="text-align:left">Vessel</th><th style="text-align:center">Last Audit</th><th style="text-align:center">Planned Port</th><th style="text-align:center">Planned Date</th><th style="text-align:center">Actual Date</th><th style="text-align:center">缺失數</th><th style="text-align:center">結案</th><th style="text-align:center">CSO</th><th style="text-align:center">Auditor</th><th style="text-align:left">Remark</th></tr>`;
     // 分區塊各自成一張表，跟畫面「分區檢視」一致，而不是全部混在一張大表裡
     const sectionsHtml=["scheduled","unscheduled","done_open","done_closed"].filter(k=>sectionSet.has(k)).map(k=>{
       const list=groups[k];
