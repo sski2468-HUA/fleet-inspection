@@ -20714,7 +20714,14 @@ const Air={
     const foundCount=blocks.filter(b=>b!=null).length;
     if(!foundCount){toast("⚠ 找不到「===DEFICIENCY N===」標記，請確認上傳的是本系統匯出的中英文 Word 檔");return;}
     const grab=(block,label,lang)=>{
-      const re=new RegExp("\\["+label+"\\s*-\\s*"+lang+"\\]\\s*([\\s\\S]*?)(?=\\n?\\[[A-Z ]+\\s*-\\s*(?:中文|EN)\\]|$)","i");
+      // ⚠ label 本來是當成固定字串直接拼進正則，但用真正的 Word 開過存檔後，
+      // Word 會把長段文字自動換行，連帶 [LABEL - 中文]、[LABEL - EN] 這些標籤本身也會
+      // 在中間被換行切開（例如 [INITIAL\r\nOPERATOR COMMENT - 中文]），固定字串就永遠對不上，
+      // 造成回填 0 個欄位。這裡改成把 label 拆成單字，中間不管是空格還是換行都允許，
+      // 同時也寬鎮下一個標籤的們测條件，避免它也因為換行而對不上導致抓得太多內容。
+      const esc4re=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+      const labelPattern=label.trim().split(/\s+/).map(esc4re).join("\\s+");
+      const re=new RegExp("\\["+labelPattern+"\\s*-\\s*"+lang+"\\]\\s*([\\s\\S]*?)(?=\\n?\\[[A-Z\\s]+-\\s*(?:中文|EN)\\]|$)","i");
       const m=block.match(re);
       if(!m)return "";
       const v=m[1].trim();
