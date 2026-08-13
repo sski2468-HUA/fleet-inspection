@@ -12539,6 +12539,7 @@ const Defs={
           <div class="dfe-head">
             <input type="checkbox" ${selOn?"checked":""} onchange="Defs.editToggleSel(${d.id},this.checked)" style="width:15px;height:15px">
             <div class="dfe-ship">${esc(d.ship)}</div>
+            <button class="btn sm" style="padding:1px 8px;font-size:11px" onclick="Defs.openEdit(${d.id})" title="開啟完整編輯視窗，可編輯船名/日期/檢查來源/內容/實際情形等所有欄位（跟查看模式點卡片開的是同一個視窗）">✎ 完整編輯</button>
             <div class="dfe-date">${esc(d.date)}</div>
             <span class="dfe-itype">${esc(d.itype||"")}</span>
             <span class="dfe-status ${classified?"ok":"miss"}" title="依欄位是否有填值自動判斷，不代表有人確認過">${classified?"✓ 資料齊全":"⚠ 資料未齊全"}</span>
@@ -13965,6 +13966,10 @@ const SirePos={
   saveEdit(){
     if(typeof EditLock!=="undefined"&&!EditLock.guard("sirePositive"))return;
     const g=i=>$(i).value.trim();
+    // ⚠ 這裡本來就漏了組出 shared 這個物件的那一行，導致下面一用 shared.ship 就直接
+    // 噴 ReferenceError（shared 根本沒被宣告過），存檔函式從頭到尾就沒真的執行過，
+    // 難怪不管改哪個欄位（包含職稱），按「儲存」都完全沒反應——連錯誤訊息使用者都看不到。
+    const shared={ship:g("#se-ship"),date:g("#se-date"),code:g("#se-code"),item:g("#se-item"),comment:g("#se-comment")};
     if(!shared.ship){toast("⚠ 請填寫船名");return;}
     if(!shared.date){toast("⚠ 請填寫日期");return;}
     let people=(this._people||[]).filter(p=>(p.rank||"").trim()||(p.person||"").trim());
