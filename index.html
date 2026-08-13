@@ -20677,8 +20677,17 @@ const Air={
         if(!xmlFile){toast("⚠ 無法識別此 .docx 內容結構，請改用系統匯出的 Word 檔");return;}
         const xml=await xmlFile.async("text");
         text=xml.replace(/<\/w:p>/g,"\n").replace(/<w:tab\/>/g,"\t").replace(/<[^>]+>/g,"");
-      }else{ // 本系統匯出的 HTML 包裝 .doc
-        text=new TextDecoder("utf-8").decode(buf)
+      }else{ // 本系統匯出的 HTML 包裝 .doc，或是使用者拿去用「真正的」Word 開過、編輯後另存回來的版本
+        // ⚠ 這裡是原本匯不進去的原因：本系統匯出時是 UTF-8 純文字 HTML，但只要使用者依照
+        // 「下載→用 Word 打開編輯→存檔→再匯入」這個系統本來鼓勵的流程走一次，Word 存檔
+        // 時預設會把這個 HTML 包裝的 .doc 整份改成 UTF-16（開頭會有 FF FE 或 FE FF 的 BOM），
+        // 不再是 UTF-8。原本這裡固定用 utf-8 解碼，遇到 UTF-16 的檔案就會整份變亂碼，
+        // 讀不到任何 [標籤] 或 ===DEFICIENCY=== 標記，所以匯入永遠失敗。
+        // 這裡改成先看開頭的 BOM 判斷實際編碼，UTF-16LE／UTF-16BE／UTF-8 都能正確讀。
+        let encoding="utf-8";
+        if(head[0]===0xFF&&head[1]===0xFE)encoding="utf-16le";
+        else if(head[0]===0xFE&&head[1]===0xFF)encoding="utf-16be";
+        text=new TextDecoder(encoding).decode(buf)
           .replace(/<br\s*\/?>/gi,"\n").replace(/<\/p>/gi,"\n").replace(/<hr\s*\/?>/gi,"\n").replace(/<[^>]+>/g,"");
       }
       text=text.replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"');
@@ -20689,8 +20698,21 @@ const Air={
     const id=this.replyId;
     const d=App.air.find(x=>x.id===id);
     if(!d)return;
-    const blocks=text.split(/===\s*DEFICIENCY\s*\d+\s*===/i).map(s=>s.trim()).filter(Boolean);
-    if(!blocks.length){toast("⚠ 找不到「===DEFICIENCY N===」標記，請確認上傳的是本系統匯出的中英文 Word 檔");return;}
+    // ⚠ 之前這裡是用 text.split(===DEFICIENCY N===) 的方式切分，但匯出的檔案第一個
+    // 標記前還有標題、Port/Date、警告文字等前置內容，split 後第 0 個元素會是這些
+    // 前置內容而不是第 1 筆缺失，導致後面 forEach((block,i)=>...) 用陣列索引 i 對應第 i 筆
+    // 缺失時，所有內容都會被挙後一位，回填到錯誤的缺失上。改成直接把
+    // 「===DEFICIENCY N===」裡的 N 拿出來當成陣列索引（N-1），不再依賴 split 的位置，
+    // 這樣就算檔案前面有多少前置文字，都不會影響對應關係。
+    const blocks=[];
+    const defRe=/===\s*DEFICIENCY\s*(\d+)\s*===([\s\S]*?)(?====\s*DEFICIENCY\s*\d+\s*===|$)/gi;
+    let dm;
+    while((dm=defRe.exec(text))){
+      const n=parseInt(dm[1],10);
+      if(n>=1)blocks[n-1]=dm[2].trim();
+    }
+    const foundCount=blocks.filter(b=>b!=null).length;
+    if(!foundCount){toast("⚠ 找不到「===DEFICIENCY N===」標記，請確認上傳的是本系統匯出的中英文 Word 檔");return;}
     const grab=(block,label,lang)=>{
       const re=new RegExp("\\["+label+"\\s*-\\s*"+lang+"\\]\\s*([\\s\\S]*?)(?=\\n?\\[[A-Z ]+\\s*-\\s*(?:中文|EN)\\]|$)","i");
       const m=block.match(re);
@@ -20703,7 +20725,7 @@ const Air={
       ["ROOT CAUSE","rootCauseCn","rootCauseEn"],["CORRECTIVE ACTION","correctiveCn","correctiveEn"],["PREVENTIVE MEASURES","preventiveCn","preventiveEn"]];
     let filled=0;
     blocks.forEach(block=>FIELDS.forEach(([label])=>{if(grab(block,label,"中文"))filled++;if(grab(block,label,"EN"))filled++;}));
-    $("#air-reply-import-summary").innerHTML=`在檔案中找到 <b>${blocks.length}</b> 筆缺失區塊（本筆填單目前有 ${d.defects.length} 筆缺失），共可回填 <b>${filled}</b> 個欄位（中文＋英文合計）。<br><br>⚠ 這會<b>覆蓋</b>目前頁面上、且檔案裡有內容的對應欄位；檔案裡是空的欄位不會清空原本已填的內容。缺失區塊是依「第幾筆」對應，若檔案裡的順序被調整過請先確認過再回填。`;
+    $("#air-reply-import-summary").innerHTML=`在檔案中找到 <b>${foundCount}</b> 筆缺失區塊（本筆填單目前有 ${d.defects.length} 筆缺失），共可回填 <b>${filled}</b> 個欄位（中文＋英文合計）。<br><br>⚠ 這會<b>覆蓋</b>目前頁面上、且檔案裡有內容的對應欄位；檔案裡是空的欄位不會清空原本已填的內容。缺失區塊是依「第幾筆」對應，若檔案裡的順序被調整過請先確認過再回填。`;
     this._pendingImportBlocks=blocks;this._pendingImportGrab=grab;this._pendingImportFields=FIELDS;
     $("#air-reply-import-confirm").onclick=()=>this._confirmReplyImport();
     $("#airReplyImportModal").classList.add("show");
