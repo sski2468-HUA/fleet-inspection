@@ -3717,6 +3717,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div class="ref-sun-toolbar">
           <span class="hint" id="ref-bar-selstat">點①②③④任一項都會自動連動、跳轉並帶入下方分類清單，不用再另外套用</span>
           <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn sm" id="ref-hide-unclassified-btn" onclick="Ref.toggleHideUnclassified()">🚫 隱藏未分類</button>
             <button class="btn sm" onclick="Ref.barClearSel()">清除圖表篩選</button>
           </span>
         </div>
@@ -21903,6 +21904,7 @@ const Ref={
     const n3o=$("#ref-b3o-note");
     if(n3o)n3o.textContent=(this.barSel.main.size?`（限定：${[...this.barSel.main].join("、")}）`:(this.barSel.prob.size?"（依問題別篩選）":"（全部）"))+(lv3oTrunc?` ・前${this.topN()}項`:"");
     this.updateBarStat();
+    this.updateHideUnclassifiedBtn();
   },
   barToggleProb(p){
     if(this.barSel.prob.has(p))this.barSel.prob.delete(p);else this.barSel.prob.add(p);
@@ -22037,10 +22039,27 @@ const Ref={
     this.saveHidden();
     this.render();
   },
-  /* 大類／問題別不一致檢查：把庫裡每一筆缺失的「大類」實際登記在分類樹（NCDB）裡是屬於
-     設備問題還是作業問題，拿去跟這筆紀錄自己標的「問題別」比對，兩者對不上就列出來。
-     這是為了回答「為什麼點①篩問題別，②的大類清單看起來還是很亂／點起來不順」——
-     很可能不是篩選邏輯的問題，是有一部分紀錄的大類跟問題別本來就沒有對應好。 */
+  /* 快捷鍵：一鍵把四個面板的「(未分類)」都加進隱藏清單／再點一次還原，
+     不用每次都要開「👁 顯示項目」慢慢找到「(未分類)」再手動勾掉。
+     用②大類目前有沒有隱藏「(未分類)」當作判斷目前是「開」還是「關」的依據，四個面板一起同步切換。 */
+  toggleHideUnclassified(){
+    const on=!this.hiddenItems.main.has("(未分類)");
+    ["prob","main","leafEquip","leafOp"].forEach(k=>{
+      if(on)this.hiddenItems[k].add("(未分類)");
+      else this.hiddenItems[k].delete("(未分類)");
+    });
+    this.saveHidden();
+    this.renderBars();
+    this.updateHideUnclassifiedBtn();
+  },
+  updateHideUnclassifiedBtn(){
+    const btn=$("#ref-hide-unclassified-btn");if(!btn)return;
+    const on=this.hiddenItems.main.has("(未分類)");
+    btn.textContent=on?"✓ 已隱藏未分類":"🚫 隱藏未分類";
+    btn.style.background=on?"var(--navy)":"";
+    btn.style.color=on?"#fff":"";
+    btn.style.borderColor=on?"var(--navy)":"";
+  },
   /* 根因分析總覽：三要素→根因→具體名稱，跟上面「問題分布總覽」用同一套 mkBar 畫圖工具，
      互動邏輯也照抄（點①②交叉篩選、點③直接勾選具體分類），只是分析主軸換成「為什麼」。 */
   rootBarSel:{elem:new Set(),root:new Set()},
