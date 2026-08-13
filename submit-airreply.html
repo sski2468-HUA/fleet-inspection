@@ -127,12 +127,26 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
 
       <div id="aiBar" style="display:none;background:#eef4ff;border:1px solid #cfe0f9;border-radius:8px;padding:10px 12px;margin-bottom:14px">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button type="button" class="btn primary sm" onclick="copyPrompt()">📋 一鍵複製中文內容＋提示詞</button>
-          <button type="button" class="btn dark sm" onclick="togglePaste()">📥 貼上英文翻譯並自動填入</button>
+          <button type="button" class="btn primary sm" onclick="copyPrompt()">📋 一鍵複製中文內容＋提示詞（目前這條）</button>
+          <button type="button" class="btn dark sm" onclick="togglePaste()">📥 貼上英文翻譯並自動填入（目前這條）</button>
         </div>
         <div id="pasteBox" style="display:none;margin-top:10px">
           <textarea id="pasteText" placeholder="把 AI 回覆的完整內容貼在這裡…" style="min-height:110px"></textarea>
           <button type="button" class="btn primary sm" style="margin-top:6px" onclick="applyPaste()">套用貼上的翻譯</button>
+        </div>
+        <!-- 缺失一多（例如 30 條），一條一條複製貼上太累，這裡加一組「全部一次做」的版本：
+             複製時會把目前這筆記錄底下「所有」缺失的中文內容＋提示詞一次組成一份文字；
+             貼上時會自動辨識文字裡每一段「===DEFICIENCY N===」，各自寫回對應那一條缺失，
+             不用再切分頁一條一條貼。 -->
+        <div style="margin-top:10px;padding-top:10px;border-top:1px dashed #cfe0f9;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <span class="hint" style="font-weight:600;color:var(--navy-3)">缺失比較多？可以一次處理全部：</span>
+          <button type="button" class="btn primary sm" onclick="copyPromptAll()">📋 一鍵複製「全部」缺失內容＋提示詞（共 <span id="aiBarAllCount">0</span> 條）</button>
+          <button type="button" class="btn dark sm" onclick="togglePasteAll()">📥 貼上「全部」缺失英文翻譯並自動填入</button>
+        </div>
+        <div id="pasteBoxAll" style="display:none;margin-top:10px">
+          <p class="hint" style="margin-bottom:6px">把 AI 回覆的完整內容（包含所有「===DEFICIENCY N===」區塊）整段貼在這裡，會自動依編號各自寫回對應的缺失，不用切分頁一條一條貼。</p>
+          <textarea id="pasteTextAll" placeholder="把 AI 回覆的完整內容（全部缺失）貼在這裡…" style="min-height:160px"></textarea>
+          <button type="button" id="applyPasteAllBtn" class="btn primary sm" style="margin-top:6px" onclick="applyPasteAll()">套用貼上的翻譯（全部）</button>
         </div>
       </div>
 
@@ -322,6 +336,8 @@ async function loadDraft(){
   switchDefect(DIDX);
 }
 function renderDefTabs(){
+  const cnt=document.getElementById("aiBarAllCount");
+  if(cnt)cnt.textContent=allDrafts.length;
   const wrap=document.getElementById("defTabsWrap");
   if(allDrafts.length<=1){ wrap.innerHTML=""; return; }
   wrap.innerHTML=allDrafts.map(r=>{
@@ -464,6 +480,103 @@ function applyPaste(){
   togglePaste();
   renderStage();
   notify(filled?`✓ 已自動填入 ${filled}／${REPLY_FIELDS.length} 個英文欄位`:"⚠ 找不到符合格式的英文內容","ok2");
+}
+
+/* ════════ 批次版：一次複製／貼上「全部」缺失（不用切分頁一條一條做）════════
+   複製：直接讀 allDrafts（雲端已存的每一條缺失），不是讀畫面上的 replyData——
+   這樣就算目前只打開某一條缺失，複製出來的還是「全部」缺失的完整內容。
+   貼上：用「===DEFICIENCY N===」的 N 對應到 defect_idx=N-1 這一條缺失，逐條寫回，
+   跟正式系統匯入 Word 那邊改過的「用編號對應、不用位置對應」是同一個邏輯，
+   就算貼上的內容裡缺失順序被打亂、或某幾條沒翻譯到，也不會對錯行。 */
+function buildPromptBlockForRow(row){
+  const it=(row.items&&row.items[0])||{};
+  const meta=it._defectMeta||{};
+  const lines=[`===DEFICIENCY ${row.defect_idx+1}===　CODE ${meta.code||"（未填CODE）"}`];
+  if(meta.detail)lines.push(meta.detail);
+  REPLY_FIELDS.forEach(f=>{
+    lines.push(`[${f.labelEN} - 中文]`); lines.push(it[f.key+"Cn"]||"(尚未填寫)");
+    lines.push(`[${f.labelEN} - EN]`); lines.push(it[f.key+"En"]||EN_PLACEHOLDER); lines.push("");
+  });
+  return lines.join("\n");
+}
+function buildPromptTextAll(){
+  const header="你是海技部門的資深航務管理分析師，具備豐富的航海實務與船舶管理專業知識。\n"+
+    `以下是「缺失改善回覆」的中文內容，總共 ${allDrafts.length} 條缺失，已用固定格式列出，每條缺失都用「===DEFICIENCY N===」分隔、N 是缺失編號。請你逐條、逐項閱讀中文內容，並「只」在每個 [XXX - EN] 標籤的下一行，填入專業、精準、符合航運業界慣用語的英文翻譯。\n`+
+    "請務必遵守以下規則：\n1. 不要更動、翻譯或刪除任何標籤文字、方括號「[ ]」、等號「===」或編號本身；\n"+
+    "2. 不要使用 Markdown 符號（例如 *、#、-）或任何項目符號；\n3. 不要輸出開頭或結尾的任何說明文字、客套話；\n"+
+    "4. 請將整段內容（包含原本的中文與您填入的英文）完整且原封不動地輸出回來，不要省略、合併、或跳過任何一條缺失或任何一個欄位。";
+  const body=allDrafts.map(buildPromptBlockForRow).join("\n\n");
+  return header+"\n\n"+body;
+}
+function copyPromptAll(){
+  if(!allDrafts.length){ notify("⚠ 目前沒有任何缺失可複製","err"); return; }
+  const text=buildPromptTextAll();
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>notify(`✓ 已複製全部 ${allDrafts.length} 條缺失內容，請貼到您慣用的 AI 對話視窗`,"ok2")).catch(()=>fallbackCopy(text));
+  }else fallbackCopy(text);
+}
+function togglePasteAll(){
+  const box=document.getElementById("pasteBoxAll");
+  box.style.display = box.style.display==="none" ? "" : "none";
+}
+async function applyPasteAll(){
+  const text=document.getElementById("pasteTextAll").value||"";
+  if(!text.trim()){ notify("⚠ 請先貼上翻譯後的內容","err"); return; }
+  const blocks={};
+  const defRe=/===\s*DEFICIENCY\s*(\d+)\s*===([\s\S]*?)(?====\s*DEFICIENCY\s*\d+\s*===|$)/gi;
+  let dm;
+  while((dm=defRe.exec(text))){
+    const n=parseInt(dm[1],10);
+    if(n>=1)blocks[n-1]=dm[2];
+  }
+  if(!Object.keys(blocks).length){ notify("⚠ 找不到「===DEFICIENCY N===」標記，請確認貼上的是完整回覆內容","err"); return; }
+  const grabEn=(block,label)=>{
+    const re=new RegExp("\\["+label+"\\s*-\\s*EN\\]\\s*([\\s\\S]*?)(?=\\n?\\[[A-Z ]+\\s*-\\s*(?:中文|EN)\\]|$)","i");
+    const mm=block.match(re); if(!mm)return "";
+    const v=mm[1].trim();
+    if(!v||v===EN_PLACEHOLDER||(/^[\u4e00-\u9fff（）()，,。.\s]*$/.test(v)&&/[\u4e00-\u9fff]/.test(v)))return "";
+    return v;
+  };
+  const btn=document.getElementById("applyPasteAllBtn");
+  if(btn){ btn.disabled=true; btn.textContent="套用中…"; }
+  let filledFields=0, touchedDefs=0, failedDefs=[];
+  for(const idxStr of Object.keys(blocks)){
+    const idx=parseInt(idxStr,10);
+    const row=allDrafts.find(r=>r.defect_idx===idx);
+    if(!row)continue; // 貼上的內容裡有這個編號，但這筆記錄底下沒有這條缺失，略過
+    const block=blocks[idx];
+    const it=(row.items&&row.items[0])||{};
+    let rowFilled=0;
+    REPLY_FIELDS.forEach(f=>{
+      const v=grabEn(block,f.labelEN);
+      if(v){ it[f.key+"En"]=v; filledFields++; rowFilled++; }
+    });
+    if(!rowFilled)continue; // 這條缺失找到區塊，但沒有任何一個英文欄位有內容，不用存檔
+    touchedDefs++;
+    const items=[it];
+    const hist=Array.isArray(row.history)?row.history.slice():[];
+    hist.push({by:"（批次貼上翻譯）",at:new Date().toISOString(),items:it});
+    trimHistory(hist,40);
+    try{
+      await api(`${TABLE}?id=eq.${row.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({items,history:hist})});
+      row.items=items; row.history=hist;
+      if(row.defect_idx===DIDX){
+        // 剛好正在畫面上顯示的就是這一條，順便同步一下畫面，不用整頁重新讀取
+        REPLY_FIELDS.forEach(f=>{ replyData[f.key].en=it[f.key+"En"]||replyData[f.key].en; });
+        draftRow=row;
+      }
+    }catch(e){
+      failedDefs.push(idx+1);
+    }
+  }
+  if(btn){ btn.disabled=false; btn.textContent="套用貼上的翻譯（全部）"; }
+  document.getElementById("pasteTextAll").value="";
+  togglePasteAll();
+  renderStage();
+  renderDefTabs();
+  let msg=touchedDefs?`✓ 已套用 ${touchedDefs} 條缺失、共 ${filledFields} 個英文欄位並存檔`:"⚠ 找不到符合格式的英文內容";
+  if(failedDefs.length)msg+=`；⚠ 第 ${failedDefs.join("、")} 條存檔失敗，請重新貼上再試一次`;
+  notify(msg,failedDefs.length?"err":"ok2");
 }
 
 /* ════════ 送出：推進階段，或（階段③）記錄一次確認 ════════ */
