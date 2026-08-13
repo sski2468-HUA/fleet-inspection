@@ -126,20 +126,11 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
       <div id="stageBadgeWrap" style="margin-bottom:14px"></div>
 
       <div id="aiBar" style="display:none;background:#eef4ff;border:1px solid #cfe0f9;border-radius:8px;padding:10px 12px;margin-bottom:14px">
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button type="button" class="btn primary sm" onclick="copyPrompt()">📋 一鍵複製中文內容＋提示詞（目前這條）</button>
-          <button type="button" class="btn dark sm" onclick="togglePaste()">📥 貼上英文翻譯並自動填入（目前這條）</button>
-        </div>
-        <div id="pasteBox" style="display:none;margin-top:10px">
-          <textarea id="pasteText" placeholder="把 AI 回覆的完整內容貼在這裡…" style="min-height:110px"></textarea>
-          <button type="button" class="btn primary sm" style="margin-top:6px" onclick="applyPaste()">套用貼上的翻譯</button>
-        </div>
-        <!-- 缺失一多（例如 30 條），一條一條複製貼上太累，這裡加一組「全部一次做」的版本：
-             複製時會把目前這筆記錄底下「所有」缺失的中文內容＋提示詞一次組成一份文字；
-             貼上時會自動辨識文字裡每一段「===DEFICIENCY N===」，各自寫回對應那一條缺失，
-             不用再切分頁一條一條貼。 -->
-        <div style="margin-top:10px;padding-top:10px;border-top:1px dashed #cfe0f9;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <span class="hint" style="font-weight:600;color:var(--navy-3)">缺失比較多？可以一次處理全部：</span>
+        <!-- 大部分情況都是一次處理全部缺失，很少一條一條做，所以「全部」這組改成主要、
+             預設顯示的操作；「只處理目前這條」的舊版按鈕收進下面可展開的小連結裡，
+             需要時還是找得到，但平常不會佔畫面、不會干擾主要流程。 -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <span class="hint" style="font-weight:600;color:var(--navy-3)">一次處理「全部」缺失：</span>
           <button type="button" class="btn primary sm" onclick="copyPromptAll()">📋 一鍵複製「全部」缺失內容＋提示詞（共 <span id="aiBarAllCount">0</span> 條）</button>
           <button type="button" class="btn dark sm" onclick="togglePasteAll()">📥 貼上「全部」缺失英文翻譯並自動填入</button>
         </div>
@@ -147,6 +138,20 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
           <p class="hint" style="margin-bottom:6px">把 AI 回覆的完整內容（包含所有「===DEFICIENCY N===」區塊）整段貼在這裡，會自動依編號各自寫回對應的缺失，不用切分頁一條一條貼。</p>
           <textarea id="pasteTextAll" placeholder="把 AI 回覆的完整內容（全部缺失）貼在這裡…" style="min-height:160px"></textarea>
           <button type="button" id="applyPasteAllBtn" class="btn primary sm" style="margin-top:6px" onclick="applyPasteAll()">套用貼上的翻譯（全部）</button>
+        </div>
+
+        <div style="margin-top:10px;padding-top:8px;border-top:1px dashed #cfe0f9">
+          <button type="button" class="btn sm ghost" onclick="toggleSingleAiTools()" id="toggleSingleAiBtn" style="font-size:12px">▾ 只需要處理「目前這條」缺失？</button>
+        </div>
+        <div id="singleAiTools" style="display:none;margin-top:10px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn sm" onclick="copyPrompt()">📋 一鍵複製中文內容＋提示詞（目前這條）</button>
+            <button type="button" class="btn sm" onclick="togglePaste()">📥 貼上英文翻譯並自動填入（目前這條）</button>
+          </div>
+          <div id="pasteBox" style="display:none;margin-top:10px">
+            <textarea id="pasteText" placeholder="把 AI 回覆的完整內容貼在這裡…" style="min-height:110px"></textarea>
+            <button type="button" class="btn primary sm" style="margin-top:6px" onclick="applyPaste()">套用貼上的翻譯</button>
+          </div>
         </div>
       </div>
 
@@ -462,6 +467,13 @@ function fallbackCopy(text){
 function togglePaste(){
   const box=document.getElementById("pasteBox");
   box.style.display = box.style.display==="none" ? "" : "none";
+}
+function toggleSingleAiTools(){
+  const box=document.getElementById("singleAiTools");
+  const btn=document.getElementById("toggleSingleAiBtn");
+  const show=box.style.display==="none";
+  box.style.display = show ? "" : "none";
+  if(btn)btn.textContent = show ? "▴ 收起（目前這條）" : "▾ 只需要處理「目前這條」缺失？";
 }
 function applyPaste(){
   const text=document.getElementById("pasteText").value||"";
