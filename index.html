@@ -5324,7 +5324,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="mb">
       <p style="font-size:13px;margin-bottom:10px">已讀取 <b id="im-count">0</b> 筆紀錄（<span id="im-fname"></span>）。請選擇匯入方式：</p>
       <label style="display:flex;gap:8px;padding:8px;cursor:pointer"><input type="radio" name="immode" value="append" checked> <span><b>新增</b> — 附加在現有資料之後</span></label>
-      <label style="display:flex;gap:8px;padding:8px;cursor:pointer"><input type="radio" name="immode" value="overwrite"> <span><b>覆蓋</b> — 取代全部現有資料</span></label>
+      <label style="display:flex;gap:8px;padding:8px;cursor:pointer"><input type="radio" name="immode" value="overwrite"> <span><b>覆蓋</b> — 逐筆比對，找到對應的既有紀錄就更新，沒對應到的一律當新增（不會清空或刪除其他既有資料）</span></label>
     </div>
     <div class="mf"><button class="btn" onclick="ImportUI.close()">取消</button><button class="btn primary" onclick="ImportUI.confirm()">確定匯入</button></div>
   </div>
@@ -13515,10 +13515,21 @@ const Defs={
     if(!hasExcelJS())return;
     const cols=this.ALL_COLS.filter(c=>c.k!=="icat"); // 模板含所有欄位(不限於目前顯示中的欄位)；檢查類型(icat)為系統自動判定,不開放匯入填寫
     if(!cols.length){toast("⚠ 無可匯出欄位");return;}
+    // ⚠ 同一個雲端分類清單同步的時間差問題，這個範本也會用到 NCDB.equip/ops，
+    // 一併在產生範本前先跟雲端同步一次，避免跟「填單」範本一樣抓到還沒同步完成的舊分類清單。
+    if(typeof NCTree!=="undefined"&&NCTree.loadCloud){
+      toast("⏳ 同步最新分類清單中…");
+      try{await NCTree.loadCloud();}catch(e){}
+    }
     toast("⏳ 產生範本中（含下拉選單），請稍候…");
     const SAMPLE1={ship:"F31",itype:"PSC",date:"2026/1/15",place:"Kaohsiung, Taiwan",inspector:"王檢查官",unit:"",ym:"2026-01",vtype:"tanker",oilco:"",code:"",detail:"航行當值記錄不完整",actual:"已補正並加強督導",preventive:"",ncProb:"作业问题",ncMain:"05.航行和通信作业",ncLeaf:"航行值班作业",ncFactor:"人員因素",ncImp:"中",ncFocus:"否",ncMethod:"",ncOpinion:"檢查員個人意見",rank:"",person:"",risk:"2",psc:"17",tmMethod:"",corrective:"",rootCause:""};
     const SAMPLE2={ship:"B105",itype:"SIRE",date:"2026/2/3",place:"Singapore, Singapore",inspector:"Capt. Lee",unit:"",ym:"2026-02",vtype:"bulk",oilco:"",code:"",detail:"雷達顯示異常",actual:"通知岸基安排檢修",preventive:"",ncProb:"设备问题",ncMain:"驾驶台设备",ncLeaf:"雷达",ncFactor:"設備因素",ncImp:"高",ncFocus:"是",ncMethod:"",ncOpinion:"無",rank:"",person:"",risk:"3",psc:"",tmMethod:"",corrective:"",rootCause:""};
     const wb=new ExcelJS.Workbook();
+    // ⚠ INDIRECT 式的逐層下拉選單（問題別→大類→具體名稱）靠隱藏輔助欄位公式算出對應的 named range，
+    // 但 ExcelJS 產出的檔案並不會帶已計算好的快照值，有些 Excel（或設定為手動重算模式的情況下）
+    // 打開檔案後不會自動先重算這些輔助欄，導致使用者選好上一欄後，下一欄下拉選單看起來像是沒反應（其實是還沒重算）。
+    // 加這一行讓 Excel 一打開檔案就強制全面重算一次，保證一打開就能正常連動，不用先手動敲一下別的格子把它含醒。
+    wb.calcProperties.fullCalcOnLoad=true;
     const ws=wb.addWorksheet("缺失紀錄");
     const hdr=cols.map(c=>c.t);
     ws.addRow(hdr);
@@ -13690,6 +13701,11 @@ const ImportUI={
       if(!n.ncImp)n.ncImp=o.ncImp||"";
       if(!n.ncMethod)n.ncMethod=o.ncMethod||"";
     }
+    // ⚠ 如果來源資料（通常是重新匯入之前匯出的完整備份 JSON）本身就帶有系統的紀錄編號(id)，
+    // 這裡把它保留下來，是「覆蓋」模式安全比對用的依據——見下方 confirm() 的說明。
+    // Excel 範本沒有這個欄位（範本裡的「序號」只是顯示用的列數，不是系統編號），所以 Excel 匯入的列不會有 o.id，
+    // 這是刻意的：沒有可靠依據時，寧可讓它落到「新增」，也不要亂猜哪一筆該被覆蓋。
+    if(o.id!=null&&String(o.id).trim()!=="")n._srcId=String(o.id).trim();
     return n;
   },
   stage(recs,fname){
@@ -13701,31 +13717,49 @@ const ImportUI={
     $("#importModal").classList.add("show");
   },
   close(){$("#importModal").classList.remove("show");this.pending=null;},
+  // ⚠ 這裡原本「覆蓋」模式是 App.defs=[]／App.sirePos=[]／App.insp=[] 直接把整個表清空，
+  // 再放進這次匯入的內容——只要匯入的檔案沒有包含全部既有資料，選「覆蓋」就會把其他所有沒在
+  // 那個檔案裡的紀錄整批刪掉，是個很危險的地雷。現在改成跟「線上填單→轉入缺失紀錄」一樣的
+  // 安全做法：逐筆比對，只有「這一列本身帶有系統紀錄編號、且該編號目前真的存在」才覆蓋那一筆，
+  // 其餘一律當新增，絕不會動到其他沒有比對到的既有資料。
+  _mergeImport(list,pending,mode,nextIdFn){
+    let updated=0,added=0;
+    pending.forEach(r=>{
+      const srcId=r._srcId;delete r._srcId;
+      const existing=(mode==="overwrite"&&srcId!=null)?list.find(x=>String(x.id)===srcId):null;
+      if(existing){
+        const keepId=existing.id;
+        Object.assign(existing,r);
+        existing.id=keepId;
+        updated++;
+      }else{
+        const rec={...r};
+        rec.id=nextIdFn();
+        list.push(rec);
+        added++;
+      }
+    });
+    return {updated,added};
+  },
   async confirm(){if(!await Guard.require())return;
     const mode=document.querySelector('input[name=immode]:checked').value;
     if(this.target==="defs"){
-      if(mode==="overwrite")App.defs=[];
-      this.pending.forEach(r=>{
-        r.id=App.nextId();
-        App.defs.push(r);
-      });
-      Audit.log("匯入","缺失紀錄",`${mode==="overwrite"?"覆蓋":"新增"}匯入 ${this.pending.length} 筆`);
+      const {updated,added}=this._mergeImport(App.defs,this.pending,mode,()=>App.nextId());
+      Audit.log("匯入","缺失紀錄",mode==="overwrite"?`覆蓋更新 ${updated} 筆、新增 ${added} 筆`:`新增匯入 ${this.pending.length} 筆`);
       Defs.page=1;Defs.selected.clear();Defs.init();
+      if(mode==="overwrite")toast(`✓ 已匯入：覆蓋更新 ${updated} 筆、新增 ${added} 筆`);
     }else if(this.target==="sirepos"){
-      if(mode==="overwrite")App.sirePos=[];
-      this.pending.forEach(r=>{
-        r.id=SirePos.nextId();
-        App.sirePos.push(r);
-      });
-      Audit.log("匯入","SIRE正向評論",`${mode==="overwrite"?"覆蓋":"新增"}匯入 ${this.pending.length} 筆`);
+      const {updated,added}=this._mergeImport(App.sirePos,this.pending,mode,()=>SirePos.nextId());
+      Audit.log("匯入","SIRE正向評論",mode==="overwrite"?`覆蓋更新 ${updated} 筆、新增 ${added} 筆`:`新增匯入 ${this.pending.length} 筆`);
       SirePos.page=1;SirePos.init();
+      if(mode==="overwrite")toast(`✓ 已匯入：覆蓋更新 ${updated} 筆、新增 ${added} 筆`);
     }else{
-      if(mode==="overwrite")App.insp=[];
-      this.pending.forEach(r=>{r.id=App.nextInspId();App.insp.push(r);});
+      const {updated,added}=this._mergeImport(App.insp,this.pending,mode,()=>App.nextInspId());
       Dash.init();
+      if(mode==="overwrite")toast(`✓ 已匯入：覆蓋更新 ${updated} 筆、新增 ${added} 筆`);
     }
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();App.refreshMeta();
-    toast(`✓ 已匯入 ${this.pending.length} 筆（${mode==="overwrite"?"覆蓋":"新增"}）`);
+    if(mode!=="overwrite")toast(`✓ 已匯入 ${this.pending.length} 筆（新增）`);
     if(this.target==="sirepos"&&typeof Cloud!=="undefined")Cloud.queueAutoPublish("sirePositive");
     this.close();
   }
@@ -14048,16 +14082,24 @@ const SirePos={
     for(let r=2;r<=200;r++){
       ws.getCell(`A${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ship"]};
     }
+    // ⚠ 職稱（F欄）原本是純文字輸入，容易跟系統既有的職稱清單（RANK_OPTIONS，也是
+    // 畫面上編輯視窗職稱下拉選單用的同一份）打不上、之後篩選/統計時對不起來。
+    // 這裡比照船名做法，另外用一個隱藏工作表放職稱清單，讓F欄也變成下拉選單。
+    wsList.getColumn(2).values=RANK_OPTIONS;
+    wb.definedNames.add(`'下拉選單資料'!$B$1:$B$${RANK_OPTIONS.length}`,"lst_rank");
+    for(let r=2;r<=200;r++){
+      ws.getCell(`F${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_rank"]};
+    }
     const wsInstr=wb.addWorksheet("填寫說明");
     [["SIRE正向評論 匯入範本 — 填寫說明"],[""],
      ["1. 船名、日期為必填，船名請用下拉選單選擇。日期請維持「YYYY/M/D」文字格式，不要用 Excel 的日期選取器。"],
-     ["2. CODE為SIRE檢查問項編號；評論項目為檢查問項原文；檢查員正向評論內容為實際評語；職稱與名字為受評人員資訊。"]
+     ["2. CODE為SIRE檢查問項編號；評論項目為檢查問項原文；檢查員正向評論內容為實際評語；職稱請用下拉選單選擇，名字為受評人員姓名。"]
     ].forEach(r=>wsInstr.addRow(r));
     wsInstr.getColumn(1).width=110;
     try{
       const buf=await wb.xlsx.writeBuffer();
       dl(new Blob([buf],{type:"application/octet-stream"}),"SIRE正向評論_匯入模板.xlsx");
-      toast("✓ 已下載匯入模板（船名為下拉選單）");
+      toast("✓ 已下載匯入模板（船名／職稱皆為下拉選單）");
     }catch(e){toast("⚠ 範本產生失敗："+e.message);}
   },
   importFile(){if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 匯入正向評論僅限維護者操作，其他角色僅可查看與匯出");return;}ImportUI.open("sirepos");},
@@ -17265,6 +17307,11 @@ const DrillRecord={
     if(!hasExcelJS())return;
     toast("⏳ 產生範本中（含下拉選單），請稍候…");
     const wb=new ExcelJS.Workbook();
+    // ⚠ INDIRECT 式的逐層下拉選單（問題別→大類→具體名稱）靠隱藏輔助欄位公式算出對應的 named range，
+    // 但 ExcelJS 產出的檔案並不會帶已計算好的快照值，有些 Excel（或設定為手動重算模式的情況下）
+    // 打開檔案後不會自動先重算這些輔助欄，導致使用者選好上一欄後，下一欄下拉選單看起來像是沒反應（其實是還沒重算）。
+    // 加這一行讓 Excel 一打開檔案就強制全面重算一次，保證一打開就能正常連動，不用先手動敲一下別的格子把它含醒。
+    wb.calcProperties.fullCalcOnLoad=true;
     const ws=wb.addWorksheet("操演紀錄");
     ws.addRow(["船舶","操演類型","操演項目","操演日期","參與人員／說明"]);
     const sampleShip=(SHIPINFO[0]&&SHIPINFO[0].code)||"F27";
@@ -18338,16 +18385,32 @@ const Air={
   /* ── 匯出 / 下載模板 / 匯入（Excel，3個工作表：基本資料／缺失改善明細／正向評論明細） ── */
   async exportTemplate(){
     if(!hasExcelJS())return;
+    // ⚠ 真正的問題找到了：NCTree.init() 開機時只同步讀本機瀏覽器快取的分類清單，
+    // 雲端最新版本（例如你在「缺失分類階層管理」改過的大類名稱）是另外一個背景執行、
+    // 沒有人等待的非同步流程（NCTree.loadCloud()）在載入，跟開機流程完全沒有串連。
+    // 如果在雲端同步跑完「之前」就按下載範本，NCDB.equip/ops 那時候還是舊的/本機快取的版本，
+    // 範本裡的下拉選單自然就是舊名稱，跟「缺失分類階層管理」頁面上看到的最新名稱對不起來。
+    // 這裡在產生範本前，主動再跟雲端同步一次分類清單，確保範本一定是用最新版本產生的，
+    // 不管使用者是剛整理完分類就馬上點下載、還是開著頁面放了很久才點，結果都一致。
+    if(typeof NCTree!=="undefined"&&NCTree.loadCloud){
+      toast("⏳ 同步最新分類清單中…");
+      try{await NCTree.loadCloud();}catch(e){}
+    }
     toast("⏳ 產生範本中（含下拉選單），請稍候…");
     const wb=new ExcelJS.Workbook();
+    // ⚠ INDIRECT 式的逐層下拉選單（問題別→大類→具體名稱）靠隱藏輔助欄位公式算出對應的 named range，
+    // 但 ExcelJS 產出的檔案並不會帶已計算好的快照值，有些 Excel（或設定為手動重算模式的情況下）
+    // 打開檔案後不會自動先重算這些輔助欄，導致使用者選好上一欄後，下一欄下拉選單看起來像是沒反應（其實是還沒重算）。
+    // 加這一行讓 Excel 一打開檔案就強制全面重算一次，保證一打開就能正常連動，不用先手動敲一下別的格子把它含醒。
+    wb.calcProperties.fullCalcOnLoad=true;
     const wsInstr=wb.addWorksheet("填寫說明");
     [
       ["填單匯入範本 — 填寫說明"],[""],
       ["1. 本範本共3個工作表：「基本資料」「缺失改善明細」「正向評論明細」，請依序填寫；不需要的工作表可留空白（僅留標題列）。"],
       ["2. 「序號」為連結用代號：請替每筆 填單（每次檢查）填一個序號(1,2,3...)，並在「缺失改善明細」「正向評論明細」對應的列填上同一個序號，系統匯入時會依序號自動歸併。"],
-      ["3. 「正向評論明細」若同一筆評論有多位受訪人員，請另外複製一列，序號／CODE／評論項目／正向評論內容皆相同，僅職稱／姓名不同即可。"],
+      ["3. 「正向評論明細」若同一筆評論有多位受訪人員，請另外複製一列，序號／CODE／評論項目／正向評論內容皆相同，僅職稱／姓名不同即可；職稱請點選儲存格右側的下拉箭頭選擇，不要手動輸入。"],
       ["4. 「基本資料」的船名、船型、檢查來源這三欄也請點選儲存格右側的下拉箭頭選擇（船名清單依目前船隊船舶資料自動產生），不要手動輸入，避免船名打錯字或船型分類不一致；檢查日期請維持「YYYY/M/D」文字格式（例如 2026/1/15），不要用 Excel 的日期選取器，否則系統可能無法正確解析。"],
-      ["5. 問題別、大類、具體名稱、三要素、重要程度、重點關注、風險 這幾欄請直接點選儲存格右側的下拉箭頭選擇，不要手動輸入，避免格式不一致；大類會依您選擇的「問題別」自動篩選對應選項，具體名稱則依「大類」篩選——請務必由左到右依序選：問題別 → 大類 → 具體名稱，若右邊欄位下拉是空的，代表左邊欄位還沒選好。"],
+      ["5. 問題別、大類、具體名稱、根因分類、三要素、重要程度、重點關注、風險 這幾欄請直接點選儲存格右側的下拉箭頭選擇，不要手動輸入，避免格式不一致；大類會依您選擇的「問題別」自動篩選對應選項，具體名稱則依「大類」篩選——請務必由左到右依序選：問題別 → 大類 → 具體名稱，若右邊欄位下拉是空的，代表左邊欄位還沒選好。「根因分類」和「三要素」是兩種不同角度的分類（根因分類回答「為什麼發生」，三要素是根因所屬的大類）；三要素欄已預先放好公式，選好「根因分類」下拉選項後三要素會自動帶出對應值，不用另外手動選——如果自動帶出的不符需要，直接點三要素欄自己的下拉選單重新選一次即可覆蓋。若同一格「根因分類」填了多個（用「、」分隔），公式找不到完全相符的組合，三要素會留空，這種情況請對照「分類選項參考」分頁下方的「根因分類→對應三要素」表手動填。"],
       ["6. PSC Action Taken 僅 PSC 檢查需填，請填代碼（可多個以逗號分隔，如 10,17）。代碼意義：10 deficiency rectified／15 rectify at next port／16 within 14 days／17 before departure／18 within 3 months／30 detainable deficiency／46 rectify detainable at agreed repair port／48 as agreed flag State condition／49 as agreed RAP／99 other。"],
       ["7. CODE 欄請依「檢查來源」填入章節代碼數字，系統匯入後可於線上頁面看到自動帶出的章節名稱（適用 CDI／PSC／RIGHTSHIP）。"],
       ["8. 填寫完成後，請交由系統「維護者」匯入；新建與匯入功能僅限維護者操作，其他角色僅可查看與匯出 Excel。"]
@@ -18362,11 +18425,11 @@ const Air={
     wsBase.getColumn(5).numFmt="@"; // 檢查日期欄強制當文字格式,避免Excel把「2026/1/15」自動轉成日期序號,匯入時解析失敗
 
     const wsDef=wb.addWorksheet("缺失改善明細");
-    const defHdr=["序號","PSC Action Taken","CODE","實際情況","缺失詳情","Initial Operator Comment","直接原因 Immediate Cause","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","三要素","重要程度","重點關注","缺失性質判定","風險","需內控"];
+    const defHdr=["序號","PSC Action Taken","CODE","實際情況","缺失詳情","Initial Operator Comment","直接原因 Immediate Cause","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","根因分類","三要素","重要程度","重點關注","缺失性質判定","風險","需內控"];
     wsDef.addRow(defHdr);
-    wsDef.addRow([1,"17","17","已補正並加強督導","航行當值記錄不完整","","","針對程序進行修正","體系文件不足及上船前培訓針對性有待加強","公司修正管理體系文件內容及上船前培訓","","","作业问题","","","人員因素","中","否","檢查員個人意見","2","否"]);
-    wsDef.addRow([2,"","","通知岸基安排檢修","雷達顯示異常","","","","","","","","设备问题","","","設備因素","高","是","無","3","是"]);
-    [6,14,8,22,26,22,22,22,22,22,12,12,10,16,20,12,10,10,26,6,10].forEach((w,i)=>{wsDef.getColumn(i+1).width=w;});
+    wsDef.addRow([1,"17","17","已補正並加強督導","航行當值記錄不完整","","","針對程序進行修正","體系文件不足及上船前培訓針對性有待加強","公司修正管理體系文件內容及上船前培訓","","","作业问题","","","訓練缺失","人員因素","中","否","檢查員個人意見","2","否"]);
+    wsDef.addRow([2,"","","通知岸基安排檢修","雷達顯示異常","","","","","","","","设备问题","","","設備正常損耗、老化、意外","設備因素","高","是","無","3","是"]);
+    [6,14,8,22,26,22,22,22,22,22,12,12,10,16,20,16,12,10,10,26,6,10].forEach((w,i)=>{wsDef.getColumn(i+1).width=w;});
     const col={};defHdr.forEach((h,i)=>{col[h]=wsDef.getColumn(i+1).letter;});
 
     const wsRef=wb.addWorksheet("分類選項參考");
@@ -18376,6 +18439,11 @@ const Air={
     equip.forEach(([m,l])=>wsRef.addRow(["设备问题",m,l]));
     ops.forEach(([m,l])=>wsRef.addRow(["作业问题",m,l]));
     for(let i=1;i<=3;i++)wsRef.getColumn(i).width=26;
+    // 另分一區，放根因→三要素對照表，跟上面問題別/大類/具體名稱那區中間隔兩行分開，避免誤會是同一張表。
+    const rootCauseList=(typeof NCTree!=="undefined"?NCTree.list.rootCause:[])||[];
+    wsRef.addRow([]);wsRef.addRow([]);
+    wsRef.addRow(["根因分類","對應三要素","(參考用，不影響上面問題別/大類對照)"]);
+    rootCauseList.forEach(([name,elem])=>wsRef.addRow([name,elem+"因素"]));
 
     const posHdr=["序號","CODE（章節）","評論項目","正向評論內容","職稱","姓名"];
     const wsPos=wb.addWorksheet("正向評論明細");
@@ -18384,6 +18452,11 @@ const Air={
     wsPos.addRow([1,"5.5 Permits to Work｜工作許可","Were permits to work properly used?","訪談後發現工作許可制度執行確實，紀錄完整。","C/O","李大同"]);
     wsPos.addRow([2,"4.4 Communications Equipment｜通訊設備與程序","Were the Master and officers familiar with GMDSS?","OP 充滿自信地說明應變動作。","3/O","林佳宏"]);
     for(let i=1;i<=6;i++)wsPos.getColumn(i).width=24;
+    // ⚠ 職稱（E欄）原本是純文字輸入，跟系統編輯畫面用的職稱下拉選單（RANK_OPTIONS）對不上，
+    // 容易打錯字或跟系統既有選項不一致，這裡比照船名/根因分類做法，也做成下拉選單。
+    for(let r=2;r<=200;r++){
+      wsPos.getCell(`E${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_rank"]};
+    }
 
     /* ── 建立隱藏工作表：下拉選單資料（named range + 問題別/大類 → alias 對照表，供 INDIRECT 逐層篩選用）── */
     const wsList=wb.addWorksheet("下拉選單資料");
@@ -18411,6 +18484,7 @@ const Air={
     namedRange("lst_itype",itypeList);
     namedRange("lst_place",(typeof PORTS!=="undefined"?PORTS:[]).concat(["At Sea","其他"]));
     namedRange("lst_oilco",(typeof TagLists!=="undefined"?TagLists.values("oilco"):[]));
+    namedRange("lst_ncRoot",((typeof NCTree!=="undefined"?NCTree.list.rootCause:[])||[]).map(x=>x[0]));
     const mainByProb={"设备问题":[...new Set(equip.map(x=>x[0]))],"作业问题":[...new Set(ops.map(x=>x[0]))]};
     const probAlias={"设备问题":"eqMain","作业问题":"opsMain"};
     Object.entries(mainByProb).forEach(([p,mains])=>namedRange(probAlias[p],mains));
@@ -18430,9 +18504,30 @@ const Air={
     curCol+=2;
     const mainTableCol=curCol;
     const mainNames=[...leafByMain.keys()];
-    wsList.getColumn(curCol).values=mainNames;
-    wsList.getColumn(curCol+1).values=mainNames.map(m=>mainAlias.get(m));
-    const mainTableRange=`'下拉選單資料'!$${wsList.getColumn(mainTableCol).letter}$1:$${wsList.getColumn(mainTableCol+1).letter}$${mainNames.length}`;
+    // ⚠ 分類樹裡有些大類名稱含有頓號（、），例如「01.文件、证书和管理作业」，
+    // 但船上或舊資料裡可能還留著沒有頓號的舊寫法（例如「01.文件和证书管理作业」）——
+    // 這種差一個標點的情況，VLOOKUP 精確比對會直接找不到，導致這一列的具體名稱下拉選單完全跑不出來。
+    // 這裡把每個大類名稱「去掉頓號」的版本也一起加進對照表（指到同一個 alias），
+    // 這樣不管儲存格裡是哪一種寫法，只要具體名稱少了那個頓號，一樣找得到對應的具體名稱清單。
+    const mainNamesNoComma=mainNames.filter(m=>m.includes("、")).map(m=>m.replace(/、/g,""));
+    const mainAliasNoComma=mainNames.filter(m=>m.includes("、")).map(m=>mainAlias.get(m));
+    const mainTableNames=[...mainNames,...mainNamesNoComma];
+    const mainTableAlias=[...mainNames.map(m=>mainAlias.get(m)),...mainAliasNoComma];
+    wsList.getColumn(curCol).values=mainTableNames;
+    wsList.getColumn(curCol+1).values=mainTableAlias;
+    const mainTableRange=`'下拉選單資料'!$${wsList.getColumn(mainTableCol).letter}$1:$${wsList.getColumn(mainTableCol+1).letter}$${mainTableNames.length}`;
+    // 根因分類→三要素對照表：根因跟三要素本來就是綁定好的（一個根因固定屬於哪個要素），
+    // 所以三要素不用像大類/具體名稱那樣做「下拉選單選項會變動」的處理，
+    // 直接用 VLOOKUP 公式讓三要素自動帶出對應值即可——選了根因分類，三要素會自動出現，
+    // 若使用者要手動改，直接在三要素欄用下拉選單重新選一次即可覆蓋掉公式（跟系統編輯畫面「已依上方根因自動帶出，如需要仍可手動調整」的邏輯一致）。
+    // 唯一限制：根因分類若一格填了多個（用「、」分隔多選），VLOOKUP 找不到完全相符的組合，三要素會留空，
+    // 這種情況請直接參考「分類選項參考」分頁對照表手動填。
+    const rootTableCol=curCol;
+    const rootCauseRows=(typeof NCTree!=="undefined"?NCTree.list.rootCause:[])||[];
+    wsList.getColumn(curCol).values=rootCauseRows.map(x=>x[0]);
+    wsList.getColumn(curCol+1).values=rootCauseRows.map(x=>x[1]+"因素");
+    const rootTableRange=`'下拉選單資料'!$${wsList.getColumn(rootTableCol).letter}$1:$${wsList.getColumn(rootTableCol+1).letter}$${rootCauseRows.length||1}`;
+    curCol+=2;
 
     /* ── 套用資料驗證（下拉選單）到「缺失改善明細」第2~200列 ── */
     const LAST_ROW=200;
@@ -18442,6 +18537,8 @@ const Air={
     wsDef.getCell("AB1").value="(輔助欄-請勿刪除)大類代碼";
     for(let r=2;r<=LAST_ROW;r++){
       wsDef.getCell(`${col["問題別"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_probType"]};
+      wsDef.getCell(`${col["根因分類"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncRoot"]};
+      wsDef.getCell(`${col["三要素"]}${r}`).value={formula:`IFERROR(VLOOKUP($${col["根因分類"]}$${r},${rootTableRange},2,FALSE),"")`};
       wsDef.getCell(`${col["三要素"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncFactor"]};
       wsDef.getCell(`${col["重要程度"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncImp"]};
       wsDef.getCell(`${col["重點關注"]}${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_ncFocus"]};
@@ -18465,7 +18562,7 @@ const Air={
     try{
       const buf=await wb.xlsx.writeBuffer();
       dl(new Blob([buf],{type:"application/octet-stream"}),"AfterInspectionReview_匯入範本.xlsx");
-      toast("✓ 已下載填單匯入範本（船名／船型／檢查來源／問題別／大類／具體名稱／三要素／重要程度／重點關注／風險／缺失性質判定／責任人職位皆為下拉選單，大類與具體名稱會依上一欄自動篩選）");
+      toast("✓ 已下載填單匯入範本（船名／船型／檢查來源／問題別／大類／具體名稱／根因分類／三要素／重要程度／重點關注／風險／缺失性質判定／責任人職位／正向評論職稱皆為下拉選單，大類與具體名稱會依上一欄自動篩選，三要素會依根因分類自動帶出）");
     }catch(e){toast("⚠ 範本產生失敗："+e.message);}
   },
   async exportXlsx(){
@@ -18522,7 +18619,7 @@ const Air={
             opComment:g(x,"Initial Operator Comment","Operator Comment","船公司初步意見"),
             immediateCause:g(x,"直接原因 Immediate Cause","直接原因","Immediate Cause"),
             corrective:g(x,"改善措施"),rootCause:g(x,"根本原因"),preventive:g(x,"預防措施"),
-            ncProb:g(x,"問題別"),ncMain:g(x,"大類"),ncLeaf:g(x,"具體名稱"),ncFactor:g(x,"三要素"),
+            ncProb:g(x,"問題別"),ncMain:g(x,"大類"),ncLeaf:g(x,"具體名稱"),ncRoot:g(x,"根因分類"),ncFactor:g(x,"三要素"),
             ncImp:g(x,"重要程度"),ncFocus:truthy(g(x,"重點關注"))?"是":(g(x,"重點關注")?"否":""),
             ncOpinion:ncOpinionNormalize(g(x,"缺失性質判定","檢查員意見/BP","檢查員意見","Best Practice")),risk:g(x,"風險"),
             needControl:truthy(g(x,"需內控","是否內控","內控")),
@@ -19490,7 +19587,12 @@ const Air={
         rank:r.rank||"",person:r.person||"",risk:r.risk||"",needControl:!!r.needControl,
         internalControl:!!(r.internalControl||r.needControl),
         ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncRoot:r.ncRoot||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||""};
-      const existing=(mode==="overwrite"&&r.pushedDefId!=null)?App.defs.find(x=>x.id===r.pushedDefId):null;
+      // ⚠ 這裡原本用 x.id===r.pushedDefId（嚴格比對），如果 pushedDefId 因為任何原因
+      // 變成字串型別（例如曾經被存到 Excel 再匯入回來、或走過一次 JSON 字串化的路徑），
+      // 跟 App.defs 裡實際的數字型別 id 就永遠對不上，嚴格比對永遠是 false，
+      // 結果「覆蓋」永遠找不到對應的舊紀錄，只能落到「新增一筆」，這樣使用者選覆蓋、
+      // 畫面卻變成新增。改成用 String() 轉型後再比對，兩種型別都能正確配對到。
+      const existing=(mode==="overwrite"&&r.pushedDefId!=null)?App.defs.find(x=>String(x.id)===String(r.pushedDefId)):null;
       if(existing){
         Object.assign(existing,payload); // 保留原本的 id／attn（注意）等未列在payload內的欄位
         updated++;
