@@ -13722,6 +13722,11 @@ const ImportUI={
   // 那個檔案裡的紀錄整批刪掉，是個很危險的地雷。現在改成跟「線上填單→轉入缺失紀錄」一樣的
   // 安全做法：逐筆比對，只有「這一列本身帶有系統紀錄編號、且該編號目前真的存在」才覆蓋那一筆，
   // 其餘一律當新增，絕不會動到其他沒有比對到的既有資料。
+  // 跟「線上填單→轉入缺失紀錄」同一個「白工」風險：Excel 範本重新匯入回來時，
+  // 如果那次匯出的欄位剛好沒有包含分類欄位、或使用者匯出後忘了填，normalize() 會把
+  // 這些欄位填成空字串——選「覆蓋」時若照樣整包蓋上去，會把已經分類好的內容洗掉。
+  // 這裡同樣只在匯入列「真的有值」時才覆蓋這些分類欄位。
+  _CLASSIFY_PROTECT_KEYS:["ncProb","ncMain","ncLeaf","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","risk","rank","person"],
   _mergeImport(list,pending,mode,nextIdFn){
     let updated=0,added=0;
     pending.forEach(r=>{
@@ -13729,7 +13734,9 @@ const ImportUI={
       const existing=(mode==="overwrite"&&srcId!=null)?list.find(x=>String(x.id)===srcId):null;
       if(existing){
         const keepId=existing.id;
-        Object.assign(existing,r);
+        const safeR={...r};
+        this._CLASSIFY_PROTECT_KEYS.forEach(k=>{if(safeR[k]==="")delete safeR[k];});
+        Object.assign(existing,safeR);
         existing.id=keepId;
         updated++;
       }else{
@@ -19594,7 +19601,17 @@ const Air={
       // 畫面卻變成新增。改成用 String() 轉型後再比對，兩種型別都能正確配對到。
       const existing=(mode==="overwrite"&&r.pushedDefId!=null)?App.defs.find(x=>String(x.id)===String(r.pushedDefId)):null;
       if(existing){
-        Object.assign(existing,payload); // 保留原本的 id／attn（注意）等未列在payload內的欄位
+        // ⚠ 這裡是「白工」問題的真正源頭：payload 裡的問題別/大類/具體名稱/根因/三要素/風險/
+        // 責任人職位姓名，全部來自「線上填單這一列原始資料」的 r.ncProb 等欄位——但這些分類
+        // 欄位，幾乎都是缺失紀錄總表這邊事後才補做分類的，線上填單原始資料通常根本沒有填。
+        // 如果直接整包 Object.assign，等於每次重新「覆蓋」轉入，就會用線上填單裡的空值，
+        // 把你已經在缺失紀錄總表裡做好的分類全部洗掉，變成做白工。這裡改成：
+        // 只有在這次轉入「真的帶有值」時才覆蓋這些分類欄位，沒有值就保留缺失紀錄總表裡
+        // 原本已經分類好的內容，不會被空值蓋掉。
+        const CLASSIFY_KEYS=["ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","risk","rank","person"];
+        const safePayload={...payload};
+        CLASSIFY_KEYS.forEach(k=>{if(safePayload[k]==="")delete safePayload[k];});
+        Object.assign(existing,safePayload); // 保留原本的 id／attn（注意）等未列在payload內的欄位
         updated++;
       }else{
         const rec={id:App.nextId(),attn:false,...payload};
