@@ -11956,9 +11956,11 @@ const Defs={
     {k:"ncProb",t:"問題別",sort:true,cell:d=>DefsGrid.cell(d,"ncProb")},
     {k:"ncMain",t:"大類",sort:true,cell:d=>DefsGrid.cell(d,"ncMain")},
     {k:"ncLeaf",t:"具體名稱",sort:true,cell:d=>DefsGrid.cell(d,"ncLeaf")},
+    {k:"ncRoot",t:"根因",sort:true,cell:d=>DefsGrid.cell(d,"ncRoot")},
     {k:"ncFactor",t:"三要素",sort:true,cell:d=>DefsGrid.cell(d,"ncFactor")},
     {k:"risk",t:"風險",sort:true,cell:d=>DefsGrid.cell(d,"risk")},
     {k:"ncOpinion",t:"缺失性質判定",sort:true,cell:d=>DefsGrid.cell(d,"ncOpinion")},
+    {k:"internalControl",t:"需內控",sort:true,def:false,cell:d=>`<td style="text-align:center">${d.internalControl?"是":"否"}</td>`},
 
     {k:"icat",t:"檢查類型",sort:true,def:false,cell:d=>`<td>${icatChip(icatOf(d.itype))}</td>`},
     {k:"psc",t:"PSC Action Taken",sort:false,def:false,cell:d=>`<td style="white-space:nowrap">${pscChipsHtml(d.psc)}</td>`},
@@ -13689,10 +13691,13 @@ const ImportUI={
       ["ship","date","code","item","comment","rank","person"].forEach(k=>n[k]=String(o[k]??"").trim());
       n.ym=ymOf(n.date);
     }else{
-      ["ship","vtype","itype","ym","date","place","inspector","oilco","psc","code","detail","actual","opComment","opCommentReply","immediateCause","immediateCauseReply","corrective","correctiveReply","rootCause","rootCauseReply","preventive","preventiveReply","ncProb","ncMain","ncLeaf","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","rank","person","risk"].forEach(k=>n[k]=String(o[k]??"").trim());
+      ["ship","vtype","itype","ym","date","place","inspector","oilco","psc","code","detail","actual","opComment","opCommentReply","immediateCause","immediateCauseReply","corrective","correctiveReply","rootCause","rootCauseReply","preventive","preventiveReply","ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","rank","person","risk"].forEach(k=>n[k]=String(o[k]??"").trim());
       if(!n.ym)n.ym=ymOf(n.date);
       n.attn=["v","V","Y","y","true","TRUE","1","是","✓"].includes(String(o.attn??"").trim());
       n.ncFocus=["v","V","Y","y","true","TRUE","1","是","✓"].includes(String(o.ncFocus??"").trim())?"是":"否";
+      // 「需內控」在系統內是布林值，Excel 匯出時寫的是「是／否」，這裡轉回布林。
+      // 只有欄位真的有值時才設定，避免匯入檔沒有這一欄時被當成「否」而清掉既有設定。
+      if(String(o.internalControl??"").trim()!=="")n.internalControl=["v","V","Y","y","true","TRUE","1","是","✓"].includes(String(o.internalControl).trim());
       if(!n.ncOpinion)n.ncOpinion=o.ncOpinion||"";
       if(!n.ncProb)n.ncProb=o.ncProb||"";
       if(!n.ncMain)n.ncMain=o.ncMain||"";
@@ -13726,7 +13731,7 @@ const ImportUI={
   // 如果那次匯出的欄位剛好沒有包含分類欄位、或使用者匯出後忘了填，normalize() 會把
   // 這些欄位填成空字串——選「覆蓋」時若照樣整包蓋上去，會把已經分類好的內容洗掉。
   // 這裡同樣只在匯入列「真的有值」時才覆蓋這些分類欄位。
-  _CLASSIFY_PROTECT_KEYS:["ncProb","ncMain","ncLeaf","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","risk","rank","person"],
+  _CLASSIFY_PROTECT_KEYS:["ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","risk","rank","person"],
   _mergeImport(list,pending,mode,nextIdFn){
     let updated=0,added=0;
     pending.forEach(r=>{
@@ -24413,7 +24418,27 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
       if(typeof Cloud==="undefined"||!Cloud.enabled())return;
       const cfg=this.TABLES[key];
       const idField=cfg.idField||"id";
+      // ⚠ 這次開機（或手動載入）如果這個表沒有成功從雲端拉到資料，本機留的是舊資料，
+      // 絕對不能推上去——否則會把雲端上這台裝置還沒看到的紀錄整批誤刪。
+      if(this.isPushBlocked(key)){
+        console.warn("RecordSync: 略過推送（本次雲端載入失敗，避免用舊資料覆蓋雲端）",key);
+        if(typeof Cloud!=="undefined")Cloud.showSyncFail(`「${(typeof EditLock!=="undefined"&&EditLock.LABELS[key])||key}」尚未成功載入雲端資料，已暫停上傳以保護雲端紀錄。請檢查網路後點「載入最新資料」。`);
+        return;
+      }
       const {curMap,upserts,deletes}=this.diff(key);
+      // ⚠ 大量刪除保險絲：正常操作一次不會刪掉幾十筆。若 diff 算出要刪除的筆數異常龐大
+      // （超過 20 筆、且佔雲端既有紀錄一成以上），極可能是本機資料異常（例如載入不完整、
+      // 快照錯亂）造成的誤判，這時寧可停下來問使用者，也不要靜默把雲端資料刪光。
+      const snapCount=Object.keys(this.loadSnap(key)||{}).length;
+      if(deletes.length>20&&snapCount>0&&deletes.length>snapCount*0.1){
+        const label=(typeof EditLock!=="undefined"&&EditLock.LABELS[key])||key;
+        const ok=confirm(`⚠ 資料保護警告\n\n系統偵測到即將從雲端刪除「${label}」的 ${deletes.length} 筆紀錄（雲端目前共 ${snapCount} 筆）。\n\n正常操作不會一次刪除這麼多筆。這通常代表本機資料載入不完整，若繼續，雲端上這 ${deletes.length} 筆紀錄將被永久刪除。\n\n強烈建議按「取消」，然後先做一次「匯出完整備份」，再點「載入最新資料」確認資料正常。\n\n確定仍要刪除嗎？`);
+        if(!ok){
+          this._pullFailed.add(key); // 使用者喊停 → 一併封鎖後續推送，直到重新載入
+          if(typeof Cloud!=="undefined")Cloud.showSyncFail(`已阻止「${label}」的大量刪除，請先「載入最新資料」確認狀態。`);
+          return;
+        }
+      }
       if(upserts.length){
         const rows=upserts.map(r=>({id:r[idField],updated:Date.now(),payload:r}));
         for(let i=0;i<rows.length;i+=200){
@@ -24443,6 +24468,14 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
   },
   /* 開機／手動「從雲端載入」時呼叫：新表有資料就採用新表；新表是空的就沿用現有資料並自動遷移一次。
      回傳 {source:"new"|"empty"|"error", count} 給呼叫端決定要不要顯示相關訊息。*/
+  /* ⚠ 安全閥：只要有任何一個資料表這次「從雲端載入」失敗（例如網路斷線、雲端暫時無回應），
+     就把該表標記起來，之後一律禁止把本機資料推上雲端。原因是：載入失敗時本機留著的是
+     「舊資料」，而 diff() 計算刪除清單的依據是「快照裡有、但本機陣列裡沒有」——用一份舊資料
+     去比對，會把雲端上其他人新增、而這台裝置還沒拉到的紀錄，全部誤判成「已被刪除」，
+     接著真的送出 DELETE 把雲端資料刪掉。這正是整批紀錄會無聲消失的最危險路徑。
+     一旦標記，必須等到成功重新載入（pullOrMigrate 成功）才會解除。 */
+  _pullFailed:new Set(),
+  isPushBlocked(key){ return this._pullFailed.has(key); },
   async pullOrMigrate(key){
     const cfg=this.TABLES[key];if(!cfg)return {source:"error"};
     const idField=cfg.idField||"id";
@@ -24458,13 +24491,16 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
       if(rows.length>0){
         const arr=rows.map(r=>r.payload).filter(Boolean);
         cfg.setArr(arr);
-        const snap={};arr.forEach(r=>{if(r&&r[idField]!=null&&r[idField]!=="")snap[String(r[idField])]=JSON.stringify(r);});
+        const snap={};arr.forEach(r=>{if(r&&r[idField]!=null&&r[idField]!==""){snap[String(r[idField])]=JSON.stringify(r);}});
         this.saveSnap(key,snap);
+        this._pullFailed.delete(key); // 成功載入，解除推送封鎖
         return {source:"new",count:arr.length};
       }
+      this._pullFailed.delete(key);
       return {source:"empty",count:0};
     }catch(e){
       console.warn("RecordSync pullOrMigrate 失敗（可能是還沒建立資料表，請參考 RecordSync.SETUP_SQL）",key,e);
+      this._pullFailed.add(key); // ⚠ 載入失敗 → 封鎖推送，避免用舊資料誤刪雲端紀錄
       return {source:"error",error:e};
     }
   },
