@@ -11663,7 +11663,7 @@ function ncOpinionNormalize(v){
 }
 function ncOpinionLabel(v){const hit=NC_OPINION_OPTS.find(o=>o[0]===ncOpinionNormalize(v));return hit?hit[1]:"無";}
 function ncOpinionOptsHtml(v){const cur=ncOpinionNormalize(v);return NC_OPINION_OPTS.map(([val,label])=>`<option value="${val}"${cur===val?" selected":""}>${label}</option>`).join("");}
-const DEF_COLS=[["ship","船名"],["vtype","船型"],["itype","檢查類型"],["ym","年月"],["date","檢查日期"],["place","地點"],["inspector","檢查員"],["oilco","油公司/單位"],["psc","PSC action"],["code","缺失代碼"],["attn","重點關注"],["detail","缺失詳情"],["actual","實際情況"],["opComment","Initial Operator Comment（船上填寫版）"],["opCommentReply","Initial Operator Comment（對外回覆版）"],["immediateCause","直接原因 Immediate Cause（船上填寫版）"],["immediateCauseReply","直接原因 Immediate Cause（對外回覆版）"],["corrective","改善措施（船上填寫版）"],["correctiveReply","改善措施（對外回覆版）"],["rootCause","根本原因（船上填寫版）"],["rootCauseReply","根本原因（對外回覆版）"],["preventive","預防措施（船上填寫版）"],["preventiveReply","預防措施（對外回覆版）"],["rank","職級-責任人"],["person","姓名-責任人"],["risk","風險(1低2中3高)"],["ncProb","問題別"],["ncMain","大類"],["ncLeaf","具體名稱"],["ncFactor","三要素"],["ncImp","重要程度"],["ncFocus","重點關注"],["ncMethod","分類方法"],["ncOpinion","缺失性質判定"]];
+const DEF_COLS=[["ship","船名"],["vtype","船型"],["itype","檢查類型"],["ym","年月"],["date","檢查日期"],["place","地點"],["inspector","檢查員"],["oilco","油公司/單位"],["psc","PSC action"],["code","缺失代碼"],["attn","重點關注"],["detail","缺失詳情"],["actual","實際情況"],["opComment","Initial Operator Comment（船上填寫版）"],["opCommentReply","Initial Operator Comment（對外回覆版）"],["immediateCause","直接原因 Immediate Cause（船上填寫版）"],["immediateCauseReply","直接原因 Immediate Cause（對外回覆版）"],["corrective","改善措施（船上填寫版）"],["correctiveReply","改善措施（對外回覆版）"],["rootCause","根本原因（船上填寫版）"],["rootCauseReply","根本原因（對外回覆版）"],["preventive","預防措施（船上填寫版）"],["preventiveReply","預防措施（對外回覆版）"],["rank","職級-責任人"],["person","姓名-責任人"],["risk","風險(1低2中3高)"],["ncProb","問題別"],["ncMain","大類"],["ncLeaf","具體名稱"],["ncRoot","根因"],["ncFactor","三要素"],["ncImp","重要程度"],["ncFocus","重點關注"],["ncMethod","分類方法"],["ncOpinion","缺失性質判定"],["internalControl","需內控"]];
 
 /* ════════ 通用：頁面篩選欄位顯示設定（僅 Owner 可調整）════════
    任何頁面都可用 FilterVisEngine.register(key,{...}) 註冊，決定該頁篩選列上
@@ -13504,7 +13504,16 @@ const Defs={
     this.saveCustomExportCols(picked);
     const cols=DEF_COLS.filter(c=>picked.includes(c[0])); // 依 DEF_COLS 原順序，不依勾選順序
     const rows=this.exportSet();
-    const aoa=[cols.map(c=>c[1]),...rows.map(d=>cols.map(c=>d[c[0]]??""))];
+    // ⚠ 多選欄位（問題別／大類／具體名稱）系統內部用「‖」分隔，這裡刻意「原樣輸出」，不要改成頓號。
+    // 原因：很多分類名稱本身就含有頓號（例如「救生、消防、应急及安全设备」「01.文件、证书和管理作业」），
+    // 若改用頓號當分隔符號，匯入時會把一個名稱誤拆成好幾個標籤，資料就壞了。
+    // 「‖」在 Excel 裡看起來雖然不直覺，但它是唯一能安全區分「多選項目」與「名稱內含頓號」的符號。
+    // 另外「需內控」內部是布林值，這裡轉成「是／否」，匯入時再轉回布林。
+    const cellVal=(d,k)=>{
+      if(k==="internalControl")return d.internalControl?"是":"否";
+      return d[k]??"";
+    };
+    const aoa=[cols.map(c=>c[1]),...rows.map(d=>cols.map(c=>cellVal(d,c[0])))];
     const ws=XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"]=cols.map(c=>({wch:["detail","actual","preventive","ncOpinion"].includes(c[0])?55:18}));
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"缺失紀錄（自訂欄位）");
