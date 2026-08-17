@@ -8068,6 +8068,12 @@ const App={
     this.insp.forEach((d,i)=>{if(!d.id)d.id=4000000+i;});
     try{const dl=document.getElementById("dl-sire-chapters");if(dl)dl.innerHTML=sireChapterDatalistHtml();}catch(e){}
     try{const rb=document.getElementById("dmia-restore-wrap");if(rb)rb.style.display=localStorage.getItem("vsm_pre_importall_backup_v1")?"":"none";}catch(e){}
+    // ⚠ 這裡漏掉了同樣的處理：「從完整備份 JS 還原」的復原按鈕（dm-fulljson-restore-wrap）
+    // 只有在「這次還原動作剛執行完」的當下用 JS 直接設 display=""，重新整理頁面後
+    // 因為是靠 inline style 記狀態、不是靠資料本身判斷，按鈕會打回預設的隱藏，
+    // 讓使用者以為「回復至上次還原前」這個安全網不見了——但其實 localStorage 裡的
+    // 備份資料還在，只是按鈕忘記把自己顯示出來。補上跟上面一樣的開機檢查。
+    try{const rb2=document.getElementById("dm-fulljson-restore-wrap");if(rb2)rb2.style.display=localStorage.getItem("vsm_pre_importalljson_backup_v1")?"":"none";}catch(e){}
     // 將新分類欄位(nc*)由內建種子依id併入既有缺失資料；僅補未存在者,不覆蓋使用者後續編輯
     try{
       const ncMap=new Map(built.deficiencies.map(x=>[x.id,x]));
@@ -9501,7 +9507,7 @@ const Ov={
       <td style="text-align:center;font-family:var(--mono);color:var(--ok)">${esc(r.npos||"0")}</td>
       <td style="font-size:11px">${esc(r.flagType)}</td>
       <td>${(r.detain||"").toUpperCase().startsWith("Y")?'<span class="st st-solid">⚑ 扣船</span>':'<span class="st st-none">—</span>'}</td>
-      <td><button class="btn sm" onclick="Ov.openEdit(${idx})">✎</button></td></tr>`;
+      <td>${r._impAt?`<span title="轉入/匯入於 ${esc(new Date(r._impAt).toLocaleString("zh-TW",{hour12:false}))}${r._impBy?"，操作者："+esc(r._impBy):""}" style="cursor:help;color:var(--ink-3);font-size:12px;margin-right:6px">ℹ</span>`:""}<button class="btn sm" onclick="Ov.openEdit(${idx})">✎</button></td></tr>`;
     }).join("")||`<tr><td colspan="14" class="empty">無符合資料</td></tr>`;
     $("#ov-pager").innerHTML=pagerHtml(this.page,pages,total,"Ov","ov");
   },
@@ -13103,7 +13109,7 @@ const Defs={
       const tds=cols.map(c=>c.cell(d)).join("");
       return `<tr data-id="${d.id}" class="${this.selected.has(String(d.id))?"sel":""} ${d.attn?"attn-row":""}">
       <td><input type="checkbox" ${this.selected.has(String(d.id))?"checked":""} onchange="Defs.toggleSel('${d.id}',this.checked)"></td>
-      <td style="white-space:nowrap"><button class="btn sm" onclick="Defs.openEdit(${d.id})">✎</button></td>
+      <td style="white-space:nowrap">${d._impAt?`<span title="轉入/匯入於 ${esc(new Date(d._impAt).toLocaleString("zh-TW",{hour12:false}))}${d._impBy?"，操作者："+esc(d._impBy):""}" style="cursor:help;color:var(--ink-3);font-size:12px;margin-right:4px">ℹ</span>`:""}<button class="btn sm" onclick="Defs.openEdit(${d.id})">✎</button></td>
       <td style="text-align:center"><input type="checkbox" ${d.attn?"checked":""} onchange="Defs.setAttn(${d.id},this.checked)" title="新缺失須注意" style="accent-color:var(--signal)"></td>
       ${tds}
     </tr>`;}).join("")||`<tr><td colspan="${totalCols}"><div class="empty"><div class="big">⚓</div>無符合篩選條件之缺失紀錄</div></td></tr>`;
@@ -13804,6 +13810,7 @@ const ImportUI={
   _CLASSIFY_PROTECT_KEYS:["ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","risk","rank","person"],
   _mergeImport(list,pending,mode,nextIdFn){
     let updated=0,added=0;
+    const impAt=Date.now(),impBy=(typeof Audit!=="undefined"?Audit.user():"");
     pending.forEach(r=>{
       const srcId=r._srcId;delete r._srcId;
       const existing=(mode==="overwrite"&&srcId!=null)?list.find(x=>String(x.id)===srcId):null;
@@ -13813,10 +13820,12 @@ const ImportUI={
         this._CLASSIFY_PROTECT_KEYS.forEach(k=>{if(safeR[k]==="")delete safeR[k];});
         Object.assign(existing,safeR);
         existing.id=keepId;
+        existing._impAt=impAt;existing._impBy=impBy;
         updated++;
       }else{
         const rec={...r};
         rec.id=nextIdFn();
+        rec._impAt=impAt;rec._impBy=impBy;
         list.push(rec);
         added++;
       }
@@ -19580,7 +19589,7 @@ const Air={
       // 找到就視為「原本那一筆」直接同步，避免又多轉出一筆重複紀錄。
       existing=App.insp.find(x=>x.ship===d.ship&&x.itype===d.itype&&x.date===d.date)||null;
     }
-    const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:d.date,loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:d.flagType||""};
+    const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:d.date,loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:d.flagType||"",_impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
     if(existing){
       if(!confirm(`此筆填單先前已轉入過「檢查紀錄」，要用目前的基本資料（含缺失數／正面評論數／FLAG項目等最新內容）覆蓋更新那一筆嗎？`))return;
       Object.assign(existing,payload);
@@ -19668,7 +19677,8 @@ const Air={
         preventiveReply:rp.preventiveCn||"",
         rank:r.rank||"",person:r.person||"",risk:r.risk||"",needControl:!!r.needControl,
         internalControl:!!(r.internalControl||r.needControl),
-        ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncRoot:r.ncRoot||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||""};
+        ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncRoot:r.ncRoot||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||"",
+        _impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
       // ⚠ 這裡原本用 x.id===r.pushedDefId（嚴格比對），如果 pushedDefId 因為任何原因
       // 變成字串型別（例如曾經被存到 Excel 再匯入回來、或走過一次 JSON 字串化的路徑），
       // 跟 App.defs 裡實際的數字型別 id 就永遠對不上，嚴格比對永遠是 false，
@@ -19739,7 +19749,7 @@ const Air={
       const prevIds=Array.isArray(r.pushedPosIds)?r.pushedPosIds:[];
       const newIds=[];
       list.forEach((p,i)=>{
-        const payload={ship:d.ship,date:d.date,ym:ymOf(d.date),code:r.code||"",item:r.item||"",comment:r.comment||"",rank:p.rank||"",person:p.person||""};
+        const payload={ship:d.ship,date:d.date,ym:ymOf(d.date),code:r.code||"",item:r.item||"",comment:r.comment||"",rank:p.rank||"",person:p.person||"",_impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
         const existing=(mode==="overwrite"&&prevIds[i]!=null)?App.sirePos.find(x=>x.id===prevIds[i]):null;
         if(existing){
           Object.assign(existing,payload);
@@ -19887,7 +19897,7 @@ const Air={
     let n=0,m=0;
     if(target==="insp"){
       items.forEach(d=>{
-        const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:normDateSlash(d.date),loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:d.flagType||""};
+        const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:normDateSlash(d.date),loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:d.flagType||"",_impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
         let existing=d.pushedInspId!=null?App.insp.find(x=>x.id===d.pushedInspId):null;
         if(!existing&&d.usedInsp)existing=App.insp.find(x=>x.ship===d.ship&&x.itype===d.itype&&x.date===payload.date)||null;
         if(existing){Object.assign(existing,payload);d.pushedInspId=existing.id;}
@@ -24255,6 +24265,10 @@ const Audit={
     if($("#au-stat"))$("#au-stat").textContent=`本機 ${this.list.length} 筆（顯示最近300）`;
   },
   showLocal(){
+    // ⚠ 跟 pullCloud() 的修正互相配合：現在「載入全公司紀錄」會把 this.list 換成全公司資料，
+    // 所以「本機紀錄」這顆按鈕也要把 this.list 換回本機自己的資料，兩個按鈕才會真的各自
+    // 顯示（也各自匯出）對應的內容，不會按了「本機紀錄」卻還在看全公司資料。
+    try{const s=localStorage.getItem(this.KEY);this.list=s?JSON.parse(s):[];}catch(e){this.list=[];}
     this.showBody();
     this.render();
   },
@@ -24268,6 +24282,11 @@ const Audit={
     if(typeof Cloud==="undefined"||!Cloud.enabled()){toast("⚠ 請先於上方完成雲端同步設定");return;}
     try{
       const rows=await Cloud.api("audit_log?select=ts,usr,action,target,summary&order=ts.desc&limit=1000");
+      // ⚠ 這裡原本只把抓回來的全公司紀錄塞進畫面表格的 HTML，沒有同步更新 this.list——
+      // 「⬇ Excel」匯出讀的正是 this.list，兩邊資料脫節，導致畫面上看得到全公司的紀錄，
+      // 匯出的 Excel 卻還是最早那份只有自己的本機清單。這裡把 this.list 也一併更新，
+      // 讓匯出的內容跟畫面上看到的一致。
+      this.list=rows||[];
       this.showBody();
       $("#au-tbody").innerHTML=this.rowsHtml(rows||[]);
       $("#au-stat").textContent=`☁ 全公司最近 ${rows.length} 筆`;
