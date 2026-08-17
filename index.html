@@ -4784,6 +4784,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           </select>
           <button class="btn primary" onclick="NCTree.uiAddRootCause()">＋ 新增根因</button>
         </div>
+        <div class="toolbar" style="margin-bottom:10px">
+          <button class="btn" onclick="NCTree.exportRootCauseXlsx()">⬇ 匯出 Excel</button>
+          <button class="btn" onclick="NCTree.exportRootCauseJson()">⬇ 匯出 JS 備份</button>
+          <button class="btn" onclick="NCTree.importRootCauseJson()">⬆ 從 JS 還原</button>
+        </div>
         <div id="nct-rc-list" style="display:flex;flex-direction:column;gap:6px"></div>
       </div>
 
@@ -10926,6 +10931,57 @@ const NCTree={
         <button class="btn sm danger" style="padding:0 6px" onclick="NCTree.deleteRootCause('${esc(name).replace(/'/g,"\\'")}')" title="刪除">🗑</button>
       </div>`;
     }).join(""):`<div class="hint">尚未設定任何根因項目</div>`;
+  },
+  /* ── 缺失根因分類：匯出 Excel（僅供閱讀）／匯出 JS 備份／從 JS 還原 ──
+     跟「篩選清單管理」（TagLists）用的是同一套模式：Excel 只給人看，JS 才是真正能還原的格式。 */
+  async exportRootCauseXlsx(){
+    if(!hasExcelJS())return;
+    const wb=new ExcelJS.Workbook();
+    const ws=wb.addWorksheet("缺失根因分類");
+    ws.addRow(["根因名稱","三要素"]);
+    ws.getRow(1).font={bold:true};
+    (this.list.rootCause||[]).forEach(([name,elem])=>ws.addRow([name,elem]));
+    ws.getColumn(1).width=32;ws.getColumn(2).width=12;
+    const buf=await wb.xlsx.writeBuffer();
+    dl(new Blob([buf],{type:"application/octet-stream"}),`缺失根因分類_備份_${todayStr()}.xlsx`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","缺失根因分類",`Excel備份（${(this.list.rootCause||[]).length}項，僅供閱讀）`);
+    toast("✓ 已下載 Excel（僅供閱讀留存，無法還原，還原請用 JS 備份）");
+  },
+  exportRootCauseJson(){
+    const bundle={type:"vsm_rootcause_backup",exportedAt:new Date().toISOString(),
+      exportedBy:(typeof Audit!=="undefined")?Audit.user():"",
+      rootCause:this.list.rootCause||[]};
+    dl(new Blob([JSON.stringify(bundle,null,1)],{type:"application/json"}),`缺失根因分類_備份_${todayStr()}.json`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","缺失根因分類",`JS備份（${(this.list.rootCause||[]).length}項）`);
+    toast("✓ 已下載 JS 備份，可用「⬆ 從 JS 還原」匯回");
+  },
+  importRootCauseJson(){
+    if(typeof Role==="undefined"||!Role.isOwner()){toast("⚠ 還原僅限 Owner 執行");return;}
+    const fp=$("#filepick");fp.accept=".json";fp.value="";
+    fp.onchange=()=>{if(fp.files[0])this._readImportRootCauseJson(fp.files[0]);};
+    fp.click();
+  },
+  _readImportRootCauseJson(file){
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const bundle=JSON.parse(r.result);
+        if(!bundle||bundle.type!=="vsm_rootcause_backup"||!Array.isArray(bundle.rootCause)){toast("⚠ 檔案格式不正確，請確認是用「⬇ 匯出 JS 備份」產生的檔案");return;}
+        // 逐筆檢查格式：每筆必須是 [名稱, 三要素]，且三要素要落在允許範圍內，避免匯入壞資料。
+        const bad=bundle.rootCause.find(x=>!Array.isArray(x)||!x[0]||!this.ELEMENT_OPTS.includes(x[1]));
+        if(bad){toast("⚠ 檔案內容格式有誤（根因項目缺名稱或三要素不是人員/設備/系統），已取消匯入");return;}
+        const when=bundle.exportedAt?new Date(bundle.exportedAt).toLocaleString():"未知時間";
+        const oldCount=(this.list.rootCause||[]).length;
+        if(!confirm(`即將以此備份（匯出於 ${when}，共 ${bundle.rootCause.length} 項）覆蓋目前的「缺失根因分類」（目前 ${oldCount} 項）。\n\n改名／刪除既有根因會影響已標記該根因的缺失紀錄，請確認這是正確的備份檔再繼續。\n\n確定要覆蓋嗎？`))return;
+        this.list.rootCause=bundle.rootCause.map(x=>[String(x[0]).trim(),x[1]]);
+        this._saveLocal();this.apply();
+        if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
+        if(typeof Audit!=="undefined")Audit.log("還原","缺失根因分類",`從 JS 備份還原（${bundle.rootCause.length}項，備份時間 ${when}）`);
+        this.render();
+        toast(`✓ 已還原 ${bundle.rootCause.length} 項根因分類`);
+      }catch(e){toast("⚠ 檔案讀取失敗，請確認是合法的 JSON 檔");}
+    };
+    r.readAsText(file);
   },
   /* ════════ 缺失分類階層管理備份：Excel（給人看）＋ JS（可還原）══════ */
   async exportXlsx(){
