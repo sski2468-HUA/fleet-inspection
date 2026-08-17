@@ -2783,7 +2783,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div class="card">
           <h3>缺失改善明細
             <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-              <button class="btn sm" onclick="Air.addDefectRow()">＋ 新增一筆缺失明細</button>
+              <button class="btn sm" id="air-adddef-btn" onclick="Air.addDefectRow()">＋ 新增一筆缺失明細</button>
               <button class="btn sm" onclick="Air.exportDefectsXlsx()">⬇ 匯出 Excel</button>
               <button class="btn sm" onclick="document.getElementById('air-def-import-file').click()">⬆ 匯入 Excel</button>
               <input type="file" id="air-def-import-file" accept=".xlsx,.xls" style="display:none" onchange="Air.importDefectsXlsx(this.files[0]);this.value=''">
@@ -2806,7 +2806,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div class="card">
           <h3>正面評價明細
             <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-              <button class="btn sm" onclick="Air.addPosRow()">＋ 新增一筆正面評價明細</button>
+              <button class="btn sm" id="air-addpos-btn" onclick="Air.addPosRow()">＋ 新增一筆正面評價明細</button>
               <button class="btn sm dark" onclick="Air.pushPosRowsToSire()">➜ 轉入正面評價/優秀案例記錄</button>
             </span>
           </h3>
@@ -2862,11 +2862,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               </span>
             </h3>
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:flex-end;margin-top:8px">
-              <button class="btn sm primary" onclick="Air.openExternalEditor()">✏ 對外回覆編輯</button>
-              <button class="btn sm" onclick="window.open(Air.getExternalReplyBase(),'_blank')">📋 對外回覆案件清單</button>
+              <button class="btn sm primary" id="air-replyedit-btn" onclick="Air.openExternalEditor()">✏ 對外回覆編輯</button>
+              <button class="btn sm" id="air-replylist-btn" onclick="window.open(Air.getExternalReplyBase(),'_blank')">📋 對外回覆案件清單</button>
               <button class="btn sm" onclick="Air.togglePromptEditor()">⚙ 自訂提示詞</button>
               <button class="btn sm" title="說明" onclick="Air.showPromptHelp()">❓</button>
-              <button class="btn sm" title="重新設定外部網頁網址" onclick="Air.resetExternalReplyBase()">⚙ 外部網址設定</button>
+              <button class="btn sm" id="air-replyurl-btn" title="重新設定外部網頁網址" onclick="Air.resetExternalReplyBase()">⚙ 外部網址設定</button>
             </div>
             <p class="hint" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <span id="air-reply-context"></span>
@@ -2930,8 +2930,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <button class="btn sm df-tabbtn active" data-p="view" onclick="Defs.setSubTab('view')">👁 查看模式</button>
         <button class="btn sm df-tabbtn" data-p="list" onclick="Defs.setSubTab('list')">📋 列表模式</button>
         <button class="btn sm df-tabbtn" data-p="proj" id="df-tab-proj-btn" onclick="Defs.setSubTab('proj')" style="display:none">📊 專案分析</button>
-        <button class="btn sm df-tabbtn" data-p="person" onclick="Defs.setSubTab('person')">🧑 責任人紀錄</button>
-        <button class="btn sm df-tabbtn" data-p="edit" onclick="Defs.setSubTab('edit')">🗂 編輯模式</button>
+        <button class="btn sm df-tabbtn" data-p="person" id="df-tab-person-btn" onclick="Defs.setSubTab('person')" style="display:none">🧑 責任人紀錄</button>
+        <button class="btn sm df-tabbtn" data-p="edit" id="df-tab-edit-btn" onclick="Defs.setSubTab('edit')" style="display:none">🗂 編輯模式</button>
       </div>
 
       <!-- ── 查看模式：卡片式，不需左右滑動，方便督導/操作者快速閱讀缺失內容 ── -->
@@ -4658,6 +4658,50 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         </div>
       </div>
 
+      <!-- ═══ 重複匯入偵測（僅 Owner） ═══ -->
+      <div class="card" id="dupfinder-card" style="margin-bottom:14px;display:none;border-left:4px solid var(--bad)">
+        <h3>⚠ 重複匯入偵測
+          <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn sm primary" onclick="DupFinder.scan()">🔍 開始掃描</button>
+          </span>
+        </h3>
+        <p class="hint" style="margin-bottom:10px;line-height:1.7">找<b>船名／日期／檢查來源／內容完全一致</b>的紀錄，通常是同一批資料被<b>重複匯入</b>造成的（跟「重複性缺失分析」不同，那邊找的是「同一類缺失一再發生」，這裡找的是「同一筆資料被匯入了不只一次」）。找到後可勾選多餘的那幾筆刪除，<b>刪除會先進「資源回收桶」，30天內可還原，不會直接消失</b>。<b>僅限 Owner 操作</b>。</p>
+        <div id="dupfinder-defs"><p class="hint">尚未掃描，請點「開始掃描」。</p></div>
+        <div id="dupfinder-insp" style="margin-top:14px"></div>
+      </div>
+
+      <!-- ═══ Supabase 儲存空間監控（僅 Owner） ═══ -->
+      <div class="card" id="storagemon-card" style="margin-bottom:14px;display:none">
+        <h3>🗄 Supabase 儲存空間監控
+          <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn sm" onclick="StorageMonitor.refresh()">🔄 刷新空間</button>
+          </span>
+        </h3>
+        <p class="hint" style="margin-bottom:10px;line-height:1.7">物理總量與單項邏輯量分開顯示，避免把瀏覽器估算誤當成 Supabase 磁碟量。<b>此功能僅供查看與手動清理，不會自動刪除任何資料</b>；個案刪除一律先進「資源回收桶」（30天內可還原），操作紀錄清理則會先自動下載留存檔才執行，絕不影響業務資料的正常保存。<b>僅限 Owner 操作</b>。</p>
+        <div id="storagemon-overview"><p class="hint">載入中…</p></div>
+        <div id="storagemon-appdb" style="margin-top:14px"></div>
+        <div style="margin-top:18px">
+          <h4 style="margin:0 0 8px;font-size:14px">📋 個案佔用空間排行（缺失紀錄／檢查紀錄）</h4>
+          <p class="hint" style="margin-bottom:8px">列出目前系統裡，單筆內容量最大的紀錄——通常是因為缺失詳情/實際情形貼了過長的文字、或分類欄位／編輯歷程異常累積。確認內容有問題再刪除，刪除後可在「資源回收桶」內 30 天內還原。</p>
+          <div class="toolbar" style="margin-bottom:8px">
+            <button class="btn sm" onclick="StorageMonitor.renderTopRecords()">🔍 分析目前資料</button>
+          </div>
+          <div id="storagemon-toprecords"></div>
+        </div>
+        <div style="margin-top:18px;border-top:1px dashed var(--line);padding-top:14px">
+          <h4 style="margin:0 0 8px;font-size:14px">📜 操作紀錄（Audit Log）清理</h4>
+          <p class="hint" style="margin-bottom:8px">操作紀錄會隨系統使用不斷累積、沒有上限，是最容易長期佔用空間的資料類型。可設定日期，只清理「該日期之前」的舊紀錄；清理前系統會自動下載一份完整留存檔。<b>不影響檢查紀錄／缺失紀錄等業務資料，只清理操作紀錄本身</b>。</p>
+          <div id="storagemon-auditstat" class="hint" style="margin-bottom:8px">載入中…</div>
+          <div class="toolbar" style="gap:8px">
+            <span class="hint">清理此日期之前的操作紀錄：</span>
+            <input type="date" id="storagemon-auditdate" style="padding:4px 8px">
+            <button class="btn sm" onclick="StorageMonitor.previewAuditCleanup()">預覽筆數</button>
+            <button class="btn sm danger" onclick="StorageMonitor.cleanupAuditLogs()">🗑 清理（先自動下載留存）</button>
+          </div>
+          <div id="storagemon-auditpreview" class="hint" style="margin-top:6px"></div>
+        </div>
+      </div>
+
       <!-- ═══ 唯讀模式 ═══ -->
       <div class="card" style="margin-bottom:14px;border-left:4px solid #8b1a10">
         <h3>🔒 唯讀模式（全站凍結寫入）</h3>
@@ -4881,7 +4925,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <label id="e-internalControl-wrap" style="display:none;flex-direction:row;align-items:center;gap:8px;align-self:end;padding-bottom:6px"><input type="checkbox" id="e-internalControl" style="width:16px;height:16px;accent-color:#6a3b8f"> 🔒 內控（全船隊比照管控）</label>
             <label id="e-ncMethod-wrap">分類方法<input type="text" id="e-ncMethod" placeholder="關鍵字對應 / 人工核對…"></label>
             <div class="fw fld">🧩 根因分類（可多選，選了會自動帶出下方三要素）<div id="e-ncroot-box" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px;border:1px solid var(--line);border-radius:6px"></div></div>
-            <div class="fw fld">三要素（人員/設備/系統，可多選；已依上方根因自動帶出，如需要仍可手動調整）<div class="msel" id="ms-e-ncFactor"></div></div>
+            <div class="fw fld">三要素（人員/設備/系統；已依上方根因分類自動帶出，不開放單獨編輯——如需調整請改選根因）<div id="e-ncFactor-display" class="hint" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);min-height:20px">（尚未帶出，請先選根因）</div></div>
             <label class="fw">缺失性質判定<select id="e-ncOpinion"><option value="none">無</option><option value="inspector_opinion">檢查員個人意見</option><option value="best_practice">Best Practice（建議做法）</option></select></label>
           </div>
         </div>
@@ -5660,6 +5704,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <span style="flex:1"></span>
       <button class="btn" onclick="Defs.closeBatchEdit()">取消</button>
       <button class="btn primary" onclick="Defs.applyBatchEdit()">套用變更</button>
+    </div>
+  </div>
+</div>
+
+<!-- 缺失紀錄：分類欄位人工異動歷程（誰、何時、改了哪個欄位） -->
+<div class="modal-bg" id="classifyLogModal">
+  <div class="modal" style="max-width:640px">
+    <div class="mh"><h3>🕐 分類欄位修改歷程</h3><button class="x" onclick="Defs.closeClassifyLog()">✕</button></div>
+    <div class="mb" style="max-height:70vh;overflow:auto">
+      <p class="hint" style="margin-bottom:8px">只記錄在系統裡「人工」修改分類相關欄位的異動（編輯模式卡片、批量編輯）；透過匯入/線上填單轉入帶入的內容，另外用欄位旁的 ℹ 圖示查看。</p>
+      <div id="classifyLogBody"></div>
     </div>
   </div>
 </div>
@@ -6472,6 +6527,8 @@ const DataHub={
      cards:["側邊欄項目管理","篩選清單管理","缺失分類階層管理","缺失根因分類","各頁面篩選欄位顯示設定","外部/內部檢查、檢查類型對應定義"]},
     {id:"backup",icon:"📦", name:"備份與還原",
      cards:["一鍵下載全部備份","預設資料／備份還原","全部歸零"]},
+    {id:"storage",icon:"🗄", name:"儲存空間監控",
+     cards:["Supabase 儲存空間監控","重複匯入偵測"]},
     {id:"audit", icon:"📜", name:"操作紀錄",
      cards:["操作紀錄查詢"]}
   ],
@@ -6685,6 +6742,285 @@ const DataHub={
    系統中有多處需要「Owner 指定一批人員可做某件事」（缺失快速分類、建立自查任務、
    操演紀錄…）。原本每一處都各自複製一份部門/人員下拉＋chips＋儲存＋雲端同步的程式碼，
    難以維護、後台也顯得零散。這裡抽成一個通用元件，各功能只要宣告設定即可。 */
+const DupFinder={
+  /* ════════ 重複匯入偵測（搬到資料管理後台，僅 Owner 可見/可操作）════════
+     只找「內容完全一致」的紀錄（船名/日期/檢查來源/內容逐字相同），這種一致到不像巧合的
+     情況，幾乎都是同一批資料被重複匯入造成的——不是靠推測/模糊比對，避免誤判正常的
+     「同一天同一艘船剛好有兩筆不同缺失」。
+     安全設計：畫面上預設「全部不勾選」，要使用者自己確認、明確勾選才會刪除；
+     刪除一律先進 RecycleBin（30天可還原），絕不直接永久刪除。 */
+  init(){
+    const card=$("#dupfinder-card");
+    if(!card)return;
+    const isOwner=typeof Role!=="undefined"&&Role.isOwner&&Role.isOwner();
+    card.style.display=isOwner?"":"none";
+  },
+  _defsGroups:[],_inspGroups:[],
+  scan(){
+    this.scanDefs();
+    this.scanInsp();
+  },
+  _key(parts){return parts.map(x=>String(x||"").trim()).join("‖");},
+  scanDefs(){
+    const map=new Map();
+    (App.defs||[]).forEach(d=>{
+      if(!d.detail||!d.detail.trim())return; // 空白內容不比對，避免大量「都是空的」被誤判成重複
+      const k=this._key([d.ship,d.date,d.itype,d.detail]);
+      if(!map.has(k))map.set(k,[]);
+      map.get(k).push(d);
+    });
+    this._defsGroups=[...map.values()].filter(g=>g.length>1).sort((a,b)=>b.length-a.length);
+    this.renderDefs();
+  },
+  scanInsp(){
+    const map=new Map();
+    (App.insp||[]).forEach(d=>{
+      const k=this._key([d.ship,d.date,d.itype,d.inspector,d.loc]);
+      if(!map.has(k))map.set(k,[]);
+      map.get(k).push(d);
+    });
+    this._inspGroups=[...map.values()].filter(g=>g.length>1).sort((a,b)=>b.length-a.length);
+    this.renderInsp();
+  },
+  renderDefs(){
+    const box=$("#dupfinder-defs");if(!box)return;
+    const groups=this._defsGroups;
+    if(!groups.length){box.innerHTML='<p class="hint">✓ 缺失紀錄目前沒有發現內容完全重複的紀錄。</p>';return;}
+    const totalExcess=groups.reduce((s,g)=>s+g.length-1,0);
+    box.innerHTML=`<h4 style="margin:0 0 8px;font-size:14px">缺失紀錄：找到 ${groups.length} 組重複（共可精簡 ${totalExcess} 筆）</h4>
+      ${groups.map((g,gi)=>`<div style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:8px">
+        <div class="hint" style="margin-bottom:6px"><b>${esc(g[0].ship)}</b>　${esc(g[0].date)}　${esc(g[0].itype||"")}　${esc((g[0].detail||"").slice(0,60))}${(g[0].detail||"").length>60?"…":""}</div>
+        ${g.map(d=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:2px 0">
+          <input type="checkbox" class="dupf-defs-chk" data-gi="${gi}" data-id="${esc(String(d.id))}">
+          #${esc(String(d.id))}　${d._impAt?`匯入於 ${esc(new Date(d._impAt).toLocaleString("zh-TW",{hour12:false}))}${d._impBy?"（"+esc(d._impBy)+"）":""}`:'<span class="hint">（無匯入紀錄，可能是手動建立）</span>'}
+        </label>`).join("")}
+      </div>`).join("")}
+      <div class="toolbar" style="margin-top:6px">
+        <button class="btn sm danger" onclick="DupFinder.deleteSelected('defs')">🗑 刪除已勾選（先存入資源回收桶）</button>
+      </div>`;
+  },
+  renderInsp(){
+    const box=$("#dupfinder-insp");if(!box)return;
+    const groups=this._inspGroups;
+    if(!groups.length){box.innerHTML='<p class="hint">✓ 檢查紀錄目前沒有發現內容完全重複的紀錄。</p>';return;}
+    const totalExcess=groups.reduce((s,g)=>s+g.length-1,0);
+    box.innerHTML=`<h4 style="margin:0 0 8px;font-size:14px">檢查紀錄：找到 ${groups.length} 組重複（共可精簡 ${totalExcess} 筆）</h4>
+      ${groups.map((g,gi)=>`<div style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:8px">
+        <div class="hint" style="margin-bottom:6px"><b>${esc(g[0].ship)}</b>　${esc(g[0].date)}　${esc(g[0].itype||"")}　${esc(g[0].inspector||"")}　${esc(g[0].loc||"")}</div>
+        ${g.map(d=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:2px 0">
+          <input type="checkbox" class="dupf-insp-chk" data-gi="${gi}" data-id="${esc(String(d.id))}">
+          #${esc(String(d.id))}　缺失數：${esc(d.ndef||"0")}　${d._impAt?`匯入於 ${esc(new Date(d._impAt).toLocaleString("zh-TW",{hour12:false}))}${d._impBy?"（"+esc(d._impBy)+"）":""}`:'<span class="hint">（無匯入紀錄，可能是手動建立）</span>'}
+        </label>`).join("")}
+      </div>`).join("")}
+      <div class="toolbar" style="margin-top:6px">
+        <button class="btn sm danger" onclick="DupFinder.deleteSelected('insp')">🗑 刪除已勾選（先存入資源回收桶）</button>
+      </div>`;
+  },
+  async deleteSelected(type){
+    // ⚠ 這個功能已經搬到資料管理後台、限定僅 Owner 可見，這裡的刪除動作再收緊一層，
+    // 用 Role.isOwner() 而不是原本較寬鬆的 Guard.requireDelete()（那個連維護者/管理員都算過）。
+    if(typeof Role==="undefined"||!Role.isOwner||!Role.isOwner()){toast("⚠ 此功能僅限 Owner 操作");return;}
+    const cls=type==="defs"?".dupf-defs-chk":".dupf-insp-chk";
+    const checked=[...document.querySelectorAll(cls+":checked")];
+    if(!checked.length){toast("⚠ 請先勾選要刪除的紀錄");return;}
+    // ⚠ 安全防呆：不允許同一組重複裡「全部勾選、一筆都不留」，一定要保留至少一筆，
+    // 避免使用者手滑或誤判，把某艘船某天的資料整組刪光。
+    const byGroup={};
+    checked.forEach(el=>{const gi=el.dataset.gi;(byGroup[gi]=byGroup[gi]||[]).push(el);});
+    const groups=type==="defs"?this._defsGroups:this._inspGroups;
+    for(const gi in byGroup){
+      const groupSize=(groups[+gi]||[]).length;
+      if(byGroup[gi].length>=groupSize){
+        toast(`⚠ 第 ${+gi+1} 組不能整組全刪，至少要保留一筆，請取消勾選其中一筆`);
+        return;
+      }
+    }
+    const ids=checked.map(el=>el.dataset.id);
+    if(!confirm(`確定刪除已勾選的 ${ids.length} 筆${type==="defs"?"缺失":"檢查"}紀錄？（會先存入資源回收桶，30天內可還原）`))return;
+    const arrName=type==="defs"?"defs":"insp";
+    const arr=App[arrName]||[];
+    let n=0;
+    ids.forEach(id=>{
+      const rec=arr.find(x=>String(x.id)===String(id));
+      if(!rec)return;
+      const label=`${rec.ship||""} ${rec.date||""}：${(rec.detail||rec.inspector||"").slice(0,40)}（重複匯入偵測刪除）`;
+      if(typeof RecycleBin!=="undefined")RecycleBin.add(type,rec,label);
+      n++;
+    });
+    App[arrName]=arr.filter(x=>!ids.includes(String(x.id)));
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("刪除",type==="defs"?"缺失紀錄":"檢查紀錄",`重複匯入偵測刪除 ${n} 筆`);
+    toast(`✓ 已刪除 ${n} 筆，已存入資源回收桶`);
+    if(type==="defs")this.scanDefs();else this.scanInsp();
+  }
+};
+const StorageMonitor={
+  /* ════════ Supabase 儲存空間監控（僅 Owner） ════════
+     設計原則：這整個功能只有「查詢」跟「經過確認的刪除」，絕不自動刪除任何東西。
+     - 精確的資料庫/資料表用量：呼叫兩個唯讀 RPC 函式（storage_usage_overview／
+       storage_usage_by_appdb_key），這兩個函式需要先在 Supabase 後台手動建立
+       （SQL 已另外提供），沒建立時會優雅降級成只顯示本機估算值，不會報錯卡住。
+     - 個案刪除（缺失/檢查紀錄）：一律先進 RecycleBin（30天可還原），不是直接刪掉。
+     - 操作紀錄清理：只刪 audit_log 這張表，不動任何業務資料；執行前一定先自動
+       下載完整留存檔，且需要手動輸入確認字串才會真的執行。 */
+  init(){
+    const card=$("#storagemon-card");
+    if(!card)return;
+    const isOwner=typeof Role!=="undefined"&&Role.isOwner&&Role.isOwner();
+    const wasHidden=card.style.display==="none";
+    card.style.display=isOwner?"":"none";
+    if(isOwner&&wasHidden&&!this._loaded){this._loaded=true;this.refresh();}
+  },
+  fmtBytes(n){
+    n=+n||0;
+    if(n<1024)return n+" B";
+    if(n<1048576)return (n/1024).toFixed(1)+" KiB";
+    if(n<1073741824)return (n/1048576).toFixed(1)+" MiB";
+    return (n/1073741824).toFixed(2)+" GiB";
+  },
+  async refresh(){
+    await this.loadOverview();
+    this.loadAuditStat();
+  },
+  async loadOverview(){
+    const box=$("#storagemon-overview"),box2=$("#storagemon-appdb");
+    if(!box)return;
+    box.innerHTML='<p class="hint">載入中…</p>';
+    if(box2)box2.innerHTML="";
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){
+      box.innerHTML='<p class="hint">⚠ 尚未設定雲端連線，無法查詢。</p>';
+      return;
+    }
+    let overview=null,appdb=null;
+    try{overview=await Cloud.api("rpc/storage_usage_overview",{method:"POST",body:"{}"});}catch(e){}
+    try{appdb=await Cloud.api("rpc/storage_usage_by_appdb_key",{method:"POST",body:"{}"});}catch(e){}
+    const fmtB=this.fmtBytes;
+    if(!overview){
+      box.innerHTML=`<p class="hint" style="color:#a04030;line-height:1.7">⚠ 尚未在 Supabase 設定查詢函式（storage_usage_overview／storage_usage_by_appdb_key），無法顯示精確的資料庫用量。請參考另外提供的 SQL 檔案，請人到 Supabase 後台的 SQL Editor 執行一次即可啟用；設定前，下方仍會顯示「本機估算」的參考用量。</p>`;
+      this.renderLocalEstimate();
+      return;
+    }
+    const total=overview.find(x=>x.name==="database_total");
+    const tables=overview.filter(x=>x.name.startsWith("table:")).sort((a,b)=>b.bytes-a.bytes);
+    box.innerHTML=`
+      <div style="background:#eef2fb;border-radius:8px;padding:12px;max-width:260px;margin-bottom:12px">
+        <div class="hint" style="font-weight:700;color:var(--navy)">Supabase 資料庫總用量</div>
+        <div style="font-size:22px;font-weight:800;margin:4px 0">${total?fmtB(total.bytes):"—"}</div>
+        <div class="hint" style="font-size:11px">整個 Project database，含系統與其他資料表</div>
+      </div>
+      <div class="tblwrap" style="max-height:260px"><table class="tbl"><thead><tr><th>資料表</th><th style="width:120px">用量</th></tr></thead><tbody>
+        ${tables.map(t=>`<tr><td style="font-family:var(--mono);font-size:12px">${esc(t.name.replace("table:",""))}</td><td style="font-family:var(--mono)">${fmtB(t.bytes)}</td></tr>`).join("")}
+      </tbody></table></div>`;
+    if(appdb&&box2){
+      box2.innerHTML=`<h4 style="margin:0 0 8px;font-size:14px">app_db 內各類資料明細（依資料類別分別統計）</h4>
+        <div class="tblwrap" style="max-height:300px"><table class="tbl"><thead><tr><th>資料類別</th><th style="width:80px">筆數</th><th style="width:110px">用量</th></tr></thead><tbody>
+        ${appdb.slice(0,40).map(r=>`<tr><td style="font-family:var(--mono);font-size:12px">${esc(r.k)}</td><td style="font-family:var(--mono)">${r.row_count}</td><td style="font-family:var(--mono)">${fmtB(r.bytes)}</td></tr>`).join("")}
+        </tbody></table></div>`;
+    }else{
+      this.renderLocalEstimate();
+    }
+  },
+  renderLocalEstimate(){
+    const box2=$("#storagemon-appdb");if(!box2)return;
+    const items=[
+      ["缺失紀錄",App.defs],["檢查紀錄",App.insp],["SIRE正向評論",App.sirePos],["填單",App.air],
+      ["檢查管控",App.inspCtrl],["年度計畫",App.annualPlan],["內稽動態",App.auditDash],
+      ["缺失專案分析",App.defsProjects],["操演紀錄",App.drillRecords]
+    ];
+    const rows=items.map(([label,arr])=>({label,count:(arr||[]).length,bytes:(arr&&arr.length)?JSON.stringify(arr).length:0}))
+      .sort((a,b)=>b.bytes-a.bytes);
+    box2.innerHTML=`<h4 style="margin:14px 0 8px;font-size:14px">本機估算（依目前已載入資料計算，僅供參考，非精確磁碟量）</h4>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th>資料</th><th style="width:80px">筆數</th><th style="width:120px">估算大小</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr><td>${esc(r.label)}</td><td style="font-family:var(--mono)">${r.count}</td><td style="font-family:var(--mono)">${this.fmtBytes(r.bytes)}</td></tr>`).join("")}
+      </tbody></table></div>`;
+  },
+  renderTopRecords(){
+    const box=$("#storagemon-toprecords");
+    if(!box)return;
+    const items=[];
+    (App.defs||[]).forEach(d=>items.push({type:"defs",id:d.id,ship:d.ship,date:d.date,label:(d.detail||"").slice(0,50),bytes:JSON.stringify(d).length}));
+    (App.insp||[]).forEach(d=>items.push({type:"insp",id:d.id,ship:d.ship,date:d.date,label:(d.inspector||"")+" "+(d.itype||""),bytes:JSON.stringify(d).length}));
+    items.sort((a,b)=>b.bytes-a.bytes);
+    const top=items.slice(0,20);
+    if(!top.length){box.innerHTML='<p class="hint">目前沒有資料可分析。</p>';return;}
+    box.innerHTML=`<div class="tblwrap"><table class="tbl"><thead><tr>
+      <th style="width:60px">類型</th><th style="width:70px">船名</th><th style="width:90px">日期</th><th>內容摘要</th><th style="width:90px">大小</th><th style="width:70px"></th>
+    </tr></thead><tbody>
+      ${top.map(it=>`<tr>
+        <td>${it.type==="defs"?"缺失":"檢查"}</td>
+        <td>${esc(it.ship||"")}</td>
+        <td style="white-space:nowrap">${esc(it.date||"")}</td>
+        <td style="font-size:11.5px">${esc(it.label||"")}</td>
+        <td style="font-family:var(--mono)">${this.fmtBytes(it.bytes)}</td>
+        <td><button class="btn sm danger" onclick="StorageMonitor.deleteRecord('${it.type}',${JSON.stringify(String(it.id))})">🗑 刪除</button></td>
+      </tr>`).join("")}
+    </tbody></table></div>
+    <p class="hint" style="margin-top:6px">刪除後會進入「資源回收桶」，30 天內可還原（資料管理 → 其他 → 資源回收桶）。</p>`;
+  },
+  async deleteRecord(type,id){
+    if(typeof Guard!=="undefined"&&!await Guard.requireDelete())return;
+    const arrName=type==="defs"?"defs":"insp";
+    const arr=App[arrName]||[];
+    const rec=arr.find(x=>String(x.id)===String(id));
+    if(!rec){toast("⚠ 找不到這筆紀錄（可能已被刪除）");this.renderTopRecords();return;}
+    const label=`${rec.ship||""} ${rec.date||""}：${(rec.detail||rec.inspector||"").slice(0,40)}`;
+    if(!confirm(`確定刪除這筆${type==="defs"?"缺失":"檢查"}紀錄？（會先存入資源回收桶，30天內可還原）\n\n${label}`))return;
+    if(typeof RecycleBin!=="undefined")RecycleBin.add(type,rec,label);
+    App[arrName]=arr.filter(x=>String(x.id)!==String(id));
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("刪除",type==="defs"?"缺失紀錄":"檢查紀錄",`儲存空間監控手動刪除：${label}`);
+    toast("✓ 已刪除，已存入資源回收桶");
+    this.renderTopRecords();
+  },
+  async loadAuditStat(){
+    const box=$("#storagemon-auditstat");
+    if(!box)return;
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){box.textContent="尚未連線雲端";return;}
+    try{
+      const oldest=await Cloud.api("audit_log?select=ts&order=ts.asc&limit=1");
+      const r=await fetch(Cloud.cfg.url+"/rest/v1/audit_log?select=ts",{method:"HEAD",headers:Object.assign({},Cloud.hdr(),{"Prefer":"count=exact"})});
+      const cr=r.headers.get("content-range");
+      const total=cr?cr.split("/")[1]:"?";
+      const oldestTxt=oldest&&oldest[0]?new Date(oldest[0].ts).toLocaleDateString("zh-TW"):"—";
+      box.textContent=`雲端目前共 ${total} 筆操作紀錄，最早一筆：${oldestTxt}`;
+    }catch(e){box.textContent="⚠ 查詢失敗："+e.message;}
+  },
+  async previewAuditCleanup(){
+    const dateEl=$("#storagemon-auditdate"),box=$("#storagemon-auditpreview");
+    if(!dateEl||!dateEl.value){if(box)box.textContent="請先選擇日期";return;}
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){box.textContent="尚未連線雲端";return;}
+    const cutoffMs=new Date(dateEl.value+"T00:00:00").getTime();
+    try{
+      const r=await fetch(Cloud.cfg.url+`/rest/v1/audit_log?select=ts&ts=lt.${cutoffMs}`,{method:"HEAD",headers:Object.assign({},Cloud.hdr(),{"Prefer":"count=exact"})});
+      const cr=r.headers.get("content-range");
+      const n=cr?cr.split("/")[1]:"?";
+      box.textContent=`符合條件（${dateEl.value} 之前）的操作紀錄共 ${n} 筆。確認無誤後可點「清理」執行。`;
+    }catch(e){box.textContent="⚠ 查詢失敗："+e.message;}
+  },
+  async cleanupAuditLogs(){
+    if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    const dateEl=$("#storagemon-auditdate");
+    if(!dateEl||!dateEl.value){toast("⚠ 請先選擇日期");return;}
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){toast("⚠ 尚未連線雲端");return;}
+    const dateStr=dateEl.value;
+    const cutoffMs=new Date(dateStr+"T00:00:00").getTime();
+    let rows;
+    try{
+      rows=await Cloud.api(`audit_log?select=ts,usr,action,target,summary&ts=lt.${cutoffMs}&order=ts.asc`);
+    }catch(e){toast("⚠ 查詢失敗："+e.message);return;}
+    if(!rows||!rows.length){toast("沒有符合條件的紀錄可清理");return;}
+    const ans=prompt(`⚠ 即將永久刪除雲端「${dateStr}」之前的操作紀錄，共 ${rows.length} 筆。\n\n這只會刪除操作紀錄本身，不影響檢查紀錄／缺失紀錄等任何業務資料。刪除前會先自動下載一份完整留存檔。此動作無法復原。\n\n請輸入「清理操作紀錄」以確認：`);
+    if(ans!=="清理操作紀錄"){toast("已取消");return;}
+    try{dl(new Blob([JSON.stringify(rows,null,1)],{type:"application/json"}),`操作紀錄留存_${dateStr}以前_${todayStr()}.json`);}catch(e){}
+    try{
+      await Cloud.api(`audit_log?ts=lt.${cutoffMs}`,{method:"DELETE"});
+      toast(`✓ 已清理 ${rows.length} 筆操作紀錄（已先下載留存檔）`);
+      if(typeof Audit!=="undefined")Audit.log("刪除","操作紀錄",`清理 ${dateStr} 之前的操作紀錄，共 ${rows.length} 筆（已先下載留存）`);
+      this.loadAuditStat();
+      const pv=$("#storagemon-auditpreview");if(pv)pv.textContent="";
+    }catch(e){toast("⚠ 清理失敗："+e.message);}
+  }
+};
 const EditorList={
   DEFS:{
     exporter:{key:"exporters", field:"exporters", lsk:"exp",
@@ -6698,6 +7034,10 @@ const EditorList={
     defsGrid:{key:"defsGridEditors", field:"defsGridEditors", lsk:"dge",
       title:"缺失總表 — 快速分類",
       desc:"可在缺失紀錄總表使用「✎ 快速分類」格線編輯（直接修改問題別／大類／具體名稱／三要素／重要程度／風險／重要關注／缺失性質判定），並使用⚡系統建議分類。",
+      base:"Owner／維護者"},
+    defsEdit:{key:"defsEditMembers", field:"defsEditMembers", lsk:"dem",
+      title:"缺失總表 — 編輯模式／責任人紀錄",
+      desc:"可看到並使用「缺失紀錄總表」的「編輯模式」（分類編輯）與「責任人紀錄」這兩個分頁；沒有這項權限的人，這兩個分頁按鈕不會出現，只看得到「查看模式」「列表模式」等瀏覽功能。",
       base:"Owner／維護者"}
   },
   can(id){
@@ -7024,6 +7364,10 @@ function fallbackCopyText(text,okMsg){
   }catch(e){toast("⚠ 自動複製失敗，請手動選取文字後複製");}
 }
 function parseDate(s){if(!s)return null;const m=String(s).match(/(\d{4})[\/\-\.](\d{1,2})(?:[\/\-\.](\d{1,2}))?/);if(!m)return null;return new Date(+m[1],+m[2]-1,+(m[3]||1));}
+// ⚠ 系統很多地方用 String(date).localeCompare() 排序日期，日期格式是「YYYY/M/D」（不補零），
+// 字串比較下「2026/8/12」會排在「2026/8/8」前面（因為 '1'<'8'），造成兩位數的日/月排序錯亂。
+// 這裡提供一個共用的「日期轉可排序數字」工具，統一用真正的時間戳記比較，不再用字串比較。
+function dateSortVal(s){const d=parseDate(s);return d?d.getTime():0;}
 /* 線上填單外部網頁的「檢查日期」是瀏覽器原生 <input type="date">，一律吐出「YYYY-MM-DD」格式，
    跟系統其他地方慣用的「YYYY/M/D」（不補零、用斜線）不一致，混在一起顯示會很亂。
    這個函式統一轉成系統慣用格式，在資料從外部進來、或從AIR轉入各資料表時呼叫，讓格式保持一致。 */
@@ -7995,8 +8339,8 @@ function applyTM(rec){ // 補齊單筆紀錄的TM欄位
 
 /* ───── 資料層 ───── */
 const App={
-  insp:[], defs:[], tasks:[], curTaskId:null, sirePos:[], air:[], chapterOverrides:{}, inspCtrl:[], refDocs:[], refDocs2:[], annualPlan:[], auditDash:[], defsProjects:[], projectMembers:[], drillRecords:[], drillRecordEditors:[], defsGridEditors:[], taskCreators:[], exporters:[], deletedTaskGids:[], recycleBin:[], airHaijiConfirmers:[], enhAuditLog:[],
-  LSK:{i:"vsm_insp_v8",d:"vsm_defs_v8",s:"vsm_tasks_v2",sp:"vsm_sirepos_v1",air:"vsm_air_v1",ch:"vsm_chapter_overrides_v1",ic:"vsm_inspctrl_v1",rd:"vsm_refdocs_v1",rd2:"vsm_refdocs2_v1",ap:"vsm_annualplan_v1",ad:"vsm_auditdash_v1",dp:"vsm_defsprojects_v1",pm:"vsm_projectmembers_v1",dr:"vsm_drillrecords_v1",dre:"vsm_drillrecordeditors_v1",dge:"vsm_defsgrideditors_v1",tcr:"vsm_taskcreators_v1",exp:"vsm_exporters_v1",dtg:"vsm_deletedtaskgids_v1",rb:"vsm_recyclebin_v1",ahc:"vsm_air_haiji_confirmers_v1",el:"vsm_enhauditlog_v1"},
+  insp:[], defs:[], tasks:[], curTaskId:null, sirePos:[], air:[], chapterOverrides:{}, inspCtrl:[], refDocs:[], refDocs2:[], annualPlan:[], auditDash:[], defsProjects:[], projectMembers:[], drillRecords:[], drillRecordEditors:[], defsGridEditors:[], taskCreators:[], exporters:[], defsEditMembers:[], deletedTaskGids:[], recycleBin:[], airHaijiConfirmers:[], enhAuditLog:[],
+  LSK:{i:"vsm_insp_v8",d:"vsm_defs_v8",s:"vsm_tasks_v2",sp:"vsm_sirepos_v1",air:"vsm_air_v1",ch:"vsm_chapter_overrides_v1",ic:"vsm_inspctrl_v1",rd:"vsm_refdocs_v1",rd2:"vsm_refdocs2_v1",ap:"vsm_annualplan_v1",ad:"vsm_auditdash_v1",dp:"vsm_defsprojects_v1",pm:"vsm_projectmembers_v1",dr:"vsm_drillrecords_v1",dre:"vsm_drillrecordeditors_v1",dge:"vsm_defsgrideditors_v1",tcr:"vsm_taskcreators_v1",exp:"vsm_exporters_v1",dem:"vsm_defseditmembers_v1",dtg:"vsm_deletedtaskgids_v1",rb:"vsm_recyclebin_v1",ahc:"vsm_air_haiji_confirmers_v1",el:"vsm_enhauditlog_v1"},
   /* 一次性資料修補：把 2026/7/1 CSO 名單併入現有船舶資料的 CSO 欄位，只在該船 cso 欄位目前是空的時候才帶入，
      不會覆蓋任何已存在的資料；只執行一次（用 localStorage flag 記錄），之後有異動一律以「船舶資料」頁面手動維護為準。*/
   migrateCsoData(){
@@ -8072,6 +8416,7 @@ const App={
       const ldge=LZGet(this.LSK.dge);this.defsGridEditors=ldge?JSON.parse(ldge):[];
       const ltcr=LZGet(this.LSK.tcr);this.taskCreators=ltcr?JSON.parse(ltcr):[];
       const lexp=LZGet(this.LSK.exp);this.exporters=lexp?JSON.parse(lexp):[];
+      const ldem=LZGet(this.LSK.dem);this.defsEditMembers=ldem?JSON.parse(ldem):[];
       const ldtg=LZGet(this.LSK.dtg);this.deletedTaskGids=ldtg?JSON.parse(ldtg):[];
       const lrb=LZGet(this.LSK.rb);this.recycleBin=lrb?JSON.parse(lrb):[];
       const lel=LZGet(this.LSK.el);this.enhAuditLog=lel?JSON.parse(lel):[];
@@ -8126,7 +8471,7 @@ const App={
     this.defs.forEach(d=>{if(d.inspector)d.inspector=canonInspector(d.inspector);if(d.oilco)d.oilco=canonUnit(d.oilco);});
     if(typeof Classify!=="undefined")Classify.init();
     if(typeof NCTree!=="undefined")NCTree.init();
-    Dash.init();Ov.init();if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();// 編輯鎖定功能已停用(全部資料表都已改為逐筆同步,不再需要)：不建立浮動按鈕/面板，EditLock.guard() 保留為恆真空操作。
+    Dash.init();Ov.init();if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();if(typeof StorageMonitor!=="undefined")StorageMonitor.init();if(typeof DupFinder!=="undefined")DupFinder.init();// 編輯鎖定功能已停用(全部資料表都已改為逐筆同步,不再需要)：不建立浮動按鈕/面板，EditLock.guard() 保留為恆真空操作。
     refreshInspectorList();refreshPlaceList();
     this.refreshMeta();
     NavConfig.apply();
@@ -12303,7 +12648,7 @@ const Defs={
   openDownloadModal(){$("#downloadModal").classList.add("show");},
   closeDownloadModal(){$("#downloadModal").classList.remove("show");},
   openInternalControlList(){
-    const rows=(App.defs||[]).filter(d=>d.internalControl===true).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    const rows=(App.defs||[]).filter(d=>d.internalControl===true).sort((a,b)=>dateSortVal(b.date)-dateSortVal(a.date));
     const box=$("#internalControlBody");
     if(box){
       box.innerHTML=rows.length?`<table class="tbl" style="width:100%"><thead><tr><th>船舶</th><th>日期</th><th>CODE</th><th>缺失詳情</th><th></th></tr></thead><tbody>${rows.map(d=>`<tr>
@@ -12323,6 +12668,7 @@ const Defs={
     let fixedN=0;
     App.defs.forEach(d=>{if(Array.isArray(d.ncRoot)){d.ncRoot=d.ncRoot.join("、");fixedN++;}});
     if(fixedN){App.saveAll();console.log(`已修正 ${fixedN} 筆缺失紀錄的根因分類格式`);}
+    this.refreshEditTabVisibility();
     const rerun=()=>{this.page=1;this.render();};
     this.populateYm();
     this.ms.ship=MSel("ms-f-ship","船名",()=>TagLists.withExtras("ship",App.defs.map(d=>d.ship)),rerun);
@@ -12346,8 +12692,21 @@ const Defs={
     this.setSubTab(this.subTab,true);
     this.render();
   },
+  canUseEditMode(){
+    return typeof EditorList!=="undefined"&&EditorList.can("defsEdit");
+  },
+  refreshEditTabVisibility(){
+    const ok=this.canUseEditMode();
+    const pb=$("#df-tab-person-btn"),eb=$("#df-tab-edit-btn");
+    if(pb)pb.style.display=ok?"":"none";
+    if(eb)eb.style.display=ok?"":"none";
+    // ⚠ 如果使用者當下正停留在「編輯模式」或「責任人紀錄」，但權限被收回了（例如身份切換），
+    // 要立刻把畫面切回「查看模式」，不能讓沒權限的人停留在原本已經打開的編輯畫面上。
+    if(!ok&&(this.subTab==="edit"||this.subTab==="person"))this.setSubTab("view");
+  },
   setSubTab(tab,skipRender){
     if(tab==="proj"&&typeof DefsProj!=="undefined"&&!DefsProj.canUse()){toast("⚠ 僅 Owner／指定人員可使用專案分析");return;}
+    if((tab==="edit"||tab==="person")&&!this.canUseEditMode()){toast("⚠ 僅 Owner／維護者／指定人員可使用此功能");return;}
     this.subTab=tab;
     $$(".df-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.p===tab));
     const vp=$("#defs-page-view"),lp=$("#defs-page-list"),pp=$("#defs-page-proj"),pep=$("#defs-page-person"),eep=$("#defs-page-edit");
@@ -12410,7 +12769,7 @@ const Defs={
         <div id="dfperson-detail-${idx}" style="display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
           <table class="tbl" style="width:100%;font-size:12.5px">
             <thead><tr><th>船名</th><th>檢查日期</th><th>檢查來源</th><th>缺失內容</th></tr></thead>
-            <tbody>${g.items.sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(d=>`<tr>
+            <tbody>${g.items.sort((a,b)=>dateSortVal(b.date)-dateSortVal(a.date)).map(d=>`<tr>
               <td>${esc(d.ship)}</td><td>${esc(d.date)}</td><td>${esc(d.itype)}</td>
               <td style="text-align:left;white-space:pre-wrap;max-width:420px">${esc(d.detail||"")}</td>
             </tr>`).join("")}</tbody>
@@ -12436,7 +12795,13 @@ const Defs={
     this.syncNcFactorFromRoot();
   },
   syncNcFactorFromRoot(){
-    if(!this.emFactor||!this._ncRootSel||!this._ncRootSel.size)return;
+    if(!this.emFactor)return;
+    const disp=$("#e-ncFactor-display");
+    if(!this._ncRootSel||!this._ncRootSel.size){
+      this.emFactor.set([]);
+      if(disp)disp.innerHTML='<span class="hint">（尚未帶出，請先選根因）</span>';
+      return;
+    }
     const items=(typeof NCTree!=="undefined"?NCTree.list.rootCause:[])||[];
     const elemSet=new Set();
     this._ncRootSel.forEach(name=>{
@@ -12452,6 +12817,7 @@ const Defs={
       mapped.add(hit);
     });
     this.emFactor.set([...mapped]);
+    if(disp)disp.textContent=[...mapped].join("、")||"（尚未帶出，請先選根因）";
   },
   togglePersonDetail(idx){
     const el=$("#dfperson-detail-"+idx);if(!el)return;
@@ -12475,13 +12841,50 @@ const Defs={
     const opLeafSet=opMain?new Set(ncLeavesOfMain(opMain)):new Set();
     return {eqMain,opMain,eqLeaves:leafs.filter(l=>eqLeafSet.has(l)),opLeaves:leafs.filter(l=>opLeafSet.has(l))};
   },
+
+  /* ── 分類欄位異動歷程：不管從編輯模式卡片、批量編輯，只要是「人工」改分類欄位，
+     一律記錄「誰、什麼時候、改了哪個欄位、從什麼改成什麼」。跟匯入/轉入分開記
+     （那些已經有各自的 _impAt/_impBy），這裡只管人工在系統裡直接動手改的部分。
+     每筆缺失的歷程存在自己身上（d._classifyLog），最多留最近 50 筆，避免無限長。 */
+  CLASSIFY_LOG_FIELDS:{ncProb:"問題別",ncMain:"大類",ncLeaf:"具體名稱",ncRoot:"根因",ncFactor:"三要素",
+    ncImp:"重要程度",ncFocus:"重點關注",ncMethod:"分類方法",ncOpinion:"缺失性質判定",risk:"風險",
+    rank:"責任人職位",person:"責任人姓名",internalControl:"需內控"},
+  _logClassifyChange(d,changes){
+    const entries=Object.entries(changes).filter(([k,pair])=>(pair[0]||"")!==(pair[1]||""));
+    if(!entries.length)return;
+    const at=Date.now(),by=(typeof Audit!=="undefined")?Audit.user():"（未知身份）";
+    if(!Array.isArray(d._classifyLog))d._classifyLog=[];
+    entries.forEach(([field,pair])=>d._classifyLog.push({at,by,field,from:pair[0]||"",to:pair[1]||""}));
+    if(d._classifyLog.length>50)d._classifyLog=d._classifyLog.slice(-50);
+  },
+  showClassifyLog(id){
+    const d=App.defs.find(x=>x.id===id);if(!d)return;
+    const log=(d._classifyLog||[]).slice().reverse(); // 新的在上面
+    const body=$("#classifyLogBody");
+    if(!log.length){
+      body.innerHTML=`<div class="hint" style="padding:10px 0">尚無人工修改分類的記錄（可能從未修改過、或都是透過匯入/轉入帶入，那些另外用 ℹ 圖示查看）。</div>`;
+    }else{
+      body.innerHTML=`<table class="tbl"><thead><tr><th style="width:140px">時間</th><th style="width:90px">操作者</th><th style="width:90px">欄位</th><th>變更</th></tr></thead><tbody>${
+        log.map(e=>`<tr>
+          <td style="font-size:11.5px;white-space:nowrap">${esc(new Date(e.at).toLocaleString("zh-TW",{hour12:false}))}</td>
+          <td style="font-size:11.5px">${esc(e.by)}</td>
+          <td style="font-size:11.5px">${esc(this.CLASSIFY_LOG_FIELDS[e.field]||e.field)}</td>
+          <td style="font-size:11.5px">${esc(e.from)||"<span class=\"hint\">（空白）</span>"} → ${esc(e.to)||"<span class=\"hint\">（空白）</span>"}</td>
+        </tr>`).join("")
+      }</tbody></table>`;
+    }
+    $("#classifyLogModal").classList.add("show");
+  },
+  closeClassifyLog(){$("#classifyLogModal").classList.remove("show");},
   _applyClassifyParts(d,parts){
     const mains=[parts.eqMain,parts.opMain].filter(Boolean);
     const leafs=[...parts.eqLeaves,...parts.opLeaves];
     const probs=[];
     if(parts.eqMain)probs.push("设备问题");
     if(parts.opMain)probs.push("作业问题");
-    d.ncMain=ncJoin(mains);d.ncLeaf=ncJoin(leafs);d.ncProb=ncJoin(probs);
+    const newMain=ncJoin(mains),newLeaf=ncJoin(leafs),newProb=ncJoin(probs);
+    this._logClassifyChange(d,{ncProb:[d.ncProb,newProb],ncMain:[d.ncMain,newMain],ncLeaf:[d.ncLeaf,newLeaf]});
+    d.ncMain=newMain;d.ncLeaf=newLeaf;d.ncProb=newProb;
     App.saveAll();
     if(typeof Cloud!=="undefined")Cloud.queueAutoPublish&&Cloud.queueAutoPublish("deficiencies");
   },
@@ -12504,6 +12907,7 @@ const Defs={
   },
   editToggleRoot(id,name){
     const d=App.defs.find(x=>x.id===id);if(!d)return;
+    const oldRoot=d.ncRoot,oldFactor=d.ncFactor;
     const tags=ncFactorSplit(d.ncRoot);
     const idx=tags.indexOf(name);
     if(idx>=0)tags.splice(idx,1);else tags.push(name);
@@ -12517,6 +12921,7 @@ const Defs={
     const mapped=new Set();
     elemSet.forEach(elem=>{const hit=pool.find(o=>o.includes(elem))||(elem+"因素");mapped.add(hit);});
     d.ncFactor=[...mapped].join("、");
+    this._logClassifyChange(d,{ncRoot:[oldRoot,d.ncRoot],ncFactor:[oldFactor,d.ncFactor]});
     App.saveAll();
     if(typeof Cloud!=="undefined")Cloud.queueAutoPublish&&Cloud.queueAutoPublish("deficiencies");
     this.renderEditCard(id);
@@ -12648,6 +13053,15 @@ const Defs={
       return `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;align-items:center">${chips}${addBtn}</div>`;
     };
     const classified=typeof DefsGrid!=="undefined"?DefsGrid.isClassified(d):true;
+    // ⚠ 原本齊全徽章只有 ✓/⚠ 兩種狀態，不會講到底缺哪個欄位，維護者要自己一格一格找。
+    // 這裡把「哪些欄位還沒填」直接列出來，滑鼠移上去或直接看副標題就知道。
+    const FIELD_LABELS={ncProb:"問題別",ncMain:"大類",ncLeaf:"具體名稱",ncFactor:"三要素",ncImp:"重要程度",risk:"風險",ncFocus:"重點關注"};
+    const missingFields=typeof DefsGrid!=="undefined"?DefsGrid.scopeCols().filter(k=>!d[k]).map(k=>FIELD_LABELS[k]||k):[];
+    // ⚠ 根因分類刻意獨立於「資料齊全」判斷之外（避免舊資料一次全部被判定成未分類），
+    // 但這代表一筆缺失可能「問題別/大類/風險都填了、顯示✓資料齊全」卻唯獨根因沒標，
+    // 光看齊全徽章完全看不出來。這裡在卡片上額外顯示根因狀態，跟齊全徽章分開但並列，
+    // 兩者互不影響彼此的判斷，但都攤在眼前，不會再有「明明缺東西卻顯示齊全」的誤會。
+    const rootMissing=!ncFactorSplit(d.ncRoot).length;
     const confirmed=!!d.classifyConfirmedBy;
     const confirmDateTxt=confirmed&&d.classifyConfirmedAt?new Date(d.classifyConfirmedAt).toLocaleDateString("zh-TW",{month:"2-digit",day:"2-digit"}):"";
     const selOn=this.editSel.has(d.id);
@@ -12660,10 +13074,12 @@ const Defs={
             <button class="btn sm" style="padding:1px 8px;font-size:11px" onclick="Defs.openEdit(${d.id})" title="開啟完整編輯視窗，可編輯船名/日期/檢查來源/內容/實際情形等所有欄位（跟查看模式點卡片開的是同一個視窗）">✎ 完整編輯</button>
             <div class="dfe-date">${esc(d.date)}</div>
             <span class="dfe-itype">${esc(d.itype||"")}</span>
-            <span class="dfe-status ${classified?"ok":"miss"}" title="依欄位是否有填值自動判斷，不代表有人確認過">${classified?"✓ 資料齊全":"⚠ 資料未齊全"}</span>
+            <span class="dfe-status ${classified?"ok":"miss"}" title="${classified?"問題別/大類/具體名稱/三要素/重要程度/風險/重點關注皆已填值":`還缺：${missingFields.join("、")}`}">${classified?"✓ 資料齊全":`⚠ 未齊全（缺${missingFields.join("、")}）`}</span>
+            <span class="dfe-status ${rootMissing?"miss":"ok"}" title="${rootMissing?"根因分類獨立於上面「資料齊全」之外另計，尚未標註":"根因分類已標註"}">${rootMissing?"⚠ 根因未標註":"✓ 根因已標"}</span>
             <button class="dfe-confirm-btn ${confirmed?"on":""}" onclick="Defs.editToggleConfirm(${d.id})" title="${confirmed?`${esc(d.classifyConfirmedBy)} 於 ${d.classifyConfirmedAt?new Date(d.classifyConfirmedAt).toLocaleString("zh-TW"):""} 確認過，點一下可取消確認`:"點一下標記「我已看過，這筆分類沒問題」"}">
               ${confirmed?`✅ ${esc(d.classifyConfirmedBy)}${confirmDateTxt?" · "+confirmDateTxt:""}`:"☐ 標記已確認"}
             </button>
+            <button class="dfe-confirm-btn" onclick="Defs.showClassifyLog(${d.id})" title="查看這筆缺失的分類欄位人工修改歷程（誰、何時、改了什麼）">🕐 歷程${(d._classifyLog&&d._classifyLog.length)?` (${d._classifyLog.length})`:""}</button>
           </div>
           <div class="dfe-detail"><b class="hint" style="font-size:11px">缺失內容</b><br>${esc(d.detail||"")||'<span class="hint">（未填）</span>'}</div>
           <div class="dfe-detail"><b class="hint" style="font-size:11px">實際情形</b><br>${esc(d.actual||"")||'<span class="hint">（未填）</span>'}</div>
@@ -12671,7 +13087,6 @@ const Defs={
             <div><b class="hint" style="font-size:11px">責任人</b><br>${d.person?esc(d.person)+(d.rank?"（"+esc(d.rank)+"）":""):'<span class="hint">（未填）</span>'}</div>
             <div><b class="hint" style="font-size:11px">檢查地點</b><br>${d.place?esc(d.place):'<span class="hint">（未填）</span>'}</div>
           </div>
-          ${this.editExtraFieldHtml(d)}
         </div>
         <div class="dfe-right">
           <div class="dfe-classify">
@@ -12692,6 +13107,7 @@ const Defs={
           <div class="dfe-foot">
             <span>三要素：${d.ncFactor?esc(d.ncFactor):'<span class="hint">（尚未帶出，請先選根因）</span>'}</span>
           </div>
+          ${this.editExtraFieldHtml(d)}
         </div>
       </div>
     </div>`;
@@ -12760,6 +13176,7 @@ const Defs={
   },
   editSetExtraField(id,k,val){
     const d=App.defs.find(x=>x.id===id);if(!d)return;
+    this._logClassifyChange(d,{[k]:[d[k],val]});
     d[k]=val;
     App.saveAll();
     if(typeof Cloud!=="undefined")Cloud.queueAutoPublish&&Cloud.queueAutoPublish("deficiencies");
@@ -12786,8 +13203,8 @@ const Defs={
     if(sortKey==="miss")arr.sort((a,b)=>{const ma=DefsGrid.isClassified(a)?1:0,mb=DefsGrid.isClassified(b)?1:0;return ma-mb;});
     else if(sortKey==="unconfirmed")arr.sort((a,b)=>{const ma=a.classifyConfirmedBy?1:0,mb=b.classifyConfirmedBy?1:0;return ma-mb;});
     else if(sortKey==="ship")arr.sort((a,b)=>String(a.ship||"").localeCompare(String(b.ship||""),"zh-Hant"));
-    else if(sortKey==="date_desc")arr.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
-    else if(sortKey==="date_asc")arr.sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
+    else if(sortKey==="date_desc")arr.sort((a,b)=>dateSortVal(b.date)-dateSortVal(a.date));
+    else if(sortKey==="date_asc")arr.sort((a,b)=>dateSortVal(a.date)-dateSortVal(b.date));
     return arr;
   },
   editToggleSel(id,on){
@@ -12966,7 +13383,7 @@ const Defs={
     const entry=this._personGroups&&this._personGroups[idx];if(!entry)return;
     const [name,g]=entry;
     const rankTxt=g.ranks.size?[...g.ranks].join("／"):"";
-    const items=g.items.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    const items=g.items.slice().sort((a,b)=>dateSortVal(b.date)-dateSortVal(a.date));
     const rows=items.map((d,i)=>`<tr>
       <td style="text-align:center">${i+1}</td>
       <td style="text-align:center">${esc(d.ship)}</td>
@@ -13405,6 +13822,7 @@ const Defs={
     this.emMain.set(splitTags(d.ncMain));
     this.emLeaf.set(splitTags(d.ncLeaf));
     this.emFactor.set(splitFactor(d.ncFactor));
+    { const disp=$("#e-ncFactor-display"); if(disp)disp.textContent=d.ncFactor?d.ncFactor:"（尚未帶出，請先選根因）"; }
     this._ncRootSel=new Set(ncFactorSplit(d.ncRoot));
     this.renderNcRootBox();
     set("#e-ncImp",d.ncImp||"");
@@ -13535,7 +13953,7 @@ const Defs={
       const d=App.defs.find(x=>String(x.id)===id);
       if(!d)return;
       const ms=(this.beMs&&this.beMs[id])||{};
-      Object.assign(d,{
+      const newVals={
         itype:tr.querySelector(".defbe-itype").value,
         vtype:tr.querySelector(".defbe-vtype").value,
         oilco:tr.querySelector(".defbe-oilco").value.trim(),
@@ -13551,7 +13969,13 @@ const Defs={
         rank:tr.querySelector(".defbe-rank").value.trim(),
         person:tr.querySelector(".defbe-person").value.trim(),
         attn:tr.querySelector(".defbe-attn").checked
-      });
+      };
+      // 批量編輯的分類欄位（跟「編輯歷程」有關的那幾個）也一併記錄異動，其餘操作欄位
+      // （itype/vtype/oilco/inspector/attn）不算分類判斷，不需要記在這份歷程裡。
+      const logKeys=["ncProb","ncMain","ncLeaf","ncFactor","ncImp","ncFocus","ncMethod","risk","rank","person"];
+      const changes={};logKeys.forEach(k=>changes[k]=[d[k],newVals[k]]);
+      this._logClassifyChange(d,changes);
+      Object.assign(d,newVals);
       n++;
     });
     if(!n){toast("⚠ 沒有套用任何紀錄");return;}
@@ -14368,7 +14792,7 @@ const SirePos={
     cards.sort((a,b)=>{
       const sa=shipName(a.ship)||"",sb=shipName(b.ship)||"";
       if(sa!==sb)return sa.localeCompare(sb,"zh-Hant");
-      return String(a.date||"").localeCompare(String(b.date||""));
+      return dateSortVal(a.date)-dateSortVal(b.date);
     });
     // 單欄、由上往下一列一人；不強制分頁，一頁真的排不下時瀏覽器會自然接到下一頁，
     // 只避免「單獨一則」被硬生生從中間截斷（page-break-inside:avoid）。
@@ -14492,7 +14916,7 @@ const EnhAuditLog={
     list.forEach(d=>{ const k=d.ship+"|"+d.itype; (groups[k]=groups[k]||[]).push(d); });
     const paired=[];
     Object.values(groups).forEach(evs=>{
-      evs.sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.loggedAt||0)-(b.loggedAt||0));
+      evs.sort((a,b)=>(dateSortVal(a.date)-dateSortVal(b.date))||(a.loggedAt||0)-(b.loggedAt||0));
       let pending=null;
       evs.forEach(e=>{
         if(e.event==="start"){
@@ -18858,7 +19282,18 @@ const Air={
     r.readAsArrayBuffer(file);
   },
   ms:{},page:1,PER:30,selected:new Set(),editId:null,defRows:[],defSeq:0,posRows:[],posSeq:0,defMs:{},defSel:new Set(),posSel:new Set(),_lastCount:0,sortKey:null,sortDir:"asc",
+  refreshAdminOnlyVisibility(){
+    // ⚠ 線上填單裡有一整批「只有 Owner／維護者該操作」的功能——審核佇列、對外回覆編輯、
+    // 對外回覆案件清單、外部網址設定、新增缺失/正面評價明細——這些對督導、船舶帳號等其他
+    // 身份來說，不只是「不該用」，點錯了還可能誤動到审核狀態或外部系統設定。這裡統一收在
+    // 一個函式裡，依 Role.isAdmin() 一次控制全部，跟按鈕分散在各處、各自各寫一次判斷比起來，
+    // 之後要調整權限範圍或新增按鈕，只要改這裡一個地方就好。
+    const ok=typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();
+    ["air-tab-cloudqueue-btn","air-replyedit-btn","air-replylist-btn","air-replyurl-btn","air-adddef-btn","air-addpos-btn"]
+      .forEach(id=>{const el=$(id.startsWith("#")?id:"#"+id);if(el)el.style.display=ok?"":"none";});
+  },
   init(){
+    this.refreshAdminOnlyVisibility();
     this.ms.ship=MSel("ms-air-ship","船舶",()=>[...new Set(App.air.map(d=>d.ship))].filter(Boolean).sort(),()=>{this.page=1;this.renderList();});
     this.ms.itype=MSel("ms-air-itype","檢查來源",()=>[...new Set(App.air.map(d=>d.itype))].filter(Boolean).sort(),()=>{this.page=1;this.renderList();});
     this.ms.status=MSel("ms-air-status","狀態",()=>{
@@ -20806,6 +21241,7 @@ const Air={
     toast("✓ 已更新，下次「複製線上填單連結」會用新網址");
   },
   resetExternalReplyBase(){
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／維護者可設定外部網址");return;}
     const v=(prompt("外部對外回覆網頁（submit-airreply.html）目前部署的網址：",this.getExternalReplyBase())||"").trim();
     if(!v)return;
     try{localStorage.setItem(this.REPLY_BASEKEY,v);}catch(e){}
@@ -20815,6 +21251,7 @@ const Air={
   /* 直接開新分頁跳到外部編輯網頁，給自己（海技組）做階段②翻譯用；跟「產生連結」分開，
      那顆是給外部人（主管）用的分享連結，這顆是自己要編輯時的捷徑 */
   async openExternalEditor(){
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／維護者可使用對外回覆編輯");return;}
     if(this.replyId==null){toast("⚠ 請先開啟一筆填單的對外回覆頁");return;}
     const base=this.getExternalReplyBase();
     if(!base){toast("⚠ 未設定外部網頁網址");return;}
@@ -21288,6 +21725,7 @@ const AirQueue={
   view:"pending", // "pending" 或 "imported" 或 "rejected"
   setView(v){this.view=v;this.refresh();},
   open(){
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／維護者可使用線上填單審核佇列");return;}
     if(!$("#tab-air"))return;
     $("#air-list-page").style.display="none";
     $("#air-form-page").style.display="none";
@@ -23647,6 +24085,7 @@ const ST_LABEL={pending:"待查核",ok:"已確認無類似缺失",similar:"有�
 
 function refreshRoleWho(){
   if(typeof Todo!=="undefined")Todo.refreshBadge();
+  if(typeof StorageMonitor!=="undefined")StorageMonitor.init();if(typeof DupFinder!=="undefined")DupFinder.init();
   const el=document.getElementById("roleWho");if(!el)return;
   let name="";
   try{
@@ -24055,6 +24494,8 @@ const GateSite={
     if(typeof Audit!=="undefined")Audit.refreshNameField();
     if(typeof refreshRoleWho==="function")refreshRoleWho();
     if(typeof DefsProj!=="undefined")DefsProj.refreshTabVisibility();
+    if(typeof Defs!=="undefined")Defs.refreshEditTabVisibility();
+    if(typeof Air!=="undefined")Air.refreshAdminOnlyVisibility();
     if(typeof Todo!=="undefined")Todo.render();
   }
 };
@@ -26152,7 +26593,7 @@ const SelfCheck={
         samples:[...list].sort((a,b)=>{
           const w={"高":3,"中":2,"低":1};
           const d=(w[b.ncImp]||0)-(w[a.ncImp]||0);
-          return d!==0?d:String(b.date||"").localeCompare(String(a.date||""));
+          return d!==0?d:dateSortVal(b.date)-dateSortVal(a.date);
         }).slice(0,3)
       }))
       .sort((a,b)=>b.n-a.n);   // 筆數多的排前面＝越常發生越該先查
