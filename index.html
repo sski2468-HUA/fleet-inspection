@@ -12580,7 +12580,7 @@ const Defs={
     {k:"ship",t:"船名"},{k:"itype",t:"檢查來源"},{k:"icat",t:"檢查類型"},{k:"date",t:"檢查日期"},
     {k:"inspector",t:"檢查員"},{k:"ncImp",t:"重要程度"},{k:"ncFocus",t:"關注度"},{k:"risk",t:"風險"},
     {k:"detail",t:"詳細內容"},{k:"actual",t:"實際情形"},{k:"ncProb",t:"問題分類"},{k:"ncMain",t:"大類"},
-    {k:"ncLeaf",t:"具體"},{k:"ncFactor",t:"三要素"}
+    {k:"ncLeaf",t:"具體"},{k:"ncFactor",t:"三要素"},{k:"ncRoot",t:"根因"}
   ],
   VIEW_FIELDS_KEY:"vsm_defs_viewfields_v1",
   VIEW_FIELDS_CLOUD_KEY:"defsViewFields",
@@ -13800,6 +13800,7 @@ const Defs={
       if(vis.has("ncProb")&&d.ncProb)tags.push(`<span class="df-card-tag">問題分類：${esc(d.ncProb)}</span>`);
       if(vis.has("ncMain")&&d.ncMain)tags.push(`<span class="df-card-tag">大類：${esc(d.ncMain)}</span>`);
       if(vis.has("ncLeaf")&&d.ncLeaf)tags.push(`<span class="df-card-tag">具體：${esc(d.ncLeaf)}</span>`);
+      if(vis.has("ncRoot")&&d.ncRoot)tags.push(`<span class="df-card-tag">根因：${esc(d.ncRoot)}</span>`);
       if(vis.has("ncFactor")&&d.ncFactor)tags.push(`<span class="df-card-tag">三要素：${esc(d.ncFactor)}</span>`);
       return `<div class="df-card" onclick="Defs.openEdit(${d.id})" style="cursor:pointer" title="點選開啟編輯視窗">
         <div class="df-card-top">
@@ -19511,8 +19512,13 @@ const Air={
     // 資料寫進正式的檢查紀錄／缺失紀錄總表，是會動到既有資料庫的動作。這裡連「勾選框本身」
     // 都一起隱藏，不是只藏按鈕──否則畫面上勾選框還在，看起來像「可以勾」，容易誤會。
     const ok=typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();
+    // ⚠ air-selall-th 不能跟其他按鈕一樣用 display:none 整個藏起來——它是表格的 <th>，
+    // 隱藏後表頭會少一欄，但每一列資料的 <td> 還在（只是清空內容），欄位數量對不起來，
+    // 整排欄位就會錯位一格（「操作」表頭底下顯示的其實是原本「狀態」的內容，依此類推）。
+    // 改成清空表頭文字內容、但保留這個 <th> 本身，維持欄位數量兩邊一致。
+    const selallTh=$("#air-selall-th");if(selallTh)selallTh.innerHTML=ok?'<input type="checkbox" id="air-selall" onchange="Air.toggleAll(this.checked)">':"";
     ["air-tab-cloudqueue-btn","air-replyedit-btn","air-replylist-btn","air-replyurl-btn","air-adddef-btn","air-addpos-btn",
-     "air-newimport-btn","air-selall-th","air-clearsel-btn","air-pushmodal-btn","air-sel-count"]
+     "air-newimport-btn","air-clearsel-btn","air-pushmodal-btn","air-sel-count"]
       .forEach(id=>{const el=$(id.startsWith("#")?id:"#"+id);if(el)el.style.display=ok?"":"none";});
     // 勾選狀態本身也一併清掉，避免「權限被拿掉前已經勾好的幾筆」殘留在背景、
     // 下次身份切回有權限時卻莫名其妙已經勾了幾筆。
