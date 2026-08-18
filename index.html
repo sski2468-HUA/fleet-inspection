@@ -8826,7 +8826,7 @@ const Snap={
   },
   async saveDefault(){
     if(typeof Guard!=="undefined"&&!await Guard.require())return; // 僅維護者
-    if(!confirm(`確定要將「目前資料庫」設為預設備份？\n\n內容：檢查紀錄 ${App.insp.length} 筆、缺失紀錄 ${App.defs.length} 筆、船舶資料 ${SHIPINFO.length} 艘、SIRE正向評論 ${App.sirePos.length} 筆、自檢任務 ${App.tasks.length} 個、檢查管控 ${App.inspCtrl.length} 筆、年度計畫 ${App.annualPlan.length} 筆、內稽動態 ${App.auditDash.length} 筆、AIR ${App.air.length} 筆、參考連結 ${App.refDocs.length} 筆。\n\n設定後，若資料之後被誤改，可隨時用「還原預設」恢復成這個時間點的版本。\n（注意：此動作會直接覆蓋掉上一次設定的備份，無法復原上一版備份，建議先確認目前資料無誤）`))return;
+    if(!confirm(`確定要將「目前資料庫」設為預設備份？\n\n內容：檢查紀錄 ${App.insp.length} 筆、缺失紀錄 ${App.defs.length} 筆、船舶資料 ${SHIPINFO.length} 艘、SIRE正向評論 ${App.sirePos.length} 筆、自檢任務 ${App.tasks.length} 個、檢查管控 ${App.inspCtrl.length} 筆、年度計畫 ${App.annualPlan.length} 筆、內稽動態 ${App.auditDash.length} 筆、AIR ${App.air.length} 筆、參考連結 ${App.refDocs.length} 筆；也包含目前的分類階層、根因分類與篩選標籤清單。\n\n設定後，若資料之後被誤改，可隨時用「還原預設」恢復成這個時間點的版本。\n（注意：此動作會直接覆蓋掉上一次設定的備份，無法復原上一版備份，建議先確認目前資料無誤）`))return;
     if(typeof Air!=="undefined")await Air.syncAllReplyDrafts().catch(()=>{}); // 先同步雲端最新對外回覆內容，確保這份備份也是完整的
     const usr=(typeof Audit!=="undefined")?Audit.user():"";
     const snap={
@@ -8845,6 +8845,12 @@ const Snap={
       refDocs2:JSON.parse(JSON.stringify(App.refDocs2)),
       drillRecords:JSON.parse(JSON.stringify(App.drillRecords)),
       chapterOverrides:JSON.parse(JSON.stringify(App.chapterOverrides)),
+      // ⚠ 這裡原本完全沒存分類階層（問題別/大類/具體名稱）跟根因分類，也沒存篩選標籤清單——
+      // 代表「設為預設備份」時，這幾樣東西不會被記錄進這個備份點；「還原預設」時，
+      // 也就不會把分類階層/根因/標籤還原回設定備份當下的狀態，會維持在還原當下的內容不變。
+      // 如果使用者原本以為「設為預設」是把整個系統的狀態都存下來，這裡就是實際的缺口。這裡補上。
+      ncTreeList:(typeof NCTree!=="undefined"?JSON.parse(JSON.stringify(NCTree.list)):null),
+      tagListExtras:(typeof TagLists!=="undefined"?(TagLists.loadExtras(),JSON.parse(JSON.stringify(TagLists.extras))):{}),
       savedAt:Date.now(),savedBy:usr
     };
     if(typeof Audit!=="undefined")Audit.log("設定","預設備份",`設為預設備份：檢查${snap.insp.length}/缺失${snap.defs.length}/船舶${snap.ships.length}/SIRE正向評論${snap.sirePos.length}/自檢${snap.tasks.length}/檢查管控${snap.inspCtrl.length}/年度計畫${snap.annualPlan.length}/內稽動態${snap.auditDash.length}/AIR${snap.air.length}`);
@@ -8885,7 +8891,7 @@ const Snap={
       setTimeout(()=>location.reload(),700);
       return;
     }
-    if(!confirm(`確定要還原為 ${this.fmtDate(snap.savedAt)} 設定的預設備份？\n\n內容：檢查紀錄 ${(snap.insp||[]).length} 筆、缺失紀錄 ${(snap.defs||[]).length} 筆、船舶資料 ${(snap.ships||[]).length} 艘、SIRE正向評論 ${(snap.sirePos||[]).length} 筆、自檢任務 ${(snap.tasks||[]).length} 個、檢查管控 ${(snap.inspCtrl||[]).length} 筆、年度計畫 ${(snap.annualPlan||[]).length} 筆、內稽動態 ${(snap.auditDash||[]).length} 筆、AIR ${(snap.air||[]).length} 筆。\n\n目前資料庫中，這個備份「之後」新增／修改的內容都會被取代覆蓋。此動作無法復原。`))return;
+    if(!confirm(`確定要還原為 ${this.fmtDate(snap.savedAt)} 設定的預設備份？\n\n內容：檢查紀錄 ${(snap.insp||[]).length} 筆、缺失紀錄 ${(snap.defs||[]).length} 筆、船舶資料 ${(snap.ships||[]).length} 艘、SIRE正向評論 ${(snap.sirePos||[]).length} 筆、自檢任務 ${(snap.tasks||[]).length} 個、檢查管控 ${(snap.inspCtrl||[]).length} 筆、年度計畫 ${(snap.annualPlan||[]).length} 筆、內稽動態 ${(snap.auditDash||[]).length} 筆、AIR ${(snap.air||[]).length} 筆${snap.ncTreeList?"；也會還原分類階層、根因分類與篩選標籤清單":"（此備份未含分類階層／根因／標籤，這幾項會維持目前狀態不變）"}。\n\n目前資料庫中，這個備份「之後」新增／修改的內容都會被取代覆蓋。此動作無法復原。`))return;
     App.insp=JSON.parse(JSON.stringify(snap.insp||[]));
     App.defs=JSON.parse(JSON.stringify(snap.defs||[]));
     App.tasks=JSON.parse(JSON.stringify(snap.tasks||[]));
@@ -8900,6 +8906,18 @@ const Snap={
     App.refDocs2=JSON.parse(JSON.stringify(snap.refDocs2||[]));
     App.drillRecords=JSON.parse(JSON.stringify(snap.drillRecords||[]));
     App.chapterOverrides=JSON.parse(JSON.stringify(snap.chapterOverrides||{}));
+    // 若這份備份是在補上這個修正之前存的（沒有 ncTreeList/tagListExtras 欄位），
+    // snap.ncTreeList 會是 undefined，這裡就維持分類階層/根因/標籤現狀不動，
+    // 不會因為欄位缺席就誤把現有分類清空。
+    if(snap.ncTreeList&&typeof NCTree!=="undefined"){
+      NCTree.list={equip:Array.isArray(snap.ncTreeList.equip)?snap.ncTreeList.equip:[],
+        ops:Array.isArray(snap.ncTreeList.ops)?snap.ncTreeList.ops:[],
+        rootCause:Array.isArray(snap.ncTreeList.rootCause)?snap.ncTreeList.rootCause:[]};
+      NCTree._saveLocal();NCTree.apply();if(typeof Cloud!=="undefined"&&Cloud.enabled())NCTree.pushCloud();
+    }
+    if(snap.tagListExtras&&typeof TagLists!=="undefined"){
+      TagLists.extras=snap.tagListExtras;TagLists.saveExtras();TagLists.pushCloudExtras();
+    }
     SHIPINFO.length=0;(snap.ships||[]).forEach(s=>SHIPINFO.push(s));
     try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}
     App.saveAll();App.refreshMeta();
