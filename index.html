@@ -23863,21 +23863,41 @@ const DM={
     const willRemove=[...exIds].filter(id=>!newIds.has(id)).length;
     return {willAdd,willRemove,existingCount:exIds.size,newCount:newIds.size};
   },
+  // ⚠ 上面 _idSetDiff 只看「有沒有這筆」，看不出「同一筆紀錄內容變了」——B105 這種
+  // 「id沒變、根因標籤被取消」的情況，用 _idSetDiff 完全看不出來，會誤以為沒有變化。
+  // 這裡逐筆比對內容（排除 _impAt/_impBy/_classifyLog 等技術性欄位，那些只是匯入時間
+  // 戳記，不算真正的業務內容差異，排除掉才不會讓「筆數沒變的紀錄」誤判成內容有異動）。
+  _RECORD_DIFF_IGNORE_KEYS:new Set(["_impAt","_impBy","_classifyLog","classifyConfirmedBy","classifyConfirmedAt"]),
+  _idContentDiff(existingArr,newArr){
+    const ignore=this._RECORD_DIFF_IGNORE_KEYS;
+    const strip=obj=>{const o={};Object.keys(obj).forEach(k=>{if(!ignore.has(k))o[k]=obj[k];});return JSON.stringify(o);};
+    const exMap=new Map((existingArr||[]).map(x=>[String(x.id),x]));
+    const newMap=new Map((newArr||[]).map(x=>[String(x.id),x]));
+    let willAdd=0,willRemove=0,willChange=0;
+    newMap.forEach((rec,id)=>{
+      if(!exMap.has(id)){willAdd++;return;}
+      if(strip(exMap.get(id))!==strip(rec))willChange++;
+    });
+    exMap.forEach((rec,id)=>{if(!newMap.has(id))willRemove++;});
+    return {willAdd,willRemove,willChange,existingCount:exMap.size,newCount:newMap.size};
+  },
   _showFullRestorePreview(bundle,fname){
     const d=bundle.data;
     const when=bundle.exportedAt?new Date(bundle.exportedAt).toLocaleString():"未知時間";
     $("#fr-meta").innerHTML=`匯出於 <b>${esc(when)}</b>，匯出者：<b>${esc(bundle.exportedBy||"未知")}</b>　檔名：${esc(fname)}`;
 
-    // ① 紀錄類資料：id 集合統計增/減
+    // ① 紀錄類資料：逐筆比對內容（排除技術性欄位），分別統計新增/消失/內容會被覆蓋
     const RECORD_LABELS={insp:["inspections","檢查紀錄",App.insp],deficiencies:["deficiencies","缺失紀錄",App.defs],
       sirePositive:["sirePositive","SIRE正向評論",App.sirePos],airReviews:["airReviews","線上填單",App.air]};
     let recordHtml="";
     Object.values(RECORD_LABELS).forEach(([key,label,curArr])=>{
       if(!Array.isArray(d[key]))return;
-      const s=this._idSetDiff(curArr,d[key]);
+      const s=this._idContentDiff(curArr,d[key]);
       recordHtml+=`<div style="margin-bottom:4px"><b>${esc(label)}</b>：目前 ${s.existingCount} 筆 → 備份 ${s.newCount} 筆　`+
         (s.willAdd?`<span style="color:#1e7f4a">新增 ${s.willAdd} 筆</span>　`:"")+
-        (s.willRemove?`<span style="color:#a04030">還原後會消失 ${s.willRemove} 筆</span>`:'<span class="hint">無筆數會消失</span>')+
+        (s.willRemove?`<span style="color:#a04030">還原後會消失 ${s.willRemove} 筆</span>　`:"")+
+        (s.willChange?`<span style="color:#c07000">內容會被覆蓋 ${s.willChange} 筆（筆數相同、內容不同，例如分類/根因標籤被改過）</span>`:"")+
+        (!s.willAdd&&!s.willRemove&&!s.willChange?'<span class="hint">內容完全相同，無差異</span>':"")+
       `</div>`;
     });
 
