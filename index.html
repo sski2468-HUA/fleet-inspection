@@ -5716,6 +5716,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div id="fr-record-summary" style="font-size:12.5px;line-height:1.8"></div>
       <h4 style="margin:14px 0 6px;font-size:13.5px">⚙ 分類／權限設定類資料（實際列出差異）</h4>
       <div id="fr-setting-summary" style="font-size:12.5px;line-height:1.8"></div>
+      <h4 style="margin:14px 0 6px;font-size:13.5px">☑ 選擇要還原的項目（沒勾選的完全不會被動到）</h4>
+      <div class="toolbar" style="margin-bottom:6px">
+        <button class="btn sm" id="fr-cat-selall">☑ 全選</button>
+        <button class="btn sm" id="fr-cat-selnone">☐ 全部取消</button>
+      </div>
+      <div id="fr-category-list" style="display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;padding:8px;border:1px solid var(--line);border-radius:6px;max-height:180px;overflow:auto"></div>
       <div style="margin-top:16px;border-top:1px dashed var(--line);padding-top:12px">
         <label class="fw">請輸入「確定還原」以繼續：<input type="text" id="fr-confirm-input" placeholder="確定還原" style="margin-top:6px"></label>
       </div>
@@ -23889,15 +23895,116 @@ const DM={
 
     $("#fr-record-summary").innerHTML=recordHtml||'<p class="hint">此備份未含紀錄類資料。</p>';
     $("#fr-setting-summary").innerHTML=settingHtml||'<p class="hint">此備份未含分類/權限設定類資料。</p>';
+
+    // ③ 選擇性還原：列出這份備份「實際有的」項目，讓使用者勾選要還原哪些——
+    //   備份裡沒有的項目直接不列出來（沒有意義，勾了也還原不了任何東西）。
+    const available=this.RESTORE_STEPS.filter(step=>{
+      // 用跟 run() 同樣的資料來源快速判斷「這份備份有沒有這類資料」，不用真的執行還原
+      const probe={insp:d.inspections,defs:d.deficiencies,sirepos:d.sirePositive,air:d.airReviews,
+        tasks:d.selfCheckTasks,inspctrl:d.inspCtrl,
+        ops:[d.auditDash,d.annualPlan,d.drillRecords,d.drillRecordEditors].some(Array.isArray),
+        projects:[d.defsProjects,d.projectMembers].some(Array.isArray),
+        ships:Array.isArray(d.ships)||Array.isArray(d.roster),
+        voy:Array.isArray(d.voyCatalog)||Array.isArray(d.voySubmissions),
+        refs:[d.refDocs,d.refDocs2].some(Array.isArray)||!!d.chapterOverrides,
+        classify:!!d.ncTreeList,tags:!!d.tagListExtras,
+        perms:["defsGridEditors","taskCreators","exporters","defsEditMembers","airHaijiConfirmers"].some(k=>Array.isArray(d[k])),
+        enh:Array.isArray(d.enhAuditLog)};
+      const v=probe[step.cat];
+      return Array.isArray(v)?v.length>0||v===true:!!v;
+    });
+    $("#fr-category-list").innerHTML=available.map(step=>
+      `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12.5px">
+        <input type="checkbox" class="fr-cat-chk" data-cat="${step.cat}" checked>${esc(step.label)}
+      </label>`).join("")||'<p class="hint">此備份沒有可還原的項目。</p>';
+    $("#fr-cat-selall").onclick=()=>{[...document.querySelectorAll(".fr-cat-chk")].forEach(c=>c.checked=true);};
+    $("#fr-cat-selnone").onclick=()=>{[...document.querySelectorAll(".fr-cat-chk")].forEach(c=>c.checked=false);};
+
     $("#fr-confirm-input").value="";
     $("#fullRestoreModal").classList.add("show");
     $("#fr-confirm-btn").onclick=()=>{
       if($("#fr-confirm-input").value.trim()!=="確定還原"){toast("⚠ 請輸入「確定還原」以繼續");return;}
+      const selected=new Set([...document.querySelectorAll(".fr-cat-chk:checked")].map(c=>c.dataset.cat));
+      if(!selected.size){toast("⚠ 請至少勾選一項要還原的內容，或按「取消」");return;}
       $("#fullRestoreModal").classList.remove("show");
-      this._doImportAllJsonFull(d,fname);
+      this._doImportAllJsonFull(d,fname,selected);
     };
   },
-  _doImportAllJsonFull(d,fname){
+  /* ════════ 還原步驟清單：每一項對應「選擇性還原」勾選視窗裡的一個項目 ════════
+     拆成一步一步、各自獨立的原因：使用者之前反映「本來只想還原一項，結果其他東西
+     也一起被蓋掉」——問題就出在原本整個還原是「一次全部執行」，沒有分項開關。
+     這裡把每一類資料的還原邏輯包成獨立步驟，each 步驟自己決定「備份裡有沒有這類
+     資料、有的話怎麼寫回系統」，_doImportAllJsonFull() 再依使用者的勾選結果，
+     決定要跑哪幾個步驟——沒勾的步驟完全不會被呼叫，保證真的不會被動到。 */
+  RESTORE_STEPS:[
+    {cat:"insp",label:"檢查紀錄",run(d){if(Array.isArray(d.inspections)){App.insp=d.inspections;return true;}return false;}},
+    {cat:"defs",label:"缺失紀錄",run(d){if(Array.isArray(d.deficiencies)){App.defs=d.deficiencies;return true;}return false;}},
+    {cat:"sirepos",label:"SIRE正向評論",run(d){if(Array.isArray(d.sirePositive)){App.sirePos=d.sirePositive;return true;}return false;}},
+    {cat:"air",label:"線上填單",run(d){if(Array.isArray(d.airReviews)){App.air=d.airReviews;return true;}return false;}},
+    {cat:"tasks",label:"船舶缺失自查任務",run(d){if(Array.isArray(d.selfCheckTasks)){App.tasks=d.selfCheckTasks;return true;}return false;}},
+    {cat:"inspctrl",label:"檢查管控",run(d){if(Array.isArray(d.inspCtrl)){App.inspCtrl=d.inspCtrl;return true;}return false;}},
+    {cat:"ops",label:"內稽動態／年度計畫／操演紀錄",run(d){
+      let hit=false;
+      if(Array.isArray(d.auditDash)){App.auditDash=d.auditDash;hit=true;}
+      if(Array.isArray(d.annualPlan)){App.annualPlan=d.annualPlan;hit=true;}
+      if(Array.isArray(d.drillRecords)){App.drillRecords=d.drillRecords;hit=true;}
+      if(Array.isArray(d.drillRecordEditors)){App.drillRecordEditors=d.drillRecordEditors;hit=true;}
+      return hit;
+    }},
+    {cat:"projects",label:"缺失專案分析",run(d){
+      let hit=false;
+      if(Array.isArray(d.defsProjects)){App.defsProjects=d.defsProjects;hit=true;}
+      if(Array.isArray(d.projectMembers)){App.projectMembers=d.projectMembers;hit=true;}
+      return hit;
+    }},
+    {cat:"ships",label:"船舶資料／人員名冊",run(d){
+      let hit=false;
+      if(Array.isArray(d.ships)&&typeof SHIPINFO!=="undefined"){SHIPINFO.length=0;d.ships.forEach(s=>SHIPINFO.push(s));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}hit=true;}
+      if(Array.isArray(d.roster)&&typeof GateIdentity!=="undefined"){GateIdentity.saveRoster(d.roster);hit=true;}
+      return hit;
+    }},
+    {cat:"voy",label:"航次目錄／收件",run(d){
+      let hit=false;
+      if(Array.isArray(d.voyCatalog)&&typeof VoyRecv!=="undefined"){VoyRecv.cat=d.voyCatalog;try{localStorage.setItem(VoyRecv.LSK_CAT,JSON.stringify(VoyRecv.cat));}catch(e){}hit=true;}
+      if(Array.isArray(d.voySubmissions)&&typeof VoyRecv!=="undefined"){VoyRecv.subs=d.voySubmissions;try{localStorage.setItem(VoyRecv.LSK_SUB,JSON.stringify(VoyRecv.subs));}catch(e){}hit=true;}
+      return hit;
+    }},
+    {cat:"refs",label:"參考文件／章節對照設定",run(d){
+      let hit=false;
+      if(Array.isArray(d.refDocs)){App.refDocs=d.refDocs;hit=true;}
+      if(Array.isArray(d.refDocs2)){App.refDocs2=d.refDocs2;hit=true;}
+      if(d.chapterOverrides&&typeof d.chapterOverrides==="object"){App.chapterOverrides=d.chapterOverrides;hit=true;}
+      return hit;
+    }},
+    {cat:"classify",label:"分類階層與根因分類",run(d){
+      if(d.ncTreeList&&typeof d.ncTreeList==="object"&&typeof NCTree!=="undefined"){
+        NCTree.list={equip:Array.isArray(d.ncTreeList.equip)?d.ncTreeList.equip:[],
+          ops:Array.isArray(d.ncTreeList.ops)?d.ncTreeList.ops:[],
+          rootCause:Array.isArray(d.ncTreeList.rootCause)?d.ncTreeList.rootCause:[]};
+        NCTree._saveLocal();NCTree.apply();if(typeof Cloud!=="undefined"&&Cloud.enabled())NCTree.pushCloud();
+        return true;
+      }
+      return false;
+    }},
+    {cat:"tags",label:"篩選標籤清單",run(d){
+      if(d.tagListExtras&&typeof d.tagListExtras==="object"&&typeof TagLists!=="undefined"){
+        TagLists.extras=d.tagListExtras;TagLists.saveExtras();TagLists.pushCloudExtras();
+        return true;
+      }
+      return false;
+    }},
+    {cat:"perms",label:"各項權限指定名單",run(d){
+      let hit=false;
+      ["defsGridEditors","taskCreators","exporters","defsEditMembers","airHaijiConfirmers"].forEach(k=>{
+        if(Array.isArray(d[k])){App[k]=d[k];hit=true;}
+      });
+      return hit;
+    }},
+    {cat:"enh",label:"加強稽核紀錄",run(d){if(Array.isArray(d.enhAuditLog)){App.enhAuditLog=d.enhAuditLog;return true;}return false;}}
+  ],
+  /* selectedCats：Set，裡面放使用者勾選要還原的 cat id；傳 null／不傳＝維持舊行為，全部還原
+     （保留這個相容模式，避免其他還在呼叫這個函式、沒有經過勾選畫面的地方失效）。 */
+  _doImportAllJsonFull(d,fname,selectedCats){
     try{
       const safety={
         insp:App.insp,defs:App.defs,sirePos:App.sirePos,air:App.air,tasks:App.tasks,curTaskId:App.curTaskId,
@@ -23912,41 +24019,22 @@ const DM={
         ncTreeList:(typeof NCTree!=="undefined"?NCTree.list:null),
         savedAt:Date.now(),savedBy:(typeof Audit!=="undefined")?Audit.user():""
       };
+      // ⚠ 安全備份一律存「目前全部資料」，不受這次選了哪些項目要還原影響——
+      // 這樣不管這次選擇性還原了什麼，「回復至上次還原前」永遠能完整復原回還原前的狀態。
       localStorage.setItem("vsm_pre_importalljson_backup_v1",JSON.stringify(safety));
     }catch(e){}
     let n=0;
-    const setArr=(key,val)=>{if(Array.isArray(val)){App[key]=val;n++;}};
-    setArr("insp",d.inspections);setArr("defs",d.deficiencies);setArr("sirePos",d.sirePositive);
-    setArr("air",d.airReviews);setArr("tasks",d.selfCheckTasks);
-    if(d.chapterOverrides&&typeof d.chapterOverrides==="object"){App.chapterOverrides=d.chapterOverrides;n++;}
-    setArr("inspCtrl",d.inspCtrl);setArr("refDocs",d.refDocs);setArr("refDocs2",d.refDocs2);
-    setArr("drillRecords",d.drillRecords);setArr("drillRecordEditors",d.drillRecordEditors);
-    setArr("annualPlan",d.annualPlan);setArr("auditDash",d.auditDash);
-    setArr("defsProjects",d.defsProjects);setArr("projectMembers",d.projectMembers);
-    setArr("defsGridEditors",d.defsGridEditors);setArr("taskCreators",d.taskCreators);setArr("exporters",d.exporters);
-    setArr("defsEditMembers",d.defsEditMembers);setArr("airHaijiConfirmers",d.airHaijiConfirmers);setArr("enhAuditLog",d.enhAuditLog);
-    if(Array.isArray(d.ships)&&typeof SHIPINFO!=="undefined"){SHIPINFO.length=0;d.ships.forEach(s=>SHIPINFO.push(s));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}n++;}
-    if(Array.isArray(d.roster)&&typeof GateIdentity!=="undefined"){GateIdentity.saveRoster(d.roster);n++;}
-    if(Array.isArray(d.voyCatalog)&&typeof VoyRecv!=="undefined"){VoyRecv.cat=d.voyCatalog;try{localStorage.setItem(VoyRecv.LSK_CAT,JSON.stringify(VoyRecv.cat));}catch(e){}n++;}
-    if(Array.isArray(d.voySubmissions)&&typeof VoyRecv!=="undefined"){VoyRecv.subs=d.voySubmissions;try{localStorage.setItem(VoyRecv.LSK_SUB,JSON.stringify(VoyRecv.subs));}catch(e){}n++;}
-    if(d.tagListExtras&&typeof d.tagListExtras==="object"&&typeof TagLists!=="undefined"){
-      TagLists.extras=d.tagListExtras;TagLists.saveExtras();TagLists.pushCloudExtras();n++;
-    }
-    if(d.ncTreeList&&typeof d.ncTreeList==="object"&&typeof NCTree!=="undefined"){
-      // ⚠ 這裡原本重建 NCTree.list 時，只挑了 equip／ops 兩個欄位，完全漏掉 rootCause（根因分類）——
-      // 即使備份檔裡明明有根因資料，重建出來的物件也不會有這個欄位，等於每次「從完整備份還原」
-      // 之後，根因分類全部消失、被重置成空的。改成整包指定，equip/ops/rootCause 三者都保留，
-      // 缺哪個欄位才各自補空陣列，不要用「只挑我知道的欄位」這種寫法重建整個物件。
-      NCTree.list={equip:Array.isArray(d.ncTreeList.equip)?d.ncTreeList.equip:[],
-        ops:Array.isArray(d.ncTreeList.ops)?d.ncTreeList.ops:[],
-        rootCause:Array.isArray(d.ncTreeList.rootCause)?d.ncTreeList.rootCause:[]};
-      NCTree._saveLocal();NCTree.apply();if(typeof Cloud!=="undefined"&&Cloud.enabled())NCTree.pushCloud();n++;
-    }
+    const skippedCats=[];
+    this.RESTORE_STEPS.forEach(step=>{
+      if(selectedCats&&!selectedCats.has(step.cat)){skippedCats.push(step.label);return;}
+      if(step.run(d))n++;
+    });
     App.curTaskId=null;
     App.saveAll();if(App.refreshMeta)App.refreshMeta();
     ["Dash","Ov","Sp","Defs","Recur","Ref","SirePos","Air","SelfCheck","InspCtrl","AnnualPlan","AuditDash","DrillRecord","VoyRecv"].forEach(name=>{try{if(typeof window[name]!=="undefined"){window[name].init&&window[name].init();window[name].render&&window[name].render();}}catch(e){}});
     const wrap=$("#dm-fulljson-restore-wrap");if(wrap)wrap.style.display="";
-    if(typeof Audit!=="undefined")Audit.log("匯入","資料管理",`從完整備份JS還原（來源檔：${fname}，共更新 ${n} 個資料表）`);
+    const skipNote=skippedCats.length?`；未勾選、跳過還原：${skippedCats.join("、")}`:"";
+    if(typeof Audit!=="undefined")Audit.log("匯入","資料管理",`從完整備份JS還原（來源檔：${fname}，共更新 ${n} 個資料表${skipNote}）`);
     toast(`✓ 已從完整備份還原 ${n} 個資料表，已自動保留還原前備份`);
   },
   restorePreImportAllJsonFull(){
