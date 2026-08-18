@@ -6670,7 +6670,7 @@ const DataHub={
     wrap.appendChild(body);
     detailHost.appendChild(wrap);
 
-    this._items.push({id,title,sum,group:groupId,wrapId});
+    this._items.push({id,title,sum,group:groupId,wrapId,card});
     return id;
   },
 
@@ -6683,9 +6683,32 @@ const DataHub={
     btn.onclick=()=>this.selectItem(item.id);
     btn.innerHTML=`<span class="dh-itxt">
       <span class="dh-ititle">${esc(item.title)}</span>
-      ${item.sum?`<span class="dh-isum">${esc(item.sum)}</span>`:""}
+      ${item.sum?`<span class="dh-isum" id="dh-isum-${item.id}">${esc(item.sum)}</span>`:""}
     </span>`;
     return btn;
+  },
+  /* ⚠ build() 只會執行一次（this._done 守門），所以側邊清單這裡顯示的摘要文字
+     （例如「缺失紀錄總表：目前 N 筆」），是「第一次打開資料管理頁面那一刻」的快照，
+     之後不管資料怎麼變（匯入、還原、刪除…），這行文字都不會跟著更新——因為文字是
+     直接寫進按鈕的 HTML 裡，不是每次都重新讀卡片內容。這導致「畫面上兩個地方顯示
+     同一張表的筆數，卻對不起來」的困惑：右側詳細內容是即時的，左側清單卻是舊的。
+     這個函式讓左側清單的摘要文字重新去讀一次卡片目前的 .hint 內容並更新畫面，
+     從 App.refreshMeta() 掛勾呼叫，這樣只要是「已經會觸發 refreshMeta 的操作」
+     （匯入、還原、刪除等絕大多數會動到資料的地方），左側清單就會自動跟著同步，
+     不需要在每一個異動函式裡各自補一次呼叫。 */
+  refreshSideSummaries(){
+    if(!this._done||!Array.isArray(this._items))return;
+    this._items.forEach(item=>{
+      if(!item.card)return;
+      const hint=item.card.querySelector(":scope > p.hint, :scope > .hint");
+      if(!hint)return;
+      let sum=hint.textContent.replace(/\s+/g," ").trim();
+      if(sum.length>92)sum=sum.slice(0,92)+"…";
+      if(sum===item.sum)return; // 沒變化就不用動 DOM
+      item.sum=sum;
+      const el=document.getElementById("dh-isum-"+item.id);
+      if(el)el.textContent=sum;
+    });
   },
 
   build(){
@@ -6815,7 +6838,8 @@ const ImportDiff={
     rank:"職位",person:"姓名",risk:"風險",needControl:"需內控",internalControl:"需內控",
     ncProb:"問題別",ncMain:"大類",ncLeaf:"具體名稱",ncRoot:"根因",ncFactor:"三要素",
     ncImp:"重要程度",ncFocus:"重點關注",ncMethod:"分類方法",ncOpinion:"缺失性質判定",
-    ndef:"缺失數",npos:"正評數",flagType:"FLAG項目",detain:"扣船",comment:"評論內容",item:"評論項目"
+    ndef:"缺失數",npos:"正評數",flagType:"FLAG項目",detain:"扣船",comment:"評論內容",item:"評論項目",
+    ym:"年月",attn:"重點關注"
   },
   /* 比較兩個物件在指定欄位上的差異，回傳只包含「真的不一樣」的欄位清單。
      值先轉成字串比較，並把 undefined/null 視為空字串，避免「沒填」跟「填空字串」被誤判成有差異。 */
@@ -8763,6 +8787,7 @@ const App={
     if($("#dm-taskn"))$("#dm-taskn").innerHTML=`目前 <b>${(this.tasks||[]).length}</b> 個自查任務。可匯出給船上離線作業、匯入船上回傳的進度，或清除測試資料。`;
     $("#dm-defn").textContent=this.defs.length;
     $("#dm-insn").textContent=this.insp.length;
+    if(typeof DataHub!=="undefined")DataHub.refreshSideSummaries();
     if($("#dm-spn"))$("#dm-spn").textContent=(typeof SHIPINFO!=="undefined"?SHIPINFO.length:0);
     if($("#dm-sirepn"))$("#dm-sirepn").textContent=this.sirePos.length;
     if($("#dm-airn"))$("#dm-airn").textContent=this.air.length;
@@ -12345,7 +12370,7 @@ function ncOpinionNormalize(v){
 }
 function ncOpinionLabel(v){const hit=NC_OPINION_OPTS.find(o=>o[0]===ncOpinionNormalize(v));return hit?hit[1]:"無";}
 function ncOpinionOptsHtml(v){const cur=ncOpinionNormalize(v);return NC_OPINION_OPTS.map(([val,label])=>`<option value="${val}"${cur===val?" selected":""}>${label}</option>`).join("");}
-const DEF_COLS=[["ship","船名"],["vtype","船型"],["itype","檢查類型"],["ym","年月"],["date","檢查日期"],["place","地點"],["inspector","檢查員"],["oilco","油公司/單位"],["psc","PSC action"],["code","缺失代碼"],["attn","重點關注"],["detail","缺失詳情"],["actual","實際情況"],["opComment","Initial Operator Comment（船上填寫版）"],["opCommentReply","Initial Operator Comment（對外回覆版）"],["immediateCause","直接原因 Immediate Cause（船上填寫版）"],["immediateCauseReply","直接原因 Immediate Cause（對外回覆版）"],["corrective","改善措施（船上填寫版）"],["correctiveReply","改善措施（對外回覆版）"],["rootCause","根本原因（船上填寫版）"],["rootCauseReply","根本原因（對外回覆版）"],["preventive","預防措施（船上填寫版）"],["preventiveReply","預防措施（對外回覆版）"],["rank","職級-責任人"],["person","姓名-責任人"],["risk","風險(1低2中3高)"],["ncProb","問題別"],["ncMain","大類"],["ncLeaf","具體名稱"],["ncRoot","根因"],["ncFactor","三要素"],["ncImp","重要程度"],["ncFocus","重點關注"],["ncMethod","分類方法"],["ncOpinion","缺失性質判定"],["internalControl","需內控"]];
+const DEF_COLS=[["id","系統編號（請勿修改／刪除，用於比對是否為同一筆紀錄）"],["ship","船名"],["vtype","船型"],["itype","檢查來源"],["ym","年月"],["date","檢查日期"],["place","地點"],["inspector","檢查員"],["oilco","油公司/單位"],["psc","PSC action"],["code","缺失代碼"],["attn","特別注意（勾選標記）"],["detail","缺失詳情"],["actual","實際情況"],["opComment","Initial Operator Comment（船上填寫版）"],["opCommentReply","Initial Operator Comment（對外回覆版）"],["immediateCause","直接原因 Immediate Cause（船上填寫版）"],["immediateCauseReply","直接原因 Immediate Cause（對外回覆版）"],["corrective","改善措施（船上填寫版）"],["correctiveReply","改善措施（對外回覆版）"],["rootCause","根本原因（船上填寫版）"],["rootCauseReply","根本原因（對外回覆版）"],["preventive","預防措施（船上填寫版）"],["preventiveReply","預防措施（對外回覆版）"],["rank","職級-責任人"],["person","姓名-責任人"],["risk","風險(1低2中3高)"],["ncProb","問題別"],["ncMain","大類"],["ncLeaf","具體名稱"],["ncRoot","根因"],["ncFactor","三要素"],["ncImp","重要程度"],["ncFocus","重點關注"],["ncMethod","分類方法"],["ncOpinion","缺失性質判定"],["internalControl","需內控"]];
 
 /* ════════ 通用：頁面篩選欄位顯示設定（僅 Owner 可調整）════════
    任何頁面都可用 FilterVisEngine.register(key,{...}) 註冊，決定該頁篩選列上
@@ -14453,13 +14478,13 @@ const ImportUI={
   },
   mapHeaders(aoa){
     const hdr=aoa[0].map(h=>String(h).trim());
-    const defMap={"船名":"ship","SHIP":"ship","SHIP NAME":"ship","Name of Vessel":"ship","船型":"vtype","TYPE":"vtype","vessel type":"vtype","檢查來源":"itype","Type of Inspectio":"itype","Type of Inspection":"itype","年月":"ym","YYYY-MM":"ym","檢查日期":"date","DATE":"date","Date of Inspection":"date","地點":"place","Place":"place","Location":"place","檢查員":"inspector","Inspector":"inspector","油公司/單位":"oilco","Oil company":"oilco","檢查單位/油公司":"oilco","Inspection unit/oil company":"oilco","PSC action":"psc","缺失代碼":"code","原缺失代碼":"code","CODE":"code","新缺失須注意":"attn","注意":"attn","缺失詳情":"detail","實際情況":"actual",
+    const defMap={"系統編號":"id","系統編號（請勿修改／刪除，用於比對是否為同一筆紀錄）":"id","id":"id","ID":"id","船名":"ship","SHIP":"ship","SHIP NAME":"ship","Name of Vessel":"ship","船型":"vtype","TYPE":"vtype","vessel type":"vtype","檢查來源":"itype","Type of Inspectio":"itype","Type of Inspection":"itype","年月":"ym","YYYY-MM":"ym","檢查日期":"date","DATE":"date","Date of Inspection":"date","地點":"place","Place":"place","Location":"place","檢查員":"inspector","Inspector":"inspector","油公司/單位":"oilco","Oil company":"oilco","檢查單位/油公司":"oilco","Inspection unit/oil company":"oilco","PSC action":"psc","缺失代碼":"code","原缺失代碼":"code","CODE":"code","新缺失須注意":"attn","注意":"attn","缺失詳情":"detail","實際情況":"actual",
       "Initial Operator Comment（船上填寫版）":"opComment","Initial Operator Comment（對外回覆版）":"opCommentReply","Initial Operator Comment":"opComment","Operator Comment":"opComment",
       "直接原因 Immediate Cause（船上填寫版）":"immediateCause","直接原因 Immediate Cause（對外回覆版）":"immediateCauseReply","直接原因 Immediate Cause":"immediateCause","直接原因":"immediateCause","Immediate Cause":"immediateCause",
       "改善措施（船上填寫版）":"corrective","改善措施（對外回覆版）":"correctiveReply","改善措施":"corrective","Corrective Action":"corrective",
       "根本原因（船上填寫版）":"rootCause","根本原因（對外回覆版）":"rootCauseReply","根本原因":"rootCause","Root Cause":"rootCause",
       "預防措施（船上填寫版）":"preventive","預防措施（對外回覆版）":"preventiveReply","預防措施":"preventive",
-      "問題別":"ncProb","大類":"ncMain","具體名稱":"ncLeaf","三要素":"ncFactor","重要程度":"ncImp","重點關注(是/否)":"ncFocus","重點關注":"ncFocus","分類方法":"ncMethod","檢查員意見/Best Practice":"ncOpinion","缺失性質判定":"ncOpinion","檢查員意見":"ncOpinion","檢察官意見":"ncOpinion","Best Practice":"ncOpinion","BP":"ncOpinion","職級-責任人":"rank","姓名-責任人":"person","職稱":"rank","名字":"person","評論項目":"item","ITEM":"item","正向評論":"comment","正向評論內容":"comment","檢查員正向評論內容":"comment","POSITIVE COMMENT":"comment","風險(1低2中3高)":"risk","風險":"risk","缺失數":"ndef","Number of defiency":"ndef","FLAG項目":"flagType","FLAG INSPECTION TYPE":"flagType","扣船":"detain","detain":"detain"};
+      "問題別":"ncProb","大類":"ncMain","具體名稱":"ncLeaf","三要素":"ncFactor","重要程度":"ncImp","重點關注(是/否)":"ncFocus","重點關注":"ncFocus","特別注意（勾選標記）":"attn","特別注意":"attn","分類方法":"ncMethod","檢查員意見/Best Practice":"ncOpinion","缺失性質判定":"ncOpinion","檢查員意見":"ncOpinion","檢察官意見":"ncOpinion","Best Practice":"ncOpinion","BP":"ncOpinion","職級-責任人":"rank","姓名-責任人":"person","職稱":"rank","名字":"person","評論項目":"item","ITEM":"item","正向評論":"comment","正向評論內容":"comment","檢查員正向評論內容":"comment","POSITIVE COMMENT":"comment","風險(1低2中3高)":"risk","風險":"risk","缺失數":"ndef","Number of defiency":"ndef","FLAG項目":"flagType","FLAG INSPECTION TYPE":"flagType","扣船":"detain","detain":"detain"};
     // 注意：匯出檔案裡的「檢查類型」欄（icat）是由「檢查來源」（itype）自動推算出來的顯示用欄位（見 icatOf()），
     // 從來不是獨立儲存的原始資料，因此匯入時刻意不比對「檢查類型」這個表頭——先前曾誤將它也對映到 itype，
     // 兩欄同時存在時，順序在後的「檢查類型」欄會覆蓋掉正確的「檢查來源」值，導致匯入後來源資料全部跑掉。
