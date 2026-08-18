@@ -4609,8 +4609,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         </div>
       </div>
       <div class="card" style="margin-bottom:14px;border-left:4px solid var(--teal)">
-        <h3>⬇ 一鍵下載全部備份（Excel ＋ JS）</h3>        <p class="hint" style="line-height:1.8">一次下載<b>兩種格式</b>的完整備份，涵蓋系統全部資料表（檢查紀錄、缺失紀錄、船舶資料、檢查管控、內稽動態、年度計畫、操演紀錄、AIR<b>（含每艘船每條缺失的對外回覆完整內容）</b>、正面評價/優秀案例、船隊通報單、海技參考資料、人員名冊等）：<br>
-          ・<b>Excel（.xlsx）</b>—— 每個資料表一個工作表，供人閱讀、查核、離線分析，其中「對外回覆內容」工作表會列出所有已產生對外回覆的缺失，中英文各欄位完整內容都在裡面。<br>
+        <h3>⬇ 一鍵下載全部備份（Excel ＋ JS）</h3>        <p class="hint" style="line-height:1.8">一次下載<b>兩種格式</b>的完整備份，涵蓋系統全部資料表（檢查紀錄、缺失紀錄、船舶資料、檢查管控、內稽動態、年度計畫、操演紀錄、AIR<b>（含每艘船每條缺失的對外回覆完整內容）</b>、正面評價/優秀案例、船隊通報單、海技參考資料、人員名冊、<b>分類階層與根因分類</b>等）：<br>
+          ・<b>Excel（.xlsx）</b>—— 每個資料表一個工作表，供人閱讀、查核、離線分析，其中「對外回覆內容」工作表會列出所有已產生對外回覆的缺失，中英文各欄位完整內容都在裡面；「分類階層」「根因分類」這兩個工作表僅供閱讀查核，無法用來還原（要還原分類/根因設定，仍需使用 JS 檔）。<br>
           ・<b>JS（.json）</b>—— 完整結構備份，是<b>唯一可以原樣還原回系統</b>的格式；Excel 因為只保留人看得懂的欄位，無法完整還原。<br>
           建議定期執行並異地保存。兩個檔案會依序下載，瀏覽器可能會詢問是否允許多重下載，請按允許。</p>
         <div class="toolbar">
@@ -9157,7 +9157,23 @@ const DataHealthCheck={
       const arrangers=new Set((App.inspCtrl||[]).map(r=>r.owner).filter(Boolean));
       arrangers.forEach(n=>{if(!roster.has(n))issues.push({cat:"person",label:`檢查管控「檢查安排人」${n} 已不在人員名冊中（相關排程僅 Owner 可編輯）`,fix:null});});
     }catch(e){console.warn(e);}
-    // 4) 本機與雲端筆數不一致
+    // 4) 缺失紀錄的根因標籤引用了「已不在根因主清單裡」的孤兒項目——常見於：曾經匯入過一份
+    //    較舊的缺失紀錄備份/Excel，裡面的根因欄位是刪除該根因之前的內容，寫回紀錄後，
+    //    這筆紀錄上的標籤就會跟目前的根因主清單（NCTree.list.rootCause）對不起來。
+    try{
+      const validRoots=new Set((typeof NCTree!=="undefined"?NCTree.list.rootCause:[]).map(x=>x[0]));
+      (App.defs||[]).forEach(d=>{
+        if(!d.ncRoot)return;
+        const tags=ncFactorSplit(d.ncRoot);
+        const orphans=tags.filter(t=>!validRoots.has(t));
+        orphans.forEach(name=>{
+          issues.push({cat:"ref",
+            label:`缺失 #${d.id}（${d.ship||""} ${d.date||""}）的根因標籤「${name}」已不在根因分類主清單中`,
+            fix:{type:"orphanRoot",defId:d.id,name}});
+        });
+      });
+    }catch(e){console.warn(e);}
+    // 5) 本機與雲端筆數不一致
     if(typeof Cloud!=="undefined"&&Cloud.enabled()){
       try{
         const pairs=[["inspections","檢查紀錄",App.insp],["deficiencies","缺失紀錄",App.defs],["ships","船舶資料",(typeof SHIPINFO!=="undefined"?SHIPINFO:[])],
@@ -9225,6 +9241,13 @@ const DataHealthCheck={
     }else if(f.list==="操演紀錄指定編輯者"){App.drillRecordEditors=(App.drillRecordEditors||[]).filter(n=>n!==f.name);if(typeof DrillRecord!=="undefined"&&DrillRecord.pushEditorsCloud)DrillRecord.pushEditorsCloud();}
     else if(f.list==="缺失分類指定編輯者"){App.defsGridEditors=(App.defsGridEditors||[]).filter(n=>n!==f.name);}
     else if(f.list==="自查任務建立者"){App.taskCreators=(App.taskCreators||[]).filter(n=>n!==f.name);}
+    else if(f.type==="orphanRoot"){
+      // 從這筆紀錄的根因欄位移除孤兒標籤，其餘（有效的）根因標籤不受影響；
+      // 不會自動把這個名稱補回根因主清單——加不加回主清單是分類判斷，該由人決定，
+      // 不該讓「健檢修復」順手幫忙做這個決定。
+      const d=(App.defs||[]).find(x=>x.id===f.defId);
+      if(d){const tags=ncFactorSplit(d.ncRoot).filter(t=>t!==f.name);d.ncRoot=tags.join("、");}
+    }
   },
   CAT_LABEL:{ref:"🔗 失效引用",ship:"🚢 船舶資料不符",person:"👤 人員已離職",sync:"☁ 本機／雲端不一致"},
   render(){
@@ -9236,7 +9259,7 @@ const DataHealthCheck={
       this.lastResults.map((it,i)=>`<tr>
         <td>${this.CAT_LABEL[it.cat]||it.cat}</td>
         <td>${esc(it.label)}</td>
-        <td>${it.fix?`<button class="btn sm danger" onclick="DataHealthCheck.fixOne(${i})" title="${it.fix.type==='taskItem'?'從自查任務中移除這個查核項目':'從名單中移除這個人'}">修復</button>`:""}</td>
+        <td>${it.fix?`<button class="btn sm danger" onclick="DataHealthCheck.fixOne(${i})" title="${it.fix.type==='taskItem'?'從自查任務中移除這個查核項目':it.fix.type==='orphanRoot'?'從這筆缺失的根因欄位移除這個孤兒標籤（不影響其他有效的根因標籤）':'從名單中移除這個人'}">修復</button>`:""}</td>
       </tr>`).join("")
     }</tbody></table></div>`;
   }
@@ -11622,9 +11645,21 @@ const NCTree={
   async loadCloud(){
     if(typeof Cloud==="undefined"||!Cloud.enabled())return;
     try{
-      let rows=await Cloud.api("app_db?select=payload&k=eq."+encodeURIComponent(this.CLOUD_KEY));
+      let rows=await Cloud.api("app_db?select=payload,updated&k=eq."+encodeURIComponent(this.CLOUD_KEY));
       let p=rows&&rows[0]&&rows[0].payload;
+      const cloudUpdatedAt=rows&&rows[0]&&rows[0].updated||0;
+      // ⚠ 這裡是真正的問題所在：開機時系統會在背景默默去拉雲端最新分類清單（沒有人等待），
+      // 如果使用者手速快，趁這個背景拉取「還沒跑完」的空檔新增/修改了分類（例如新增根因），
+      // 等這次背景拉取終於跑完，會用當時抓到的雲端內容「整包覆蓋」掉 this.list——但那份
+      // 雲端內容可能是使用者剛才那次異動「上傳完成之前」的舊版本，導致剛新增的項目被蓋掉，
+      // 畫面上完全看不出發生過這件事（不會報錯，只是資料默默消失）。
+      // 修法：比對雲端這筆的更新時間，若比本機「最後一次推送本機異動」的時間還早，代表這次
+      // 拉到的是過時資料，跳過這次覆蓋，保留本機目前（較新）的內容，避免蓋掉剛做的異動。
       if(p&&(Array.isArray(p.equip)||Array.isArray(p.ops))){
+        if(cloudUpdatedAt&&cloudUpdatedAt<(this._localUpdatedAt||0)){
+          console.warn("NCTree.loadCloud：偵測到雲端資料比本機最近一次異動還舊，跳過覆蓋以保護本機新增/修改的內容");
+          return;
+        }
         this.list={equip:Array.isArray(p.equip)?p.equip:[],ops:Array.isArray(p.ops)?p.ops:[],
           rootCause:Array.isArray(p.rootCause)?p.rootCause:DEFAULT_ROOTCAUSE.map(x=>x.slice())};
         this._saveLocal();this.apply();this.render();this.refreshDependents();
@@ -11646,6 +11681,9 @@ const NCTree={
     }catch(e){console.warn("nctree cloud load failed",e);}
   },
   async pushCloud(){
+    // 記錄「本機這份分類清單最後一次異動並準備推送」的時間，讓 loadCloud() 能判斷之後
+    // 背景拉回來的雲端資料，是不是比這次異動還舊——是的話代表拉到過時資料，該跳過覆蓋。
+    this._localUpdatedAt=Date.now();
     if(typeof Cloud==="undefined"||!Cloud.enabled())return;
     try{
       const usr=(typeof Audit!=="undefined")?Audit.user():"";
@@ -24027,9 +24065,20 @@ const DM={
       return {任務ID:t.id,自查船舶:t.ship,自查日期:t.date,自查項目:t.title||"",自查人員:t.inspector||"",建立日期:t.created||"",項目總數:n,已查核:done,有類似缺失:sim,已結案:cls};
     });
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(taskRows),"船舶缺失自查任務");
+    // 8. 分類階層（問題別/大類/具體名稱）——僅供閱讀查核用，不能靠這個工作表還原回系統
+    //   （要完整還原分類階層，還是要用「一鍵下載全部備份」裡的 JS 檔）。
+    const nc=(typeof NCTree!=="undefined"?NCTree.list:{equip:[],ops:[]});
+    const classifyRows=[
+      ...(nc.equip||[]).map(([main,leaf,vtype])=>({問題別:"設備問題",大類:main,具體名稱:leaf,適用船型:vtype||""})),
+      ...(nc.ops||[]).map(([main,leaf,vtype])=>({問題別:"作業問題",大類:main,具體名稱:leaf,適用船型:vtype||""}))
+    ];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(classifyRows),"分類階層");
+    // 9. 根因分類（18項＋三要素）——同樣僅供閱讀查核用
+    const rootRows=(nc.rootCause||[]).map(([name,elem])=>({根因名稱:name,三要素:elem}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rootRows),"根因分類");
     XLSX.writeFile(wb,`船隊資料_一鍵匯出_${todayStr()}.xlsx`);
-    if(typeof Audit!=="undefined")Audit.log("匯出","資料管理","一鍵匯出所有資料（含7個工作表，含對外回覆內容）");
-    toast("✓ 已匯出所有資料（檢查紀錄／缺失紀錄／SIRE正向評論／AIR／對外回覆內容／船舶資料／船舶缺失自查任務，共7個工作表）");
+    if(typeof Audit!=="undefined")Audit.log("匯出","資料管理","一鍵匯出所有資料（含9個工作表，含對外回覆內容、分類階層與根因分類）");
+    toast("✓ 已匯出所有資料（檢查紀錄／缺失紀錄／SIRE正向評論／AIR／對外回覆內容／船舶資料／船舶缺失自查任務／分類階層／根因分類，共9個工作表）");
   },
   async switchTab(which){
     const oper=$("#dm-oper-page"),maint=$("#dm-maint-page");
