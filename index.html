@@ -4414,13 +4414,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="card" style="margin-bottom:14px">
         <h3>🗄 資料庫管理
           <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            <button class="btn dark" onclick="DM.exportAllXlsx()">⬇ 一鍵匯出所有資料（Excel，含所有資料表）</button>
-            <button class="btn dark" onclick="DM.exportAllJson()">⬇ 一鍵匯出全部資料（JS 完整備份）</button>
             <button class="btn" onclick="DM.showLsBreakdown()">📊 查看本機儲存明細</button>
-            <button class="btn dark" onclick="DM.importAllXlsx()">⬆ 一鍵匯入所有資料（維護者，需double check）</button>
-            <button class="btn" id="dmia-restore-wrap" style="display:none" onclick="DM.restorePreImportAll()">↩ 回復至上次一鍵匯入前</button>
           </span>
         </h3>
+        <p class="hint" style="margin:-4px 0 10px;line-height:1.7">全部資料表的完整匯出／還原，請到左方「📦 備份與還原」→「一鍵下載全部備份」／「從完整備份 JS 還原」；這裡的「📊 查看本機儲存明細」是單獨的工具，跟完整備份／還原無關。下方是各資料表各自的匯入／匯出，只影響單一資料表。</p>
         <div class="grid2">
           <div class="card">
             <h3>缺失紀錄總表</h3>
@@ -8609,7 +8606,6 @@ const App={
     this.air.forEach((d,i)=>{if(!d.id)d.id=3000000+i;if(!Array.isArray(d.posComments))d.posComments=[];if(typeof d.usedPos!=="boolean")d.usedPos=false;});
     this.insp.forEach((d,i)=>{if(!d.id)d.id=4000000+i;});
     try{const dl=document.getElementById("dl-sire-chapters");if(dl)dl.innerHTML=sireChapterDatalistHtml();}catch(e){}
-    try{const rb=document.getElementById("dmia-restore-wrap");if(rb)rb.style.display=localStorage.getItem("vsm_pre_importall_backup_v1")?"":"none";}catch(e){}
     // ⚠ 這裡漏掉了同樣的處理：「從完整備份 JS 還原」的復原按鈕（dm-fulljson-restore-wrap）
     // 只有在「這次還原動作剛執行完」的當下用 JS 直接設 display=""，重新整理頁面後
     // 因為是靠 inline style 記狀態、不是靠資料本身判斷，按鈕會打回預設的隱藏，
@@ -23720,10 +23716,10 @@ const DM={
     toast(`✓ 已匯出完整備份（${Object.keys(bundle.data).length}類資料）。如需還原，請用同一頁的「⬆ 從完整備份 JS 還原」按鈕匯入此檔案。`);
   },
   /* ════════ 從完整備份 JS 還原（對應 exportAllJson 產生的 vsm_full_backup 檔）════════
-     與上方 importAllXlsx（僅還原4張表，且明確排除 AIR／自查任務等含巢狀明細的資料）不同：
-     JS 完整備份保留原始巢狀結構，因此這裡可以連 AIR、自查任務、內稽動態、年度計畫等一併還原，
-     是唯一能「原樣」復原整個系統的匯入方式。還原前一律自動保留一份安全備份，可用
-     「↩ 回復至上次還原前」復原，避免誤還原造成無法挽回的損失。 */
+     這是唯一能「原樣」復原整個系統的匯入方式：JS 完整備份保留原始巢狀結構，
+     連 AIR、自查任務、內稽動態、年度計畫、分類階層、根因分類、各項權限名單等
+     都能一併還原，不像單一資料表各自的 Excel 匯入只影響那一張表。
+     還原前一律自動保留一份安全備份，可用「↩ 回復至上次還原前」復原，避免誤還原造成無法挽回的損失。 */
   async importAllJsonFull(){
     if(typeof Guard!=="undefined"&&!await Guard.requireDelete()){toast("⚠ 僅限維護者操作");return;}
     const fp=$("#filepick");
@@ -23990,113 +23986,6 @@ const DM={
     XLSX.writeFile(wb,`船隊資料_一鍵匯出_${todayStr()}.xlsx`);
     if(typeof Audit!=="undefined")Audit.log("匯出","資料管理","一鍵匯出所有資料（含7個工作表，含對外回覆內容）");
     toast("✓ 已匯出所有資料（檢查紀錄／缺失紀錄／SIRE正向評論／AIR／對外回覆內容／船舶資料／船舶缺失自查任務，共7個工作表）");
-  },
-  async importAllXlsx(){
-    if(!hasXLSXLib())return;
-    if(!await Guard.require()){toast("⚠ 一鍵匯入所有資料僅限維護者操作");return;}
-    const fp=$("#filepick");
-    fp.accept=".xlsx,.xls";
-    fp.value="";
-    fp.onchange=()=>{if(fp.files[0])this._readImportAll(fp.files[0]);};
-    fp.click();
-  },
-  _readImportAll(file){
-    const r=new FileReader();
-    r.onload=()=>{
-      try{
-        const wb=XLSX.read(r.result,{type:"array"});
-        const wsInsp=wb.Sheets["檢查紀錄"]||null;
-        const wsDef=wb.Sheets["缺失紀錄"]||null;
-        const wsSire=wb.Sheets["SIRE正向評論"]||null;
-        const wsShip=wb.Sheets["船舶資料"]||null;
-        if(!wsInsp&&!wsDef&&!wsSire&&!wsShip){toast("⚠ 找不到任何可匯入的工作表，請確認此檔案是用「⬇一鍵匯出所有資料」產生的");return;}
-        let newInsp=null,newDefs=null,newSire=null,newShips=null;
-        if(wsInsp){
-          newInsp=XLSX.utils.sheet_to_json(wsInsp,{defval:""}).filter(o=>String(o["船名"]||"").trim()).map(o=>({
-            ship:String(o["船名"]||"").trim(),vtype:String(o["船型"]||"").trim(),itype:String(o["檢查來源"]||"").trim(),
-            date:String(o["檢查日期"]||"").trim(),loc:String(o["檢查地點"]||"").trim(),inspector:String(o["檢查員"]||"").trim(),
-            unit:String(o["檢查單位/油公司"]||"").trim(),ndef:String(o["缺失數"]??"0").trim(),npos:String(o["正面評論數"]??"0").trim(),
-            flagType:String(o["FLAG項目"]||"").trim(),detain:String(o["扣船"]||"").trim()
-          }));
-        }
-        if(wsDef){
-          const aoa=XLSX.utils.sheet_to_json(wsDef,{header:1,defval:""});
-          newDefs=aoa.slice(1).filter(row=>row.some(c=>String(c).trim())).map(row=>{
-            const o={};
-            DEF_COLS.forEach((c,i)=>{o[c[0]]=String(row[i]??"").trim();});
-            o.attn=["是","Y","y","1","true","TRUE","✓"].includes(o.attn);
-            o.ncFocus=o.ncFocus||"";
-            return o;
-          }).filter(o=>o.ship);
-        }
-        if(wsSire){
-          const aoa=XLSX.utils.sheet_to_json(wsSire,{header:1,defval:""});
-          const cols=["ship","date","code","item","comment","rank","person"];
-          newSire=aoa.slice(1).filter(row=>row.some(c=>String(c).trim())).map(row=>{
-            const o={};cols.forEach((k,i)=>{o[k]=String(row[i]??"").trim();});
-            o.ym=ymOf(o.date);
-            return o;
-          }).filter(o=>o.ship);
-        }
-        if(wsShip){
-          newShips=XLSX.utils.sheet_to_json(wsShip,{defval:""}).filter(o=>String(o["代碼"]||o["船名"]||"").trim()).map(o=>({
-            code:String(o["代碼"]||"").trim(),name:String(o["Vessel Name"]||"").trim(),zh:String(o["船名"]||"").trim(),
-            vtype:String(o["船型"]||"").trim(),type1:String(o["Type"]||"").trim(),delivery:String(o["交船日"]||"").trim(),
-            imo:String(o["IMO No."]||"").trim(),cs:String(o["C/S"]||"").trim(),dwt:String(o["DWT"]||"").trim(),grt:String(o["GRT"]||"").trim(),
-            loa:String(o["LOA"]||"").trim(),breadth:String(o["Breadth"]||"").trim(),yard:String(o["船廠"]||"").trim(),yardLoc:String(o["船廠地點"]||"").trim(),
-            flag:String(o["FLAG"]||"").trim(),cls:String(o["Class"]||"").trim(),registry:String(o["登記公司"]||"").trim(),mgr:String(o["海技經管"]||"").trim(),deckSup:String(o["甲板督導"]||"").trim(),engineSup:String(o["機艙督導"]||"").trim(),cso:String(o["CSO"]||"").trim(),note:String(o["備註"]||"").trim()
-          }));
-        }
-        this._pendingImportAll={insp:newInsp,defs:newDefs,sire:newSire,ships:newShips,fname:file.name};
-        const parts=[];
-        if(newInsp)parts.push(`檢查紀錄 ${newInsp.length} 筆`);
-        if(newDefs)parts.push(`缺失紀錄 ${newDefs.length} 筆`);
-        if(newSire)parts.push(`SIRE正向評論 ${newSire.length} 筆`);
-        if(newShips)parts.push(`船舶資料 ${newShips.length} 艘`);
-        $("#dmia-fname").textContent=file.name;
-        $("#dmia-summary").innerHTML=parts.map(p=>`<li>${esc(p)}</li>`).join("")+
-          `<li style="color:var(--ink-3)">填單、船舶缺失自查任務：因含巢狀明細資料，<b>不包含</b>在此一鍵匯入範圍內（AIR請另用「AIR匯入Excel」功能還原完整明細）</li>`;
-        $("#dmia-confirm-cb").checked=false;
-        $("#dmia-confirm-btn").disabled=true;
-        $("#dmImportAllModal").classList.add("show");
-      }catch(e){toast("⚠ Excel 檔解析失敗："+e.message);}
-    };
-    r.readAsArrayBuffer(file);
-  },
-  closeImportAll(){$("#dmImportAllModal").classList.remove("show");this._pendingImportAll=null;},
-  confirmImportAll(){
-    if(!requireImport())return;
-    const p=this._pendingImportAll;
-    if(!p){this.closeImportAll();return;}
-    if(!$("#dmia-confirm-cb").checked){toast("⚠ 請先勾選確認方塊");return;}
-    if(!confirm("再次確認：此動作將「覆蓋」目前資料庫中對應的資料表（檢查紀錄／缺失紀錄／SIRE正向評論／船舶資料，僅針對檔案中有提供的工作表），匯入前系統會自動建立一份安全備份，確定要繼續嗎？"))return;
-    // 匯入前自動建立安全備份(獨立於使用者自訂的「預設備份」)，可用「↩ 回復至上次匯入前」還原
-    try{
-      const safety={insp:JSON.parse(JSON.stringify(App.insp)),defs:JSON.parse(JSON.stringify(App.defs)),sirePos:JSON.parse(JSON.stringify(App.sirePos)),ships:JSON.parse(JSON.stringify(SHIPINFO)),savedAt:Date.now(),savedBy:(typeof Audit!=="undefined")?Audit.user():""};
-      localStorage.setItem("vsm_pre_importall_backup_v1",JSON.stringify(safety));
-    }catch(e){}
-    let n=0;
-    if(p.insp){App.insp=p.insp.map(r=>({...r,id:0}));App.insp.forEach((d,i)=>d.id=i+1);n++;}
-    if(p.defs){App.defs=p.defs.map(r=>({...r,id:0}));App.defs.forEach((d,i)=>d.id=i+1);n++;}
-    if(p.sire){App.sirePos=p.sire.map(r=>({...r,id:0}));App.sirePos.forEach((d,i)=>d.id=i+1);n++;}
-    if(p.ships&&typeof SHIPINFO!=="undefined"){SHIPINFO.length=0;p.ships.forEach(s=>SHIPINFO.push(s));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}n++;}
-    App.saveAll();if(App.refreshMeta)App.refreshMeta();
-    ["Dash","Ov","Sp","Defs","Recur","Ref","SirePos"].forEach(name=>{try{if(typeof window[name]!=="undefined"){window[name].init&&window[name].init();window[name].render&&window[name].render();}}catch(e){}});
-    if(typeof Audit!=="undefined")Audit.log("匯入","資料管理",`一鍵匯入所有資料（來源檔：${p.fname}，共更新 ${n} 個資料表）`);
-    this.closeImportAll();
-    $("#dmia-restore-wrap")&&($("#dmia-restore-wrap").style.display="");
-    toast(`✓ 已匯入並覆蓋 ${n} 個資料表，已自動建立匯入前安全備份`);
-  },
-  restorePreImportAll(){
-    let s=null;try{s=JSON.parse(localStorage.getItem("vsm_pre_importall_backup_v1")||"null");}catch(e){}
-    if(!s){toast("⚠ 找不到匯入前的安全備份");return;}
-    if(!confirm(`確定要回復至上次「一鍵匯入所有資料」之前的狀態嗎？（備份時間：${new Date(s.savedAt).toLocaleString()}）\n此動作會覆蓋目前的檢查紀錄／缺失紀錄／SIRE正向評論／船舶資料。`))return;
-    App.insp=s.insp||[];App.defs=s.defs||[];App.sirePos=s.sirePos||[];
-    if(typeof SHIPINFO!=="undefined"&&s.ships){SHIPINFO.length=0;s.ships.forEach(x=>SHIPINFO.push(x));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}}
-    App.saveAll();if(App.refreshMeta)App.refreshMeta();
-    ["Dash","Ov","Sp","Defs","Recur","Ref","SirePos"].forEach(name=>{try{if(typeof window[name]!=="undefined"){window[name].init&&window[name].init();window[name].render&&window[name].render();}}catch(e){}});
-    if(typeof Audit!=="undefined")Audit.log("還原","資料管理","回復至上次一鍵匯入所有資料前的安全備份");
-    toast("✓ 已回復至匯入前的狀態");
   },
   async switchTab(which){
     const oper=$("#dm-oper-page"),maint=$("#dm-maint-page");
