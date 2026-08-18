@@ -13587,7 +13587,22 @@ const Defs={
   /* ── 查看模式：顯示欄位設定（全公司統一，僅 Owner／管理員可調整）── */
   loadViewFields(){
     if(this.viewFields)return this.viewFields;
-    try{const s=localStorage.getItem(this.VIEW_FIELDS_KEY);if(s){const arr=JSON.parse(s);if(Array.isArray(arr)){this.viewFields=arr;return this.viewFields;}}}catch(e){}
+    try{
+      const s=localStorage.getItem(this.VIEW_FIELDS_KEY);
+      if(s){
+        const arr=JSON.parse(s);
+        if(Array.isArray(arr)){
+          // ⚠ 這裡原本讀到已存過的清單就直接用，不會自動補上「後來才新增的欄位選項」——
+          // 「根因」是這次才加進 VIEW_FIELDS 的新選項，如果維護者之前已經存過一份自訂清單
+          // （不管本機或雲端），那份舊清單裡自然不會有「ncRoot」，即使程式碼已經支援顯示，
+          // 畫面上還是看不到，因為讀到的是那份「舊白名單」，新欄位不在名單裡就是不顯示。
+          // 這裡做一次性補漏：只要偵測到舊清單裡缺少「根因」，就自動補上並存回去，
+          // 不用等維護者自己想到要重新打開設定畫面勾選一次。
+          if(!arr.includes("ncRoot")){arr.push("ncRoot");this.saveViewFieldsLocal(arr);}
+          this.viewFields=arr;return this.viewFields;
+        }
+      }
+    }catch(e){}
     this.viewFields=this.VIEW_FIELDS.map(f=>f.k);
     return this.viewFields;
   },
@@ -13597,7 +13612,12 @@ const Defs={
     try{
       const rows=await Cloud.api("app_db?select=payload&k=eq."+this.VIEW_FIELDS_CLOUD_KEY);
       const p=rows&&rows[0]&&rows[0].payload;
-      if(p&&Array.isArray(p))this.saveViewFieldsLocal(p);
+      if(p&&Array.isArray(p)){
+        // 跟 loadViewFields() 同樣的補漏：雲端存的舊清單也可能是「根因」選項出現之前存的，
+        // 拉回來蓋掉本機時，要一併補上，不然本機剛補好的又會被雲端舊清單蓋回去。
+        if(!p.includes("ncRoot"))p.push("ncRoot");
+        this.saveViewFieldsLocal(p);
+      }
     }catch(e){/* 離線或讀取失敗：維持本機快取值 */}
     if(this.subTab==="view")this.render();
   },
