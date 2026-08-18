@@ -2706,15 +2706,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
               <button class="btn sm" onclick="Air.exportXlsx()" title="若已勾選特定幾筆，只匯出勾選的；未勾選任何一筆則匯出全部">⬇ 匯出 Excel</button>
               <button class="btn sm" onclick="Air.exportTemplate()">📋 下載匯入模板</button>
-              <button class="btn sm dark" onclick="Air.openNewOrImportModal()">＋ 新增／匯入</button>
+              <button class="btn sm dark" id="air-newimport-btn" onclick="Air.openNewOrImportModal()">＋ 新增／匯入</button>
               <span class="hint" id="air-sel-count" style="align-self:center"></span>
-              <button class="btn sm" onclick="Air.clearSel()">✕ 取消勾選</button>
-              <button class="btn sm dark" onclick="Air.openPushModal()">➜ 轉入紀錄</button>
+              <button class="btn sm" id="air-clearsel-btn" onclick="Air.clearSel()">✕ 取消勾選</button>
+              <button class="btn sm dark" id="air-pushmodal-btn" onclick="Air.openPushModal()">➜ 轉入紀錄</button>
             </span>
           </h3>
           <div class="tblwrap" style="max-height:520px">
             <table class="tbl"><thead><tr>
-              <th><input type="checkbox" id="air-selall" onchange="Air.toggleAll(this.checked)"></th>
+              <th id="air-selall-th"><input type="checkbox" id="air-selall" onchange="Air.toggleAll(this.checked)"></th>
               <th>操作</th>
               <th style="cursor:pointer" onclick="Air.sortBy('status')">狀態 <span id="sh-air-status"></span></th>
               <th style="cursor:pointer" onclick="Air.sortBy('reviewed')">督導確認 <span id="sh-air-reviewed"></span></th>
@@ -5708,6 +5708,64 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   </div>
 </div>
 
+<!-- 完整備份還原：差異預覽（紀錄類統計增減 + 設定類實際差異） -->
+<div class="modal-bg" id="fullRestoreModal">
+  <div class="modal" style="max-width:680px">
+    <div class="mh"><h3>⚠ 完整還原 — 差異預覽</h3></div>
+    <div class="mb" style="max-height:65vh;overflow:auto">
+      <p class="hint" id="fr-meta" style="margin-bottom:10px"></p>
+      <p style="color:#a04030;font-weight:600;margin-bottom:8px">此動作會完整覆蓋目前系統資料，執行前會自動保留一份「還原前備份」（可用「↩ 回復至上次還原前」復原）。</p>
+      <h4 style="margin:10px 0 6px;font-size:13.5px">📋 紀錄類資料（依編號統計增減，不逐筆比對內容）</h4>
+      <div id="fr-record-summary" style="font-size:12.5px;line-height:1.8"></div>
+      <h4 style="margin:14px 0 6px;font-size:13.5px">⚙ 分類／權限設定類資料（實際列出差異）</h4>
+      <div id="fr-setting-summary" style="font-size:12.5px;line-height:1.8"></div>
+      <div style="margin-top:16px;border-top:1px dashed var(--line);padding-top:12px">
+        <label class="fw">請輸入「確定還原」以繼續：<input type="text" id="fr-confirm-input" placeholder="確定還原" style="margin-top:6px"></label>
+      </div>
+    </div>
+    <div class="mf">
+      <span style="flex:1"></span>
+      <button class="btn" onclick="document.getElementById('fullRestoreModal').classList.remove('show')">取消</button>
+      <button class="btn danger" id="fr-confirm-btn">確認還原</button>
+    </div>
+  </div>
+</div>
+
+<!-- 匯入差異預覽（批次版：Excel 匯入用，一次列出所有有差異的紀錄可勾選） -->
+<div class="modal-bg" id="importDiffBulkModal">
+  <div class="modal" style="max-width:760px">
+    <div class="mh"><h3 id="importdiffbulk-title">匯入差異預覽</h3></div>
+    <div class="mb" style="max-height:65vh;overflow:auto">
+      <p class="hint" id="importdiffbulk-count" style="margin-bottom:8px"></p>
+      <div class="toolbar" style="margin-bottom:8px">
+        <button class="btn sm" id="importdiffbulk-selall">☑ 全部套用</button>
+        <button class="btn sm" id="importdiffbulk-selnone">☐ 全部跳過（保留現有）</button>
+      </div>
+      <div id="importdiffbulk-body"></div>
+    </div>
+    <div class="mf">
+      <span class="hint">勾選的紀錄會用匯入內容覆蓋；沒勾選的保留現有內容不變</span>
+      <span style="flex:1"></span>
+      <button class="btn" id="importdiffbulk-cancel">取消整個匯入</button>
+      <button class="btn primary" id="importdiffbulk-apply">確認套用</button>
+    </div>
+  </div>
+</div>
+
+<!-- 匯入差異預覽（共用：Excel匯入、線上填單轉入都用這個彈窗） -->
+<div class="modal-bg" id="importDiffModal">
+  <div class="modal" style="max-width:640px">
+    <div class="mh"><h3 id="importdiff-title">匯入差異預覽</h3></div>
+    <div class="mb" style="max-height:60vh;overflow:auto"><div id="importdiff-body"></div></div>
+    <div class="mf">
+      <span class="hint">現有內容（紅）→ 匯入內容（綠）；確認要用匯入內容覆蓋，或跳過這一筆保留現有內容</span>
+      <span style="flex:1"></span>
+      <button class="btn" id="importdiff-skip">跳過這筆（保留現有）</button>
+      <button class="btn primary" id="importdiff-apply">套用匯入內容</button>
+    </div>
+  </div>
+</div>
+
 <!-- 缺失紀錄：分類欄位人工異動歷程（誰、何時、改了哪個欄位） -->
 <div class="modal-bg" id="classifyLogModal">
   <div class="modal" style="max-width:640px">
@@ -6742,6 +6800,116 @@ const DataHub={
    系統中有多處需要「Owner 指定一批人員可做某件事」（缺失快速分類、建立自查任務、
    操演紀錄…）。原本每一處都各自複製一份部門/人員下拉＋chips＋儲存＋雲端同步的程式碼，
    難以維護、後台也顯得零散。這裡抽成一個通用元件，各功能只要宣告設定即可。 */
+const ImportDiff={
+  /* ════════ 匯入差異預覽（共用元件）════════
+     設計目標：匯入資料時，若匯入內容跟現有資料不一樣，先讓人看過差異再決定，
+     不要無聲覆蓋。三個匯入入口（Excel匯入、完整備份JS還原、線上填單轉入）都共用
+     這一套比對/顯示邏輯，不要各寫一套、以後修改還要改三次。
+     只負責「算差異」跟「顯示差異」，實際套用/跳過的動作由呼叫端自己決定怎麼做。 */
+  FIELD_LABELS:{
+    ship:"船名",vtype:"船型",itype:"檢查來源",date:"日期",place:"檢查地點",loc:"檢查地點",
+    inspector:"檢查員",oilco:"油公司/單位",unit:"油公司/單位",
+    psc:"PSC代碼",code:"CODE",detail:"缺失詳情",actual:"實際情形",
+    opComment:"船上原始說明",immediateCause:"立即原因",corrective:"改正措施",
+    rootCause:"根本原因",preventive:"預防措施",
+    opCommentReply:"對外回覆-說明",immediateCauseReply:"對外回覆-立即原因",
+    correctiveReply:"對外回覆-改正措施",rootCauseReply:"對外回覆-根本原因",preventiveReply:"對外回覆-預防措施",
+    rank:"職位",person:"姓名",risk:"風險",needControl:"需內控",internalControl:"需內控",
+    ncProb:"問題別",ncMain:"大類",ncLeaf:"具體名稱",ncRoot:"根因",ncFactor:"三要素",
+    ncImp:"重要程度",ncFocus:"重點關注",ncMethod:"分類方法",ncOpinion:"缺失性質判定",
+    ndef:"缺失數",npos:"正評數",flagType:"FLAG項目",detain:"扣船",comment:"評論內容",item:"評論項目"
+  },
+  /* 比較兩個物件在指定欄位上的差異，回傳只包含「真的不一樣」的欄位清單。
+     值先轉成字串比較，並把 undefined/null 視為空字串，避免「沒填」跟「填空字串」被誤判成有差異。 */
+  diffFields(oldObj,newObj,fields){
+    const out=[];
+    fields.forEach(k=>{
+      const ov=oldObj?(oldObj[k]??""):"";
+      const nv=newObj?(newObj[k]??""):"";
+      const os=typeof ov==="boolean"?(ov?"是":"否"):String(ov);
+      const ns=typeof nv==="boolean"?(nv?"是":"否"):String(nv);
+      if(os.trim()!==ns.trim()){out.push({field:k,label:this.FIELD_LABELS[k]||k,oldVal:os,newVal:ns});}
+    });
+    return out;
+  },
+  /* 產生單筆紀錄的差異表格 HTML（給 Excel 匯入 / 線上填單轉入這種「有明確對應到單一既有紀錄」的情境用）。*/
+  fieldDiffTableHtml(diffs){
+    if(!diffs.length)return '<p class="hint">此筆內容跟現有資料完全一致，沒有差異。</p>';
+    return `<table class="tbl" style="font-size:12px"><thead><tr><th style="width:110px">欄位</th><th>現有內容</th><th style="width:24px"></th><th>匯入內容</th></tr></thead><tbody>
+      ${diffs.map(d=>`<tr>
+        <td>${esc(d.label)}</td>
+        <td style="color:#a04030;max-width:260px;word-break:break-all">${esc(d.oldVal)||'<span class="hint">（空白）</span>'}</td>
+        <td style="text-align:center">→</td>
+        <td style="color:#1e7f4a;max-width:260px;word-break:break-all">${esc(d.newVal)||'<span class="hint">（空白）</span>'}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+  },
+  /* 陣列型設定（例如根因分類清單）的差異：算出「新增了哪些項目」「刪除了哪些項目」，
+     不逐欄位比較，因為這種清單本身就是一組項目的集合，比對「多了/少了誰」比較有意義。 */
+  diffArrayList(oldArr,newArr,keyFn){
+    keyFn=keyFn||(x=>Array.isArray(x)?x[0]:x);
+    const oldKeys=new Set((oldArr||[]).map(keyFn));
+    const newKeys=new Set((newArr||[]).map(keyFn));
+    const added=[...newKeys].filter(k=>!oldKeys.has(k));
+    const removed=[...oldKeys].filter(k=>!newKeys.has(k));
+    return {added,removed,unchanged:oldKeys.size-removed.length};
+  },
+  arrayDiffSummaryHtml(label,diff){
+    if(!diff.added.length&&!diff.removed.length)return `<div class="hint">${esc(label)}：內容相同，無差異</div>`;
+    return `<div style="margin-bottom:6px"><b>${esc(label)}</b>：
+      ${diff.added.length?`<span style="color:#1e7f4a">新增 ${diff.added.length} 項</span>（${diff.added.slice(0,8).map(esc).join("、")}${diff.added.length>8?"…":""}）　`:""}
+      ${diff.removed.length?`<span style="color:#a04030">將被移除 ${diff.removed.length} 項</span>（${diff.removed.slice(0,8).map(esc).join("、")}${diff.removed.length>8?"…":""}）`:""}
+    </div>`;
+  },
+  /* 顯示單筆差異預覽 Modal，回傳一個 Promise<boolean>：使用者按「套用」resolve(true)，
+     按「跳過這筆」或關閉 resolve(false)。呼叫端可以用這個結果決定要不要真的寫入。 */
+  showFieldDiffModal(title,diffs){
+    return new Promise(resolve=>{
+      $("#importdiff-title").textContent=title;
+      $("#importdiff-body").innerHTML=this.fieldDiffTableHtml(diffs);
+      const modal=$("#importDiffModal");
+      modal.classList.add("show");
+      const cleanup=()=>{modal.classList.remove("show");applyBtn.onclick=null;skipBtn.onclick=null;};
+      const applyBtn=$("#importdiff-apply"),skipBtn=$("#importdiff-skip");
+      applyBtn.onclick=()=>{cleanup();resolve(true);};
+      skipBtn.onclick=()=>{cleanup();resolve(false);};
+    });
+  },
+  /* 批次版本（給 Excel 匯入用，一次可能有幾十~幾百筆）：不會像單筆版本那樣一筆一筆跳出來，
+     而是先把「有差異的紀錄」全部列在同一個畫面，逐筆可展開看詳細差異、逐筆可勾選要不要套用，
+     一次確認完畢。回傳「使用者最後仍勾選（=要套用覆蓋）的索引」集合；沒被勾選的那幾筆，
+     呼叫端要當成「跳過這筆，保留原本內容」處理。
+     groups: [{label, diffs:[{field,label,oldVal,newVal}]}, ...]，index 對應陣列順序。 */
+  showBulkDiffModal(title,groups){
+    return new Promise(resolve=>{
+      $("#importdiffbulk-title").textContent=title;
+      $("#importdiffbulk-count").textContent=`共 ${groups.length} 筆內容有差異（其餘完全相同的紀錄不列在這裡，會直接套用）`;
+      const body=$("#importdiffbulk-body");
+      body.innerHTML=groups.map((g,i)=>`
+        <div class="importdiffbulk-row" style="border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:8px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" class="importdiffbulk-chk" data-i="${i}" checked>
+            <b>${esc(g.label)}</b>
+            <span class="hint">（${g.diffs.length} 個欄位不同）</span>
+            <span style="margin-left:auto;color:var(--teal);cursor:pointer" onclick="event.preventDefault();const el=this.closest('.importdiffbulk-row').querySelector('.importdiffbulk-detail');el.style.display=el.style.display==='none'?'':'none';">展開/收合</span>
+          </label>
+          <div class="importdiffbulk-detail" style="display:none;margin-top:8px">${this.fieldDiffTableHtml(g.diffs)}</div>
+        </div>`).join("");
+      const modal=$("#importDiffBulkModal");
+      modal.classList.add("show");
+      const cleanup=()=>{modal.classList.remove("show");applyBtn.onclick=null;cancelBtn.onclick=null;allBtn.onclick=null;noneBtn.onclick=null;};
+      const applyBtn=$("#importdiffbulk-apply"),cancelBtn=$("#importdiffbulk-cancel"),
+        allBtn=$("#importdiffbulk-selall"),noneBtn=$("#importdiffbulk-selnone");
+      allBtn.onclick=()=>{[...document.querySelectorAll(".importdiffbulk-chk")].forEach(c=>c.checked=true);};
+      noneBtn.onclick=()=>{[...document.querySelectorAll(".importdiffbulk-chk")].forEach(c=>c.checked=false);};
+      applyBtn.onclick=()=>{
+        const accepted=new Set([...document.querySelectorAll(".importdiffbulk-chk:checked")].map(c=>+c.dataset.i));
+        cleanup();resolve(accepted);
+      };
+      cancelBtn.onclick=()=>{cleanup();resolve(null);}; // null = 使用者整個取消這次匯入
+    });
+  }
+};
 const DupFinder={
   /* ════════ 重複匯入偵測（搬到資料管理後台，僅 Owner 可見/可操作）════════
      只找「內容完全一致」的紀錄（船名/日期/檢查來源/內容逐字相同），這種一致到不像巧合的
@@ -6978,7 +7146,7 @@ const StorageMonitor={
     if(typeof Cloud==="undefined"||!Cloud.enabled()){box.textContent="尚未連線雲端";return;}
     try{
       const oldest=await Cloud.api("audit_log?select=ts&order=ts.asc&limit=1");
-      const r=await fetch(Cloud.cfg.url+"/rest/v1/audit_log?select=ts",{method:"HEAD",headers:Object.assign({},Cloud.hdr(),{"Prefer":"count=exact"})});
+      const r=await fetch(Cloud.cfg.url+"/rest/v1/audit_log?select=ts",{method:"HEAD",cache:"no-store",headers:Object.assign({},Cloud.hdr(),{"Prefer":"count=exact"})});
       const cr=r.headers.get("content-range");
       const total=cr?cr.split("/")[1]:"?";
       const oldestTxt=oldest&&oldest[0]?new Date(oldest[0].ts).toLocaleDateString("zh-TW"):"—";
@@ -6991,7 +7159,7 @@ const StorageMonitor={
     if(typeof Cloud==="undefined"||!Cloud.enabled()){box.textContent="尚未連線雲端";return;}
     const cutoffMs=new Date(dateEl.value+"T00:00:00").getTime();
     try{
-      const r=await fetch(Cloud.cfg.url+`/rest/v1/audit_log?select=ts&ts=lt.${cutoffMs}`,{method:"HEAD",headers:Object.assign({},Cloud.hdr(),{"Prefer":"count=exact"})});
+      const r=await fetch(Cloud.cfg.url+`/rest/v1/audit_log?select=ts&ts=lt.${cutoffMs}`,{method:"HEAD",cache:"no-store",headers:Object.assign({},Cloud.hdr(),{"Prefer":"count=exact"})});
       const cr=r.headers.get("content-range");
       const n=cr?cr.split("/")[1]:"?";
       box.textContent=`符合條件（${dateEl.value} 之前）的操作紀錄共 ${n} 筆。確認無誤後可點「清理」執行。`;
@@ -14281,13 +14449,42 @@ const ImportUI={
   // 這些欄位填成空字串——選「覆蓋」時若照樣整包蓋上去，會把已經分類好的內容洗掉。
   // 這裡同樣只在匯入列「真的有值」時才覆蓋這些分類欄位。
   _CLASSIFY_PROTECT_KEYS:["ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","risk","rank","person"],
-  _mergeImport(list,pending,mode,nextIdFn){
-    let updated=0,added=0;
+  async _mergeImport(list,pending,mode,nextIdFn){
+    let updated=0,added=0,skipped=0;
     const impAt=Date.now(),impBy=(typeof Audit!=="undefined"?Audit.user():"");
+    // ⚠ 先做一次「乾跑」比對，找出哪些是「有對到既有紀錄、而且內容真的不一樣」的列，
+    // 這些才需要讓人看過差異、決定要不要套用；完全相同、或本來就是新增的列，不用煩使用者。
+    const IGNORE_KEYS=new Set(["id","_srcId","_impAt","_impBy","_classifyLog","classifyConfirmedBy","classifyConfirmedAt"]);
+    const matchedPairs=[]; // {r, existing, index}
+    pending.forEach((r,idx)=>{
+      const srcId=r._srcId;
+      const existing=(mode==="overwrite"&&srcId!=null)?list.find(x=>String(x.id)===srcId):null;
+      if(existing)matchedPairs.push({r,existing,idx});
+    });
+    const diffGroups=[];
+    matchedPairs.forEach(({r,existing})=>{
+      const fields=Object.keys(r).filter(k=>!IGNORE_KEYS.has(k));
+      const diffs=ImportDiff.diffFields(existing,r,fields);
+      if(diffs.length)diffGroups.push({label:`${existing.ship||""} ${existing.date||""}（原編號 #${existing.id}）`,diffs});
+    });
+    let acceptedSet=null; // null＝沒有差異需要確認，全部照原計畫進行；Set＝使用者勾選結果
+    const hadDiffLabels=new Set(diffGroups.map(g=>g.label)); // 記錄「真的有差異、有被拿出來給人看過」的紀錄
+    if(diffGroups.length){
+      const targetLabel=this.target==="defs"?"缺失紀錄":this.target==="insp"?"檢查紀錄":this.target==="sirepos"?"SIRE正向評論":this.target;
+      const result=await ImportDiff.showBulkDiffModal(`匯入差異預覽 — ${targetLabel}`,diffGroups);
+      if(result===null){toast("已取消匯入");return {updated:0,added:0,cancelled:true};}
+      // result 是「使用者勾選要套用」的 diffGroups 索引；換算成「哪些既有紀錄要跳過覆蓋」
+      const acceptedLabels=new Set([...result].map(i=>diffGroups[i].label));
+      acceptedSet=acceptedLabels;
+    }
     pending.forEach(r=>{
       const srcId=r._srcId;delete r._srcId;
       const existing=(mode==="overwrite"&&srcId!=null)?list.find(x=>String(x.id)===srcId):null;
       if(existing){
+        // 只有「真的被拿出來比對過、而且使用者取消勾選」的紀錄才算跳過；內容本來就完全一樣的
+        // 紀錄，從來沒被列進差異預覽裡，套用與否結果相同，不該被誤算成「使用者選擇跳過」。
+        const label=`${existing.ship||""} ${existing.date||""}（原編號 #${existing.id}）`;
+        if(hadDiffLabels.has(label)&&acceptedSet&&!acceptedSet.has(label)){skipped++;return;}
         const keepId=existing.id;
         const safeR={...r};
         this._CLASSIFY_PROTECT_KEYS.forEach(k=>{if(safeR[k]==="")delete safeR[k];});
@@ -14303,24 +14500,31 @@ const ImportUI={
         added++;
       }
     });
-    return {updated,added};
+    return {updated,added,skipped};
   },
   async confirm(){if(!await Guard.require())return;
     const mode=document.querySelector('input[name=immode]:checked').value;
+    let result;
     if(this.target==="defs"){
-      const {updated,added}=this._mergeImport(App.defs,this.pending,mode,()=>App.nextId());
-      Audit.log("匯入","缺失紀錄",mode==="overwrite"?`覆蓋更新 ${updated} 筆、新增 ${added} 筆`:`新增匯入 ${this.pending.length} 筆`);
+      result=await this._mergeImport(App.defs,this.pending,mode,()=>App.nextId());
+      if(result.cancelled)return;
+      const {updated,added,skipped}=result;
+      Audit.log("匯入","缺失紀錄",mode==="overwrite"?`覆蓋更新 ${updated} 筆、新增 ${added} 筆${skipped?`、跳過 ${skipped} 筆`:""}`:`新增匯入 ${this.pending.length} 筆`);
       Defs.page=1;Defs.selected.clear();Defs.init();
-      if(mode==="overwrite")toast(`✓ 已匯入：覆蓋更新 ${updated} 筆、新增 ${added} 筆`);
+      if(mode==="overwrite")toast(`✓ 已匯入：覆蓋更新 ${updated} 筆、新增 ${added} 筆${skipped?`、跳過 ${skipped} 筆`:""}`);
     }else if(this.target==="sirepos"){
-      const {updated,added}=this._mergeImport(App.sirePos,this.pending,mode,()=>SirePos.nextId());
-      Audit.log("匯入","SIRE正向評論",mode==="overwrite"?`覆蓋更新 ${updated} 筆、新增 ${added} 筆`:`新增匯入 ${this.pending.length} 筆`);
+      result=await this._mergeImport(App.sirePos,this.pending,mode,()=>SirePos.nextId());
+      if(result.cancelled)return;
+      const {updated,added,skipped}=result;
+      Audit.log("匯入","SIRE正向評論",mode==="overwrite"?`覆蓋更新 ${updated} 筆、新增 ${added} 筆${skipped?`、跳過 ${skipped} 筆`:""}`:`新增匯入 ${this.pending.length} 筆`);
       SirePos.page=1;SirePos.init();
-      if(mode==="overwrite")toast(`✓ 已匯入：覆蓋更新 ${updated} 筆、新增 ${added} 筆`);
+      if(mode==="overwrite")toast(`✓ 已匯入：覆蓋更新 ${updated} 筆、新增 ${added} 筆${skipped?`、跳過 ${skipped} 筆`:""}`);
     }else{
-      const {updated,added}=this._mergeImport(App.insp,this.pending,mode,()=>App.nextInspId());
+      result=await this._mergeImport(App.insp,this.pending,mode,()=>App.nextInspId());
+      if(result.cancelled)return;
+      const {updated,added,skipped}=result;
       Dash.init();
-      if(mode==="overwrite")toast(`✓ 已匯入：覆蓋更新 ${updated} 筆、新增 ${added} 筆`);
+      if(mode==="overwrite")toast(`✓ 已匯入：覆蓋更新 ${updated} 筆、新增 ${added} 筆${skipped?`、跳過 ${skipped} 筆`:""}`);
     }
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();App.refreshMeta();
     if(mode!=="overwrite")toast(`✓ 已匯入 ${this.pending.length} 筆（新增）`);
@@ -19288,9 +19492,19 @@ const Air={
     // 身份來說，不只是「不該用」，點錯了還可能誤動到审核狀態或外部系統設定。這裡統一收在
     // 一個函式裡，依 Role.isAdmin() 一次控制全部，跟按鈕分散在各處、各自各寫一次判斷比起來，
     // 之後要調整權限範圍或新增按鈕，只要改這裡一個地方就好。
+    // ⚠ 「勾選轉入紀錄」這件事風險又更高一層——不只是「不該做」，勾錯／轉錯還會把船上填的
+    // 資料寫進正式的檢查紀錄／缺失紀錄總表，是會動到既有資料庫的動作。這裡連「勾選框本身」
+    // 都一起隱藏，不是只藏按鈕──否則畫面上勾選框還在，看起來像「可以勾」，容易誤會。
     const ok=typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();
-    ["air-tab-cloudqueue-btn","air-replyedit-btn","air-replylist-btn","air-replyurl-btn","air-adddef-btn","air-addpos-btn"]
+    ["air-tab-cloudqueue-btn","air-replyedit-btn","air-replylist-btn","air-replyurl-btn","air-adddef-btn","air-addpos-btn",
+     "air-newimport-btn","air-selall-th","air-clearsel-btn","air-pushmodal-btn","air-sel-count"]
       .forEach(id=>{const el=$(id.startsWith("#")?id:"#"+id);if(el)el.style.display=ok?"":"none";});
+    // 勾選狀態本身也一併清掉，避免「權限被拿掉前已經勾好的幾筆」殘留在背景、
+    // 下次身份切回有權限時卻莫名其妙已經勾了幾筆。
+    if(!ok&&this.selected&&this.selected.size)this.selected.clear();
+    // 逐列的勾選框是在 renderList() 動態產生的，不是靜態 HTML，光改上面這些
+    // 固定元素的顯示狀態不夠，要重新渲染一次清單，逐列的勾選框才會跟著消失／出現。
+    if(typeof this.renderList==="function")this.renderList();
   },
   init(){
     this.refreshAdminOnlyVisibility();
@@ -20143,7 +20357,13 @@ const Air={
     }
     const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:d.date,loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:d.flagType||"",_impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
     if(existing){
-      if(!confirm(`此筆填單先前已轉入過「檢查紀錄」，要用目前的基本資料（含缺失數／正面評論數／FLAG項目等最新內容）覆蓋更新那一筆嗎？`))return;
+      // ⚠ 這裡原本只是一句籠統的 confirm()，看不到到底哪些欄位會被改成什麼——現在改成
+      // 實際列出每個欄位「現有值 → 匯入值」的差異表，看得清楚再決定要不要套用。
+      const diffFields=["ship","vtype","itype","date","loc","inspector","unit","ndef","npos","flagType"];
+      const diffs=ImportDiff.diffFields(existing,payload,diffFields);
+      if(!diffs.length){toast("此筆內容與現有檢查紀錄完全一致，無需更新");return;}
+      const ok=await ImportDiff.showFieldDiffModal(`轉入檢查紀錄 — 差異預覽（${d.ship} ${d.date}）`,diffs);
+      if(!ok)return;
       Object.assign(existing,payload);
       d.pushedInspId=existing.id;
       if(typeof Audit!=="undefined")Audit.log("更新","檢查紀錄",`由AIR#${d.id}同步更新`);
@@ -20200,10 +20420,10 @@ const Air={
     if(!rows||!rows.length)return;
     this._doPushDefs(rows,mode);
   },
-  _doPushDefs(rows,mode){
+  async _doPushDefs(rows,mode){
     const d=App.air.find(x=>x.id===this.editId);if(!d)return;
-    let added=0,updated=0;
-    rows.forEach(r=>{
+    let added=0,updated=0,skipped=0;
+    for(const r of rows){
       /* 策略：船上原始填寫的版本，與海技「對外回覆」審閱過的版本，是兩份不同的內容，
          都要完整保留、不互相覆蓋——所以缺失紀錄總表對這5個欄位各自拆成兩欄：
          corrective／correctiveReply、rootCause／rootCauseReply、preventive／preventiveReply、
@@ -20248,6 +20468,17 @@ const Air={
         const CLASSIFY_KEYS=["ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","risk","rank","person"];
         const safePayload={...payload};
         CLASSIFY_KEYS.forEach(k=>{if(safePayload[k]==="")delete safePayload[k];});
+        // ⚠ 分類欄位（CLASSIFY_KEYS）已經有保護（空值不覆蓋），但其他內容欄位（缺失詳情、
+        // 實際情形、船上原始說明、對外回覆內容等）沒有這層保護，是真的會被整批覆蓋掉的部分——
+        // 這裡在真正寫入前，先比較這些欄位有沒有差異，有差異才跳出預覽讓人確認，完全相同
+        // 的欄位不用煩使用者。多筆一起轉入時會依序一筆一筆跳出來，不會一次全部蓋掉。
+        const CONTENT_KEYS=["code","detail","actual","opComment","immediateCause","corrective","rootCause","preventive",
+          "opCommentReply","immediateCauseReply","correctiveReply","rootCauseReply","preventiveReply"];
+        const diffs=ImportDiff.diffFields(existing,safePayload,CONTENT_KEYS);
+        if(diffs.length){
+          const ok=await ImportDiff.showFieldDiffModal(`轉入缺失紀錄 — 差異預覽（${d.ship} ${r.code||""}）`,diffs);
+          if(!ok){skipped++;continue;}
+        }
         Object.assign(existing,safePayload); // 保留原本的 id／attn（注意）等未列在payload內的欄位
         updated++;
       }else{
@@ -20256,13 +20487,13 @@ const Air={
         r.pushedDefId=rec.id; // 記住這次轉入對應的缺失紀錄id，供下次覆蓋比對
         added++;
       }
-    });
+    }
     d.usedDef=true;
     d.defects=this.rowsToDefectsPayload(this.defRows); // 把更新後的 pushedDefId 寫回持久化的 defects
     App.saveAll();if(App.refreshMeta)App.refreshMeta();
     if(typeof Defs!=="undefined"){Defs.init();Defs.render();}
-    const msg=mode==="overwrite"?`✓ 已覆蓋更新 ${updated} 筆、新增 ${added} 筆缺失紀錄`:`✓ 已新增 ${added} 筆缺失紀錄`;
-    if(typeof Audit!=="undefined")Audit.log("轉入","缺失紀錄總表",`由AIR#${d.id}${mode==="overwrite"?"覆蓋轉入":"轉入"} ${rows.length} 筆（更新${updated}／新增${added}）`);
+    const msg=mode==="overwrite"?`✓ 已覆蓋更新 ${updated} 筆、新增 ${added} 筆缺失紀錄${skipped?`、跳過 ${skipped} 筆`:""}`:`✓ 已新增 ${added} 筆缺失紀錄`;
+    if(typeof Audit!=="undefined")Audit.log("轉入","缺失紀錄總表",`由AIR#${d.id}${mode==="overwrite"?"覆蓋轉入":"轉入"} ${rows.length} 筆（更新${updated}／新增${added}${skipped?`／跳過${skipped}`:""}）`);
     toast(msg);
   },
   async pushPosRowsToSire(){
@@ -20356,8 +20587,9 @@ const Air={
       // 判斷條件其實從沒真的觸發過——「已轉全部」（真正全部轉完）反而跟只轉一部分的
       // 顯示同一種顏色，看不出差別。改成正確比對「已轉全部」。
       const stColor=st==="待處理"?"#c0392b":(st==="已轉全部"?"#2e8b57":"#1e7f8c");
+      const canPush=typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();
       return `<tr class="${this.selected.has(String(d.id))?'sel':''}">
-        <td><input type="checkbox" ${this.selected.has(String(d.id))?"checked":""} onchange="Air.toggleSel('${d.id}',this.checked)"></td>
+        <td>${canPush?`<input type="checkbox" ${this.selected.has(String(d.id))?"checked":""} onchange="Air.toggleSel('${d.id}',this.checked)">`:""}</td>
         <td style="white-space:nowrap">
           <button class="btn sm" onclick="Air.showForm(${d.id})">✎</button>
           <button class="btn sm danger" onclick="Air.delAir(${d.id})">🗑</button>
@@ -23466,6 +23698,15 @@ const DM={
         voyCatalog:(typeof VoyRecv!=="undefined"?VoyRecv.cat:[]),
         voySubmissions:(typeof VoyRecv!=="undefined"?VoyRecv.subs:[]),
         auditLog:(typeof Audit!=="undefined"?Audit.list:[]),
+        // ⚠ 以下這幾個欄位之前完整備份也漏掉了：都是「誰能用哪個功能」的權限指定名單
+        // （EditorList 統一管理的那幾個），加上「加強稽核紀錄」這個實際業務資料——
+        // 之前完全沒被匯出，換裝置或資料救援時，這些設定/紀錄會全部消失、要重新設定。
+        defsGridEditors:App.defsGridEditors,
+        taskCreators:App.taskCreators,
+        exporters:App.exporters,
+        defsEditMembers:App.defsEditMembers,
+        airHaijiConfirmers:App.airHaijiConfirmers,
+        enhAuditLog:App.enhAuditLog,
         // 篩選清單管理（各欄位手動新增的標籤）與缺失分類階層管理（問題別/大類/具體名稱），
         // 之前完整備份完全沒包含這兩塊，代表萬一瀏覽器資料遺失或要換裝置，這兩塊救不回來。這裡補上。
         tagListExtras:(typeof TagLists!=="undefined"?(TagLists.loadExtras(),TagLists.extras):{}),
@@ -23496,15 +23737,61 @@ const DM={
       try{
         const bundle=JSON.parse(r.result);
         if(!bundle||bundle.type!=="vsm_full_backup"||!bundle.data){toast("⚠ 檔案格式不正確，請確認是用「⬇ 一鍵下載全部備份」產生的 JS(.json) 檔");return;}
-        const d=bundle.data;
-        const counts=Object.entries(d).filter(([k])=>k!=="auditLog").map(([k,v])=>`${k}：${Array.isArray(v)?v.length:"-"}`).join("\n");
-        const when=bundle.exportedAt?new Date(bundle.exportedAt).toLocaleString():"未知時間";
-        const ans=prompt(`⚠ 即將以此備份檔（匯出於 ${when}，匯出者：${bundle.exportedBy||"未知"}）「完整覆蓋」目前系統的下列資料：\n\n${counts}\n\n（不含操作紀錄 Audit Log，該項不會被覆蓋）\n此動作影響範圍極大，執行前系統會自動保留一份「還原前備份」，可用「↩ 回復至上次還原前」復原。\n\n請輸入「確定還原」以繼續：`);
-        if(ans!=="確定還原"){toast("已取消");return;}
-        this._doImportAllJsonFull(d,file.name);
+        this._showFullRestorePreview(bundle,file.name);
       }catch(e){toast("⚠ 檔案解析失敗："+e.message);}
     };
     r.readAsText(file);
+  },
+  // ⚠ 完整還原影響範圍太大（可能幾千筆紀錄），沒辦法像 Excel 匯入那樣逐筆列出差異，
+  // 那樣畫面會被塞爆、也跑不動。改成分兩層顯示：①「設定類」資料（分類階層/根因/權限名單）
+  // 筆數少，直接算出「新增了誰、少了誰」的實際差異；②「紀錄類」資料（缺失/檢查等大量紀錄）
+  // 只用 id 集合快速統計「還原後會新增幾筆、會消失幾筆」，不逐筆比對內容，兼顧效能與有用的資訊。
+  _idSetDiff(existingArr,newArr){
+    const exIds=new Set((existingArr||[]).map(x=>String(x.id)));
+    const newIds=new Set((newArr||[]).map(x=>String(x.id)));
+    const willAdd=[...newIds].filter(id=>!exIds.has(id)).length;
+    const willRemove=[...exIds].filter(id=>!newIds.has(id)).length;
+    return {willAdd,willRemove,existingCount:exIds.size,newCount:newIds.size};
+  },
+  _showFullRestorePreview(bundle,fname){
+    const d=bundle.data;
+    const when=bundle.exportedAt?new Date(bundle.exportedAt).toLocaleString():"未知時間";
+    $("#fr-meta").innerHTML=`匯出於 <b>${esc(when)}</b>，匯出者：<b>${esc(bundle.exportedBy||"未知")}</b>　檔名：${esc(fname)}`;
+
+    // ① 紀錄類資料：id 集合統計增/減
+    const RECORD_LABELS={insp:["inspections","檢查紀錄",App.insp],deficiencies:["deficiencies","缺失紀錄",App.defs],
+      sirePositive:["sirePositive","SIRE正向評論",App.sirePos],airReviews:["airReviews","線上填單",App.air]};
+    let recordHtml="";
+    Object.values(RECORD_LABELS).forEach(([key,label,curArr])=>{
+      if(!Array.isArray(d[key]))return;
+      const s=this._idSetDiff(curArr,d[key]);
+      recordHtml+=`<div style="margin-bottom:4px"><b>${esc(label)}</b>：目前 ${s.existingCount} 筆 → 備份 ${s.newCount} 筆　`+
+        (s.willAdd?`<span style="color:#1e7f4a">新增 ${s.willAdd} 筆</span>　`:"")+
+        (s.willRemove?`<span style="color:#a04030">還原後會消失 ${s.willRemove} 筆</span>`:'<span class="hint">無筆數會消失</span>')+
+      `</div>`;
+    });
+
+    // ② 設定類資料：實際算出新增/移除了哪些項目
+    let settingHtml="";
+    if(d.ncTreeList){
+      const nt=d.ncTreeList;
+      settingHtml+=ImportDiff.arrayDiffSummaryHtml("根因分類",ImportDiff.diffArrayList(NCTree.list.rootCause,nt.rootCause,x=>Array.isArray(x)?x[0]:x));
+      settingHtml+=ImportDiff.arrayDiffSummaryHtml("分類階層-設備",ImportDiff.diffArrayList(NCTree.list.equip,nt.equip,x=>Array.isArray(x)?x.slice(0,2).join("／"):x));
+      settingHtml+=ImportDiff.arrayDiffSummaryHtml("分類階層-作業",ImportDiff.diffArrayList(NCTree.list.ops,nt.ops,x=>Array.isArray(x)?x.slice(0,2).join("／"):x));
+    }
+    [["defsGridEditors","快速分類編輯者"],["taskCreators","自查任務建立者"],["exporters","匯出權限名單"],
+     ["defsEditMembers","編輯模式/責任人紀錄指定人員"],["airHaijiConfirmers","海技確認人員"],["projectMembers","專案分析指定人員"]]
+      .forEach(([key,label])=>{if(Array.isArray(d[key]))settingHtml+=ImportDiff.arrayDiffSummaryHtml(label,ImportDiff.diffArrayList(App[key],d[key]));});
+
+    $("#fr-record-summary").innerHTML=recordHtml||'<p class="hint">此備份未含紀錄類資料。</p>';
+    $("#fr-setting-summary").innerHTML=settingHtml||'<p class="hint">此備份未含分類/權限設定類資料。</p>';
+    $("#fr-confirm-input").value="";
+    $("#fullRestoreModal").classList.add("show");
+    $("#fr-confirm-btn").onclick=()=>{
+      if($("#fr-confirm-input").value.trim()!=="確定還原"){toast("⚠ 請輸入「確定還原」以繼續");return;}
+      $("#fullRestoreModal").classList.remove("show");
+      this._doImportAllJsonFull(d,fname);
+    };
   },
   _doImportAllJsonFull(d,fname){
     try{
@@ -23513,6 +23800,8 @@ const DM={
         chapterOverrides:App.chapterOverrides,inspCtrl:App.inspCtrl,refDocs:App.refDocs,refDocs2:App.refDocs2,
         drillRecords:App.drillRecords,drillRecordEditors:App.drillRecordEditors,annualPlan:App.annualPlan,
         auditDash:App.auditDash,defsProjects:App.defsProjects,projectMembers:App.projectMembers,
+        defsGridEditors:App.defsGridEditors,taskCreators:App.taskCreators,exporters:App.exporters,
+        defsEditMembers:App.defsEditMembers,airHaijiConfirmers:App.airHaijiConfirmers,enhAuditLog:App.enhAuditLog,
         ships:(typeof SHIPINFO!=="undefined"?SHIPINFO:[]),roster:(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[]),
         voyCatalog:(typeof VoyRecv!=="undefined"?VoyRecv.cat:[]),voySubmissions:(typeof VoyRecv!=="undefined"?VoyRecv.subs:[]),
         tagListExtras:(typeof TagLists!=="undefined"?(TagLists.loadExtras(),TagLists.extras):{}),
@@ -23530,6 +23819,8 @@ const DM={
     setArr("drillRecords",d.drillRecords);setArr("drillRecordEditors",d.drillRecordEditors);
     setArr("annualPlan",d.annualPlan);setArr("auditDash",d.auditDash);
     setArr("defsProjects",d.defsProjects);setArr("projectMembers",d.projectMembers);
+    setArr("defsGridEditors",d.defsGridEditors);setArr("taskCreators",d.taskCreators);setArr("exporters",d.exporters);
+    setArr("defsEditMembers",d.defsEditMembers);setArr("airHaijiConfirmers",d.airHaijiConfirmers);setArr("enhAuditLog",d.enhAuditLog);
     if(Array.isArray(d.ships)&&typeof SHIPINFO!=="undefined"){SHIPINFO.length=0;d.ships.forEach(s=>SHIPINFO.push(s));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}n++;}
     if(Array.isArray(d.roster)&&typeof GateIdentity!=="undefined"){GateIdentity.saveRoster(d.roster);n++;}
     if(Array.isArray(d.voyCatalog)&&typeof VoyRecv!=="undefined"){VoyRecv.cat=d.voyCatalog;try{localStorage.setItem(VoyRecv.LSK_CAT,JSON.stringify(VoyRecv.cat));}catch(e){}n++;}
@@ -23538,7 +23829,13 @@ const DM={
       TagLists.extras=d.tagListExtras;TagLists.saveExtras();TagLists.pushCloudExtras();n++;
     }
     if(d.ncTreeList&&typeof d.ncTreeList==="object"&&typeof NCTree!=="undefined"){
-      NCTree.list={equip:Array.isArray(d.ncTreeList.equip)?d.ncTreeList.equip:[],ops:Array.isArray(d.ncTreeList.ops)?d.ncTreeList.ops:[]};
+      // ⚠ 這裡原本重建 NCTree.list 時，只挑了 equip／ops 兩個欄位，完全漏掉 rootCause（根因分類）——
+      // 即使備份檔裡明明有根因資料，重建出來的物件也不會有這個欄位，等於每次「從完整備份還原」
+      // 之後，根因分類全部消失、被重置成空的。改成整包指定，equip/ops/rootCause 三者都保留，
+      // 缺哪個欄位才各自補空陣列，不要用「只挑我知道的欄位」這種寫法重建整個物件。
+      NCTree.list={equip:Array.isArray(d.ncTreeList.equip)?d.ncTreeList.equip:[],
+        ops:Array.isArray(d.ncTreeList.ops)?d.ncTreeList.ops:[],
+        rootCause:Array.isArray(d.ncTreeList.rootCause)?d.ncTreeList.rootCause:[]};
       NCTree._saveLocal();NCTree.apply();if(typeof Cloud!=="undefined"&&Cloud.enabled())NCTree.pushCloud();n++;
     }
     App.curTaskId=null;
@@ -23562,6 +23859,8 @@ const DM={
     App.chapterOverrides=s.chapterOverrides||{};App.inspCtrl=s.inspCtrl||[];App.refDocs=s.refDocs||[];App.refDocs2=s.refDocs2||[];
     App.drillRecords=s.drillRecords||[];App.drillRecordEditors=s.drillRecordEditors||[];App.annualPlan=s.annualPlan||[];
     App.auditDash=s.auditDash||[];App.defsProjects=s.defsProjects||[];App.projectMembers=s.projectMembers||[];
+    App.defsGridEditors=s.defsGridEditors||[];App.taskCreators=s.taskCreators||[];App.exporters=s.exporters||[];
+    App.defsEditMembers=s.defsEditMembers||[];App.airHaijiConfirmers=s.airHaijiConfirmers||[];App.enhAuditLog=s.enhAuditLog||[];
     if(typeof SHIPINFO!=="undefined"&&s.ships){SHIPINFO.length=0;s.ships.forEach(x=>SHIPINFO.push(x));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}}
     if(typeof GateIdentity!=="undefined"&&s.roster)GateIdentity.saveRoster(s.roster);
     if(typeof VoyRecv!=="undefined"){
@@ -25273,7 +25572,13 @@ const Cloud={
   },
   hdr(){return {"apikey":this.cfg.key,"Authorization":"Bearer "+this.cfg.key,"Content-Type":"application/json"};},
   async api(path,opts){
-    const r=await fetch(this.cfg.url+"/rest/v1/"+path,Object.assign({headers:this.hdr()},opts||{}));
+    // ⚠ 這裡原本完全沒設定 cache 選項，瀏覽器可能會用快取回應取代真正的網路請求——
+    // 這正是「使用者A更新資料後，使用者B即使按了『載入最新資料』、甚至強制重整，
+    // 畫面還是舊的，只有完全關閉分頁重開才看得到新資料」這個問題的根本原因：
+    // 程式碼確實有發出請求、也確實顯示「已載入」，但瀏覽器把回應直接從快取拿舊的
+    // 給你，根本沒有真的連到伺服器。cache:"no-store" 是標準做法，明確告訴瀏覽器
+    // 這個請求永遠不能用快取、一定要問伺服器要最新的，各家瀏覽器都支援。
+    const r=await fetch(this.cfg.url+"/rest/v1/"+path,Object.assign({headers:this.hdr(),cache:"no-store"},opts||{}));
     if(!r.ok)throw new Error("HTTP "+r.status+" "+(await r.text()).slice(0,120));
     const tx=await r.text();
     return tx?JSON.parse(tx):null;
