@@ -86,9 +86,11 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
           <div style="font-weight:700;font-size:15px" id="taskTitle"></div>
           <div class="hint" id="taskMeta"></div>
         </div>
-        <button class="btn" style="margin-left:auto" onclick="preparePrint()">⬇ 匯出 PDF（列印存檔）</button>
+        <button class="btn" onclick="backToSystem()" id="backBtn" style="margin-left:auto">🔙 返回系統</button>
+        <button class="btn" onclick="preparePrint()">⬇ 匯出 PDF（列印存檔）</button>
         <button class="btn primary" id="submitBtn" onclick="submitAll()">✓ 送出</button>
       </div>
+      <p class="hint" style="margin-top:6px">此分頁通常是從系統「開啟」的，按「返回系統」會自動關閉這個分頁、回到原本那個系統分頁；若您是直接被分享這個連結打開的（不是從系統點開），請直接關閉分頁即可。</p>
       <p class="hint warn" style="margin-top:10px">內容會自動即時儲存，不用自己按存檔。答「有，需處理」的項目，等船上處理完成後記得回來勾選「已完成改善（結案）」，再按一次「送出」才算完整。送出後仍可以回來調整、再送出一次覆蓋更新。</p>
       <label style="margin-top:10px">填寫人姓名（會記錄在每一題的作答紀錄上）</label>
       <input type="text" id="checkerName" placeholder="輸入您的姓名" oninput="onCheckerNameInput(this.value)">
@@ -148,6 +150,21 @@ function getCheckerName(){
 }
 function onCheckerNameInput(v){
   try{localStorage.setItem(CHECKER_KEY,v||"");}catch(e){}
+}
+
+/* ══════════ 返回系統：這個頁面通常是主系統用 window.open() 開新分頁打開的，
+   window.opener 會指向那個原本的系統分頁——直接把它帶回前景、關掉這個分頁，
+   等於「回到系統中的自查畫面」（那個分頁本來就停在自查清單，沒有被導離開過）。
+   若不是從系統點開（例如直接分享連結、或瀏覽器基於安全性擋掉關閉非腳本開啟的分頁），
+   window.close() 靜默失敗也沒關係，改用提示告知使用者自行關閉分頁即可。══════════ */
+function backToSystem(){
+  if(window.opener&&!window.opener.closed){
+    try{window.opener.focus();}catch(e){}
+    window.close();
+    setTimeout(()=>{ if(!window.closed)notify("已切回系統分頁，這個分頁可以直接關閉","ok2"); },300);
+  }else{
+    notify("找不到原本開啟系統的分頁（可能是直接用連結打開的），請直接關閉這個分頁即可","ok2");
+  }
 }
 
 async function init(){
@@ -367,7 +384,8 @@ async function submitAll(){
       body:JSON.stringify({items:draft.items,submitted_at:now,submit_count:(draft.submit_count||0)+1,history:hist,imported:false})});
     draft.submitted_at=now; draft.submit_count=(draft.submit_count||0)+1;
     document.getElementById("taskMeta").textContent=`船舶：${draft.ship||""}　已送出 ${draft.submit_count} 次　最後送出：${new Date(now).toLocaleString("zh-TW",{hour12:false})}`;
-    notify("✓ 已送出，公司端可以查看到這次結果了","ok2");
+    notify("✓ 已送出，公司端可以查看到這次結果了，即將自動返回系統…","ok2");
+    if(window.opener&&!window.opener.closed)setTimeout(backToSystem,1500);
   }catch(e){
     notify("送出失敗："+e.message,"err");
   }

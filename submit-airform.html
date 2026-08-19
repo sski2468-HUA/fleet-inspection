@@ -113,7 +113,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
           <input type="text" id="f-itype-other" placeholder="請說明檢查來源類型" style="display:none;margin-top:6px">
         </label>
         <label>檢查日期 *<input type="date" id="f-date"></label>
-        <label>檢查地點 *<input type="text" id="f-place" placeholder="打幾個字選港口，或選「其他」自行輸入"></label>
+        <label>檢查地點 *<input type="text" id="f-place" placeholder="請用英文打幾個字選港口，例：Kaohsiung，或選「其他」自行輸入"></label>
         <label>油公司/單位
           <select id="f-oilco-sel"><option value="">（無／不適用）</option></select>
           <input type="text" id="f-oilco-other" placeholder="輸入新的油公司/單位名稱" style="display:none;margin-top:6px">
@@ -275,7 +275,8 @@ function isValidPort(v){
   if(!s)return false;
   if(s==="At Sea"||s==="其他"||s.startsWith("其他"))return true;
   if(PORTS.includes(s))return true;
-  return /,\s*\S+/.test(s); // 允許「港口, 國家」格式的自訂地點
+  if(/[\u4e00-\u9fff]/.test(s))return false; // 統一使用英文港口名稱，不接受中文
+  return /,\s*\S+/.test(s); // 允許「Port, Country」格式的自訂地點（需為英文）
 }
 const NCDB_PROB=["设备问题","作业问题"];
 const NCDB_MAIN={"设备问题": ["驾驶台设备", "系泊和锚泊设备", "动力与推进", "机舱设备", "救生、消防、应急及安全设备", "防污染设备", "货物操作设备", "甲板机械", "船体/结构", "生活区/MLC设备", "保安/保全设备", "个人防护/作业安全设备", "医疗/急救设备", "测试/测量/校验工具", "电子管理平台/数据系统"], "作业问题": ["01.文件、证书和管理作业", "02.人员管理作业", "03.培训作业", "04.MLC和船员福利作业", "05.航行和通信作业", "06.靠离泊、系泊和锚泊作业", "07.PTW和高风险作业", "08.通用货物和压载作业", "09.散货船专项作业", "10.油化船专项作业", "11.气体船专项作业", "12.集装箱船专项作业", "13.机舱作业", "14.防污染和环保作业", "15.消防、救生和应急响应作业", "16.保安和网络安全作业", "17.船容船貌、通道和区域检查作业", "18.冰区和低温作业"]};
@@ -972,7 +973,7 @@ function bindPortInput(inputId){
     let warn=inp.parentElement.querySelector(".port-warn");
     if(!ok){
       if(!warn){warn=document.createElement("div");warn.className="port-warn";inp.parentElement.appendChild(warn);}
-      warn.textContent="⚠ 格式需為「港口, 國家」，特殊地點請選「其他」";
+      warn.textContent="⚠ 請用英文輸入，格式為「Port, Country」（例：Kaohsiung, Taiwan），特殊地點請選「其他」";
     }else if(warn)warn.remove();
     return ok;
   }
@@ -1196,6 +1197,7 @@ function validatePayload(p){
   if(p.basic.itype==="FLAG" && !p.basic.flagType) return "檢查來源選了 FLAG，請至少勾選一個 FLAG 項目";
   if(!p.basic.date) return "請填寫檢查日期";
   if(!p.basic.place) return "請填寫檢查地點";
+  if(typeof isValidPort==="function"&&!isValidPort(p.basic.place)) return "檢查地點請用英文輸入，格式為「Port, Country」（例：Kaohsiung, Taiwan）";
   // 沒有缺失也可以送出（例如這次檢查沒發現任何缺失、或只有正面評論），
   // 只針對「已經新增的缺失列」檢查是否有把缺失詳情填完整，不要求一定要新增缺失列。
   for(let i=0;i<p.defects.length;i++){
