@@ -68,6 +68,21 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
 .ps-item:hover,.ps-item.on{background:#eaf1f7}
 .ps-item.ps-extra{color:var(--navy-3);font-weight:600}
 .port-warn{font-size:11px;color:var(--bad);margin-top:3px;line-height:1.4}
+.photoSec{margin-top:4px}
+.photoSec .lbl{font-size:12.5px;color:var(--ink-2);font-weight:600;margin-bottom:6px;display:block}
+.photoGrid{display:flex;flex-wrap:wrap;gap:8px}
+.photoThumb{position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--line-2);background:#eef1f3;flex:none}
+.photoThumb img{width:100%;height:100%;object-fit:cover;cursor:pointer;display:block}
+.photoThumb .rmPhoto{position:absolute;top:2px;right:2px;background:rgba(10,20,28,.62);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:18px;text-align:center;cursor:pointer;padding:0}
+.photoAddBtn{width:72px;height:72px;border:1.5px dashed var(--line-2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--ink-3);cursor:pointer;background:#fafbfc;flex:none}
+.photoAddBtn:hover{background:#f0f4f7;border-color:var(--navy-3)}
+.photoCount{font-size:11px;color:var(--ink-3);margin-left:4px}
+#lightbox{display:none;position:fixed;inset:0;background:rgba(10,20,28,.92);z-index:300;align-items:center;justify-content:center;padding:24px}
+#lightbox img{max-width:100%;max-height:88vh;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+#lightbox .lbClose{position:absolute;top:16px;right:20px;color:#fff;font-size:30px;cursor:pointer;background:none;border:none;line-height:1}
+#lightbox .lbName{position:absolute;bottom:18px;left:0;right:0;text-align:center;color:#dbe8f4;font-size:12.5px}
+.draftbar{display:flex;gap:8px;padding:8px 14px;background:#eef3f7;border-bottom:1px solid var(--line)}
+.draftbar .btn{flex:1;padding:9px 10px;font-size:12.5px}
 </style>
 </head>
 <body>
@@ -75,10 +90,16 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
   <header>
     <span class="badge-draft">✓ 船名／檢查來源／油公司-單位已接上系統雲端清單，送出功能已接上雲端</span><br>
     <h1>⚓ 線上填單（After Inspection Review）</h1>
-    <p>填完「船舶檢查資料」後按送出，資料會回到公司端，由公司進行對外回覆後匯出 CAR 給船上留存。若船上網路不穩、送不出去，也可以直接「下載 Excel」，回傳給承辦人員匯入資料庫系統。</p>
+    <p>填完「船舶檢查資料」後按送出，資料會回到公司端，由公司進行對外回覆後匯出 CAR 給船上留存。若船上網路不穩、送不出去，也可以直接「下載 Excel＋JSON」，兩份檔案一起回傳給承辦人員匯入資料庫系統（Excel 給人看／匯入用，JSON 是完整備份、含照片本尊）。每筆缺失可附加矯正前／矯正後照片（各最多 3 張），完全離線也能拍照存檔。</p>
   </header>
 
   <div class="savebar">💾 本機自動暫存中：填到一半離開頁面，重新打開這個網址還會接續之前的內容</div>
+  <div class="draftbar">
+    <button class="btn ghost" id="btnExportDraft" type="button">💾 匯出草稿存檔（JSON＋Word）</button>
+    <button class="btn ghost" id="btnImportDraft" type="button">📂 開啟草稿檔案</button>
+    <input type="file" id="fileImportDraft" accept="application/json,.json" style="display:none">
+  </div>
+  <p class="hint" style="padding:0 14px;margin:6px 0 0">沒有網路時，可以先「匯出草稿存檔」把目前填的內容（含照片）存成一份 .json 檔放在自己電腦裡；下次不管在哪台電腦，用「開啟草稿檔案」選回那份檔案就能接續編輯，不用靠瀏覽器暫存。按這個按鈕會<b>同時</b>多下載一份 Word（.doc）檔，把目前已填的缺失明細、正面評論、矯正前/後照片整理成可直接閱讀、列印的文件，方便督導離線留存查看（.doc 只能看不能匯入回這個表單，要繼續編輯請用 .json）。</p>
 
   <div id="formView">
     <div class="card">
@@ -112,6 +133,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
         <span class="hint" style="margin-left:auto">缺失 <b id="defCountLabel">0</b> 筆・正面評論 <b id="posCountLabel">0</b> 筆</span>
       </div>
       <p class="sub" style="margin-top:6px">點下方分頁切換要填寫的缺失或正面評論（一次只顯示一筆，避免捲動時填錯格子）；每筆缺失請盡量填完整，分類欄位（設備大類/具體、作業大類/具體、根因分類、重要程度、風險、缺失性質判定）也請一併選好。</p>
+      <p class="hint warn" id="photoUploadOffNotice" style="display:none">📷 照片上傳功能目前由公司後台暫時關閉，缺失內容仍可正常填寫送出。</p>
       <div id="tabBar" style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0"></div>
       <div id="defList"></div>
       <div id="posSection">
@@ -127,9 +149,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
       <h2>送出</h2>
       <div class="actionbar">
         <button class="btn primary block" id="btnSubmit" type="button">✓ 送出填單（有網路時優先用這個）</button>
-        <button class="btn dark block" id="btnDownload" type="button">⬇ 下載成 Excel（沒有網路時用這個）</button>
+        <button class="btn dark block" id="btnDownload" type="button">⬇ 下載 Excel＋JSON（沒有網路時用這個）</button>
       </div>
-      <p class="hint" style="margin-top:10px">送出成功後會自動連帶下載一份 Excel 存底，接著此頁資料會清空並顯示完成畫面；「下載 Excel」單獨按不會清空頁面內容，仍可以繼續填寫或稍後再嘗試送出。</p>
+      <p class="hint" style="margin-top:10px">送出成功後會自動連帶下載一份 Excel＋一份 .json 完整備份（含照片），接著此頁資料會清空並顯示完成畫面；「下載 Excel＋JSON」單獨按會一次產生兩份檔案（不會清空頁面內容，仍可以繼續填寫或稍後再嘗試送出），請把這兩份檔案一起回傳給承辦人員：Excel 可直接用系統既有的「匯入 Excel」功能匯入，JSON 是完整備份（含照片本尊），供系統端「匯入離線填單」功能讀取，或萬一 Excel 資料有疑義時拿來核對。</p>
       <div style="display:flex;gap:8px;margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
         <button class="btn ghost sm" id="btnTestCloud" type="button" style="flex:1">☁ 測試雲端連線與資料表</button>
         <button class="btn ghost sm" id="btnClearForm" type="button" style="flex:1;color:var(--bad);border-color:#e8c3bc">🧹 清除表單（重新開始）</button>
@@ -148,6 +170,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
 </div>
 
 <div id="toast"></div>
+<div id="lightbox"><button class="lbClose" type="button" id="lbClose">✕</button><img id="lbImg" src=""><div class="lbName" id="lbName"></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -170,6 +193,70 @@ const CLOUD = {
   key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY"
 };
 const AIR_TABLE = "air_submissions"; // 需先在 Supabase 執行 supabase_setup.sql 建好這張表
+
+/* 缺失照片上傳開關：由主系統後台（資料管理→系統設定）控制，跟主系統共用同一個 app_db
+   key，這樣管理者關閉後，船上這份離線填單頁下次打開也會立刻反映（不用重新發布這個檔案）。
+   預設 true（若離線抓不到雲端設定，維持目前已上線的行為，不無故擋住船上填單）。 */
+let PHOTO_UPLOAD_ENABLED = true;
+async function loadPhotoUploadSetting(){
+  try{
+    const res = await fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=eq.defect_photo_upload_enabled`,
+      { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } });
+    if(res.ok){
+      const rows = await res.json();
+      const p = rows && rows[0] && rows[0].payload;
+      if(p && typeof p.enabled === "boolean") PHOTO_UPLOAD_ENABLED = p.enabled;
+    }
+  }catch(e){ /* 離線或連線失敗，維持預設值 */ }
+  // 設定抓回來的時間可能晚於部分缺失列已經畫出來，這裡回頭把畫面上所有照片區塊
+  // 統一套用最新的開關狀態（關閉就整塊隱藏＋放一行提示，不影響其他欄位）。
+  document.querySelectorAll(".photoSec").forEach(el=>{
+    el.style.display = PHOTO_UPLOAD_ENABLED ? "" : "none";
+  });
+  const notice = document.getElementById("photoUploadOffNotice");
+  if(notice) notice.style.display = PHOTO_UPLOAD_ENABLED ? "none" : "";
+}
+loadPhotoUploadSetting();
+
+/* ══════════ 缺失照片改存 Supabase Storage（不再直接把 base64 塞進 air_submissions 這張表）══════════
+   跟主系統「對外回覆佐證證據」用的是同一種做法：本機編輯/離線草稿期間，照片仍然是 base64
+   （沒有這樣做的話，離線根本沒辦法預覽、也沒辦法存草稿檔），只有在真正「送出」且確定連得上
+   雲端的那一刻，才把每張照片實際上傳到 Storage 換成永久網址，寫進送出的資料裡；
+   單張上傳失敗不影響其他張、也不擋整筆送出，失敗的那張會保留原本的 base64（資料不會不見，
+   只是那筆記錄裡這張照片還沒瘦身，之後可以再想辦法補救）。
+   ⚠ 使用前需先在 Supabase 專案建立名為 defect-photos 的 Storage 儲存桶，並開放 anon 角色
+   上傳（INSERT）與公開讀取（SELECT）權限，否則上傳一律失敗（僅照片這部分受影響，不影響送出）。 */
+const PHOTO_BUCKET = "defect-photos";
+async function uploadPhotoToStorage(photo, folder){
+  const blob = await (await fetch(photo.dataUrl)).blob();
+  const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.jpg`;
+  const res = await fetch(`${CLOUD.url}/storage/v1/object/${PHOTO_BUCKET}/${path}`, {
+    method: "POST",
+    headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key, "Content-Type": blob.type||"image/jpeg", "x-upsert": "true" },
+    body: blob
+  });
+  if(!res.ok){ const t = await res.text().catch(()=>""); throw new Error(`HTTP ${res.status}${t?"："+t.slice(0,100):""}`); }
+  return { name: photo.name, url: `${CLOUD.url}/storage/v1/object/public/${PHOTO_BUCKET}/${path}` };
+}
+/* 把整份 payload 裡所有缺失的 photosBefore/photosAfter 逐張上傳，成功的換成 {name,url}，
+   失敗的維持原本的 {name,dataUrl}；回傳有幾張沒換成功，讓呼叫端決定要不要提示使用者。 */
+async function uploadAllDefectPhotos(payload){
+  let failCount = 0;
+  const folderBase = `${(payload.basic.ship||"未填船名").replace(/[^\w\u4e00-\u9fff-]/g,"_")}/${(payload.basic.date||"未填日期").replace(/\//g,"-")}`;
+  for(const d of (payload.defects||[])){
+    for(const kind of ["photosBefore","photosAfter"]){
+      const list = d[kind];
+      if(!Array.isArray(list) || !list.length) continue;
+      for(let i=0;i<list.length;i++){
+        const p = list[i];
+        if(!p || p.url || !p.dataUrl) continue; // 已經是網址、或本來就沒有資料，跳過
+        try{ list[i] = await uploadPhotoToStorage(p, folderBase); }
+        catch(e){ failCount++; console.warn("photo upload to storage failed, keep base64 fallback", e); }
+      }
+    }
+  }
+  return failCount;
+}
 
 /* ── 範例資料（之後改為即時從雲端抓取）── */
 const SHIP_OPTS=[
@@ -216,12 +303,134 @@ const NC_OPINION_OPTS=[["none","無"],["inspector_opinion","檢查員個人意�
 
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
+/* ── 缺失照片（矯正前／矯正後）：每張都在瀏覽器端用 canvas 壓縮成長邊≤1600px、JPEG 70%
+   再轉 base64 存進表單資料，離線也能完整存檔還原、送出時也一併帶到雲端，不依賴額外的檔案儲存服務。
+   每側（前/後）限制張數，避免單筆缺失資料量爆量、拖慢自動暫存與送出。 ── */
+const MAX_PHOTOS=3;
+/* 單張壓縮後的目標檔案大小上限（約略估算，base64 字串長度*0.75≈實際 bytes）。
+   固定品質壓縮遇到內容複雜（雜訊多、細節多）的照片時，壓出來的檔案可能還是偏大，
+   這裡改成：壓縮後如果還是超過目標大小，就逐步降低品質重壓，直到落在目標範圍內
+   或已經降到品質下限為止，確保單張照片不會無限制地肥大下去。 */
+const PHOTO_TARGET_BYTES = 400*1024; // 目標：單張壓縮後約 400KB 以內
+const PHOTO_MIN_QUALITY = 0.4;
+const PHOTO_MAX_SOURCE_BYTES = 30*1024*1024; // 原始檔案超過 30MB 直接拒收，避免瀏覽器處理超大圖片卡死
+function compressImage(file, maxDim, quality){
+  maxDim=maxDim||1600; quality=quality||0.72;
+  if(file.size>PHOTO_MAX_SOURCE_BYTES){
+    return Promise.reject(new Error(`原始檔案過大（${(file.size/1024/1024).toFixed(1)}MB），請改用較小的照片或先在手機相簿裡縮圖後再上傳`));
+  }
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=function(e){
+      const img=new Image();
+      img.onload=function(){
+        let w=img.width,h=img.height;
+        if(w>maxDim||h>maxDim){
+          if(w>=h){h=Math.round(h*maxDim/w);w=maxDim;}
+          else{w=Math.round(w*maxDim/h);h=maxDim;}
+        }
+        const canvas=document.createElement("canvas");
+        canvas.width=w; canvas.height=h;
+        canvas.getContext("2d").drawImage(img,0,0,w,h);
+        let q=quality, dataUrl=canvas.toDataURL("image/jpeg",q);
+        let approxBytes=Math.round(dataUrl.length*0.75);
+        while(approxBytes>PHOTO_TARGET_BYTES && q>PHOTO_MIN_QUALITY){
+          q=Math.max(PHOTO_MIN_QUALITY, q-0.1);
+          dataUrl=canvas.toDataURL("image/jpeg",q);
+          approxBytes=Math.round(dataUrl.length*0.75);
+        }
+        resolve({dataUrl, w, h, bytes:approxBytes});
+      };
+      img.onerror=function(){ reject(new Error("圖片讀取失敗")); };
+      img.src=e.target.result;
+    };
+    reader.onerror=function(){ reject(new Error("檔案讀取失敗")); };
+    reader.readAsDataURL(file);
+  });
+}
+function photoThumbHtml(kind, idx, p){
+  return `<div class="photoThumb" data-idx="${idx}"><img class="d-photo-view" data-kind="${kind}" data-idx="${idx}" src="${p.dataUrl}"><button type="button" class="rmPhoto" data-kind="${kind}" data-idx="${idx}">✕</button></div>`;
+}
+function renderPhotoThumbs(div, kind){
+  const list=(div._photos&&div._photos[kind])||[];
+  const grid=div.querySelector(`.d-photoGrid-${kind}`);
+  let html=list.map((p,i)=>photoThumbHtml(kind,i,p)).join("");
+  if(list.length<MAX_PHOTOS) html+=`<div class="photoAddBtn" data-kind="${kind}">＋</div>`;
+  grid.innerHTML=html;
+  const countEl=div.querySelector(`.d-photoCount-${kind}`);
+  if(countEl) countEl.textContent=`（${list.length}/${MAX_PHOTOS}）`;
+}
+async function addPhotosToDefect(div, kind, files){
+  const list=div._photos[kind];
+  const room=MAX_PHOTOS-list.length;
+  if(room<=0){ notify(`矯正${kind==="before"?"前":"後"}照片最多 ${MAX_PHOTOS} 張，請先刪除舊的再新增`,"err"); return; }
+  const picked=[...files].slice(0,room);
+  if(files.length>room) notify(`超過張數上限，只加入前 ${room} 張`,"err");
+  for(const f of picked){
+    if(!/^image\//.test(f.type)) continue;
+    try{
+      const {dataUrl}=await compressImage(f);
+      list.push({name:f.name||"photo.jpg", dataUrl});
+    }catch(e){ notify(`「${f.name}」處理失敗：${e.message||"未知錯誤"}`,"err"); }
+  }
+  renderPhotoThumbs(div, kind);
+  scheduleAutoSave();
+}
+function bindPhotoEvents(div){
+  ["before","after"].forEach(kind=>{
+    const input=div.querySelector(`.d-photoInput-${kind}`);
+    input.addEventListener("change", function(){
+      if(this.files&&this.files.length) addPhotosToDefect(div, kind, this.files);
+      this.value="";
+    });
+  });
+  div.addEventListener("click", function(e){
+    const addBtn=e.target.closest(".photoAddBtn");
+    if(addBtn){ div.querySelector(`.d-photoInput-${addBtn.dataset.kind}`).click(); return; }
+    const rmBtn=e.target.closest(".rmPhoto");
+    if(rmBtn){
+      const kind=rmBtn.dataset.kind, idx=+rmBtn.dataset.idx;
+      div._photos[kind].splice(idx,1);
+      renderPhotoThumbs(div, kind);
+      scheduleAutoSave();
+      return;
+    }
+    const img=e.target.closest(".d-photo-view");
+    if(img){
+      const kind=img.dataset.kind, idx=+img.dataset.idx;
+      const p=div._photos[kind][idx];
+      if(p) openLightbox(p.dataUrl, (kind==="before"?"矯正前":"矯正後")+"："+(p.name||""));
+    }
+  });
+}
+function openLightbox(dataUrl, name){
+  document.getElementById("lbImg").src=dataUrl;
+  document.getElementById("lbName").textContent=name||"";
+  document.getElementById("lightbox").style.display="flex";
+}
+function closeLightbox(){
+  document.getElementById("lightbox").style.display="none";
+  document.getElementById("lbImg").src="";
+}
+document.getElementById("lbClose").addEventListener("click", closeLightbox);
+document.getElementById("lightbox").addEventListener("click", function(e){ if(e.target.id==="lightbox") closeLightbox(); });
+
 /* ── 本機自動暫存（localStorage）：避免船上填到一半訊號斷了整份填單白填 ── */
 const LS_KEY="vsm_airform_draft_v1";
+let _draftSaveFailWarned=false;
 function saveDraft(){
   try{
     localStorage.setItem(LS_KEY, JSON.stringify(collectPayload()));
-  }catch(e){}
+    _draftSaveFailWarned=false;
+  }catch(e){
+    // 通常是本機暫存空間（localStorage）容量爆了，最常見原因是照片累積太多；
+    // 這次自動暫存沒有真的存進去，畫面上原本的「💾 本機自動暫存中」提示會讓人誤以為安全，
+    // 所以這裡明確跳提示告知，同一次還沒解決前不重複狂跳。
+    if(!_draftSaveFailWarned){
+      _draftSaveFailWarned=true;
+      notify("⚠ 本機自動暫存失敗（多半是照片太多、容量爆了），請立即按「💾 匯出草稿存檔」把內容存成檔案，避免重新整理後遺失","err");
+    }
+  }
 }
 function loadDraft(){
   try{
@@ -553,6 +762,18 @@ function addDefectRow(data){
     <div class="flag-row d-internalControl-wrap" style="display:none">
       <label style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" class="d-internalControl" ${data.internalControl?"checked":""}> 🔒 需內控（全船隊比照管控，交叉訪船專用）</label>
     </div>
+    <div class="grid two" style="margin-top:10px">
+      <div class="photoSec" style="${PHOTO_UPLOAD_ENABLED?"":"display:none"}">
+        <span class="lbl">📷 矯正前照片<span class="photoCount d-photoCount-before">（0/${MAX_PHOTOS}）</span></span>
+        <div class="photoGrid d-photoGrid-before"></div>
+        <input type="file" class="d-photoInput-before" accept="image/*" multiple style="display:none">
+      </div>
+      <div class="photoSec" style="${PHOTO_UPLOAD_ENABLED?"":"display:none"}">
+        <span class="lbl">📷 矯正後照片<span class="photoCount d-photoCount-after">（0/${MAX_PHOTOS}）</span></span>
+        <div class="photoGrid d-photoGrid-after"></div>
+        <input type="file" class="d-photoInput-after" accept="image/*" multiple style="display:none">
+      </div>
+    </div>
   `;
   div.style.display = "none";
   document.getElementById("defList").appendChild(div);
@@ -567,6 +788,12 @@ function addDefectRow(data){
   div._classify.root=factorSplit(data.ncRoot);
   div._refreshClassify=function(){ renderClassifyBlock(div); };
   renderClassifyBlock(div);
+
+  // 矯正前／矯正後照片：還原草稿或匯入舊檔時，data.photosBefore/photosAfter 會帶回原本存過的照片
+  div._photos={ before:(data.photosBefore||[]).slice(), after:(data.photosAfter||[]).slice() };
+  bindPhotoEvents(div);
+  renderPhotoThumbs(div,"before");
+  renderPhotoThumbs(div,"after");
 
   div.addEventListener("click", function(e){
     const act = e.target.dataset && e.target.dataset.act;
@@ -701,9 +928,8 @@ function getSelOrOther(selId,otherId){
    草稿裡原本存的值套回去（如果選單填好前就設定 select.value，因為選項還不存在會被忽略掉）。
    如果暫存的值不在目前清單裡（例如清單後來被改過、或原本就是自訂輸入的），就自動走「自訂」
    那條路，把值填回自訂文字框，不會讓使用者發現自己填過的內容不見了。 */
-function applyDraftToItypeOilco(){
-  const d=loadDraft();
-  const b=(d&&d.basic)||{};
+function applyDraftToItypeOilco(basicOverride){
+  const b=basicOverride||((loadDraft()||{}).basic)||{};
   [["f-itype-sel","f-itype-other",b.itype],["f-oilco-sel","f-oilco-other",b.oilco]].forEach(([selId,otherId,val])=>{
     if(!val)return;
     const sel=document.getElementById(selId),other=document.getElementById(otherId);
@@ -885,6 +1111,8 @@ function collectPayload(){
       ncOpinion: box.querySelector(".d-ncOpinion").value,
       ncFocus: box.querySelector(".d-ncFocus").checked ? "是" : "否",
       internalControl: box.querySelector(".d-internalControl") ? box.querySelector(".d-internalControl").checked : false,
+      photosBefore: (box._photos&&box._photos.before)||[],
+      photosAfter: (box._photos&&box._photos.after)||[],
     });
   });
   const posComments = [];
@@ -904,10 +1132,17 @@ function collectPayload(){
   return { basic: person_basic, defects, posComments };
 }
 
-/* ── 還原本機暫存的草稿 ── */
-(function restoreDraft(){
-  const d = loadDraft();
-  if(!d) { updateDefCount(); updatePosCount(); switchTab({kind:"pos"}); return; }
+/* ── 把一份 payload（本機暫存草稿／匯入的 .json 檔）套回表單畫面，兩者共用同一套還原邏輯 ──
+   opts.reset=true 時會先清空目前畫面上所有缺失／正面評論列，用於「開啟草稿檔案」整份取代目前內容；
+   opts.reset 不給或 false 時只是疊加還原（開頁時從 localStorage 還原用這個模式）。 */
+function applyPayloadToForm(d, opts){
+  opts=opts||{};
+  if(!d){ updateDefCount(); updatePosCount(); switchTab({kind:"pos"}); return; }
+  if(opts.reset){
+    document.querySelectorAll(".defbox").forEach(b=>b.remove());
+    document.querySelectorAll(".posbox").forEach(b=>b.remove());
+    defCount=0; posCount=0;
+  }
   const b = d.basic || {};
   fillShipOpts(b.ship||"");
   document.getElementById("f-ship").value = b.ship||"";
@@ -915,14 +1150,20 @@ function collectPayload(){
   document.getElementById("f-date").value = b.date||"";
   document.getElementById("f-place").value = b.place||"";
   document.getElementById("f-inspector").value = b.inspector||"";
+  applyDraftToItypeOilco(b); // 檢查來源／油公司下拉此時清單一定已經填好了（無論開頁還是後續匯入），可以直接套用
   if(d.posComments && d.posComments.length){
     d.posComments.forEach(pc=>addPosRow(pc));
   }
   if(d.defects && d.defects.length){
     d.defects.forEach(df=>addDefectRow(df));
   }
+  updateDefCount(); updatePosCount();
   const firstDef = document.querySelector(".defbox");
   switchTab(firstDef ? {kind:"def", id:firstDef.dataset.id} : {kind:"pos"});
+}
+/* ── 還原本機暫存的草稿（開頁時自動執行一次）── */
+(function restoreDraft(){
+  applyPayloadToForm(loadDraft());
 })();
 document.getElementById("formView").addEventListener("input", scheduleAutoSave);
 document.getElementById("formView").addEventListener("change", scheduleAutoSave);
@@ -962,6 +1203,7 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
   const icCount = payload.defects.filter(d=>d.internalControl).length;
   const focusCount = payload.defects.filter(d=>d.ncFocus==="是").length;
   const highRiskCount = payload.defects.filter(d=>d.risk==="3").length;
+  const photoCount = payload.defects.reduce((n,d)=>n+(d.photosBefore||[]).length+(d.photosAfter||[]).length,0);
   const alertLines = [];
   if(icCount) alertLines.push(`🔒 需內控（交叉訪船）：${icCount} 條`);
   if(focusCount) alertLines.push(`⚠ 重點關注：${focusCount} 條`);
@@ -971,13 +1213,21 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
     `檢查日期：${payload.basic.date}\n`+
     `檢查來源：${payload.basic.itype}${payload.basic.flagType?`（${payload.basic.flagType}）`:""}\n`+
     `缺失：${payload.defects.length} 條\n`+
-    `正面評論：${payload.posComments.length} 條\n\n`+
+    `正面評論：${payload.posComments.length} 條\n`+
+    (photoCount ? `附加照片：${photoCount} 張\n` : "")+
+    `\n`+
     (alertLines.length ? `請特別注意：\n${alertLines.join("\n")}\n\n` : "")+
     `確定要送出嗎？`;
   if(!confirm(confirmMsg))return;
   const btn = document.getElementById("btnSubmit");
   btn.disabled = true; btn.textContent = "送出中…";
   try{
+    if(photoCount){
+      btn.textContent = "上傳照片中…";
+      const failCount = await uploadAllDefectPhotos(payload);
+      if(failCount) notify(`⚠ 有 ${failCount} 張照片上傳雲端失敗，已保留在資料裡繼續送出（不影響其他內容）`, "err");
+      btn.textContent = "送出中…";
+    }
     if(document.getElementById("f-oilco-sel").value===OTHER_VAL && payload.basic.oilco){
       pushCustomOilco(payload.basic.oilco); // 不 await：失敗也不擋送出，靜默重試/放棄即可
     }
@@ -994,11 +1244,12 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
     });
     if(!res.ok){ const t = await res.text().catch(()=>""); throw new Error(t.slice(0,200)); }
     try{ localStorage.removeItem(LS_KEY); }catch(e){}
-    downloadExcelFile(payload); // 送出成功後自動連帶下載一份 Excel 存底，船上不用再多按一次
+    downloadExcelFile(payload, true); // 送出成功後自動連帶下載一份 Excel 存底，船上不用再多按一次
+    exportDraftFile(true); // 同時自動下載一份 .json 完整備份（含照片本尊），萬一雲端那筆之後有疑義，手邊仍有原始資料可查對
     document.getElementById("formView").style.display = "none";
     document.getElementById("successView").style.display = "block";
   }catch(e){
-    notify("送出失敗，建議改用「下載 Excel」：" + e.message, "err");
+    notify("送出失敗，建議改用「下載 Excel／JSON 備份」：" + e.message, "err");
     btn.disabled = false; btn.textContent = "✓ 送出填單（有網路時優先用這個）";
   }
 });
@@ -1006,7 +1257,7 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
 /* ── 下載：產生跟系統「下載匯入模板」相同欄位結構的 .xlsx，內容已帶入剛填的資料，
      承辦人員收到後可直接用系統既有的「匯入 Excel（維護者）」匯入，不需要新的匯入邏輯。
      這個函式送出成功時也會自動呼叫一次，等於每次送出都順便存一份底稿在船上手邊。 ── */
-function downloadExcelFile(payload){
+function downloadExcelFile(payload, silent){
   if(typeof XLSX === "undefined"){ notify("Excel 功能載入失敗，請確認網路後重新整理頁面", "err"); return; }
 
   const wb = XLSX.utils.book_new();
@@ -1039,6 +1290,8 @@ function downloadExcelFile(payload){
     需內控: d.internalControl ? "是" : "否",
     缺失性質判定: NC_OPINION_LABEL[d.ncOpinion] || "無",
     風險: d.risk,
+    矯正前照片張數: (d.photosBefore||[]).length,
+    矯正後照片張數: (d.photosAfter||[]).length,
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(defRows), "缺失改善明細");
 
@@ -1053,13 +1306,15 @@ function downloadExcelFile(payload){
 
   const fname = `AfterInspectionReview_${b.ship||"未填船名"}_${b.date||""}.xlsx`;
   XLSX.writeFile(wb, fname);
-  notify("✓ 已下載 " + fname, "ok2");
+  if(!silent) notify("✓ 已下載 " + fname, "ok2");
 }
 document.getElementById("btnDownload").addEventListener("click", ()=>{
   const payload = collectPayload();
   const err = validatePayload(payload);
   if(err){ notify(err, "err"); return; }
-  downloadExcelFile(payload);
+  downloadExcelFile(payload, true); // Excel：給承辦人員直接用系統既有匯入功能匯入
+  const jsonName = exportDraftFile(true); // JSON：完整備份（含照片本尊），兩份一起回傳承辦人員
+  notify(`✓ 已下載 Excel＋JSON 兩份檔案（${jsonName}），請一起回傳給承辦人員`, "ok2");
 });
 
 /* ── 測試雲端連線與資料表：直接查一次 air_submissions，讓您能自己判斷是連線問題還是資料表沒建好 ── */
@@ -1110,6 +1365,109 @@ document.getElementById("btnClearForm").addEventListener("click", ()=>{
   if(!confirm("確定要清除目前填寫的內容嗎？此動作無法復原。")) return;
   try{ localStorage.removeItem(LS_KEY); }catch(e){}
   location.reload();
+});
+
+/* ── 匯出草稿存檔：把目前整份表單（含照片，照片以壓縮過的 base64 存在裡面）存成 .json 檔下載，
+   完全離線可用；下次不管在哪台電腦，用「開啟草稿檔案」選回這份檔就能接續編輯。
+   跟送出成功後自動下載的「Excel 存底」不同：Excel 是給承辦人員匯入系統用的欄位格式，
+   不含照片本尊（只有張數欄位供參考）；這份 .json 才是真正完整、可以還原編輯的工作檔。 ── */
+function exportDraftFile(silent){
+  const payload = collectPayload();
+  const b = payload.basic;
+  const blob = new Blob([JSON.stringify(payload)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const ts = new Date().toISOString().slice(0,16).replace(/[-:T]/g,"");
+  const fname = `AirForm_Draft_${b.ship||"未填船名"}_${b.date||""}_${ts}.json`;
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  if(!silent) notify("✓ 草稿已匯出，請妥善保存這份 .json 檔", "ok2");
+  return fname;
+}
+/* 匯出 Word：把目前整份表單內容（缺失明細、正面評論、矯正前/後照片）整理成一份可直接
+   用 Word 開啟、閱讀、列印的 .doc 檔案，格式跟系統裡「線上填單記錄→匯出→Word」一致，
+   方便督導離線時也能留一份可讀文件查看，不用等資料匯入系統後才能匯出。
+   這份檔案只能看，不支援匯入回這個表單（要繼續編輯內容請用旁邊的 .json 草稿檔）。 */
+function exportDraftWordFile(silent){
+  const payload = collectPayload();
+  const b = payload.basic;
+  const nl2br=s=>esc(s||"").replace(/\n/g,"<br/>");
+  let html = `<h2 style="font-family:Calibri,Arial,sans-serif">線上填單 — ${esc(b.ship)} ${esc(b.date)}</h2>
+    <table border="1" cellspacing="0" cellpadding="5" style="border-collapse:collapse;width:100%;font-size:13px;font-family:Calibri,Arial,sans-serif">
+      <tr><td width="120"><b>船名</b></td><td>${esc(b.ship)}</td><td width="120"><b>船型</b></td><td>${esc(b.vtype)}</td></tr>
+      <tr><td><b>檢查來源</b></td><td>${esc(b.itype)}${b.flagType?"（"+esc(b.flagType)+"）":""}</td><td><b>檢查地點</b></td><td>${esc(b.place)}</td></tr>
+      <tr><td><b>檢查日期</b></td><td>${esc(b.date)}</td><td><b>檢查員</b></td><td>${esc(b.inspector)}</td></tr>
+      <tr><td><b>油公司/單位</b></td><td>${esc(b.oilco)}</td><td><b>缺失數／正面評論數</b></td><td>${payload.defects.length} ／ ${(payload.posComments||[]).length}</td></tr>
+    </table><br/>`;
+  const photoRow=(label,list)=>{
+    if(!list||!list.length)return"";
+    const imgs=list.map(p=>`<img src="${p.url||p.dataUrl}" style="width:180px;margin:3px" alt="${esc(p.name||"")}">`).join("");
+    return `<tr><td width="140"><b>${label}</b></td><td colspan="3">${imgs}</td></tr>`;
+  };
+  payload.defects.forEach((d,i)=>{
+    html += `<h3 style="font-family:Calibri,Arial,sans-serif">缺失 #${i+1}${d.code?`　CODE ${esc(d.code)}`:""}</h3>
+      <table border="1" cellspacing="0" cellpadding="5" style="border-collapse:collapse;width:100%;font-size:13px;font-family:Calibri,Arial,sans-serif">
+        <tr><td width="140"><b>CODE</b></td><td colspan="3">${esc(d.code||"")}</td></tr>
+        <tr><td width="140"><b>缺失詳情</b></td><td colspan="3">${nl2br(d.detail)}</td></tr>
+        <tr><td><b>實際情況</b></td><td colspan="3">${nl2br(d.actual)}</td></tr>
+        <tr><td><b>責任人職位</b></td><td>${esc(d.rank)}</td><td width="140"><b>責任人姓名</b></td><td>${esc(d.person)}</td></tr>
+        <tr><td><b>Initial Operator Comment</b></td><td colspan="3">${nl2br(d.opComment)}</td></tr>
+        <tr><td><b>直接原因 Immediate Cause</b></td><td colspan="3">${nl2br(d.immediateCause)}</td></tr>
+        <tr><td><b>改善措施</b></td><td colspan="3">${nl2br(d.corrective)}</td></tr>
+        <tr><td><b>根本原因</b></td><td colspan="3">${nl2br(d.rootCause)}</td></tr>
+        <tr><td><b>預防措施</b></td><td colspan="3">${nl2br(d.preventive)}</td></tr>
+        ${photoRow("矯正前照片",d.photosBefore)}
+        ${photoRow("矯正後照片",d.photosAfter)}
+      </table><br/>`;
+  });
+  if(payload.posComments && payload.posComments.length){
+    html += `<h2 style="font-family:Calibri,Arial,sans-serif">正面評論</h2>`;
+    payload.posComments.forEach((p,i)=>{
+      html += `<p style="font-family:Calibri,Arial,sans-serif;font-size:13px"><b>#${i+1}　${esc(p.item||"")}</b><br/>${nl2br(p.comment)}</p>`;
+    });
+  }
+  const blob = new Blob(["\ufeff",'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>線上填單</title></head><body>',html,"</body></html>"],{type:"application/msword"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const ts = new Date().toISOString().slice(0,16).replace(/[-:T]/g,"");
+  const fname = `AirForm_${b.ship||"未填船名"}_${b.date||""}_${ts}.doc`;
+  a.href = url; a.download = fname;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  if(!silent) notify("✓ Word 檔已匯出："+fname, "ok2");
+  return fname;
+}
+document.getElementById("btnExportDraft").addEventListener("click", ()=>{
+  const jsonName = exportDraftFile(true);
+  const wordName = exportDraftWordFile(true);
+  notify(`✓ 已匯出 JSON＋Word 兩份檔案（${jsonName}）`, "ok2");
+});
+
+/* ── 開啟草稿檔案：讀回之前匯出的 .json，整份取代目前畫面上的內容（含照片）。
+   會先確認一次，避免不小心蓋掉目前正在填的東西。 ── */
+document.getElementById("btnImportDraft").addEventListener("click", ()=>{
+  document.getElementById("fileImportDraft").click();
+});
+document.getElementById("fileImportDraft").addEventListener("change", function(){
+  const file = this.files && this.files[0];
+  this.value = "";
+  if(!file) return;
+  if(!confirm("開啟草稿檔案會取代目前畫面上填寫的內容，確定要繼續嗎？")) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    let d;
+    try{ d = JSON.parse(e.target.result); }
+    catch(err){ notify("這份檔案格式不正確，無法開啟：" + err.message, "err"); return; }
+    if(!d || !d.basic){ notify("這份檔案看起來不是本表單匯出的草稿檔", "err"); return; }
+    applyPayloadToForm(d, {reset:true});
+    saveDraft();
+    notify("✓ 已載入草稿內容，可以繼續編輯", "ok2");
+    window.scrollTo({top:0, behavior:"smooth"});
+  };
+  reader.onerror = function(){ notify("讀取檔案失敗", "err"); };
+  reader.readAsText(file, "UTF-8");
 });
 
 </script>

@@ -2551,6 +2551,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       </div>
     </div>
 
+    <div class="modal-bg" id="photoboxModal" onclick="if(event.target===this)Photobox.close()" style="background:rgba(10,20,28,.92)">
+      <div style="position:relative;max-width:94vw;max-height:90vh">
+        <button class="x" onclick="Photobox.close()" style="position:absolute;top:-38px;right:0;color:#fff;font-size:26px;background:none;border:none;cursor:pointer">✕</button>
+        <img id="photoboxImg" src="" style="max-width:94vw;max-height:82vh;border-radius:6px;display:block;box-shadow:0 10px 40px rgba(0,0,0,.4)">
+        <div id="photoboxLabel" style="color:#dbe8f4;font-size:12.5px;text-align:center;margin-top:8px"></div>
+      </div>
+    </div>
+
     <div class="modal-bg" id="airPushDefsModal">
       <div class="modal" style="max-width:440px">
         <div class="mh"><h3>➜ 轉入缺失紀錄總表</h3><button class="x" onclick="Air.closePushDefsModal()">✕</button></div>
@@ -4606,6 +4614,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <span id="evidence-upload-status" class="hint" style="font-weight:600"></span>
             </label>
           </div>
+          <div class="card">
+            <h3>「線上填單」缺失矯正前/後照片上傳設定</h3>
+            <p class="hint" style="margin-bottom:10px;line-height:1.7">
+              控制船上「線上填單」網頁裡，每筆缺失是否顯示「矯正前／矯正後照片」上傳功能。目前照片是壓縮後以 base64 直接存進送出的資料裡（不是另外存到 Storage 儲存桶），會佔用 Supabase <b>資料庫</b>容量（跟檢查紀錄／缺失紀錄共用同一個容量額度），不是 Storage 容量。單張壓縮後約 200～400KB，一筆缺失最多前後各3張、單筆最重可能到 2～3MB；若單次填單缺失量大且每筆都附照片，資料量會快速累積。<br>
+              關閉後，船上「線上填單」網頁不會顯示照片上傳按鈕（文字內容不受影響，仍可正常填寫送出）；已經送出、已存在系統裡的照片不會被刪除，僅擋新照片繼續進來。僅 Owner／管理員可調整。
+            </p>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="photo-upload-toggle" onchange="PhotoUpload.toggle(this.checked)">
+              <span id="photo-upload-status" class="hint" style="font-weight:600"></span>
+            </label>
+          </div>
         </div>
       </div>
       <div class="card" style="margin-bottom:14px;border-left:4px solid var(--teal)">
@@ -4919,11 +4938,29 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <div class="fw fld">具體名稱（可多選）<div class="msel" id="ms-e-ncLeaf"></div></div>
             <label>重要程度<select id="e-ncImp"><option value="">（未設定）</option><option>低</option><option>中</option><option>高</option></select></label>
             <label style="flex-direction:row;align-items:center;gap:8px;align-self:end;padding-bottom:6px"><input type="checkbox" id="e-ncFocus" style="width:16px;height:16px;accent-color:var(--bad)"> 🔴 重點關注</label>
-            <label id="e-internalControl-wrap" style="display:none;flex-direction:row;align-items:center;gap:8px;align-self:end;padding-bottom:6px"><input type="checkbox" id="e-internalControl" style="width:16px;height:16px;accent-color:#6a3b8f"> 🔒 內控（全船隊比照管控）</label>
+            <label id="e-internalControl-wrap" style="display:flex;flex-direction:row;align-items:center;gap:8px;align-self:end;padding-bottom:6px"><input type="checkbox" id="e-internalControl" style="width:16px;height:16px;accent-color:#6a3b8f"> 🔒 需內控（全船隊比照管控）</label>
             <label id="e-ncMethod-wrap">分類方法<input type="text" id="e-ncMethod" placeholder="關鍵字對應 / 人工核對…"></label>
             <div class="fw fld">🧩 根因分類（可多選，選了會自動帶出下方三要素）<div id="e-ncroot-box" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px;border:1px solid var(--line);border-radius:6px"></div></div>
             <div class="fw fld">三要素（人員/設備/系統；已依上方根因分類自動帶出，不開放單獨編輯——如需調整請改選根因）<div id="e-ncFactor-display" class="hint" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper);min-height:20px">（尚未帶出，請先選根因）</div></div>
             <label class="fw">缺失性質判定<select id="e-ncOpinion"><option value="none">無</option><option value="inspector_opinion">檢查員個人意見</option><option value="best_practice">Best Practice（建議做法）</option></select></label>
+          </div>
+        </div>
+        <div class="fw" id="e-photo-section" style="background:#eef6fb;border:1px solid #b8d9ea;border-radius:6px;padding:12px;margin-top:4px">
+          <div style="font-size:11.5px;font-weight:700;color:#1e5f7a;margin-bottom:10px;letter-spacing:.5px">📷 矯正前/後照片</div>
+          <p class="hint" style="margin-bottom:8px;line-height:1.6">「矯正前」照片通常在缺失剛發現時（線上填單）就會附上；「矯正後」照片建議等缺失實際改善完成後，直接在這裡補上即可，不需要再麻煩船上重新開啟舊的填單草稿檔案。</p>
+          <div class="fgrid">
+            <div class="fw">
+              <label>矯正前照片<span class="hint" id="e-photocount-before">（0/3）</span></label>
+              <div id="e-photogrid-before" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+              <input type="file" id="e-photoinput-before" accept="image/*" multiple style="display:none">
+              <button type="button" class="btn sm" style="margin-top:6px" onclick="document.getElementById('e-photoinput-before').click()">＋ 新增照片</button>
+            </div>
+            <div class="fw">
+              <label>矯正後照片<span class="hint" id="e-photocount-after">（0/3）</span></label>
+              <div id="e-photogrid-after" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+              <input type="file" id="e-photoinput-after" accept="image/*" multiple style="display:none">
+              <button type="button" class="btn sm" style="margin-top:6px" onclick="document.getElementById('e-photoinput-after').click()">＋ 新增照片</button>
+            </div>
           </div>
         </div>
       </div>
@@ -5101,7 +5138,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="mb">
       <p class="hint" style="margin-bottom:10px">請選擇要匯出的檔案格式：</p>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.exportRecordDocx(Air._exportId);Air.closeRecordExportModal()">⬇ Word（.doc）<br><span style="font-weight:400;font-size:11px">基本資料＋缺失改善明細＋正面評價明細，完整內容</span></button>
+        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.exportRecordDocx(Air._exportId);Air.closeRecordExportModal()">⬇ Word（.doc）<br><span style="font-weight:400;font-size:11px">基本資料＋缺失改善明細＋正面評價明細，含矯正前/後照片</span></button>
+        <button class="btn" style="width:100%;text-align:left" onclick="Air.exportRecordPdf(Air._exportId);Air.closeRecordExportModal()">🖨 PDF（列印/另存）<br><span style="font-weight:400;font-size:11px">給督導留存查看用，逐筆缺失含矯正前/後照片，瀏覽器列印視窗選「另存為 PDF」</span></button>
         <button class="btn" style="width:100%;text-align:left" onclick="Air.exportRecordXlsx(Air._exportId);Air.closeRecordExportModal()">⬇ Excel（.xlsx）<br><span style="font-weight:400;font-size:11px">表格式留存／查核用</span></button>
         <button class="btn" style="width:100%;text-align:left" onclick="Air.exportCarDocx(Air._exportId);Air.closeRecordExportModal()">⬇ CAR（Word，官方格式）<br><span style="font-weight:400;font-size:11px">橫向排版，內容取自「海技對外回覆」的英文欄位</span></button>
       </div>
@@ -7540,6 +7578,76 @@ const GuideRole={
   init(){this.show(this.defaultRole());}
 };
 function toast(msg){const t=$("#toast");t.textContent=msg;t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",2600);}
+
+/* ══════════ Photobox：全站共用的照片放大檢視 modal（缺失矯正前/後照片等處共用）══════════ */
+const Photobox={
+  open(dataUrl,label){
+    $("#photoboxImg").src=dataUrl||"";
+    $("#photoboxLabel").textContent=label||"";
+    $("#photoboxModal").classList.add("show");
+  },
+  close(){
+    $("#photoboxModal").classList.remove("show");
+    $("#photoboxImg").src="";
+  }
+};
+/* ══════════ 缺失照片壓縮＋上傳到 Supabase Storage（主系統端，用於缺失紀錄總表編輯視窗補照片）══════════
+   跟船上「線上填單」網頁那份是同一套壓縮邏輯（目標檔案大小、原始檔案上限），
+   但主系統這邊預設一直在線上操作，所以壓縮完直接嘗試上傳，不像船上表單需要考慮離線暫存。
+   Bucket 名稱與船上表單一致（defect-photos），需先在 Supabase 後台建立並開放 anon 上傳/公開讀取權限。 */
+const DEFECT_PHOTO_BUCKET="defect-photos";
+function compressPhotoForUpload(file,maxDim,quality){
+  maxDim=maxDim||1600;quality=quality||0.72;
+  const TARGET_BYTES=400*1024,MIN_QUALITY=0.4,MAX_SOURCE_BYTES=30*1024*1024;
+  if(file.size>MAX_SOURCE_BYTES)return Promise.reject(new Error(`原始檔案過大（${(file.size/1024/1024).toFixed(1)}MB），請改用較小的照片`));
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        let w=img.width,h=img.height;
+        if(w>maxDim||h>maxDim){if(w>=h){h=Math.round(h*maxDim/w);w=maxDim;}else{w=Math.round(w*maxDim/h);h=maxDim;}}
+        const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
+        canvas.getContext("2d").drawImage(img,0,0,w,h);
+        let q=quality,dataUrl=canvas.toDataURL("image/jpeg",q);
+        let bytes=Math.round(dataUrl.length*0.75);
+        while(bytes>TARGET_BYTES&&q>MIN_QUALITY){q=Math.max(MIN_QUALITY,q-0.1);dataUrl=canvas.toDataURL("image/jpeg",q);bytes=Math.round(dataUrl.length*0.75);}
+        resolve({dataUrl,w,h});
+      };
+      img.onerror=()=>reject(new Error("圖片讀取失敗"));
+      img.src=e.target.result;
+    };
+    reader.onerror=()=>reject(new Error("檔案讀取失敗"));
+    reader.readAsDataURL(file);
+  });
+}
+async function uploadDefectPhotoToStorage(photo,folder){
+  const blob=await(await fetch(photo.dataUrl)).blob();
+  const path=`${folder}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.jpg`;
+  const res=await fetch(`${Cloud.cfg.url}/storage/v1/object/${DEFECT_PHOTO_BUCKET}/${path}`,{
+    method:"POST",
+    headers:{"apikey":Cloud.cfg.key,"Authorization":"Bearer "+Cloud.cfg.key,"Content-Type":blob.type||"image/jpeg","x-upsert":"true"},
+    body:blob
+  });
+  if(!res.ok){const t=await res.text().catch(()=>"");throw new Error(`HTTP ${res.status}${t?"："+t.slice(0,100):""}`);}
+  return{url:`${Cloud.cfg.url}/storage/v1/object/public/${DEFECT_PHOTO_BUCKET}/${path}`};
+}
+/* 縮圖排：把 photosBefore/photosAfter 兩組陣列畫成兩排小縮圖，點擊開 Photobox 放大。
+   idPrefix 讓同一頁有多筆缺失時，每筆的照片陣列變數名稱不衝突（存在 window 上供 onclick 存取）。 */
+window._photoStripData={};
+function photoStripHtml(defect,idPrefix){
+  const before=Array.isArray(defect&&defect.photosBefore)?defect.photosBefore:[];
+  const after=Array.isArray(defect&&defect.photosAfter)?defect.photosAfter:[];
+  if(!before.length&&!after.length)return"";
+  window._photoStripData[idPrefix]={before,after};
+  const row=(list,kind,label)=>list.length?`<div style="margin-top:4px">
+      <span class="hint" style="font-size:11px">${label}：</span>
+      <span style="display:inline-flex;gap:4px;flex-wrap:wrap;vertical-align:middle">
+        ${list.map((p,i)=>`<img src="${p.url||p.dataUrl}" title="${esc(p.name||"")}" onclick="Photobox.open(window._photoStripData['${idPrefix}'].${kind}[${i}].url||window._photoStripData['${idPrefix}'].${kind}[${i}].dataUrl,'${label}：${esc(p.name||"")}')" style="width:40px;height:40px;object-fit:cover;border-radius:5px;border:1px solid var(--line-2);cursor:pointer">`).join("")}
+      </span>
+    </div>`:"";
+  return row(before,"before","矯正前")+row(after,"after","矯正後");
+}
 /* 通用「複製到剪貼簿」：優先用 navigator.clipboard，若瀏覽器不支援（例如非 HTTPS／舊版內嵌瀏覽器導致 navigator.clipboard 根本不存在，
    直接呼叫會直接拋出例外、按鈕看起來完全沒反應）則自動改用 textarea + execCommand 的相容寫法，並在成功／失敗都給予提示。 */
 function safeCopyText(text,okMsg){
@@ -8801,6 +8909,7 @@ const App={
     if(typeof AirDefReq!=="undefined")AirDefReq.render();
     if(typeof Air!=="undefined"&&Air.renderHaijiChips)Air.renderHaijiChips();
     if(typeof EvidenceUpload!=="undefined")EvidenceUpload.renderToggleUI();
+    if(typeof PhotoUpload!=="undefined")PhotoUpload.renderToggleUI();
     if(typeof DefsFilterVis!=="undefined")DefsFilterVis.renderSettingsUI();
     if(typeof RosterMgr!=="undefined")RosterMgr.refreshCount();
   },
@@ -12696,6 +12805,10 @@ const Defs={
     {k:"tmMethod",t:"分類方法",sort:true,def:false,cell:d=>`<td style="font-size:11px;max-width:90px;word-break:break-word">${esc(d.tmMethod||"")}</td>`},
     {k:"rank",t:"職級-責任人",sort:true,def:false,cell:d=>`<td class="col-narrow">${esc(d.rank||"")}</td>`},
     {k:"person",t:"姓名-責任人",sort:true,def:false,cell:d=>`<td class="col-narrow">${esc(d.person||"")}</td>`},
+    {k:"photos",t:"矯正前/後照片",sort:false,def:false,cell:d=>{
+      const n=(d.photosBefore||[]).length+(d.photosAfter||[]).length;
+      return `<td class="col-narrow">${n?photoStripHtml(d,"defsgrid_"+d.id):`<span class="hint">—</span>`}</td>`;
+    }},
   ],
   VISKEY:"vsm_defcols_vis_v3",
   visible:null,
@@ -14055,6 +14168,69 @@ const Defs={
       if(el)el.onchange=()=>{pscMselUpdateSummary("e-psc");};
     });
   },
+  /* ─────────────────────────────────────────
+     缺失紀錄總表編輯視窗的矯正前/後照片：跟船上「線上填單」共用同一個 Storage
+     bucket（defect-photos），差別是這裡預設一直在線上操作，壓縮完直接嘗試上傳；
+     若當下離線或桶子還沒建好，退回保留 base64（不會丟資料，只是還沒瘦身）。
+     ───────────────────────────────────────── */
+  initPhotoUI(){
+    ["before","after"].forEach(kind=>{
+      const input=$(`#e-photoinput-${kind}`);
+      if(input&&!input._bound){
+        input._bound=true;
+        input.addEventListener("change",async e=>{
+          const files=[...e.target.files];e.target.value="";
+          await this.addPhotos(kind,files);
+        });
+      }
+    });
+  },
+  async addPhotos(kind,files){
+    if(!this._editPhotos)this._editPhotos={before:[],after:[]};
+    const list=this._editPhotos[kind];
+    const room=3-list.length;
+    if(room<=0){toast(`⚠ 矯正${kind==="before"?"前":"後"}照片最多 3 張，請先刪除舊的再新增`);return;}
+    const picked=files.slice(0,room);
+    if(files.length>room)toast(`超過張數上限，只加入前 ${room} 張`);
+    for(const f of picked){
+      if(!/^image\//.test(f.type))continue;
+      try{
+        const {dataUrl,w,h}=await compressPhotoForUpload(f);
+        let entry={name:f.name||"photo.jpg",dataUrl,w,h};
+        if(typeof PhotoUpload!=="undefined"&&PhotoUpload.enabled&&typeof Cloud!=="undefined"&&Cloud.enabled()){
+          try{
+            const folder=`${$("#e-ship").value||"未填船名"}/${$("#e-date").value||"未填日期"}`;
+            const uploaded=await uploadDefectPhotoToStorage(entry,folder);
+            entry={...entry,...uploaded};
+          }catch(e){console.warn("defect photo upload failed, keep base64 fallback",e);}
+        }
+        list.push(entry);
+      }catch(e){toast(`「${f.name}」處理失敗：${e.message||"未知錯誤"}`);}
+    }
+    this.renderPhotoThumbs();
+  },
+  removePhoto(kind,idx){
+    if(!this._editPhotos)return;
+    this._editPhotos[kind].splice(idx,1);
+    this.renderPhotoThumbs();
+  },
+  renderPhotoThumbs(){
+    const photos=this._editPhotos||{before:[],after:[]};
+    ["before","after"].forEach(kind=>{
+      const box=$(`#e-photogrid-${kind}`);if(!box)return;
+      const list=photos[kind]||[];
+      box.innerHTML=list.map((p,i)=>{
+        const src=(p.url||p.dataUrl||"").replace(/'/g,"\\'");
+        return `<div style="position:relative;display:inline-block">
+          <img src="${p.url||p.dataUrl}" title="${esc(p.name||"")}" onclick="Photobox.open('${src}','${esc(p.name||"")}')" style="width:60px;height:60px;object-fit:cover;border-radius:5px;border:1px solid var(--line-2);cursor:pointer">
+          <button type="button" onclick="Defs.removePhoto('${kind}',${i})" title="刪除" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--bad);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1;padding:0">✕</button>
+        </div>`;
+      }).join("");
+      const cnt=$(`#e-photocount-${kind}`);if(cnt)cnt.textContent=`（${list.length}/3）`;
+    });
+    const sec=$("#e-photo-section");
+    if(sec)sec.style.display=(typeof PhotoUpload==="undefined"||PhotoUpload.enabled)?"":"none";
+  },
   async openEdit(id){
     if(id==null){if(!await Guard.require()){toast("⚠ 新增缺失紀錄僅限 Owner／管理員操作");return;}}
     else{if(!Role.can('defs_edit')){toast("⚠ 您的權限僅可查看，無法編輯缺失紀錄");return;}}
@@ -14102,8 +14278,6 @@ const Defs={
     if($("#e-ncFocus"))$("#e-ncFocus").checked=(d.ncFocus==="是");
     const icWrap=$("#e-internalControl-wrap");
     if(icWrap){
-      const isCrossVisit=this.normItype?this.normItype(d.itype)==="CROSSSHIPVISIT":String(d.itype||"").toUpperCase().replace(/[^A-Z0-9]/g,"")==="CROSSSHIPVISIT";
-      icWrap.style.display=isCrossVisit?"":"none";
       const icBox=$("#e-internalControl");if(icBox)icBox.checked=(d.internalControl===true||d.internalControl==="是");
     }
     const flagBox=$("#e-flag-box");if(flagBox)flagBox.innerHTML=flagBoxHtml(d.flagType||"","e-flag");
@@ -14113,15 +14287,14 @@ const Defs={
     set("#e-ncOpinion",ncOpinionNormalize(d.ncOpinion));
     $("#shiplist").innerHTML=[...new Set(App.defs.map(x=>x.ship))].sort().map(s=>`<option value="${esc(s)}">`).join("");
     $("#itypelist").innerHTML=[...new Set(App.defs.map(x=>x.itype))].filter(Boolean).sort().map(s=>`<option value="${esc(s)}">`).join("");
+    this._editPhotos={before:Array.isArray(d.photosBefore)?d.photosBefore.slice():[],after:Array.isArray(d.photosAfter)?d.photosAfter.slice():[]};
+    this.initPhotoUI();
+    this.renderPhotoThumbs();
     $("#editModal").classList.add("show");
   },
   closeEdit(){$("#editModal").classList.remove("show");},
   refreshInternalControlVisibility(){
-    const icWrap=$("#e-internalControl-wrap");if(!icWrap)return;
-    const v=$("#e-itype")?$("#e-itype").value:"";
-    const norm=String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
-    icWrap.style.display=(norm==="CROSSSHIPVISIT")?"":"none";
-    if(norm!=="CROSSSHIPVISIT"){const icBox=$("#e-internalControl");if(icBox)icBox.checked=false;}
+    // 需內控欄位現已不分檢查來源、一律顯示；此函式保留為相容呼叫點的空操作。
   },
   refreshFlagVisibility(){
     const wrap=$("#e-flag-wrap");if(!wrap)return;
@@ -14135,7 +14308,7 @@ const Defs={
     const g=i=>$(i).value.trim();
     let _itype=$("#e-itype").value;if(_itype==="其他"){const _o=g("#e-itype-other");_itype=_o?"其他-"+_o:"其他";}
     const _flagType=flagBoxRead("e-flag");
-    const rec={ship:g("#e-ship"),vtype:g("#e-vtype"),itype:_itype,flagType:_flagType,date:g("#e-date"),ym:g("#e-ym")||ymOf(g("#e-date")),place:g("#e-place"),inspector:canonInspector(g("#e-inspector")),oilco:canonUnit(g("#e-oilco")),psc:pscBoxRead("e-psc"),code:g("#e-code"),detail:g("#e-detail"),actual:g("#e-actual"),opComment:g("#e-opcomment"),opCommentReply:g("#e-opcomment-reply"),immediateCause:g("#e-immediatecause"),immediateCauseReply:g("#e-immediatecause-reply"),preventive:g("#e-preventive"),preventiveReply:g("#e-preventive-reply"),corrective:g("#e-corrective"),correctiveReply:g("#e-corrective-reply"),rootCause:g("#e-rootcause"),rootCauseReply:g("#e-rootcause-reply"),attn:$("#e-attn").checked,rank:g("#e-rank"),person:g("#e-person"),risk:g("#e-risk"),ncProb:ncJoin(this.emProb?this.emProb.sel:[]),ncMain:ncJoin(this.emMain?this.emMain.sel:[]),ncLeaf:ncJoin(this.emLeaf?this.emLeaf.sel:[]),ncRoot:[...(this._ncRootSel||[])].join("、"),ncFactor:[...(this.emFactor?this.emFactor.sel:[])].join("、"),ncImp:g("#e-ncImp"),ncFocus:$("#e-ncFocus").checked?"是":"否",ncMethod:g("#e-ncMethod"),ncOpinion:ncOpinionNormalize(g("#e-ncOpinion")),internalControl:($("#e-internalControl")&&$("#e-internalControl").checked)?true:false};
+    const rec={ship:g("#e-ship"),vtype:g("#e-vtype"),itype:_itype,flagType:_flagType,date:g("#e-date"),ym:g("#e-ym")||ymOf(g("#e-date")),place:g("#e-place"),inspector:canonInspector(g("#e-inspector")),oilco:canonUnit(g("#e-oilco")),psc:pscBoxRead("e-psc"),code:g("#e-code"),detail:g("#e-detail"),actual:g("#e-actual"),opComment:g("#e-opcomment"),opCommentReply:g("#e-opcomment-reply"),immediateCause:g("#e-immediatecause"),immediateCauseReply:g("#e-immediatecause-reply"),preventive:g("#e-preventive"),preventiveReply:g("#e-preventive-reply"),corrective:g("#e-corrective"),correctiveReply:g("#e-corrective-reply"),rootCause:g("#e-rootcause"),rootCauseReply:g("#e-rootcause-reply"),attn:$("#e-attn").checked,rank:g("#e-rank"),person:g("#e-person"),risk:g("#e-risk"),ncProb:ncJoin(this.emProb?this.emProb.sel:[]),ncMain:ncJoin(this.emMain?this.emMain.sel:[]),ncLeaf:ncJoin(this.emLeaf?this.emLeaf.sel:[]),ncRoot:[...(this._ncRootSel||[])].join("、"),ncFactor:[...(this.emFactor?this.emFactor.sel:[])].join("、"),ncImp:g("#e-ncImp"),ncFocus:$("#e-ncFocus").checked?"是":"否",ncMethod:g("#e-ncMethod"),ncOpinion:ncOpinionNormalize(g("#e-ncOpinion")),internalControl:($("#e-internalControl")&&$("#e-internalControl").checked)?true:false,photosBefore:(this._editPhotos&&this._editPhotos.before)||[],photosAfter:(this._editPhotos&&this._editPhotos.after)||[]};
     if(!rec.ship){toast("⚠ 請填寫船名");return;}
     if(String(rec.itype||"").toUpperCase().replace(/[^A-Z0-9]/g,"")==="FLAG" && !rec.flagType){toast("⚠ 檢查來源選了 FLAG，請至少勾選一個 FLAG 項目才能儲存");return;}
     if(this.editId==null){rec.id=App.nextId();App.defs.push(rec);toast("✓ 已新增");Audit.log("新增","缺失紀錄",`${rec.ship} ${rec.date}：${(rec.detail||"").slice(0,40)}`);}
@@ -20100,6 +20273,7 @@ const Air={
           <label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">責任人員（可新增多筆）${defPeopleHtml}</label>
           ${isPSC?`<label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">PSC Action Taken${pscMselHtml(r.psc,uid,false)}</label>`:""}
           <label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">缺失詳情<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'detail',this.value)">${esc(r.detail)}</textarea></label>
+          ${((r.photosBefore&&r.photosBefore.length)||(r.photosAfter&&r.photosAfter.length))?`<div style="margin-top:10px;font-size:12px;color:var(--ink-2);font-weight:600">📷 矯正前/後照片（船上填單附帶，點縮圖放大）${photoStripHtml(r,"airedit_"+r.id)}</div>`:""}
         </div>
         <div class="air-rs-edit">
           <div class="fgrid">
@@ -20111,19 +20285,14 @@ const Air={
             <label class="fw">預防措施<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'preventive',this.value)">${esc(r.preventive)}</textarea></label>
           </div>
           <div class="air-def-shortrow">
-            <div class="adf-item adf-chk"><label style="flex-direction:row;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${r.ncFocus==="是"?"checked":""} style="width:18px;height:18px;accent-color:var(--bad)" onchange="Air.setDefField(${r.id},'ncFocus',this.checked?'是':'否')">重點關注</label></div>
-            <div class="adf-item adf-chk"><label style="flex-direction:row;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${r.needControl?"checked":""} style="width:18px;height:18px;accent-color:var(--signal)" onchange="Air.setDefField(${r.id},'needControl',this.checked)">需內控</label></div>
-            <div class="adf-item" style="grid-column:1/-1">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px;background:var(--paper);border-radius:6px">
-                <div><label>🔧 設備大類</label><select class="air-in" id="air-def-eqmain-${r.id}" onchange="Air.defSetMain(${r.id},'eq',this.value)"></select><div id="air-def-eqleaf-${r.id}" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px"></div></div>
-                <div><label>⚙️ 作業大類</label><select class="air-in" id="air-def-opmain-${r.id}" onchange="Air.defSetMain(${r.id},'op',this.value)"></select><div id="air-def-opleaf-${r.id}" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px"></div></div>
-                <div style="grid-column:1/-1"><label>🧩 根因分類（18項，可多選，自動帶出三要素）</label><div id="air-def-root-${r.id}" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px"></div></div>
-                <div class="hint" style="grid-column:1/-1;font-size:11px">三要素：<span id="air-def-factor-${r.id}"></span></div>
-              </div>
-            </div>
+            <div class="adf-item" style="max-width:250px"><label>🔧 設備大類</label><select class="air-in" id="air-def-eqmain-${r.id}" onchange="Air.defSetMain(${r.id},'eq',this.value)"></select><div id="air-def-eqleaf-${r.id}" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px"></div></div>
+            <div class="adf-item" style="max-width:250px"><label>⚙️ 作業大類</label><select class="air-in" id="air-def-opmain-${r.id}" onchange="Air.defSetMain(${r.id},'op',this.value)"></select><div id="air-def-opleaf-${r.id}" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px"></div></div>
+            <div class="adf-item" style="max-width:280px"><label>🧩 根因分類（18項，可多選）</label><div id="air-def-root-${r.id}" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px"></div><div class="hint" style="font-size:11px;margin-top:4px">三要素：<span id="air-def-factor-${r.id}"></span></div></div>
             <div class="adf-item"><label>重要程度</label><select class="air-in" id="air-def-ncimp-${r.id}" onchange="Air.setDefField(${r.id},'ncImp',this.value);Air.showSelectVal('air-def-ncimp-${r.id}')"><option value=""${r.ncImp?"":" selected"}>（未設定）</option><option${r.ncImp==="低"?" selected":""}>低</option><option${r.ncImp==="中"?" selected":""}>中</option><option${r.ncImp==="高"?" selected":""}>高</option></select><div class="adf-val" id="air-def-ncimp-${r.id}-val"></div></div>
             <div class="adf-item"><label>風險</label><select class="air-in" id="air-def-risk-${r.id}" onchange="Air.setDefField(${r.id},'risk',this.value);Air.showSelectVal('air-def-risk-${r.id}')"><option value=""${r.risk?"":" selected"}>（未設定）</option><option value="1"${r.risk==="1"?" selected":""}>1低</option><option value="2"${r.risk==="2"?" selected":""}>2中</option><option value="3"${r.risk==="3"?" selected":""}>3高</option></select><div class="adf-val" id="air-def-risk-${r.id}-val"></div></div>
             <div class="adf-item"><label>缺失性質判定</label><select class="air-in" id="air-def-opinion-${r.id}" onchange="Air.setDefField(${r.id},'ncOpinion',this.value);Air.showSelectVal('air-def-opinion-${r.id}')">${ncOpinionOptsHtml(r.ncOpinion)}</select><div class="adf-val" id="air-def-opinion-${r.id}-val"></div></div>
+            <div class="adf-item adf-chk"><label style="flex-direction:row;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${r.ncFocus==="是"?"checked":""} style="width:18px;height:18px;accent-color:var(--bad)" onchange="Air.setDefField(${r.id},'ncFocus',this.checked?'是':'否')">重點關注</label></div>
+            <div class="adf-item adf-chk"><label style="flex-direction:row;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${r.needControl?"checked":""} style="width:18px;height:18px;accent-color:var(--signal)" onchange="Air.setDefField(${r.id},'needControl',this.checked)">需內控</label></div>
           </div>
         </div>
       </div>`;
@@ -20373,6 +20542,7 @@ const Air={
   rowsToDefectsPayload(rows){
     return rows.filter(r=>r.detail||r.corrective||r.rootCause||r.preventive||r.opComment||r.immediateCause||r.rank||r.person||r.psc||r.code||r.actual||r.ncProb||r.ncMain||r.ncLeaf)
       .map(r=>({psc:r.psc||"",code:r.code||"",actual:r.actual||"",detail:r.detail||"",opComment:r.opComment||"",immediateCause:r.immediateCause||"",corrective:r.corrective||"",rootCause:r.rootCause||"",preventive:r.preventive||"",needControl:!!r.needControl,rank:r.rank||"",person:r.person||"",people:Array.isArray(r.people)?r.people.filter(p=>p.rank||p.person):[],ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncRoot:r.ncRoot||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||"",risk:r.risk||"",pushedDefId:r.pushedDefId??null,
+        photosBefore:Array.isArray(r.photosBefore)?r.photosBefore:[],photosAfter:Array.isArray(r.photosAfter)?r.photosAfter:[],
         followUp:r.followUp||{on:false,assignee:"",status:"open",log:[],closedAt:0},mergedCodes:Array.isArray(r.mergedCodes)?r.mergedCodes:undefined}));
   },
   saveForm(){
@@ -20560,6 +20730,7 @@ const Air={
         rank:r.rank||"",person:r.person||"",risk:r.risk||"",needControl:!!r.needControl,
         internalControl:!!(r.internalControl||r.needControl),
         ncProb:r.ncProb||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",ncRoot:r.ncRoot||"",ncFactor:r.ncFactor||"",ncImp:r.ncImp||"",ncFocus:r.ncFocus||"",ncMethod:r.ncMethod||"",ncOpinion:r.ncOpinion||"",
+        photosBefore:Array.isArray(r.photosBefore)?r.photosBefore:[],photosAfter:Array.isArray(r.photosAfter)?r.photosAfter:[],
         _impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
       // ⚠ 這裡原本用 x.id===r.pushedDefId（嚴格比對），如果 pushedDefId 因為任何原因
       // 變成字串型別（例如曾經被存到 Excel 再匯入回來、或走過一次 JSON 字串化的路徑），
@@ -20578,6 +20749,8 @@ const Air={
         const CLASSIFY_KEYS=["ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","risk","rank","person"];
         const safePayload={...payload};
         CLASSIFY_KEYS.forEach(k=>{if(safePayload[k]==="")delete safePayload[k];});
+        // 照片同理：這次轉入沒帶照片（例如覆蓋的是舊格式資料）時，不要用空陣列洗掉既有照片
+        ["photosBefore","photosAfter"].forEach(k=>{if(!safePayload[k]||!safePayload[k].length)delete safePayload[k];});
         // ⚠ 分類欄位（CLASSIFY_KEYS）已經有保護（空值不覆蓋），但其他內容欄位（缺失詳情、
         // 實際情形、船上原始說明、對外回覆內容等）沒有這層保護，是真的會被整批覆蓋掉的部分——
         // 這裡在真正寫入前，先比較這些欄位有沒有差異，有差異才跳出預覽讓人確認，完全相同
@@ -21978,6 +22151,16 @@ const Air={
         <tr><td><b>缺失數</b></td><td>${d.ndef??0}</td><td><b>正面評論數</b></td><td>${d.npos??0}</td></tr>
         <tr><td><b>督導確認</b></td><td>${d.reviewed?"✅ 已確認（"+esc(d.reviewedBy||"")+(d.reviewedAt?" "+new Date(d.reviewedAt).toLocaleString():"")+"）":"☐ 尚未確認"}</td><td colspan="2"></td></tr>
       </table><br/>`;
+    const DOC_IMG_W=200;
+    const photoRow=(label,list)=>{
+      if(!list||!list.length)return"";
+      const imgs=list.map(p=>{
+        const w=DOC_IMG_W;
+        const h=(p.w&&p.h)?Math.round(DOC_IMG_W*p.h/p.w):Math.round(DOC_IMG_W*0.75);
+        return `<img src="${p.url||p.dataUrl}" width="${w}" height="${h}" style="width:${w}px;height:${h}px;margin:3px" alt="${esc(p.name||"")}">`;
+      }).join("");
+      return `<tr><td width="140"><b>${label}</b></td><td colspan="3">${imgs}</td></tr>`;
+    };
     (d.defects||[]).forEach((df,i)=>{
       const rp=(d.reply&&d.reply.items&&d.reply.items[i])||{};
       html+=`<h3 style="font-family:Calibri,Arial,sans-serif">缺失 #${i+1}${df.code?`　CODE ${esc(df.code)}`:""}</h3>
@@ -21996,11 +22179,56 @@ const Air={
           <tr><td><b>預防措施<br/>Preventive Measures（中）</b></td><td colspan="3">${nl2br(rp.preventiveCn||df.preventive)}</td></tr>
           <tr><td><b>預防措施<br/>Preventive Measures（英）</b></td><td colspan="3">${nl2br(rp.preventiveEn)}</td></tr>
           <tr><td><b>是否有相關證據</b></td><td colspan="3">${rp.hasEvidence?"✅ 有"+((Array.isArray(rp.evidenceFiles)&&rp.evidenceFiles.length)?"（已上傳："+esc(rp.evidenceFiles.map(f=>f.name).join("、"))+"）":"（尚未上傳檔案）"):"☐ 無"}</td></tr>
+          ${photoRow("矯正前照片",df.photosBefore)}
+          ${photoRow("矯正後照片",df.photosAfter)}
         </table><br/>`;
     });
     const blob=new Blob(["\ufeff",'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>AIR</title></head><body>',html,"</body></html>"],{type:"application/msword"});
     dl(blob,`AIR_${d.ship}_${(d.date||"").replace(/\//g,"-")}.doc`);
     toast("✓ 已匯出 Word 檔（.doc，可直接用 Word 開啟）");
+  },
+  /* 匯出 PDF：走系統既有「列印區塊」機制（#printArea + doPrint），直接用瀏覽器的列印/另存PDF，
+     中文排版與相容性最穩，也不需要額外載入任何 PDF 產生函式庫。內容含矯正前/後照片。 */
+  exportRecordPdf(id){
+    const d=App.air.find(x=>x.id===id);
+    if(!d){toast("⚠ 找不到資料");return;}
+    const nl2br=s=>esc(s||"").replace(/\n/g,"<br/>");
+    const photoBlock=(label,list)=>{
+      if(!list||!list.length)return"";
+      const imgs=list.map(p=>`<img src="${p.url||p.dataUrl}" style="width:150px;height:150px;object-fit:cover;margin:3px;border:1px solid #ccc" alt="${esc(p.name||"")}">`).join("");
+      return `<div style="margin-top:6px"><b>${label}：</b><br/>${imgs}</div>`;
+    };
+    let body=`<h1 style="text-align:center">線上填單報告 — ${esc(d.ship)} ${esc(d.date)}</h1>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px" border="1" cellpadding="6">
+        <tr><td width="15%"><b>船名</b></td><td width="35%">${esc(d.ship)}</td><td width="15%"><b>船型</b></td><td width="35%">${esc(d.vtype)}</td></tr>
+        <tr><td><b>檢查來源</b></td><td>${esc(d.itype)}</td><td><b>檢查地點</b></td><td>${esc(d.place)}</td></tr>
+        <tr><td><b>油公司/單位</b></td><td>${esc(d.oilco)}</td><td><b>檢查員</b></td><td>${esc(d.inspector)}</td></tr>
+        <tr><td><b>缺失數</b></td><td>${d.ndef??0}</td><td><b>正面評論數</b></td><td>${d.npos??0}</td></tr>
+      </table>`;
+    (d.defects||[]).forEach((df,i)=>{
+      body+=`<div style="page-break-inside:avoid;border:1px solid #999;border-radius:6px;padding:10px;margin-bottom:12px">
+        <h3 style="margin:0 0 6px">缺失 #${i+1}${df.code?`　CODE ${esc(df.code)}`:""}</h3>
+        <p><b>缺失詳情：</b>${nl2br(df.detail)}</p>
+        ${df.actual?`<p><b>實際情況：</b>${nl2br(df.actual)}</p>`:""}
+        ${df.corrective?`<p><b>改善措施：</b>${nl2br(df.corrective)}</p>`:""}
+        ${df.rootCause?`<p><b>根本原因：</b>${nl2br(df.rootCause)}</p>`:""}
+        ${df.preventive?`<p><b>預防措施：</b>${nl2br(df.preventive)}</p>`:""}
+        <p><b>責任人：</b>${esc(df.rank)} ${esc(df.person)}</p>
+        ${photoBlock("矯正前照片",df.photosBefore)}
+        ${photoBlock("矯正後照片",df.photosAfter)}
+      </div>`;
+    });
+    if(d.posComments&&d.posComments.length){
+      body+=`<h2>正面評論</h2>`;
+      d.posComments.forEach((p,i)=>{
+        body+=`<div style="margin-bottom:10px"><b>#${i+1}　${esc(p.item||"")}</b><br/>${nl2br(p.comment)}</div>`;
+      });
+    }
+    body+=`<div style="margin-top:20px;font-size:11px;color:#666">匯出時間：${todayStr()}</div>`;
+    $("#printArea").innerHTML=body;
+    doPrint(false);
+    toast("✓ 已開啟列印視窗，請選擇「另存為 PDF」");
+    if(typeof Audit!=="undefined")Audit.log("匯出","AIR","PDF 報告 "+d.ship+" "+d.date);
   },
   /* 官方 CAR（Corrective Action Report）格式匯出：橫向頁面，版面比照公司慣用的 CAR 範本
      （標題「M.V."船名" -檢查來源- Corrective Action Report (CAR)」，左欄為固定項目、右欄為內容）。
@@ -22135,6 +22363,7 @@ const AirQueue={
       ${defs.map((d,i)=>`<div style="margin-bottom:8px;padding:8px;background:#fff;border:1px solid var(--line);border-radius:6px">
         <b>缺失 #${i+1}　CODE ${esc(d.code||"")}</b>　<span class="hint">${esc(d.rank||"")} ${esc(d.person||"")}</span><br>
         <span class="hint">缺失詳情：</span>${esc(d.detail||"")}
+        ${photoStripHtml(d,"airq_"+i)}
       </div>`).join("")}
       ${pos.map((p,i)=>`<div style="margin-bottom:8px;padding:8px;background:#f3fbf6;border:1px solid #d7ecdf;border-radius:6px">
         <b>正面評論 #${i+1}　${esc(p.item||"")}</b><br>${esc(p.comment||"")}
@@ -22154,6 +22383,7 @@ const AirQueue={
         ncProb:d.ncProb||"",ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",ncFactor:d.ncFactor||"",
         ncImp:d.ncImp||"",ncFocus:d.ncFocus||"",ncMethod:"",ncOpinion:d.ncOpinion||"",risk:d.risk||"",
         internalControl:!!d.internalControl,needControl:!!d.internalControl,
+        photosBefore:Array.isArray(d.photosBefore)?d.photosBefore:[],photosAfter:Array.isArray(d.photosAfter)?d.photosAfter:[],
         pushedDefId:null,followUp:{on:false,assignee:"",status:"open",log:[],closedAt:0}})),
       posComments:(p.posComments||[]).map(pc=>({code:pc.code||"",item:pc.item||"",comment:pc.comment||"",
         people:Array.isArray(pc.people)?pc.people.filter(x=>x.rank||x.person):[],pushedPosIds:null})),
@@ -25355,6 +25585,47 @@ const EvidenceUpload={
 };
 EvidenceUpload.load();
 
+/* ══════════ PhotoUpload：控制「線上填單」缺失矯正前/後照片上傳功能的開關 ══════════
+   跟 EvidenceUpload 同一套機制（存同一個 app_db 表的另一個 key），但這個開關實際
+   起作用的地方是外部的 submit-airform.html（船上填單網頁）——那個頁面開場時會讀這個
+   cloud key，關閉時就不畫出照片上傳按鈕。這裡（主系統後台）只負責讓 Owner/管理員
+   切換開關、把狀態寫回雲端，本身不處理任何照片上傳邏輯。 */
+const PhotoUpload={
+  KEY:"vsm_photo_upload_v1",
+  CLOUD_KEY:"defect_photo_upload_enabled",
+  enabled:true, // 預設開啟，維持目前已上線的行為；關閉需由 Owner/管理員在此手動切換
+  load(){try{const s=localStorage.getItem(this.KEY);if(s)this.enabled=JSON.parse(s).enabled!==false;}catch(e){}},
+  save(){try{localStorage.setItem(this.KEY,JSON.stringify({enabled:this.enabled}));}catch(e){}},
+  async loadCloud(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api("app_db?select=payload&k=eq."+this.CLOUD_KEY);
+      if(rows&&rows[0]&&rows[0].payload){this.enabled=rows[0].payload.enabled!==false;this.save();}
+    }catch(e){console.warn("photo upload cloud load failed",e);}
+    this.renderToggleUI();
+  },
+  async pushCloud(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const usr=(typeof Audit!=="undefined")?Audit.user():"";
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.CLOUD_KEY,updated:Date.now(),by:usr,payload:{enabled:this.enabled}}])});
+    }catch(e){console.warn("photo upload cloud push failed",e);}
+  },
+  async toggle(on){
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／管理員可調整此設定");this.renderToggleUI();return;}
+    this.enabled=on;this.save();
+    await this.pushCloud();
+    this.renderToggleUI();
+    if(typeof Audit!=="undefined")Audit.log(on?"開啟":"關閉","線上填單缺失照片上傳設定","");
+    toast(on?"✓ 已開放線上填單缺失照片上傳功能":"已關閉線上填單缺失照片上傳功能（船上填單頁的照片按鈕會隱藏）");
+  },
+  renderToggleUI(){
+    const cb=$("#photo-upload-toggle");if(cb)cb.checked=this.enabled;
+    const st=$("#photo-upload-status");if(st)st.textContent=this.enabled?"目前：已開放（線上填單可上傳矯正前/後照片）":"目前：已關閉（線上填單不顯示照片上傳按鈕，僅能填文字內容）";
+  }
+};
+PhotoUpload.load();
+
 
 /* 系統內建預設連線值：anon public key 依 Supabase 設計本即可公開於前端，
    安全性由 Supabase 端的 RLS（Row Level Security）政策把關，非靠保密此字串。
@@ -25645,6 +25916,7 @@ const Cloud={
       ()=>typeof Perms!=="undefined"&&Perms.pullCloud(),
       ()=>typeof ReadOnlyMode!=="undefined"&&ReadOnlyMode.loadCloud(),
       ()=>typeof EvidenceUpload!=="undefined"&&EvidenceUpload.loadCloud(),
+      ()=>typeof PhotoUpload!=="undefined"&&PhotoUpload.loadCloud(),
       ()=>typeof FilterVisEngine!=="undefined"&&FilterVisEngine.loadCloudAll(),
       ()=>typeof EnhAuditLog!=="undefined"&&EnhAuditLog.loadCloud()
     ];
