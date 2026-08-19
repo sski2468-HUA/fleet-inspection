@@ -90,6 +90,8 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
         <button class="btn primary" id="submitBtn" onclick="submitAll()">✓ 送出</button>
       </div>
       <p class="hint warn" style="margin-top:10px">內容會自動即時儲存，不用自己按存檔。答「有，需處理」的項目，等船上處理完成後記得回來勾選「已完成改善（結案）」，再按一次「送出」才算完整。送出後仍可以回來調整、再送出一次覆蓋更新。</p>
+      <label style="margin-top:10px">填寫人姓名（會記錄在每一題的作答紀錄上）</label>
+      <input type="text" id="checkerName" placeholder="輸入您的姓名" oninput="onCheckerNameInput(this.value)">
       <div class="modebar" style="margin-top:12px">
         <button type="button" class="modebtn on" id="modeBtnGuide" onclick="setViewMode('guide')">▶ 引導作答</button>
         <button type="button" class="modebtn" id="modeBtnList" onclick="setViewMode('list')">☰ 清單模式</button>
@@ -138,6 +140,16 @@ const TID=new URLSearchParams(location.search).get("tid");
 let draft=null;
 let autoSaveTimer=null;
 
+/* ══════════ 填寫人姓名：存在本機瀏覽器，同一台裝置下次打開會記得，
+   每次作答（setStatus/文字欄位變動）都會蓋入 it.checkedBy，讓公司端知道是誰填的。══════════ */
+const CHECKER_KEY="vsm_selfcheck_checker_name";
+function getCheckerName(){
+  try{return localStorage.getItem(CHECKER_KEY)||"";}catch(e){return "";}
+}
+function onCheckerNameInput(v){
+  try{localStorage.setItem(CHECKER_KEY,v||"");}catch(e){}
+}
+
 async function init(){
   if(!TID){
     showError("網址缺少任務代碼（?tid=...），請確認連結是否正確，需由正式系統「開啟」自查任務建立。");
@@ -158,6 +170,8 @@ async function init(){
   document.getElementById("body").style.display="";
   document.getElementById("taskTitle").textContent=draft.title||"";
   document.getElementById("taskMeta").textContent=`船舶：${draft.ship||""}　已送出 ${draft.submit_count||0} 次${draft.submitted_at?"　最後送出："+new Date(draft.submitted_at).toLocaleString("zh-TW",{hour12:false}):""}`;
+  const cn=document.getElementById("checkerName");
+  if(cn)cn.value=getCheckerName();
   renderItems();
   guideJumpUnanswered(true);
 }
@@ -211,6 +225,7 @@ function renderRef(it){
   return `<div class="refbox">
     ${it.ship?`<div><b>船舶：</b>${esc(it.ship)}　${esc(it.date||"")}　${esc(it.code||"")}</div>`:""}
     <div><b>缺失詳情：</b>${esc(it.detail||"")}</div>
+    ${it.srcActual?`<div><b>實際情況：</b>${esc(it.srcActual)}</div>`:""}
   </div>`;
 }
 
@@ -284,6 +299,7 @@ function setStatus(i,status){
   it.status=status;
   if(status!=="similar")it.closed=false;
   it.checkedAt=new Date().toISOString().slice(0,10);
+  it.checkedBy=getCheckerName()||it.checkedBy||"";
   const dw=document.getElementById("detail-"+i);
   if(dw)dw.classList.toggle("show",status==="similar");
   document.querySelectorAll(`.itemcard[data-idx="${i}"] .statusbtn`).forEach(b=>b.classList.remove("on","ok","similar","na"));
@@ -292,14 +308,20 @@ function setStatus(i,status){
   if(btns[btnMap[status]])btns[btnMap[status]].classList.add("on",status);
   updateProgress();
   scheduleAutoSave();
-  if(viewMode==="guide"){
+  if(viewMode==="guide"&&status!=="similar"){
     setTimeout(()=>{ const n=items.length; if(guideIdx<n-1){guideIdx++;applyViewMode();} },350);
+  }else if(viewMode==="guide"&&status==="similar"){
+    // 停留在本題，讓船上先填「本船的實際狀況」跟「打算怎麼處理」，把游標帶到第一個欄位方便直接打字
+    const ta=document.querySelector(`#detail-${i} textarea[data-field="note"]`);
+    if(ta)setTimeout(()=>ta.focus(),100);
   }
 }
 function onFieldInput(ta){
   const i=+ta.dataset.idx, field=ta.dataset.field;
   const it=(draft.items||[])[i];if(!it)return;
   it[field]=ta.value;
+  const cn=getCheckerName();
+  if(cn){it.checkedBy=cn;it.checkedAt=new Date().toISOString().slice(0,10);}
   scheduleAutoSave();
 }
 function onClosedChange(i,checked){
@@ -330,6 +352,10 @@ async function flushAutoSave(){
 window.addEventListener("beforeunload",()=>{ if(autoSaveTimer)flushAutoSave(); });
 
 async function submitAll(){
+  if(!getCheckerName()&&!confirm("尚未填寫「填寫人姓名」，公司端會看不出這次是誰填的。確定要送出嗎？")){
+    const cn=document.getElementById("checkerName");if(cn)cn.focus();
+    return;
+  }
   const btn=document.getElementById("submitBtn");
   btn.disabled=true;
   await flushAutoSave();

@@ -241,6 +241,7 @@ async function uploadPhotoToStorage(photo, folder){
    失敗的維持原本的 {name,dataUrl}；回傳有幾張沒換成功，讓呼叫端決定要不要提示使用者。 */
 async function uploadAllDefectPhotos(payload){
   let failCount = 0;
+  let firstError = "";
   const folderBase = `${(payload.basic.ship||"未填船名").replace(/[^\w\u4e00-\u9fff-]/g,"_")}/${(payload.basic.date||"未填日期").replace(/\//g,"-")}`;
   for(const d of (payload.defects||[])){
     for(const kind of ["photosBefore","photosAfter"]){
@@ -250,11 +251,11 @@ async function uploadAllDefectPhotos(payload){
         const p = list[i];
         if(!p || p.url || !p.dataUrl) continue; // 已經是網址、或本來就沒有資料，跳過
         try{ list[i] = await uploadPhotoToStorage(p, folderBase); }
-        catch(e){ failCount++; console.warn("photo upload to storage failed, keep base64 fallback", e); }
+        catch(e){ failCount++; if(!firstError)firstError=e.message||String(e); console.warn("photo upload to storage failed, keep base64 fallback", e); }
       }
     }
   }
-  return failCount;
+  return { failCount, firstError };
 }
 
 /* ── 範例資料（之後改為即時從雲端抓取）── */
@@ -822,6 +823,12 @@ function updateDefCount(){
   const n = document.querySelectorAll(".defbox").length;
   document.getElementById("defCountLabel").textContent = n;
   document.getElementById("f-ndef").value = n;
+  /* 卡片內部標題「缺失 #N」原本是新增當下的流水號，刪除任一筆後號碼會一直往上疊加、
+     不會回頭補位；這裡改成每次都依照目前實際排列順序（第幾筆就是 #幾）重新編號。 */
+  document.querySelectorAll(".defbox").forEach((box,i)=>{
+    const idxEl=box.querySelector(".idx");
+    if(idxEl)idxEl.textContent=`缺失 #${i+1}`;
+  });
   renderTabs();
 }
 document.getElementById("btnAddDef").addEventListener("click", ()=>{ addDefectRow(); scheduleAutoSave(); });
@@ -896,6 +903,11 @@ function updatePosCount(){
   const n = document.querySelectorAll(".posbox").length;
   document.getElementById("posCountLabel").textContent = n;
   document.getElementById("f-npos").value = n;
+  /* 同「缺失 #N」的問題：依實際排列順序重新編號，不用新增當下的流水號 */
+  document.querySelectorAll(".posbox").forEach((box,i)=>{
+    const idxEl=box.querySelector(".idx");
+    if(idxEl)idxEl.textContent=`正面評論 #${i+1}`;
+  });
 }
 document.getElementById("btnAddPos").addEventListener("click", ()=>{ addPosRow(); switchTab({kind:"pos"}); scheduleAutoSave(); });
 
@@ -1223,8 +1235,8 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
   try{
     if(photoCount){
       btn.textContent = "上傳照片中…";
-      const failCount = await uploadAllDefectPhotos(payload);
-      if(failCount) notify(`⚠ 有 ${failCount} 張照片上傳雲端失敗，已保留在資料裡繼續送出（不影響其他內容）`, "err");
+      const {failCount,firstError} = await uploadAllDefectPhotos(payload);
+      if(failCount) notify(`⚠ 有 ${failCount} 張照片上傳雲端失敗，已保留在資料裡繼續送出（不影響其他內容）${firstError?"　原因："+firstError:""}`, "err");
       btn.textContent = "送出中…";
     }
     if(document.getElementById("f-oilco-sel").value===OTHER_VAL && payload.basic.oilco){

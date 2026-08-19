@@ -27485,7 +27485,7 @@ const SelfCheck={
         if(have.has(d.id))return;have.add(d.id);
         arr.push({defId:d.id,ship:d.ship,itype:d.itype,date:d.date,place:d.place,code:d.code,
           ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",risk:d.risk,attn:!!d.attn,
-          detail:d.detail,actual:d.actual,status:"pending",note:"",closed:false});
+          detail:d.detail,srcActual:d.actual,actual:"",status:"pending",note:"",closed:false});
       });
       return arr;
     }
@@ -27898,8 +27898,41 @@ const SelfCheck={
     toast(`✓ 已重新彙整為 ${items.length} 個查核重點（保留 ${kept} 題作答）`);
   },
 
+  /* ══════════ 從外部自查頁（selfcheck_drafts）拉回船上已作答的結果，合併進本機這份
+     共用任務資料（App.tasks），純「拉」不「推」——不會把本機內容寫回雲端草稿，避免跟
+     船上正在填寫中的內容互相覆蓋。開啟任務詳情頁時會自動呼叫一次，不需要手動按雲端同步。══════════ */
+  async pullExternalResults(taskId){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return false;
+    const t=App.tasks.find(x=>x.id===taskId);
+    if(!t)return false;
+    try{
+      const rows=await Cloud.api(`selfcheck_drafts?task_id=eq.${taskId}&limit=1`);
+      if(!rows||!rows.length)return false;
+      const remote=rows[0].items||[];
+      let changed=false;
+      t.items.forEach((local,i)=>{
+        const r=remote[i];if(!r)return;
+        ["status","note","actual","closed","checkedBy","checkedAt"].forEach(k=>{
+          const rv=r[k];
+          if(rv!==undefined&&JSON.stringify(rv)!==JSON.stringify(local[k])){local[k]=rv;changed=true;}
+        });
+      });
+      if(rows[0].submitted_at&&rows[0].submitted_at!==t.externalSubmittedAt){t.externalSubmittedAt=rows[0].submitted_at;t.externalSubmitCount=rows[0].submit_count||0;changed=true;}
+      if(changed){App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();}
+      return changed;
+    }catch(e){console.warn("pullExternalResults 失敗",e);return false;}
+  },
   renderRun(){
     const t=this.cur();if(!t)return;
+    /* 每次打開任務詳情頁，先靜默跟雲端拉一次船上最新的作答結果，拉到才重繪，
+       不需要使用者自己按「雲端同步」；避免同一頁重複觸發用旗標擋住。 */
+    if(!this._pullingRun){
+      this._pullingRun=true;
+      this.pullExternalResults(t.id).then(changed=>{
+        this._pullingRun=false;
+        if(changed&&App.curTaskId===t.id)this.renderRun();
+      }).catch(()=>{this._pullingRun=false;});
+    }
     /* 引導模式 vs 清單模式：只顯示其中一個 */
     const g=$("#sc-guide"), l=$("#sc-list"), sel=$("#sc-view");
     const guided=this.runMode==="guide";
@@ -27999,7 +28032,7 @@ const SelfCheck={
                <button class="btn sm" style="margin-top:6px" onclick="SelfCheck.gShowAll(${i})">查看全部 ${it.refCount} 筆 →</button>`:""}
            </div>`
         : `<div class="dtl">${esc(it.detail)}</div>
-           ${it.actual?`<div class="dtl" style="color:var(--ink-2);border-left-color:var(--teal)">原處理：${esc(it.actual)}</div>`:""}`;
+           ${it.srcActual?`<div class="dtl" style="color:var(--ink-2);border-left-color:var(--teal)">實際情況：${esc(it.srcActual)}</div>`:""}`;
 
       return `<div class="sc-item ${cls2} ${isAttn?"flag-attn":""}">
         ${metaHtml}
@@ -28215,18 +28248,18 @@ const SelfCheck={
       XLSX.utils.book_append_sheet(wb,ws2,"來源缺失明細");
     }else{
       /* 舊的逐筆任務：維持原本的單一工作表 */
-      const hdr=["項次","新缺失須注意","來源船舶","檢查類型","檢查日期","地點","分類","缺失代碼","缺失詳情","原處理情形","查核狀態","處理情形(簡要說明)","結案"];
+      const hdr=["項次","新缺失須注意","來源船舶","檢查類型","檢查日期","地點","分類","缺失代碼","缺失詳情","原處理情形","查核狀態","本船的實際情形","打算怎麼處理／改善措施","結案"];
       const aoa=[
         ["船舶缺失自查表"],
         [`自查船舶：${t.ship}　自查日期：${t.date}　自查項目：${t.title||"—"}`],
         [`共 ${n} 項 · 已查核 ${done} · 有類似缺失 ${sim} · 結案 ${cls}`],
         [],hdr,
         ...t.items.map((it,i)=>[i+1,(dmap.get(it.defId)||it).attn?"🆕":"",it.ship,it.itype,it.date,it.place,
-          (it.ncMain||"")+(it.ncLeaf?" / "+it.ncLeaf:""),it.code,it.detail,it.actual,
-          this.statusText(it),it.note,it.status==="similar"&&it.closed?"是":""])
+          (it.ncMain||"")+(it.ncLeaf?" / "+it.ncLeaf:""),it.code,it.detail,it.srcActual,
+          this.statusText(it),it.note,it.actual,it.status==="similar"&&it.closed?"是":""])
       ];
       const ws=XLSX.utils.aoa_to_sheet(aoa);
-      ws["!cols"]=[{wch:6},{wch:12},{wch:10},{wch:14},{wch:11},{wch:14},{wch:22},{wch:10},{wch:60},{wch:36},{wch:16},{wch:36},{wch:6}];
+      ws["!cols"]=[{wch:6},{wch:12},{wch:10},{wch:14},{wch:11},{wch:14},{wch:22},{wch:10},{wch:60},{wch:36},{wch:16},{wch:36},{wch:36},{wch:6}];
       XLSX.utils.book_append_sheet(wb,ws,"自查表");
     }
     XLSX.writeFile(wb,this.fname(t)+".xlsx");
@@ -28353,9 +28386,8 @@ const SelfCheck={
           <b>本船情形：</b>${ansTxt(it.status)}
           ${it.checkedBy?`　<span class="gby">查核：${esc(it.checkedBy)}${it.checkedAt?" · "+esc(it.checkedAt):""}</span>`:""}
         </div>
-        ${it.status==="similar"?`
-          <div class="gfill"><b>實際情形：</b><u>${esc(it.note)||"　　　　　　　　　　　　　　　　　　"}</u></div>
-          <div class="gfill"><b>處理方式：</b><u>${esc(it.actual)||"　　　　　　　　　　　　　　　　　　"}</u>　${it.closed?"☑":"☐"} 已結案</div>`:""}
+        <div class="gfill"><b>本船的實際情形：</b>${esc(it.note)||"（尚未填寫）"}</div>
+        <div class="gfill"><b>打算怎麼處理／改善措施：</b>${esc(it.actual)||"（尚未填寫）"}　${it.status==="similar"?(it.closed?"☑":"☐")+" 已結案":""}</div>
         ${refs.length?`
           <div class="grefs">
             <div class="grh">此重點涵蓋的缺失（其他船舶曾發生）：</div>
@@ -28368,13 +28400,15 @@ const SelfCheck={
       </div>`;
     };
 
-    /* 舊的逐筆任務：維持原本的版面 */
+    /* 舊的逐筆任務：維持原本的版面，但實際情形／改善措施改成不論查核狀態一律顯示
+       （原本只有「有，需要處理」才顯示，若查核中途只填了實際情形還沒送出，PDF 會看不到內容）。 */
     const flatBlock=(it,i)=>`<div class="sc-print">
       <div class="m"><b>#${i+1}</b>　${(dmap.get(it.defId)||it).attn?"【🆕新缺失須注意】":""}　${esc(it.ship)}／${esc(it.itype)}／${esc(it.date)}　${it.ncMain?esc(it.ncMain)+(it.ncLeaf?" / "+esc(it.ncLeaf):""):""}　${it.code?"代碼 "+esc(it.code):""}　${esc(it.place)}</div>
-      <div class="d">${esc(it.detail)}</div>
+      <div class="d"><b>缺失詳情：</b>${esc(it.detail)}</div>
       <div class="c">
-        查核狀態：${it.status==="pending"?"☐":"☑"} ${esc(this.statusText(it))}
-        ${it.status==="similar"?`　處理情形：<u>${esc(it.note)||"　　　　　　　　　　　　　　"}</u>　${it.closed?"☑":"☐"} 結案`:""}
+        <b>查核情形：</b>${it.status==="pending"?"☐":"☑"} ${esc(this.statusText(it))}
+        <div class="gfill"><b>本船的實際情形：</b>${esc(it.note)||"（尚未填寫）"}</div>
+        <div class="gfill"><b>打算怎麼處理／改善措施：</b>${esc(it.actual)||"（尚未填寫）"}　${it.status==="similar"?(it.closed?"☑":"☐")+" 已結案":""}</div>
       </div>
     </div>`;
 
