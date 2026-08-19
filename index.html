@@ -27100,7 +27100,50 @@ const SelfCheck={
     html+=`</div></div></div>`;
     el.innerHTML=html;
   },
+  /* 批次版：任務清單頁（含上方查核狀況統計）一次把所有任務都跟雲端拉一次，
+     不用逐一打開每個任務的詳情頁才會更新——這裡才是大家平常看「完成度」的地方。
+     為了避免每個任務各自觸發一次 App.saveAll()/Cloud.flushNow()，內部用 skipSave
+     累積變動，最後只存一次。 */
+  async pullExternalResultsCore(taskId,skipSave){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return false;
+    const t=App.tasks.find(x=>x.id===taskId);
+    if(!t)return false;
+    try{
+      const rows=await Cloud.api(`selfcheck_drafts?task_id=eq.${taskId}&limit=1`);
+      if(!rows||!rows.length)return false;
+      const remote=rows[0].items||[];
+      let changed=false;
+      t.items.forEach((local,i)=>{
+        const r=remote[i];if(!r)return;
+        ["status","note","actual","closed","checkedBy","checkedAt"].forEach(k=>{
+          const rv=r[k];
+          if(rv!==undefined&&JSON.stringify(rv)!==JSON.stringify(local[k])){local[k]=rv;changed=true;}
+        });
+      });
+      if(rows[0].submitted_at&&rows[0].submitted_at!==t.externalSubmittedAt){t.externalSubmittedAt=rows[0].submitted_at;t.externalSubmitCount=rows[0].submit_count||0;changed=true;}
+      if(changed&&!skipSave){App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();}
+      return changed;
+    }catch(e){console.warn("pullExternalResults 失敗",e);return false;}
+  },
+  async pullExternalResults(taskId){ return this.pullExternalResultsCore(taskId,false); },
+  async pullAllExternalResults(){
+    let changed=false;
+    for(const t of (App.tasks||[])){
+      try{ if(await this.pullExternalResultsCore(t.id,true))changed=true; }catch(e){}
+    }
+    if(changed){App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();}
+    return changed;
+  },
   renderTasks(){
+    /* 每次打開任務清單頁，先靜默把全部任務跟雲端拉一次最新結果，拉到有變動才重繪，
+       不用逐一點開每個任務才會更新「已查核 X/16」這個完成度。 */
+    if(!this._pullingList){
+      this._pullingList=true;
+      this.pullAllExternalResults().then(changed=>{
+        this._pullingList=false;
+        if(changed)this.renderTasks();
+      }).catch(()=>{this._pullingList=false;});
+    }
     this.renderStats();
     const box=$("#sc-tasks");
     const list=this.filteredTasks();
@@ -27898,30 +27941,6 @@ const SelfCheck={
     toast(`✓ 已重新彙整為 ${items.length} 個查核重點（保留 ${kept} 題作答）`);
   },
 
-  /* ══════════ 從外部自查頁（selfcheck_drafts）拉回船上已作答的結果，合併進本機這份
-     共用任務資料（App.tasks），純「拉」不「推」——不會把本機內容寫回雲端草稿，避免跟
-     船上正在填寫中的內容互相覆蓋。開啟任務詳情頁時會自動呼叫一次，不需要手動按雲端同步。══════════ */
-  async pullExternalResults(taskId){
-    if(typeof Cloud==="undefined"||!Cloud.enabled())return false;
-    const t=App.tasks.find(x=>x.id===taskId);
-    if(!t)return false;
-    try{
-      const rows=await Cloud.api(`selfcheck_drafts?task_id=eq.${taskId}&limit=1`);
-      if(!rows||!rows.length)return false;
-      const remote=rows[0].items||[];
-      let changed=false;
-      t.items.forEach((local,i)=>{
-        const r=remote[i];if(!r)return;
-        ["status","note","actual","closed","checkedBy","checkedAt"].forEach(k=>{
-          const rv=r[k];
-          if(rv!==undefined&&JSON.stringify(rv)!==JSON.stringify(local[k])){local[k]=rv;changed=true;}
-        });
-      });
-      if(rows[0].submitted_at&&rows[0].submitted_at!==t.externalSubmittedAt){t.externalSubmittedAt=rows[0].submitted_at;t.externalSubmitCount=rows[0].submit_count||0;changed=true;}
-      if(changed){App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();}
-      return changed;
-    }catch(e){console.warn("pullExternalResults 失敗",e);return false;}
-  },
   renderRun(){
     const t=this.cur();if(!t)return;
     /* 每次打開任務詳情頁，先靜默跟雲端拉一次船上最新的作答結果，拉到才重繪，
