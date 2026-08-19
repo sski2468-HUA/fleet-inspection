@@ -8114,7 +8114,103 @@ function requireImport(){
   toast("⚠ 匯入資料僅限 Owner、維護者，或 Owner 指定的人員；如有需要請洽海技組");
   return false;
 }
-/* ════════ 壓縮儲存（localStorage 5MB 上限吃緊時的緩解措施）════════
+/* ════════ BigStore：把佔用最大宗的本機資料鏡像從 localStorage 換成 IndexedDB ════════
+   背景：localStorage 瀏覽器普遍上限約 5MB，缺失/檢查/線上填單紀錄持續累積遲早會滿。
+   IndexedDB 同樣是瀏覽器本機儲存（不是雲端，不影響其他人、不影響同步邏輯），但額度
+   通常是幾百MB到GB等級，實質上不會再滿。
+
+   做法：開機時（DOMContentLoaded 之前）非同步把 IndexedDB 裡已有的資料整包讀進記憶體
+   內的 Map（cache），之後系統其餘各處呼叫 getItem/setItem 都是讀寫這個 Map——跟原本
+   讀寫 localStorage 一樣「同步、立即生效」，不需要把 App.init() 之後每個呼叫點都改成
+   async/await。真正落地寫進 IndexedDB 的動作在背景非同步進行（fire-and-forget）；
+   萬一背景寫入失敗，記憶體內仍是最新資料，不影響當下操作，只在主控台留警告，
+   並在下次寫入時自動重試。
+
+   一次性搬遷：第一次載入這個版本時，會把現有 localStorage 裡的舊資料整批搬進
+   IndexedDB，確認寫入成功後才刪除 localStorage 原本那份、釋放空間；全程不需要使用者
+   做任何操作，資料不會遺失（若搬遷中途失敗，該筆會暫時留在 localStorage，下次載入
+   再試一次，不會憑空消失）。
+
+   相容性：若瀏覽器不支援 IndexedDB（極少數情況，例如老舊瀏覽器），會自動整段退回
+   原本的 localStorage 讀寫，系統照常運作，只是少了這次的擴容效果。 */
+const BigStore={
+  DB_NAME:"vsm_bigstore",STORE:"kv",cache:new Map(),
+  _db:null,_readyPromise:null,
+  _supported:(typeof indexedDB!=="undefined"),
+  // 目前搬移的鍵：缺失紀錄、檢查紀錄、線上填單、資源回收桶、內稽動態紀錄、操作紀錄（Audit
+  // Log）、根因分類完整清單——這些是「本機儲存明細」裡佔用最大宗、且會隨資料量持續成長的項目。
+  // 值需與 App.LSK / Audit.KEY / NCTree.LS_KEY 實際使用的鍵名一致。
+  MANAGED_KEYS:new Set(["vsm_defs_v8","vsm_insp_v8","vsm_air_v1","vsm_recyclebin_v1",
+    "vsm_enhauditlog_v1","vsm_audit_v1","vsm_nctree_full_v2"]),
+  manages(key){return this._supported&&this.MANAGED_KEYS.has(key);},
+  _openDB(){
+    if(this._db)return Promise.resolve(this._db);
+    return new Promise((resolve,reject)=>{
+      const req=indexedDB.open(this.DB_NAME,1);
+      req.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains(this.STORE))db.createObjectStore(this.STORE);};
+      req.onsuccess=e=>{this._db=e.target.result;resolve(this._db);};
+      req.onerror=e=>reject(e.target.error);
+    });
+  },
+  ready(){
+    if(this._readyPromise)return this._readyPromise;
+    this._readyPromise=this._init();
+    return this._readyPromise;
+  },
+  async _init(){
+    if(!this._supported)return;
+    try{
+      const db=await this._openDB();
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction(this.STORE,"readonly");
+        const req=tx.objectStore(this.STORE).openCursor();
+        req.onsuccess=e=>{const cur=e.target.result;if(cur){this.cache.set(cur.key,cur.value);cur.continue();}else resolve();};
+        req.onerror=e=>reject(e.target.error);
+      });
+      await this._migrateFromLocalStorage();
+    }catch(e){
+      console.warn("BigStore 初始化失敗，本次改回 localStorage 模式",e);
+      this._supported=false;
+    }
+  },
+  async _migrateFromLocalStorage(){
+    for(const key of this.MANAGED_KEYS){
+      if(this.cache.has(key))continue; // IndexedDB 已經有了，不用搬
+      const raw=localStorage.getItem(key);
+      if(raw==null)continue;
+      try{
+        await this._put(key,raw);
+        this.cache.set(key,raw);
+        localStorage.removeItem(key);
+      }catch(e){console.warn("搬遷至 IndexedDB 失敗，暫時保留於 localStorage：",key,e);}
+    }
+  },
+  getItem(key){return this.cache.has(key)?this.cache.get(key):null;},
+  setItem(key,val){
+    this.cache.set(key,val);
+    this._put(key,val).catch(e=>console.warn("BigStore 背景寫入 IndexedDB 失敗（記憶體內仍是最新資料，重新整理頁面前不會遺失，下次寫入會自動重試）",key,e));
+  },
+  removeItem(key){this.cache.delete(key);this._del(key).catch(()=>{});},
+  async _put(key,val){
+    const db=await this._openDB();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction(this.STORE,"readwrite");
+      tx.objectStore(this.STORE).put(val,key);
+      tx.oncomplete=()=>resolve(true);tx.onerror=()=>reject(tx.error);
+    });
+  },
+  async _del(key){
+    const db=await this._openDB();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction(this.STORE,"readwrite");
+      tx.objectStore(this.STORE).delete(key);
+      tx.oncomplete=()=>resolve(true);tx.onerror=()=>reject(tx.error);
+    });
+  },
+  // 估算目前 IndexedDB 快取內容佔用的位元組數，供「本機儲存明細」介面顯示用。
+  usageBytes(){let n=0;this.cache.forEach(v=>{n+=(typeof v==="string"?v.length*2:0);});return n;}
+};
+/* ════════ 壓縮儲存（localStorage 5MB 上限吃緊時的緩解措施，非 BigStore 管轄的鍵仍走這條路）════════
    用 LZString 把要存進 localStorage 的 JSON 字串先壓縮再存，同一份資料通常可縮小到
    1/3～1/5，等於把 5MB 上限實質「撐大」3～5倍；資料量持續成長的話遲早還是會再滿，
    屆時需要更根本的方案（例如改用 IndexedDB，或不要整包鏡像在本機），這只是延緩對策。
@@ -8122,7 +8218,7 @@ function requireImport(){
    （壓縮功能上線前就存在的）會被當成一般字串直接讀回，不會出錯、也不用額外做資料轉檔。 */
 const LZ_MARK="\x01";
 function LZGet(key){
-  const raw=localStorage.getItem(key);
+  const raw=BigStore.manages(key)?BigStore.getItem(key):localStorage.getItem(key);
   if(raw==null)return null;
   if(raw.charAt(0)===LZ_MARK){
     try{
@@ -8133,14 +8229,15 @@ function LZGet(key){
   return raw;
 }
 function LZSet(key,str){
+  const write=BigStore.manages(key)?(v=>BigStore.setItem(key,v)):(v=>localStorage.setItem(key,v));
   try{
     if(typeof LZString!=="undefined"){
-      localStorage.setItem(key,LZ_MARK+LZString.compressToUTF16(str));
+      write(LZ_MARK+LZString.compressToUTF16(str));
     }else{
-      localStorage.setItem(key,str);
+      write(str);
     }
   }catch(e){
-    try{localStorage.setItem(key,str);}catch(e2){throw e2;}
+    try{write(str);}catch(e2){throw e2;}
   }
 }
 function dl(blob,name){
@@ -8880,20 +8977,25 @@ const App={
   },
   _lastSaved:{}, // 差異儲存快取：各鍵上次寫入的 JSON 字串
   _quotaWarned:false,
-  lsUsageBytes(){ // 估算 localStorage 目前用量（UTF-16 每字元約 2 bytes）
+  lsUsageBytes(){ // 估算 localStorage 目前用量（不含已搬到 IndexedDB 的項目；UTF-16 每字元約 2 bytes）
     let n=0;try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);n+=(k.length+(localStorage.getItem(k)||"").length)*2;}}catch(e){}
     return n;
   },
-  // 各 localStorage 鍵的實際用量明細（由大到小排序），讓使用者不必打開瀏覽器開發者工具也能看清楚是什麼在占空間
+  // 各 localStorage / BigStore(IndexedDB) 鍵的實際用量明細（由大到小排序），讓使用者不必打開瀏覽器開發者工具也能看清楚是什麼在占空間
   lsUsageBreakdown(){
     const rows=[];
     try{
       for(let i=0;i<localStorage.length;i++){
         const k=localStorage.key(i);
         const v=localStorage.getItem(k)||"";
-        rows.push({key:k,bytes:(k.length+v.length)*2});
+        rows.push({key:k,bytes:(k.length+v.length)*2,idb:false});
       }
     }catch(e){}
+    if(typeof BigStore!=="undefined"){
+      BigStore.cache.forEach((v,k)=>{
+        rows.push({key:k,bytes:(k.length+(typeof v==="string"?v.length:0))*2,idb:true});
+      });
+    }
     rows.sort((a,b)=>b.bytes-a.bytes);
     return rows;
   },
@@ -11512,7 +11614,7 @@ const NCTree={
   _shipAll(){return "全船型（散货船、油化船、气体船、集装箱船）";},
   _loadLocal(){
     try{
-      const full=localStorage.getItem(this.LS_KEY);
+      const full=BigStore.manages(this.LS_KEY)?BigStore.getItem(this.LS_KEY):localStorage.getItem(this.LS_KEY);
       if(full){
         const p=JSON.parse(full);
         this.list={equip:Array.isArray(p.equip)?p.equip:[],ops:Array.isArray(p.ops)?p.ops:[],
@@ -11538,7 +11640,7 @@ const NCTree={
     };
     this._saveLocal(); // 遷移完立刻存成新格式，之後不再依賴舊格式的 key
   },
-  _saveLocal(){try{localStorage.setItem(this.LS_KEY,JSON.stringify(this.list));}catch(e){}},
+  _saveLocal(){try{const s=JSON.stringify(this.list);if(BigStore.manages(this.LS_KEY))BigStore.setItem(this.LS_KEY,s);else localStorage.setItem(this.LS_KEY,s);}catch(e){}},
   init(){this._loadLocal();this._loadUndo();this.apply();this._refreshUndoHint();},
   _refreshUndoHint(){const hint=$("#nct-undo-hint");if(hint){const lbl=this.lastUndoLabel();hint.textContent=lbl?`上一步可復原：${lbl}`:"目前沒有可復原的分類異動";}},
   /* ════════ 復原機制：改名／搬移／刪除這幾個「會連動改到既有缺失紀錄」的動作，
@@ -23984,27 +24086,32 @@ const DM={
   },
   showLsBreakdown(){
     const rows=App.lsUsageBreakdown();
+    const lsRows=rows.filter(r=>!r.idb),idbRows=rows.filter(r=>r.idb);
     const total=rows.reduce((s,r)=>s+r.bytes,0);
-    const quotaPct=Math.min(999,Math.round(total/(5*1024*1024)*100));
+    const lsTotal=lsRows.reduce((s,r)=>s+r.bytes,0);
+    const idbTotal=idbRows.reduce((s,r)=>s+r.bytes,0);
+    const quotaPct=Math.min(999,Math.round(lsTotal/(5*1024*1024)*100)); // 只算 localStorage 的部分，IndexedDB 額度大很多，另外顯示
     const infos=rows.map(r=>({row:r,c:this.lsCleanableInfo(r.key)}));
-    const freeable=infos.filter(x=>x.c&&x.c.type!=="snapshot").reduce((s,x)=>s+x.row.bytes,0);
-    const snapRow=infos.find(x=>x.c&&x.c.type==="snapshot");
-    const rbRow=rows.find(r=>r.key==="vsm_recyclebin_v1");
+    const freeable=infos.filter(x=>x.c&&x.c.type!=="snapshot"&&!x.row.idb).reduce((s,x)=>s+x.row.bytes,0);
+    const snapRow=infos.find(x=>x.c&&x.c.type==="snapshot"&&!x.row.idb);
+    const rbRow=lsRows.find(r=>r.key==="vsm_recyclebin_v1");
     const cloudOn=(typeof Cloud!=="undefined"&&Cloud.enabled());
-    $("#ls-breakdown-info").innerHTML=`共 ${rows.length} 個儲存項目，總用量約 <b>${(total/1024).toFixed(0)} KB</b>（約 5MB 上限的 <b style="color:${quotaPct>=70?'var(--bad)':'inherit'}">${quotaPct}%</b>）`
-      +(rbRow&&total&&rbRow.bytes/total>0.3?`<div style="margin-top:8px">「資源回收桶」（已刪除但30天內可還原的項目）佔用約 <b>${(rbRow.bytes/1024).toFixed(0)} KB</b>，是目前最大宗；若不需要再還原這些項目，可到下方「資源回收桶」卡片按「🗑 清空回收桶」一次釋放（會先自動下載留存）。</div>`:"")
+    $("#ls-breakdown-info").innerHTML=`共 ${rows.length} 個儲存項目，總用量約 <b>${(total/1024).toFixed(0)} KB</b>`
+      +`<div style="margin-top:6px">・瀏覽器 localStorage：約 <b>${(lsTotal/1024).toFixed(0)} KB</b>（約 5MB 上限的 <b style="color:${quotaPct>=70?'var(--bad)':'inherit'}">${quotaPct}%</b>）</div>`
+      +(idbTotal?`<div style="margin-top:2px">・IndexedDB（缺失/檢查/線上填單等大宗資料，額度通常幾百MB以上，這裡幾乎不用擔心占滿）：約 <b>${(idbTotal/1024).toFixed(0)} KB</b></div>`:"")
+      +(rbRow&&lsTotal&&rbRow.bytes/lsTotal>0.3?`<div style="margin-top:8px">「資源回收桶」（已刪除但30天內可還原的項目）佔用約 <b>${(rbRow.bytes/1024).toFixed(0)} KB</b>，是目前最大宗；若不需要再還原這些項目，可到下方「資源回收桶」卡片按「🗑 清空回收桶」一次釋放（會先自動下載留存）。</div>`:"")
       +(freeable>0?`<div style="margin-top:8px">其中約 <b>${(freeable/1024).toFixed(0)} KB</b> 屬於舊版資料鍵或匯入前安全備份，可安全清除以釋放空間　<button class="btn sm danger" onclick="DM.lsCleanAllStale()">🧹 一鍵清理</button></div>`:"")
       +(snapRow?`<div style="margin-top:8px">「預設備份」的完整內容佔用約 <b>${(snapRow.row.bytes/1024).toFixed(0)} KB</b>${cloudOn?"，同一份內容已可存於雲端，本機這份屬重複佔用，可按下方該列的「瘦身」改為只存雲端（不影響「還原預設」功能）":"（單機模式下為唯一副本，如需刪除請按下方該列按鈕，會先自動下載留存）"}</div>`:"")
       +((freeable<=0&&!snapRow)?`<div style="margin-top:8px" class="hint">目前沒有可清理的舊版資料或殘留備份；若空間仍吃緊，建議匯出 JS 完整備份後，於「⚠ 危險區」清理不再需要的舊年度資料。</div>`:"");
     $("#ls-breakdown-list").innerHTML=`
       <table class="tbl">
-        <thead><tr><th>項目</th><th style="width:80px">大小</th><th style="width:50px">占比</th><th style="width:72px">動作</th></tr></thead>
+        <thead><tr><th>項目</th><th style="width:80px">大小</th><th style="width:50px">占比</th><th style="width:110px">動作</th></tr></thead>
         <tbody>${rows.map(r=>{
           const c=this.lsCleanableInfo(r.key);
           const zh=this.LS_KEY_ZH[r.key]||(c?c.label:null);
           const pct=total?Math.round(r.bytes/total*100):0;
           const btnLabel=c?(c.type==="snapshot"?((typeof Cloud!=="undefined"&&Cloud.enabled())?"瘦身":"刪除"):"刪除"):"";
-          const act=c?`<button class="btn sm danger" onclick="DM.lsCleanKey('${r.key}')">${btnLabel}</button>`:(r.key==="vsm_recyclebin_v1"?`<button class="btn sm danger" onclick="RecycleBin.purgeAll()">清空</button>`:`<span class="hint">使用中</span>`);
+          const act=r.idb?`<span class="hint">使用中（IndexedDB）</span>`:(c?`<button class="btn sm danger" onclick="DM.lsCleanKey('${r.key}')">${btnLabel}</button>`:(r.key==="vsm_recyclebin_v1"?`<button class="btn sm danger" onclick="RecycleBin.purgeAll()">清空</button>`:`<span class="hint">使用中</span>`));
           return `<tr><td>${esc(zh||r.key)}${zh?`<div class="hint mono">${esc(r.key)}</div>`:""}</td><td>${(r.bytes/1024).toFixed(1)} KB</td><td>${pct}%</td><td>${act}</td></tr>`;
         }).join("")}</tbody>
       </table>`;
@@ -25416,7 +25523,7 @@ const Audit={
     if(this.open)this.render();
   },
   init(){
-    try{const s=localStorage.getItem(this.KEY);if(s)this.list=JSON.parse(s);}catch(e){}
+    try{const s=BigStore.manages(this.KEY)?BigStore.getItem(this.KEY):localStorage.getItem(this.KEY);if(s)this.list=JSON.parse(s);}catch(e){}
     this.refreshNameField();
     this.render();refreshRoleWho();
   },
@@ -25459,7 +25566,7 @@ const Audit={
     const e={ts:Date.now(),usr:this.user(),action,target,summary:String(summary||"").slice(0,180)};
     this.list.unshift(e);
     if(this.list.length>this.MAX)this.list.length=this.MAX;
-    try{localStorage.setItem(this.KEY,JSON.stringify(this.list));}catch(err){}
+    try{const s=JSON.stringify(this.list);if(BigStore.manages(this.KEY))BigStore.setItem(this.KEY,s);else localStorage.setItem(this.KEY,s);}catch(err){}
     this.render();
     if(typeof Cloud!=="undefined"&&Cloud.enabled())Cloud.pushAudit([e]);
   },
@@ -29169,5 +29276,10 @@ create policy "voy files delete" on storage.objects
   }
 };
 
-window.addEventListener("DOMContentLoaded",()=>{App.init();GateSite.init();VoyRecv.init();if(typeof Density!=="undefined")Density.apply();if(typeof Perms!=="undefined")Perms.refreshUI();if(typeof Cloud!=="undefined"&&Cloud.enabled()){setTimeout(()=>{VoyRecv.loadCatCloud().then(()=>VoyRecv.syncCloud(true));},2500);}});
+window.addEventListener("DOMContentLoaded",async()=>{
+  // 先把 IndexedDB 裡的大宗資料鏡像讀進記憶體（通常幾十毫秒內完成，含首次搬遷 localStorage
+  // 舊資料的一次性作業），再啟動 App.init()，確保缺失/檢查/線上填單等資料讀到的是完整內容。
+  try{await BigStore.ready();}catch(e){console.warn("BigStore 啟動失敗，改用 localStorage",e);}
+  App.init();GateSite.init();VoyRecv.init();if(typeof Density!=="undefined")Density.apply();if(typeof Perms!=="undefined")Perms.refreshUI();if(typeof Cloud!=="undefined"&&Cloud.enabled()){setTimeout(()=>{VoyRecv.loadCatCloud().then(()=>VoyRecv.syncCloud(true));},2500);}
+});
 </script>
