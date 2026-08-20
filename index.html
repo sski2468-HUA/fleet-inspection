@@ -1140,7 +1140,12 @@ body.dg-on td.dg-empty{background:rgba(232,132,44,.10)}   /* 未填：更明顯�
 .df-card-field{font-size:12.5px;line-height:1.55;color:var(--ink-2)}
 .df-card-field.full{grid-column:1/-1}
 .df-card-field-l{display:block;font-size:10.5px;color:var(--ink-3);font-weight:700;letter-spacing:.3px;margin-bottom:1px}
-.df-card-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+.df-card-tags{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+.df-card-chiprow{display:flex;gap:5px;flex-wrap:wrap;margin-top:0}
+.df-card-tagsside{display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left}
+.df-card-3col{display:grid;grid-template-columns:1fr 2fr 1fr;gap:14px;margin-top:6px}
+.df-card-leftcol{display:flex;flex-direction:column;gap:8px}
+.df-card-photoscol{display:flex;flex-direction:column;gap:8px}
 .df-card-tag{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--teal-l);color:var(--teal)}
 .ad-tbl td{padding:5px 6px;font-size:12px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
 .ad-tbl th{padding:6px}
@@ -7665,18 +7670,19 @@ async function uploadDefectPhotoToStorage(photo,folder){
 /* 縮圖排：把 photosBefore/photosAfter 兩組陣列畫成兩排小縮圖，點擊開 Photobox 放大。
    idPrefix 讓同一頁有多筆缺失時，每筆的照片陣列變數名稱不衝突（存在 window 上供 onclick 存取）。 */
 window._photoStripData={};
-function photoStripHtml(defect,idPrefix){
+function photoStripHtml(defect,idPrefix,horizontal){
   const before=Array.isArray(defect&&defect.photosBefore)?defect.photosBefore:[];
   const after=Array.isArray(defect&&defect.photosAfter)?defect.photosAfter:[];
   if(!before.length&&!after.length)return"";
   window._photoStripData[idPrefix]={before,after};
-  const row=(list,kind,label)=>list.length?`<div style="margin-top:4px">
+  const row=(list,kind,label)=>list.length?`<div style="margin-top:4px${horizontal?";flex:1;min-width:140px":""}">
       <span class="hint" style="font-size:11px">${label}：</span>
       <span style="display:inline-flex;gap:4px;flex-wrap:wrap;vertical-align:middle">
         ${list.map((p,i)=>`<img src="${p.url||p.dataUrl}" title="${esc(p.name||"")}" onclick="Photobox.open(window._photoStripData['${idPrefix}'].${kind}[${i}].url||window._photoStripData['${idPrefix}'].${kind}[${i}].dataUrl,'${label}：${esc(p.name||"")}')" style="width:40px;height:40px;object-fit:cover;border-radius:5px;border:1px solid var(--line-2);cursor:pointer">`).join("")}
       </span>
     </div>`:"";
-  return row(before,"before","矯正前")+row(after,"after","矯正後");
+  const html=row(before,"before","矯正前")+row(after,"after","矯正後");
+  return horizontal?`<div style="display:flex;gap:16px;flex-wrap:wrap">${html}</div>`:html;
 }
 /* 通用「複製到剪貼簿」：優先用 navigator.clipboard，若瀏覽器不支援（例如非 HTTPS／舊版內嵌瀏覽器導致 navigator.clipboard 根本不存在，
    直接呼叫會直接拋出例外、按鈕看起來完全沒反應）則自動改用 textarea + execCommand 的相容寫法，並在成功／失敗都給予提示。 */
@@ -13649,7 +13655,7 @@ const Defs={
   ],
   editVisibleFields(){
     try{const s=localStorage.getItem("vsm_dfedit_fields");if(s)return JSON.parse(s);}catch(e){}
-    return [];
+    return ["ncImp","risk","ncFocus","ncOpinion"]; // 預設多顯示這幾個欄位；使用者可自行到「⚙ 顯示欄位」取消，僅存在自己瀏覽器，不影響其他人
   },
   toggleFieldPanel(){
     const p=$("#dfedit-fieldpanel");if(!p)return;
@@ -14136,21 +14142,28 @@ const Defs={
       if(vis.has("ncLeaf")&&d.ncLeaf)tags.push(`<span class="df-card-tag">具體：${esc(d.ncLeaf)}</span>`);
       if(vis.has("ncRoot")&&d.ncRoot)tags.push(`<span class="df-card-tag">根因：${esc(d.ncRoot)}</span>`);
       if(vis.has("ncFactor")&&d.ncFactor)tags.push(`<span class="df-card-tag">三要素：${esc(d.ncFactor)}</span>`);
+      const hasPhotos=(d.photosBefore&&d.photosBefore.length)||(d.photosAfter&&d.photosAfter.length);
       return `<div class="df-card" onclick="Defs.openEdit(${d.id})" style="cursor:pointer" title="點選開啟編輯視窗">
-        <div class="df-card-top">
-          ${vis.has("ship")?`<b class="df-card-ship">🚢 ${esc(d.ship)}</b>`:""}
-          ${vis.has("itype")?`<span class="df-card-chip">${esc(d.itype)}</span>`:""}
-          ${vis.has("icat")?`<span class="df-card-chip">${esc(icatOf(d.itype))}</span>`:""}
-          ${vis.has("date")?`<span class="hint" style="font-family:var(--mono)">${esc(d.date)}</span>`:""}
-          ${vis.has("inspector")&&d.inspector?`<span class="hint">👤 ${esc(d.inspector)}</span>`:""}
-          <span style="flex:1"></span>
-          ${chips.join("")}
+        <div class="df-card-3col">
+          <div class="df-card-leftcol">
+            <div class="df-card-top" style="flex-wrap:wrap">
+              ${vis.has("ship")?`<b class="df-card-ship">🚢 ${esc(d.ship)}</b>`:""}
+              ${vis.has("itype")?`<span class="df-card-chip">${esc(d.itype)}</span>`:""}
+              ${vis.has("icat")?`<span class="df-card-chip">${esc(icatOf(d.itype))}</span>`:""}
+              ${vis.has("date")?`<span class="hint" style="font-family:var(--mono)">${esc(d.date)}</span>`:""}
+              ${vis.has("inspector")&&d.inspector?`<span class="hint">👤 ${esc(d.inspector)}</span>`:""}
+            </div>
+            ${chips.length?`<div class="df-card-chiprow">${chips.join("")}</div>`:""}
+            ${tags.length?`<div class="df-card-tagsside">${tags.join("")}</div>`:""}
+          </div>
+          <div class="df-card-body">
+            ${field("detail","詳細內容",d.detail,true)}
+            ${field("actual","實際情形",d.actual,true)}
+          </div>
+          <div class="df-card-photoscol" onclick="event.stopPropagation()">
+            ${hasPhotos?`<div style="font-size:12px;color:var(--ink-2);font-weight:600">📷 矯正前/後照片</div>${photoStripHtml(d,"dfview_"+d.id)}`:""}
+          </div>
         </div>
-        <div class="df-card-body">
-          ${field("detail","詳細內容",d.detail,true)}
-          ${field("actual","實際情形",d.actual,true)}
-        </div>
-        ${tags.length?`<div class="df-card-tags">${tags.join("")}</div>`:""}
       </div>`;
     }).join("");
     $("#dfv-pager").innerHTML=pagerHtml(this.page,pages,total,"Defs","dfv");
