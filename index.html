@@ -26066,7 +26066,24 @@ const Cloud={
        網路慢時順序仍然正確，不會發生「資料還沒拉完就先渲染／同步」的競態。任一步失敗不阻擋後續步驟。 */
     (async()=>{
       if(this.enabled()&&this.cfg.auto){
-        try{await this.loadDB(true,true);}catch(e){console.warn("startup loadDB",e);}
+        /* ⚠ 重要成本控制：loadDB() 會把 defs/insp/air 等主要資料表整包重新下載一次
+           （目前合計約 70MB+），原本每次開啟／重新整理頁面都會呼叫一次，等於每個人
+           每次打開系統就整包重抓一遍，是 Supabase「Egress 流出流量」最主要的消耗來源
+           （71MB 的資料表，一天內被多人反覆整包重抓幾十次就能輕易疊到 GB 等級）。
+           這裡改成節流：同一台裝置 10 分鐘內只會真的整包拉一次，其餘時間開啟頁面沿用
+           上次已經拉好、存在本機的資料即可（本機資料原本就會保留到下次瀏覽器關閉或
+           手動清除為止），10 分鐘的新鮮度落差對日常使用完全足夠，之後如果同一時段內
+           多次重新整理頁面，不會再重複整包下載。真的需要立刻看到最新資料，仍可以手動
+           按「⬇ 載入最新資料」強制刷新（那顆按鈕直接呼叫 loadDB()，不受這個節流影響）。 */
+        const LOADDB_THROTTLE_MS=10*60*1000;
+        let lastLoadDB=0;
+        try{lastLoadDB=+(localStorage.getItem("vsm_last_loaddb_at")||0);}catch(e){}
+        if(Date.now()-lastLoadDB>LOADDB_THROTTLE_MS){
+          try{
+            await this.loadDB(true,true);
+            try{localStorage.setItem("vsm_last_loaddb_at",String(Date.now()));}catch(e){}
+          }catch(e){console.warn("startup loadDB",e);}
+        }
         if(typeof App!=="undefined"){try{App.migrateCsoData();App.migrateOperatorData();}catch(e){}}
         /* 開機時先把雲端已知的刪除清單併入本機（涵蓋「別的裝置刪過、這台還不知道」的情況），
            再把本機已知的刪除清單同步清乾淨雲端上的殘留。
