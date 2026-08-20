@@ -5082,7 +5082,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <button class="btn primary" style="width:100%" onclick="Defs.exportXlsx();Defs.closeDownloadModal()">⬇ Excel (.xlsx)</button>
         <button class="btn" style="width:100%" onclick="Defs.openCustomExportModal();Defs.closeDownloadModal()">🎛 客製 Excel（自選欄位）</button>
         <button class="btn" style="width:100%" onclick="Defs.exportJson();Defs.closeDownloadModal()">⬇ JS 檔 (.json)</button>
-        <button class="btn" style="width:100%" onclick="Defs.exportPdf();Defs.closeDownloadModal()">⬇ PDF</button>
+        <button class="btn" style="width:100%" onclick="Defs.exportPdf();Defs.closeDownloadModal()">⬇ PDF（預設欄位）</button>
+        <button class="btn" style="width:100%" onclick="Defs.openCustomPdfModal();Defs.closeDownloadModal()">🎛 客製 PDF（自選欄位＋可含照片）</button>
       </div>
     </div>
   </div>
@@ -5103,6 +5104,29 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="toolbar" style="justify-content:flex-end;gap:8px;margin-top:12px">
         <button class="btn" onclick="Defs.closeCustomExportModal()">取消</button>
         <button class="btn primary" onclick="Defs.exportCustomXlsx()">⬇ 下載自訂 Excel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 客製 PDF：自選欄位＋是否含照片 -->
+<div class="modal-bg" id="customPdfModal">
+  <div class="modal" style="max-width:520px">
+    <div class="mh"><h3>🎛 客製 PDF — 自選匯出欄位</h3><button class="x" onclick="Defs.closeCustomPdfModal()">✕</button></div>
+    <div class="mb">
+      <p class="hint" style="margin-bottom:10px">依目前篩選/勾選結果匯出，只保留你勾選的欄位（依系統原本欄位順序排列），瀏覽器列印視窗選「另存為 PDF」。</p>
+      <div class="toolbar" style="margin-bottom:8px">
+        <button class="btn sm" onclick="Defs.customPdfToggleAll(true)">☑ 全選</button>
+        <button class="btn sm" onclick="Defs.customPdfToggleAll(false)">☐ 全不選</button>
+        <button class="btn sm" onclick="Defs.customPdfResetDefault()">↺ 恢復預設</button>
+      </div>
+      <div id="custom-pdf-fields" style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px 14px;max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:10px"></div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:10px;padding:8px;background:var(--paper);border-radius:6px;cursor:pointer">
+        <input type="checkbox" id="custom-pdf-photos"> 📷 含矯正前/矯正後照片（會讓 PDF 頁數變多、檔案變大，建議搭配篩選結果不要太多筆時使用）
+      </label>
+      <div class="toolbar" style="justify-content:flex-end;gap:8px;margin-top:12px">
+        <button class="btn" onclick="Defs.closeCustomPdfModal()">取消</button>
+        <button class="btn primary" onclick="Defs.exportCustomPdf()">🖨 產生 PDF（列印/另存）</button>
       </div>
     </div>
   </div>
@@ -14723,6 +14747,55 @@ const Defs={
       <table><thead><tr><th>船名</th><th>檢查類型</th><th>日期</th><th>地點</th><th>新分類·大類</th><th>代碼</th><th style="width:30%">缺失詳情</th><th style="width:25%">實際情況/矯正</th><th>根本原因</th><th>風險</th></tr></thead>
       <tbody>${rows.map(d=>`<tr><td>${esc(d.ship)}</td><td>${esc(d.itype)}</td><td>${esc(d.date)}</td><td>${esc(d.place)}</td><td>${esc(d.ncMain||"")}</td><td>${esc(d.code)}</td><td class="pre">${esc(d.detail)}</td><td class="pre">${esc([d.actual,d.corrective].filter(Boolean).join("\n"))}</td><td class="pre">${esc(d.root)}</td><td>${esc(d.risk)}</td></tr>`).join("")}</tbody></table>`;
     doPrint();
+  },
+  /* ─────────────────────────────────────────
+     客製 PDF：跟「客製 Excel（自選欄位）」同一套 UI 邏輯（共用 DEF_COLS 清單、共用
+     CUSTOM_EXPORT_DEFAULT 預設勾選），差別是輸出改成瀏覽器列印區塊，並多一個「是否
+     含照片」選項；勾了才把 photosBefore/photosAfter 縮圖嵌進每一列下方（用瀏覽器
+     原生列印，不需要額外的 PDF 產生函式庫，中文/圖片相容性最穩）。
+     ───────────────────────────────────────── */
+  openCustomPdfModal(){
+    const cur=new Set(this.loadCustomExportCols()); // 沿用跟客製 Excel 同一份記憶的勾選
+    const box=$("#custom-pdf-fields");
+    if(box){
+      box.innerHTML=DEF_COLS.filter(([k])=>k!=="id").map(([k,t])=>`<label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer">
+          <input type="checkbox" value="${k}" ${cur.has(k)?"checked":""}> ${esc(t)}
+        </label>`).join("");
+    }
+    $("#customPdfModal").classList.add("show");
+  },
+  closeCustomPdfModal(){$("#customPdfModal").classList.remove("show");},
+  customPdfToggleAll(on){$$("#custom-pdf-fields input[type=checkbox]").forEach(cb=>cb.checked=on);},
+  customPdfResetDefault(){
+    const def=new Set(this.CUSTOM_EXPORT_DEFAULT);
+    $$("#custom-pdf-fields input[type=checkbox]").forEach(cb=>cb.checked=def.has(cb.value));
+  },
+  exportCustomPdf(){
+    const picked=$$("#custom-pdf-fields input[type=checkbox]:checked").map(cb=>cb.value);
+    if(!picked.length){toast("⚠ 請至少勾選一個欄位");return;}
+    const includePhotos=$("#custom-pdf-photos")&&$("#custom-pdf-photos").checked;
+    this.saveCustomExportCols(picked); // 跟客製 Excel 共用同一份記憶，下次兩邊都會記得上次勾的欄位
+    const cols=DEF_COLS.filter(c=>picked.includes(c[0]));
+    const rows=this.exportSet();
+    if(!rows.length){toast("無資料可匯出");return;}
+    const cellTxt=(d,k)=>{
+      if(k==="internalControl")return d.internalControl?"是":"否";
+      if(k==="attn")return d.attn?"🆕":"";
+      return d[k]??"";
+    };
+    const photoRow=(d)=>{
+      if(!includePhotos)return"";
+      const mk=(label,list)=>(!list||!list.length)?"":`<div style="margin-top:3px"><b>${label}：</b>${list.map(p=>`<img src="${p.url||p.dataUrl}" style="width:110px;height:110px;object-fit:cover;margin:2px;border:1px solid #ccc">`).join("")}</div>`;
+      const html=mk("矯正前",d.photosBefore)+mk("矯正後",d.photosAfter);
+      return html?`<tr><td colspan="${cols.length}" style="padding-top:4px">${html}</td></tr>`:"";
+    };
+    $("#printArea").innerHTML=`<h1>缺失紀錄總表（自選欄位${includePhotos?"＋照片":""}）</h1>
+      <div class="pmeta">匯出日期：${todayStr()} ｜ 共 ${rows.length} 筆 ｜ 船舶檢查暨缺失管理系統</div>
+      <table><thead><tr>${cols.map(c=>`<th>${esc(c[1])}</th>`).join("")}</tr></thead>
+      <tbody>${rows.map(d=>`<tr>${cols.map(c=>`<td class="pre">${esc(cellTxt(d,c[0]))}</td>`).join("")}</tr>${photoRow(d)}`).join("")}</tbody></table>`;
+    doPrint();
+    this.closeCustomPdfModal();
+    if(typeof Audit!=="undefined")Audit.log("匯出","缺失紀錄總表",`客製 PDF ${rows.length} 筆，${cols.length} 欄位${includePhotos?"（含照片）":""}`);
   },
   /* —— 匯入 —— */
   importFile(){ImportUI.open("defs");}
@@ -27134,11 +27207,18 @@ const SelfCheck={
     if(changed){App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();}
     return changed;
   },
+  _lastListPull:0,
   renderTasks(){
     /* 每次打開任務清單頁，先靜默把全部任務跟雲端拉一次最新結果，拉到有變動才重繪，
-       不用逐一點開每個任務才會更新「已查核 X/16」這個完成度。 */
-    if(!this._pullingList){
+       不用逐一點開每個任務才會更新「已查核 X/16」這個完成度。
+       ⚠ renderTasks() 會被篩選、督導確認等多個操作重複觸發，若每次都對每個任務各打一次
+       API，篩選點快一點就會疊出大量重複請求、白白消耗 Supabase 流出流量（Egress）。
+       這裡節流成最多每 2 分鐘真正跑一次，其餘呼叫沿用最近一次已經拉到的本機資料即可，
+       不影響「開啟單一任務詳情頁」那邊獨立的即時拉取（renderRun 仍然每次都會拉）。 */
+    const now=Date.now();
+    if(!this._pullingList&&now-this._lastListPull>120000){
       this._pullingList=true;
+      this._lastListPull=now;
       this.pullAllExternalResults().then(changed=>{
         this._pullingList=false;
         if(changed)this.renderTasks();
