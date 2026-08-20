@@ -1147,6 +1147,16 @@ body.dg-on td.dg-empty{background:rgba(232,132,44,.10)}   /* 未填：更明顯�
 .df-card-leftcol{display:flex;flex-direction:column;gap:8px}
 .df-card-photoscol{display:flex;flex-direction:column;gap:8px}
 .df-card-tag{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--teal-l);color:var(--teal)}
+/* 查看模式字體縮放（A-/100%/A+）範圍限定：卡片內文字原本用固定 px，父層 #dfv-list 的 em 字級
+   改變對它們完全沒作用（px 是絕對單位，不會隨父層 em 縮放），這是字體調整按鈕看起來沒反應的
+   真正原因。改成 em（以 body 的 14px 為基準換算），才會真的隨 A-/A+ 縮放；只限定在 #dfv-list
+   底下，不影響這幾個 class 在其他地方（如果有）的固定顯示。 */
+#dfv-list .df-card-ship{font-size:1.036em}
+#dfv-list .df-card-chip{font-size:0.786em}
+#dfv-list .df-card-field{font-size:0.893em}
+#dfv-list .df-card-field-l{font-size:0.75em}
+#dfv-list .df-card-tag{font-size:0.786em}
+#dfv-list .hint{font-size:0.821em}
 .ad-tbl td{padding:5px 6px;font-size:12px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
 .ad-tbl th{padding:6px}
 table.ap-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -2935,6 +2945,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div class="msel" id="ms-f-ncfocus"></div>
         <div class="msel" id="ms-f-risk"></div>
         <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="f-attn" onchange="Defs.page=1;Defs.render()" style="accent-color:var(--signal)"> 僅顯示🆕新缺失須注意</label>
+        <select class="btn sm" id="f-hasphoto" onchange="Defs.page=1;Defs.render()" title="依是否有矯正前/後照片篩選">
+          <option value="">照片：不限</option>
+          <option value="yes">📷 僅顯示有照片</option>
+          <option value="no">僅顯示無照片</option>
+        </select>
         <button class="btn sm" onclick="AdvFilterEngine.open('defs')">🔎 進階篩選<span id="adv-filter-count"></span></button>
         <button class="btn sm" onclick="Defs.clearFilters()">清除篩選</button>
       </div>
@@ -2953,6 +2968,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <h3>👁 缺失紀錄查看
             <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
               <span class="hint" id="dfv-stat"></span>
+              <select class="btn sm" id="dfv-sort-sel" onchange="Defs.sort(this.value)" style="padding:4px 6px" title="排序方式">
+                <option value="ship">依船名</option>
+                <option value="date" selected>依檢查日期</option>
+                <option value="itype">依檢查來源</option>
+                <option value="ncImp">依重要程度</option>
+                <option value="risk">依風險</option>
+              </select>
+              <button class="btn sm" id="dfv-sort-dir-btn" onclick="Defs.sort(Defs.sortKey)" title="切換正序／倒序"></button>
               <span style="display:flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:6px;padding:2px" title="調整本頁顯示字體大小">
                 <button class="btn sm" style="padding:2px 8px" onclick="Defs.setFontScale(-1)">A-</button>
                 <span class="hint" id="dfv-fontpct" style="min-width:38px;text-align:center">100%</span>
@@ -12896,7 +12919,7 @@ const Defs={
     {k:"ship",t:"船名"},{k:"itype",t:"檢查來源"},{k:"icat",t:"檢查類型"},{k:"date",t:"檢查日期"},
     {k:"inspector",t:"檢查員"},{k:"ncImp",t:"重要程度"},{k:"ncFocus",t:"關注度"},{k:"risk",t:"風險"},
     {k:"detail",t:"詳細內容"},{k:"actual",t:"實際情形"},{k:"ncProb",t:"問題分類"},{k:"ncMain",t:"大類"},
-    {k:"ncLeaf",t:"具體"},{k:"ncFactor",t:"三要素"},{k:"ncRoot",t:"根因"}
+    {k:"ncLeaf",t:"具體"},{k:"ncFactor",t:"三要素"},{k:"ncRoot",t:"根因"},{k:"photos",t:"矯正前/後照片"}
   ],
   VIEW_FIELDS_KEY:"vsm_defs_viewfields_v1",
   VIEW_FIELDS_CLOUD_KEY:"defsViewFields",
@@ -13919,6 +13942,7 @@ const Defs={
           // 這裡做一次性補漏：只要偵測到舊清單裡缺少「根因」，就自動補上並存回去，
           // 不用等維護者自己想到要重新打開設定畫面勾選一次。
           if(!arr.includes("ncRoot")){arr.push("ncRoot");this.saveViewFieldsLocal(arr);}
+          if(!arr.includes("photos")){arr.push("photos");this.saveViewFieldsLocal(arr);}
           this.viewFields=arr;return this.viewFields;
         }
       }
@@ -13936,6 +13960,7 @@ const Defs={
         // 跟 loadViewFields() 同樣的補漏：雲端存的舊清單也可能是「根因」選項出現之前存的，
         // 拉回來蓋掉本機時，要一併補上，不然本機剛補好的又會被雲端舊清單蓋回去。
         if(!p.includes("ncRoot"))p.push("ncRoot");
+        if(!p.includes("photos"))p.push("photos");
         this.saveViewFieldsLocal(p);
       }
     }catch(e){/* 離線或讀取失敗：維持本機快取值 */}
@@ -13971,7 +13996,7 @@ const Defs={
     const opts="<option value=''>不限</option>"+yms.map(m=>`<option value="${m}">${m}</option>`).join("");
     s1.innerHTML=opts;s2.innerHTML=opts;
   },
-  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());$("#f-kw").value="";$("#f-ymfrom").value="";$("#f-ymto").value="";if(typeof DefsAdvFilter!=="undefined")DefsAdvFilter.clearAll(true);this.page=1;this.render();},
+  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());$("#f-kw").value="";$("#f-ymfrom").value="";$("#f-ymto").value="";if($("#f-hasphoto"))$("#f-hasphoto").value="";if(typeof DefsAdvFilter!=="undefined")DefsAdvFilter.clearAll(true);this.page=1;this.render();},
   filtered(){
     ncPruneCascade(this.ms.ncprob,this.ms.ncmain,this.ms.ncleaf);
     this.populateYm();
@@ -14001,6 +14026,12 @@ const Defs={
       if(!this.ms.rank.pass(d.rank||""))return false;
       if(!this.ms.person.pass(d.person||""))return false;
       if($("#f-attn").checked&&!d.attn)return false;
+      const hp=$("#f-hasphoto")?$("#f-hasphoto").value:"";
+      if(hp){
+        const hasPhoto=(d.photosBefore&&d.photosBefore.length)||(d.photosAfter&&d.photosAfter.length);
+        if(hp==="yes"&&!hasPhoto)return false;
+        if(hp==="no"&&hasPhoto)return false;
+      }
       if(terms.length){
         // 補上原本漏掉沒被搜到的欄位：姓名-責任人(person)是最常被找的，其餘幾個也一併補齊，
         // 這樣關鍵字搜尋才算真的涵蓋所有看得到的欄位，不是只搜一部分。
@@ -14076,6 +14107,8 @@ const Defs={
     this._lastCount=rows.length;
     const k=this.sortKey,asc=this.sortAsc?1:-1;
     rows=[...rows].sort((a,b)=>{let x=a[k]??"",y=b[k]??"";if(k==="date"){x=parseDate(x)||0;y=parseDate(y)||0;}if(k==="ncImp"){const m={"低":1,"中":2,"高":3};x=m[x]||0;y=m[y]||0;return (x-y)*asc;}if(k==="code"||k==="risk"){return String(x).localeCompare(String(y),undefined,{numeric:true})*asc;}return (x>y?1:x<y?-1:0)*asc;});
+    const sortSel=$("#dfv-sort-sel");if(sortSel&&sortSel.value!==this.sortKey)sortSel.value=this.sortKey;
+    const sortDirBtn=$("#dfv-sort-dir-btn");if(sortDirBtn)sortDirBtn.textContent=this.sortAsc?"▲ 正序":"▼ 倒序";
     const total=rows.length,pages=Math.max(1,Math.ceil(total/this.PER));
     this.page=Math.min(this.page,pages);
     const pg=rows.slice((this.page-1)*this.PER,this.page*this.PER);
@@ -14142,7 +14175,7 @@ const Defs={
       if(vis.has("ncLeaf")&&d.ncLeaf)tags.push(`<span class="df-card-tag">具體：${esc(d.ncLeaf)}</span>`);
       if(vis.has("ncRoot")&&d.ncRoot)tags.push(`<span class="df-card-tag">根因：${esc(d.ncRoot)}</span>`);
       if(vis.has("ncFactor")&&d.ncFactor)tags.push(`<span class="df-card-tag">三要素：${esc(d.ncFactor)}</span>`);
-      const hasPhotos=(d.photosBefore&&d.photosBefore.length)||(d.photosAfter&&d.photosAfter.length);
+      const hasPhotos=vis.has("photos")&&((d.photosBefore&&d.photosBefore.length)||(d.photosAfter&&d.photosAfter.length));
       return `<div class="df-card" onclick="Defs.openEdit(${d.id})" style="cursor:pointer" title="點選開啟編輯視窗">
         <div class="df-card-3col">
           <div class="df-card-leftcol">
