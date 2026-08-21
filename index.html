@@ -26739,13 +26739,30 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
       // ⚠ 大量刪除保險絲：正常操作一次不會刪掉幾十筆。若 diff 算出要刪除的筆數異常龐大
       // （超過 20 筆、且佔雲端既有紀錄一成以上），極可能是本機資料異常（例如載入不完整、
       // 快照錯亂）造成的誤判，這時寧可停下來問使用者，也不要靜默把雲端資料刪光。
-      const snapCount=Object.keys(this.loadSnap(key)||{}).length;
+      const snap=this.loadSnap(key)||{};
+      const snapCount=Object.keys(snap).length;
       if(deletes.length>20&&snapCount>0&&deletes.length>snapCount*0.1){
         const label=(typeof EditLock!=="undefined"&&EditLock.LABELS[key])||key;
         const ok=confirm(`⚠ 資料保護警告\n\n系統偵測到即將從雲端刪除「${label}」的 ${deletes.length} 筆紀錄（雲端目前共 ${snapCount} 筆）。\n\n正常操作不會一次刪除這麼多筆。這通常代表本機資料載入不完整，若繼續，雲端上這 ${deletes.length} 筆紀錄將被永久刪除。\n\n強烈建議按「取消」，然後先做一次「匯出完整備份」，再點「載入最新資料」確認資料正常。\n\n確定仍要刪除嗎？`);
         if(!ok){
           this._pullFailed.add(key); // 使用者喊停 → 一併封鎖後續推送，直到重新載入
           if(typeof Cloud!=="undefined")Cloud.showSyncFail(`已阻止「${label}」的大量刪除，請先「載入最新資料」確認狀態。`);
+          return;
+        }
+      }
+      // ⚠ 大量新增保險絲（跟上面刪除保險絲同一個道理，之前只防刪除、沒有防新增，這是這次
+      // 缺失紀錄無故暴增事件之後補上的）：正常操作一次不會新增幾百筆「全新 ID」的資料——
+      // 逐筆填單、逐筆匯入，都是幾筆到幾十筆的量級。若一次要新增的全新 ID 筆數異常龐大
+      // （超過 50 筆、且超過雲端既有紀錄兩成），極可能是本機資料出了問題（例如同步快照被
+      // 重置、離線期間累積的重複草稿被誤判成新資料），這時寧可停下來問使用者，也不要
+      // 靜默把大量可疑資料寫進雲端造成重複。
+      const newInserts=upserts.filter(r=>!(String(r[idField]) in snap));
+      if(newInserts.length>50&&snapCount>0&&newInserts.length>snapCount*0.2){
+        const label=(typeof EditLock!=="undefined"&&EditLock.LABELS[key])||key;
+        const ok2=confirm(`⚠ 資料保護警告\n\n系統偵測到即將新增 ${newInserts.length} 筆「${label}」全新紀錄到雲端（雲端目前共 ${snapCount} 筆）。\n\n正常操作（逐筆填寫、一般匯入）不會一次新增這麼多筆全新資料，這通常代表本機資料異常（例如離線期間累積的重複草稿），若繼續，這批資料會被寫入雲端、可能造成重複紀錄。\n\n強烈建議按「取消」，先重新整理頁面、確認本機資料正常後再試一次。\n\n確定仍要新增這批資料嗎？`);
+        if(!ok2){
+          this._pullFailed.add(key);
+          if(typeof Cloud!=="undefined")Cloud.showSyncFail(`已阻止「${label}」的大量新增，請先「載入最新資料」確認狀態。`);
           return;
         }
       }
@@ -26848,15 +26865,13 @@ const Cloud={
     (async()=>{
       if(this.enabled()&&this.cfg.auto){
         /* ⚠ 重要成本控制：loadDB() 會把 defs/insp/air 等主要資料表整包重新下載一次
-           （目前合計約 70MB+），原本每次開啟／重新整理頁面都會呼叫一次，等於每個人
-           每次打開系統就整包重抓一遍，是 Supabase「Egress 流出流量」最主要的消耗來源
-           （71MB 的資料表，一天內被多人反覆整包重抓幾十次就能輕易疊到 GB 等級）。
-           這裡改成節流：同一台裝置 10 分鐘內只會真的整包拉一次，其餘時間開啟頁面沿用
-           上次已經拉好、存在本機的資料即可（本機資料原本就會保留到下次瀏覽器關閉或
-           手動清除為止），10 分鐘的新鮮度落差對日常使用完全足夠，之後如果同一時段內
-           多次重新整理頁面，不會再重複整包下載。真的需要立刻看到最新資料，仍可以手動
-           按「⬇ 載入最新資料」強制刷新（那顆按鈕直接呼叫 loadDB()，不受這個節流影響）。 */
-        const LOADDB_THROTTLE_MS=10*60*1000;
+           （目前合計約 70MB+，缺失紀錄重複問題排除前甚至更大），原本每次開啟／重新整理
+           頁面都會呼叫一次，是 Supabase「Egress 流出流量」最主要的消耗來源。
+           2026/8 這次額度快用完（9天內就用了55%），先把節流從 10 分鐘延長到 30 分鐘，
+           換取更明顯的流量下降；等額度回穩、重複資料清理完成後，可以視情況再縮短回來
+           （改這個數字就好，不用改其他地方）。手動按「⬇ 載入最新資料」仍不受影響，隨時
+           可以強制立即刷新。 */
+        const LOADDB_THROTTLE_MS=30*60*1000;
         let lastLoadDB=0;
         try{lastLoadDB=+(localStorage.getItem("vsm_last_loaddb_at")||0);}catch(e){}
         if(Date.now()-lastLoadDB>LOADDB_THROTTLE_MS){
