@@ -20261,7 +20261,19 @@ const Air={
       if(this.ms.reviewed&&!this.ms.reviewed.pass(d.reviewed?"已確認":"尚未確認"))return false;
       return true;
     });
-    if(!this.sortKey)return arr.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    if(!this.sortKey){
+      // 預設排序：剛匯入、還沒轉入紀錄的（待處理）排最上面，方便看到需要處理的新資料；
+      // 其餘按檢查日期由新到舊排列。不用另外點欄位標題排序，一打開就是這個順序。
+      return arr.sort((a,b)=>{
+        const ap=this.statusText(a)==="待處理"?0:1,bp=this.statusText(b)==="待處理"?0:1;
+        if(ap!==bp)return ap-bp;
+        const ad=parseDate(a.date),bd=parseDate(b.date);
+        if(ad&&bd)return bd-ad;
+        if(ad&&!bd)return -1;
+        if(!ad&&bd)return 1;
+        return (b.createdAt||0)-(a.createdAt||0);
+      });
+    }
     const k=this.sortKey,dir=this.sortDir==="desc"?-1:1;
     return arr.sort((a,b)=>{
       if(k==="date"){
