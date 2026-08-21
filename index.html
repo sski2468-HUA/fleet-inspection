@@ -3869,6 +3869,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <option value="main">大類</option>
               <option value="leaf">細項/細目</option>
               <option value="factor">三要素（人員/設備/系統）</option>
+              <option value="itype">檢查來源（PSC/SIRE/CDI/內部...）</option>
             </select>
             <span class="lbl" style="margin-left:10px">數值方式</span>
             <select id="trend-valuemode" onchange="Trend.render()" title="風險加權：低=1分/中=2分/高=3分加總，比純筆數更能反映嚴重度">
@@ -3889,8 +3890,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             </select>
             <span class="lbl" style="margin-left:10px">船型</span>
             <select id="trend-vtype" onchange="Trend.render()"><option value="">不限</option></select>
-            <span class="lbl" style="margin-left:10px">管理公司</span>
-            <select id="trend-mgr" onchange="Trend.render()"><option value="">不限</option></select>
           </div>
           <p class="hint" style="margin-bottom:6px">選擇要比較的項目（可打字搜尋，可跨設備／作業類別一起選，最多同時比較 8 個）：</p>
           <div class="msel" id="ms-trend-cat" style="margin-bottom:10px"></div>
@@ -7264,6 +7263,7 @@ const DupFinder={
         </label>`).join("")}
       </div>`).join("")}
       <div class="toolbar" style="margin-top:6px">
+        <button class="btn sm" onclick="DupFinder.autoSelect('defs')">🤖 自動勾選（每組保留最小ID，其餘勾選待刪）</button>
         <button class="btn sm danger" onclick="DupFinder.deleteSelected('defs')">🗑 刪除已勾選（先存入資源回收桶）</button>
       </div>`;
   },
@@ -7281,8 +7281,27 @@ const DupFinder={
         </label>`).join("")}
       </div>`).join("")}
       <div class="toolbar" style="margin-top:6px">
+        <button class="btn sm" onclick="DupFinder.autoSelect('insp')">🤖 自動勾選（每組保留最小ID，其餘勾選待刪）</button>
         <button class="btn sm danger" onclick="DupFinder.deleteSelected('insp')">🗑 刪除已勾選（先存入資源回收桶）</button>
       </div>`;
+  },
+  /* 自動勾選：每組重複裡，保留 ID 最小的那筆（通常是最早建立的原始資料），
+     其餘全部勾選待刪——組數一多，一組一組手動核對太累，這個給一個合理的預設猜測，
+     使用者還是要自己掃過確認合理再按刪除，不會自動幫忙按刪除。 */
+  autoSelect(type){
+    const groups=type==="defs"?this._defsGroups:this._inspGroups;
+    const cls=type==="defs"?".dupf-defs-chk":".dupf-insp-chk";
+    if(!groups.length){toast("⚠ 請先按「開始掃描」");return;}
+    document.querySelectorAll(cls).forEach(el=>{el.checked=false;});
+    groups.forEach((g,gi)=>{
+      const sorted=[...g].sort((a,b)=>Number(a.id)-Number(b.id));
+      const keepId=String(sorted[0].id);
+      document.querySelectorAll(`${cls}[data-gi="${gi}"]`).forEach(el=>{
+        if(el.dataset.id!==keepId)el.checked=true;
+      });
+    });
+    const n=document.querySelectorAll(cls+":checked").length;
+    toast(`✓ 已自動勾選 ${n} 筆（每組保留 ID 最小的那筆），請確認無誤後再按下方刪除`);
   },
   async deleteSelected(type){
     // ⚠ 這個功能已經搬到資料管理後台、限定僅 Owner 可見，這裡的刪除動作再收緊一層，
@@ -24052,16 +24071,15 @@ const Trend={
     return SHIPINFO.find(s=>s.code===shipCode)||null;
   },
   populateShipFilters(){
-    const vtSel=$("#trend-vtype"),mgrSel=$("#trend-mgr");
-    if(!vtSel||!mgrSel)return;
+    const vtSel=$("#trend-vtype");
+    if(!vtSel)return;
     const ships=[...new Set(App.defs.map(d=>d.ship))].filter(Boolean);
-    const vtypes=new Set(),mgrs=new Set();
+    const vtypes=new Set();
     ships.forEach(code=>{
       const s=this.shipInfoOf(code);
-      if(s){if(s.vtype)vtypes.add(s.vtype);if(s.mgr)mgrs.add(s.mgr);}
+      if(s&&s.vtype)vtypes.add(s.vtype);
     });
     vtSel.innerHTML=`<option value="">不限</option>`+[...vtypes].sort().map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
-    mgrSel.innerHTML=`<option value="">不限</option>`+[...mgrs].sort().map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
   },
   /* 目前層級（大類/細項）底下有資料的選項，依出現次數由多到少排序，讓常見的排在前面；
      MSel 元件本身已內建打字搜尋，不用再自己刻搜尋框。 */
@@ -24076,7 +24094,7 @@ const Trend={
         String(d.ncFactor||"").split(/、|,|，/).map(x=>x.trim()).filter(Boolean).forEach(v=>counts.set(v,(counts.get(v)||0)+1));
       });
     }else{
-      const key=level==="main"?"ncMain":"ncLeaf";
+      const key=level==="main"?"ncMain":level==="itype"?"itype":"ncLeaf";
       App.defs.forEach(d=>{const v=d[key];if(v)counts.set(v,(counts.get(v)||0)+1);});
     }
     return [...counts.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
@@ -24213,7 +24231,6 @@ const Trend={
     const {from,to}=this.curRange();
     const riskFilter=$("#trend-risk")?$("#trend-risk").value:"";
     const vtypeFilter=$("#trend-vtype")?$("#trend-vtype").value:"";
-    const mgrFilter=$("#trend-mgr")?$("#trend-mgr").value:"";
     return App.defs.filter(d=>{
       const ym=d.ym||ymOf(d.date);
       if(!this.inRange(ym,from,to))return false;
@@ -24222,10 +24239,9 @@ const Trend={
         if(riskFilter==="3"&&r!=="3")return false;
         if(riskFilter==="2"&&!["2","3"].includes(r))return false;
       }
-      if(vtypeFilter||mgrFilter){
+      if(vtypeFilter){
         const si=this.shipInfoOf(d.ship);
-        if(vtypeFilter&&(!si||si.vtype!==vtypeFilter))return false;
-        if(mgrFilter&&(!si||si.mgr!==mgrFilter))return false;
+        if(!si||si.vtype!==vtypeFilter)return false;
       }
       return true;
     });
@@ -24250,7 +24266,7 @@ const Trend={
     // 可能同時掛多個值（用頓號分隔），改用「是否包含這個值」比對。
     const matchFn=level==="factor"
       ?(d,c)=>String(d.ncFactor||"").split(/、|,|，/).map(x=>x.trim()).includes(c)
-      :(d,c)=>d[level==="main"?"ncMain":"ncLeaf"]===c;
+      :(d,c)=>d[level==="main"?"ncMain":level==="itype"?"itype":"ncLeaf"]===c;
     // weightFn：數值方式選「風險加權分數」時，每筆缺失依風險等級算分（低1/中2/高3），
     // 沒填風險的預設當低風險(1分)，不是0分——避免「有做但沒填風險」的項目被錯誤忽略。
     const weightFn=valueMode==="risk"?(d=>({"1":1,"2":2,"3":3}[String(d.risk||"1")]||1)):(()=>1);
@@ -24266,7 +24282,7 @@ const Trend={
           if(level==="factor"){
             String(d.ncFactor||"").split(/、|,|，/).map(x=>x.trim()).filter(Boolean).forEach(v=>counts.set(v,(counts.get(v)||0)+weightFn(d)));
           }else{
-            const v=d[level==="main"?"ncMain":"ncLeaf"];if(v)counts.set(v,(counts.get(v)||0)+weightFn(d));
+            const v=d[level==="main"?"ncMain":level==="itype"?"itype":"ncLeaf"];if(v)counts.set(v,(counts.get(v)||0)+weightFn(d));
           }
         });
         const top=[...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
