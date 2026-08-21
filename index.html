@@ -715,6 +715,7 @@ table.tbl tbody tr.sel:hover>td{background:#fbe8d4}
 .ig-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .gr-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .df-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
+.shipdir-btn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .dr-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .dp-vtypebtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .spg-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
@@ -1923,6 +1924,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="nav-item active" data-tab="dash"><span class="num">1</span>Dash Board</div>
       <div class="nav-item" data-tab="recur"><span class="num">0</span>重複性缺失分析</div>
       <div class="nav-item" data-tab="ref"><span class="num">6</span>分類彙總分析</div>
+      <div class="nav-item" data-tab="trend"><span class="num">📈</span>缺失趨勢比較</div>
     </div>
     <div class="nav-group" data-group="datatables">
       <div class="nav-group-label">資料總表</div>
@@ -3821,6 +3823,180 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         </div>
       </div>
     </section>
+
+    <!-- ════════ 5.5 缺失趨勢比較與 KPI 分析（參考同業 risk4sea.com/psi 的 KPI 呈現方式） ════════ -->
+    <section id="tab-trend" class="tabpage">
+      <div class="banner">篩選時間區段、跨類別比較不同項目的發生趨勢，用於追蹤改善成效與弱點分析；也可切換「單船弱點分析」看單一船舶的缺失集中類別。</div>
+      <div class="card" id="trend-section">
+        <h3>📈 缺失趨勢比較與 KPI 分析
+          <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn sm" onclick="Trend.openPresetModal()">📂 已儲存的篩選</button>
+            <button class="btn sm" onclick="Trend.openSaveModal()">💾 儲存此篩選</button>
+            <button class="btn sm" onclick="Trend.exportPdf()">🖨 匯出 PDF</button>
+          </span>
+        </h3>
+        <p class="hint" style="margin-bottom:10px;line-height:1.6">PDF 匯出為靜態圖表截圖，互動式檢視請在此頁面操作。</p>
+
+        <div class="toolbar" style="flex-wrap:wrap;margin-bottom:10px">
+          <button class="btn sm df-tabbtn active" data-tm="trend" onclick="Trend.setMode('trend')">📊 趨勢比較</button>
+          <button class="btn sm df-tabbtn" data-tm="cross" onclick="Trend.setMode('cross')">🔄 內外部比對</button>
+          <button class="btn sm df-tabbtn" data-tm="rank" onclick="Trend.setMode('rank')">🏆 船隊排名</button>
+          <button class="btn sm df-tabbtn" data-tm="ship" onclick="Trend.setMode('ship')">🚢 單船弱點分析</button>
+        </div>
+
+        <div class="filterbar" style="flex-wrap:wrap;margin-bottom:8px">
+          <span class="lbl">時間區段</span>
+          <select id="trend-ymfrom" onchange="Trend.render()"></select>
+          <span>～</span>
+          <select id="trend-ymto" onchange="Trend.render()"></select>
+          <button class="btn sm" onclick="Trend.quickRange('q')">本季</button>
+          <button class="btn sm" onclick="Trend.quickRange('lastq')">上季</button>
+          <button class="btn sm" onclick="Trend.quickRange('h1')">上半年</button>
+          <button class="btn sm" onclick="Trend.quickRange('h2')">下半年</button>
+          <button class="btn sm" onclick="Trend.quickRange('year')">今年度</button>
+          <button class="btn sm" onclick="Trend.quickRange('lastyear')">去年度</button>
+          <span class="lbl" style="margin-left:10px">時間軸</span>
+          <select id="trend-gran" onchange="Trend.render()">
+            <option value="month">月度</option>
+            <option value="quarter">季度</option>
+          </select>
+        </div>
+
+        <div id="trend-mode-trend">
+          <div class="filterbar" style="flex-wrap:wrap;margin-bottom:8px">
+            <span class="lbl">比較層級</span>
+            <select id="trend-level" onchange="Trend.onLevelChange()">
+              <option value="main">大類</option>
+              <option value="leaf">細項/細目</option>
+              <option value="factor">三要素（人員/設備/系統）</option>
+            </select>
+            <span class="lbl" style="margin-left:10px">數值方式</span>
+            <select id="trend-valuemode" onchange="Trend.render()" title="風險加權：低=1分/中=2分/高=3分加總，比純筆數更能反映嚴重度">
+              <option value="count">筆數</option>
+              <option value="risk">風險加權分數</option>
+            </select>
+            <span class="lbl" style="margin-left:10px">圖表類型</span>
+            <select id="trend-chartkind" onchange="Trend.render()">
+              <option value="line">折線圖</option>
+              <option value="smooth">曲線圖</option>
+              <option value="pie">圓餅圖（期間總量佔比）</option>
+            </select>
+            <span class="lbl" style="margin-left:10px">風險篩選</span>
+            <select id="trend-risk" onchange="Trend.render()">
+              <option value="">不限</option>
+              <option value="2">中以上風險</option>
+              <option value="3">僅高風險</option>
+            </select>
+            <span class="lbl" style="margin-left:10px">船型</span>
+            <select id="trend-vtype" onchange="Trend.render()"><option value="">不限</option></select>
+            <span class="lbl" style="margin-left:10px">管理公司</span>
+            <select id="trend-mgr" onchange="Trend.render()"><option value="">不限</option></select>
+          </div>
+          <p class="hint" style="margin-bottom:6px">選擇要比較的項目（可打字搜尋，可跨設備／作業類別一起選，最多同時比較 8 個）：</p>
+          <div class="msel" id="ms-trend-cat" style="margin-bottom:10px"></div>
+          <div style="height:360px"><canvas id="trend-chart"></canvas></div>
+        </div>
+
+        <!-- 內外部比對分析：同一批選定項目，拆內部/外部發現次數趨勢 + 復發偵測 -->
+        <div id="trend-mode-cross" style="display:none">
+          <div class="filterbar" style="flex-wrap:wrap;margin-bottom:8px">
+            <span class="lbl">比較層級</span>
+            <select id="trend-cross-level" onchange="Trend.onCrossLevelChange()">
+              <option value="main">大類</option>
+              <option value="leaf">細項/細目</option>
+            </select>
+            <span class="lbl" style="margin-left:10px">復發判定期間</span>
+            <select id="trend-cross-window" onchange="Trend.render()">
+              <option value="3">3個月內</option>
+              <option value="6" selected>6個月內</option>
+              <option value="12">12個月內</option>
+            </select>
+          </div>
+          <p class="hint" style="margin-bottom:6px">選擇要比對的項目（同一船，內部檢查發現後，接下來這段期間內若外部檢查又發現同一項目，判定為「內部未能有效攔截」）：</p>
+          <div class="msel" id="ms-trend-cross-cat" style="margin-bottom:10px"></div>
+          <div style="height:320px"><canvas id="trend-cross-chart"></canvas></div>
+          <div id="trend-cross-table" style="margin-top:14px"></div>
+        </div>
+
+        <!-- 船隊排名（League Table）：仿同業 PSI 排名方式，依缺失率/風險分數排序全船隊 -->
+        <div id="trend-mode-rank" style="display:none">
+          <div class="filterbar" style="flex-wrap:wrap;margin-bottom:8px">
+            <span class="lbl">排序依據</span>
+            <select id="trend-rank-sort" onchange="Trend.render()">
+              <option value="risk">風險加權分數（高到低）</option>
+              <option value="count">缺失總數（高到低）</option>
+            </select>
+          </div>
+          <p class="hint" style="margin-bottom:6px">依目前時間區段，各船缺失總數與風險加權分數（低1分/中2分/高3分加總）排名，分數越高代表該船缺失越多或越嚴重，點列可切換到「單船弱點分析」看細節。</p>
+          <div style="height:420px"><canvas id="trend-rank-chart"></canvas></div>
+          <div id="trend-rank-table" style="margin-top:14px"></div>
+        </div>
+
+        <div id="trend-mode-ship" style="display:none">
+          <div class="toolbar" style="margin-bottom:10px">
+            <button class="btn sm shipdir-btn active" data-shipdir="byship" onclick="Trend.setShipDir('byship')">🚢 依船看弱點類別</button>
+            <button class="btn sm shipdir-btn" data-shipdir="byitem" onclick="Trend.setShipDir('byitem')">🔍 依項目看船舶排行</button>
+          </div>
+
+          <div id="trend-ship-byship">
+            <div class="filterbar" style="flex-wrap:wrap;margin-bottom:8px">
+              <span class="lbl">選擇船舶</span>
+              <select id="trend-ship-sel" onchange="Trend.render()"></select>
+              <span class="lbl" style="margin-left:10px">比較層級</span>
+              <select id="trend-ship-level" onchange="Trend.render()">
+                <option value="main">大類</option>
+                <option value="leaf">細項/細目</option>
+              </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div style="height:340px"><canvas id="trend-ship-bar"></canvas></div>
+              <div style="height:340px"><canvas id="trend-ship-pie"></canvas></div>
+            </div>
+            <div id="trend-ship-list" style="margin-top:10px"></div>
+          </div>
+
+          <div id="trend-ship-byitem" style="display:none">
+            <div class="filterbar" style="flex-wrap:wrap;margin-bottom:8px">
+              <span class="lbl">比較層級</span>
+              <select id="trend-item-level" onchange="Trend.onItemLevelChange()">
+                <option value="main">大類</option>
+                <option value="leaf">細項/細目</option>
+              </select>
+              <span class="lbl" style="margin-left:10px">選擇項目</span>
+              <select id="trend-item-sel" onchange="Trend.render()"></select>
+            </div>
+            <p class="hint" style="margin-bottom:6px">這個項目在目前篩選的時間區段內，依船舶排行發生次數——弱點集中在哪幾艘船，一眼看出來。</p>
+            <div style="height:380px"><canvas id="trend-item-bar"></canvas></div>
+            <div id="trend-item-list" style="margin-top:10px"></div>
+          </div>
+        </div>
+
+        <div id="trend-repeat-note" class="hint" style="margin-top:10px;line-height:1.6;padding-top:10px;border-top:1px dashed var(--line)"></div>
+      </div>
+    </section>
+
+    <!-- 缺失趨勢分析：儲存篩選 -->
+    <div class="modal-bg" id="trendSaveModal">
+      <div class="modal" style="max-width:400px">
+        <div class="mh"><h3>💾 儲存目前篩選</h3><button class="x" onclick="Trend.closeSaveModal()">✕</button></div>
+        <div class="mb">
+          <label>名稱<input type="text" id="trend-save-name" placeholder="例：主機類缺失趨勢"></label>
+          <p class="hint" style="margin-top:8px">會記住目前的時間區段、比較層級、已勾選項目、圖表類型等設定，之後可從「📂 已儲存的篩選」直接開啟，不用重新設定。</p>
+          <div class="toolbar" style="justify-content:flex-end;margin-top:12px">
+            <button class="btn" onclick="Trend.closeSaveModal()">取消</button>
+            <button class="btn primary" onclick="Trend.saveCurrentPreset()">儲存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-bg" id="trendPresetModal">
+      <div class="modal" style="max-width:500px">
+        <div class="mh"><h3>📂 已儲存的篩選</h3><button class="x" onclick="Trend.closePresetModal()">✕</button></div>
+        <div class="mb">
+          <div id="trend-preset-list"></div>
+        </div>
+      </div>
+    </div>
 
     <!-- ════════ 6. PDF報告識別 ════════ -->
     <section id="tab-pdfx" class="tabpage">
@@ -7502,6 +7678,8 @@ const GuideNav={
       {t:"重複性缺失分析",ic:"🔁",tab:"recur",d:"找出一再發生的同類缺失，可調期間與門檻，一鍵彙入自查。",
        ship:"view",sup:"edit",oth:"view",maint:"edit"},
       {t:"分類彙總分析",ic:"🧩",tab:"ref",d:"分類篩選、要素佔比與趨勢圖、AI總結，並可勾選分類批量跳轉查看／匯出。",
+       ship:"view",sup:"view",oth:"view",maint:"edit"},
+      {t:"缺失趨勢比較",ic:"📈",tab:"trend",d:"篩選時間區段、跨類別比較發生趨勢，追蹤改善成效與單船弱點分析。",
        ship:"view",sup:"view",oth:"view",maint:"edit"}
     ]},
     {group:"資料總表",gicon:"🗂",items:[
@@ -7541,7 +7719,8 @@ const GuideNav={
     {g:"分析總覽",gi:"📈",items:[
       {t:"Dash Board",ic:"📊",tab:"dash",d:"船隊缺失趨勢、重點管理項目（柏拉圖）、各船落點等管理圖表。",caps:[]},
       {t:"重複性缺失分析",ic:"🔁",tab:"recur",d:"找出一再發生的同類缺失，可調期間與門檻，一鍵彙入自查。",caps:["selfcheck_create_task"]},
-      {t:"分類彙總分析",ic:"🧩",tab:"ref",d:"分類篩選、要素佔比與趨勢圖、AI總結，可勾選分類批量跳轉查看。",caps:[]}
+      {t:"分類彙總分析",ic:"🧩",tab:"ref",d:"分類篩選、要素佔比與趨勢圖、AI總結，可勾選分類批量跳轉查看。",caps:[]},
+      {t:"缺失趨勢比較",ic:"📈",tab:"trend",d:"篩選時間區段、跨類別比較發生趨勢，追蹤改善成效與單船弱點分析。",caps:[]}
     ]},
     {g:"資料總表",gi:"🗂",items:[
       {t:"檢查紀錄",ic:"📋",tab:"ov",d:"各次檢查明細與內外部一覽，依扣船／檢查員／地點等篩選。",caps:[],adminEdit:true},
@@ -8930,7 +9109,7 @@ const App={
     this.defs.forEach(d=>{if(d.inspector)d.inspector=canonInspector(d.inspector);if(d.oilco)d.oilco=canonUnit(d.oilco);});
     if(typeof Classify!=="undefined")Classify.init();
     if(typeof NCTree!=="undefined")NCTree.init();
-    Dash.init();Ov.init();if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();if(typeof StorageMonitor!=="undefined")StorageMonitor.init();if(typeof DupFinder!=="undefined")DupFinder.init();// 編輯鎖定功能已停用(全部資料表都已改為逐筆同步,不再需要)：不建立浮動按鈕/面板，EditLock.guard() 保留為恆真空操作。
+    Dash.init();Ov.init();if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof Trend!=="undefined")Trend.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();if(typeof StorageMonitor!=="undefined")StorageMonitor.init();if(typeof DupFinder!=="undefined")DupFinder.init();// 編輯鎖定功能已停用(全部資料表都已改為逐筆同步,不再需要)：不建立浮動按鈕/面板，EditLock.guard() 保留為恆真空操作。
     refreshInspectorList();refreshPlaceList();
     this.refreshMeta();
     NavConfig.apply();
@@ -10172,7 +10351,7 @@ const NavConfig={
 
 
 /* ───── 導航 ───── */
-const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["船舶缺失自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["線上填單","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"],voyrecv:["航次報表收件","DCP-FM03 船上上傳 → 督導確認 → 海技歸檔"]};
+const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["船舶缺失自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["線上填單","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"],voyrecv:["航次報表收件","DCP-FM03 船上上傳 → 督導確認 → 海技歸檔"]};
 $$(".nav-item").forEach(n=>n.onclick=()=>{
   $$(".nav-item").forEach(x=>x.classList.remove("active"));n.classList.add("active");
   $$(".tabpage").forEach(p=>p.classList.remove("show"));
@@ -10186,6 +10365,7 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
   if(n.dataset.tab==="sp"&&typeof ShipGroup!=="undefined")ShipGroup.setPage(ShipGroup.curPage);
   if(n.dataset.tab==="recur")Recur.render();
   if(n.dataset.tab==="ref")Ref.render();
+  if(n.dataset.tab==="trend"&&typeof Trend!=="undefined")Trend.render();
   if(n.dataset.tab==="self")SelfCheck.render();
   if(n.dataset.tab==="data"){App.refreshMeta();if(typeof AnnualPlan!=="undefined")AnnualPlan.refreshEditorUI();if(typeof DefsProj!=="undefined")DefsProj.refreshMembersUI();}
   if(n.dataset.tab==="sirepos")SirePos.render();
@@ -14833,7 +15013,7 @@ const Defs={
       if(!includePhotos)return"";
       const mk=(label,list)=>(!list||!list.length)?"":`<div style="margin-top:3px"><b>${label}：</b>${list.map(p=>`<img src="${p.url||p.dataUrl}" style="width:110px;height:110px;object-fit:cover;margin:2px;border:1px solid #ccc">`).join("")}</div>`;
       const html=mk("矯正前",d.photosBefore)+mk("矯正後",d.photosAfter);
-      return html?`<tr><td colspan="${cols.length}" style="padding-top:4px">${html}</td></tr>`:"";
+      return html?`<tr style="page-break-inside:avoid"><td colspan="${cols.length}" style="padding-top:4px;page-break-inside:avoid">${html}</td></tr>`:"";
     };
     $("#printArea").innerHTML=`<h1>缺失紀錄總表（自選欄位${includePhotos?"＋照片":""}）</h1>
       <div class="pmeta">匯出日期：${todayStr()} ｜ 共 ${rows.length} 筆 ｜ 船舶檢查暨缺失管理系統</div>
@@ -23842,6 +24022,543 @@ const Ref={
   }
 };
 
+/* ════════ 📈 Trend：缺失趨勢比較與 KPI 分析（放在「分類彙總分析」下方）════════
+   參考同業（如 risk4sea.com/psi）的 KPI 呈現方式：篩選時間區段、跨類別比較發生趨勢、
+   追蹤改善成效、單船弱點分析。全部運算都在既有 App.defs 資料上進行，不需要額外資料表；
+   「已儲存的篩選」比照其他模組的做法（本機 localStorage ＋ app_db 雲端同步，全公司共用）。 */
+const Trend={
+  mode:"trend", // trend | ship
+  PRESET_KEY:"vsm_trend_presets_v1",
+  PRESET_CLOUD_KEY:"trendPresets",
+  presets:[],
+  msCat:null, // 比較項目下拉搜尋（MSel），取代原本攤平勾選格
+  charts:{},
+  PAL:["#2563eb","#c0392b","#16a34a","#d97706","#7c3aed","#0891b2","#db2777","#65a30d","#0d9488","#9333ea"],
+  init(){
+    this.loadPresets();
+    this.populateYm();
+    this.populateShips();
+    this.populateShipFilters();
+    this.msCat=MSel("ms-trend-cat","比較項目",()=>this.catOptions(),()=>{this.capSelection();this.render();});
+    this.msCrossCat=MSel("ms-trend-cross-cat","比較項目",()=>this.catOptions("cross"),()=>{this.capSelection("cross");this.render();});
+    this.populateItemSel();
+    this.quickRange("year",true);
+    this.render();
+  },
+  /* 船隊主檔（SHIPINFO）依船名代碼查表，取得船型/管理公司/交船日，供「依船型/管理公司分群」
+     篩選使用；找不到對應船舶主檔資料時回傳空字串，不影響篩選（視同不分群）。 */
+  shipInfoOf(shipCode){
+    if(typeof SHIPINFO==="undefined")return null;
+    return SHIPINFO.find(s=>s.code===shipCode)||null;
+  },
+  populateShipFilters(){
+    const vtSel=$("#trend-vtype"),mgrSel=$("#trend-mgr");
+    if(!vtSel||!mgrSel)return;
+    const ships=[...new Set(App.defs.map(d=>d.ship))].filter(Boolean);
+    const vtypes=new Set(),mgrs=new Set();
+    ships.forEach(code=>{
+      const s=this.shipInfoOf(code);
+      if(s){if(s.vtype)vtypes.add(s.vtype);if(s.mgr)mgrs.add(s.mgr);}
+    });
+    vtSel.innerHTML=`<option value="">不限</option>`+[...vtypes].sort().map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+    mgrSel.innerHTML=`<option value="">不限</option>`+[...mgrs].sort().map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+  },
+  /* 目前層級（大類/細項）底下有資料的選項，依出現次數由多到少排序，讓常見的排在前面；
+     MSel 元件本身已內建打字搜尋，不用再自己刻搜尋框。 */
+  catOptions(which){
+    const levelSel=which==="cross"?"#trend-cross-level":"#trend-level";
+    const level=$(levelSel)?$(levelSel).value:"main";
+    const counts=new Map();
+    if(level==="factor"){
+      // ncFactor 單筆缺失可能同時有多個值（用「、」分隔，如「人員因素、系統因素」），
+      // 逐一拆開計數，不能整串當一個選項，否則同樣的組合會被當成完全不同的東西。
+      App.defs.forEach(d=>{
+        String(d.ncFactor||"").split(/、|,|，/).map(x=>x.trim()).filter(Boolean).forEach(v=>counts.set(v,(counts.get(v)||0)+1));
+      });
+    }else{
+      const key=level==="main"?"ncMain":"ncLeaf";
+      App.defs.forEach(d=>{const v=d[key];if(v)counts.set(v,(counts.get(v)||0)+1);});
+    }
+    return [...counts.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
+  },
+  /* MSel 本身不限制勾選數量，這裡在每次選取變動後檢查一次，超過 8 個就自動裁掉最後選的，
+     避免圖表線條太多反而看不清楚。 */
+  capSelection(which){
+    const ms=which==="cross"?this.msCrossCat:this.msCat;
+    if(ms.sel.size>8){
+      toast("⚠ 最多同時比較 8 個項目，已自動保留前 8 個");
+      ms.set([...ms.sel].slice(0,8));
+    }
+  },
+  onCrossLevelChange(){
+    this.msCrossCat.clear();
+    this.render();
+  },
+  setMode(m){
+    this.mode=m;
+    $$("#trend-section .df-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.tm===m));
+    const tEl=$("#trend-mode-trend"),cEl=$("#trend-mode-cross"),rEl=$("#trend-mode-rank"),sEl=$("#trend-mode-ship");
+    if(tEl)tEl.style.display=m==="trend"?"":"none";
+    if(cEl)cEl.style.display=m==="cross"?"":"none";
+    if(rEl)rEl.style.display=m==="rank"?"":"none";
+    if(sEl)sEl.style.display=m==="ship"?"":"none";
+    this.render();
+  },
+  populateYm(){
+    const s1=$("#trend-ymfrom"),s2=$("#trend-ymto");if(!s1)return;
+    const yms=[...new Set(App.defs.map(d=>d.ym||ymOf(d.date)))].filter(Boolean).sort();
+    const opts=yms.map(m=>`<option value="${m}">${m}</option>`).join("");
+    s1.innerHTML=opts;s2.innerHTML=opts;
+    if(yms.length){s1.value=yms[0];s2.value=yms[yms.length-1];}
+  },
+  populateShips(){
+    const sel=$("#trend-ship-sel");if(!sel)return;
+    const ships=[...new Set(App.defs.map(d=>d.ship))].filter(Boolean).sort();
+    sel.innerHTML=`<option value="">全船隊</option>`+ships.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("");
+  },
+  shipDir:"byship", // byship=依船看類別（既有）、byitem=依項目看船舶排行（新增：反方向查詢）
+  setShipDir(d){
+    this.shipDir=d;
+    $$("#trend-mode-ship .shipdir-btn").forEach(b=>b.classList.toggle("active",b.dataset.shipdir===d));
+    const a=$("#trend-ship-byship"),b=$("#trend-ship-byitem");
+    if(a)a.style.display=d==="byship"?"":"none";
+    if(b)b.style.display=d==="byitem"?"":"none";
+    if(d==="byitem")this.populateItemSel();
+    this.render();
+  },
+  onItemLevelChange(){this.populateItemSel();this.render();},
+  populateItemSel(){
+    const sel=$("#trend-item-sel");if(!sel)return;
+    const keep=sel.value;
+    const level=$("#trend-item-level")?$("#trend-item-level").value:"main";
+    const key=level==="main"?"ncMain":"ncLeaf";
+    const counts=new Map();
+    App.defs.forEach(d=>{const v=d[key];if(v)counts.set(v,(counts.get(v)||0)+1);});
+    const items=[...counts.entries()].sort((a,b)=>b[1]-a[1]);
+    sel.innerHTML=items.map(([name,n])=>`<option value="${esc(name)}">${esc(name)}（共${n}筆）</option>`).join("")
+      ||`<option value="">（此層級尚無資料）</option>`;
+    if(items.some(x=>x[0]===keep))sel.value=keep;
+  },
+  /* 「依項目看船舶排行」：反過來從一個特定項目（大類或細項）出發，看它集中發生在哪幾艘船，
+     用於快速定位「弱點船隊」，跟既有「依船看類別」互為正反兩個方向的查詢。 */
+  renderItemAnalysis(){
+    const level=$("#trend-item-level")?$("#trend-item-level").value:"main";
+    const key=level==="main"?"ncMain":"ncLeaf";
+    const item=$("#trend-item-sel")?$("#trend-item-sel").value:"";
+    const {from,to}=this.curRange();
+    const rows=App.defs.filter(d=>{
+      const ym=d.ym||ymOf(d.date);
+      if(!this.inRange(ym,from,to))return false;
+      if(item&&d[key]!==item)return false;
+      return true;
+    });
+    const counts=new Map();
+    rows.forEach(d=>{if(d.ship)counts.set(d.ship,(counts.get(d.ship)||0)+1);});
+    const top=[...counts.entries()].sort((a,b)=>b[1]-a[1]);
+    const labels=top.map(x=>x[0]),data=top.map(x=>x[1]);
+    const el=$("#trend-item-bar");
+    if(el&&typeof Chart!=="undefined"){
+      if(this.charts.itemBar)this.charts.itemBar.destroy();
+      this.charts.itemBar=new Chart(el,{type:"bar",data:{labels,datasets:[{label:"發生次數",data,backgroundColor:labels.map((_,i)=>this.PAL[i%this.PAL.length])}]},
+        options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}}}});
+    }
+    const listEl=$("#trend-item-list");
+    if(listEl){
+      listEl.innerHTML=top.length?`<b style="font-size:12.5px">「${esc(item||"（尚未選擇項目）")}」船舶排行：</b>
+        <ol style="margin-top:6px;padding-left:20px;font-size:12.5px">${top.map(([n,c])=>`<li>${esc(n)}　<b>${c}</b> 次</li>`).join("")}</ol>`
+        :`<span class="hint">此篩選條件下沒有資料，或尚未選擇項目</span>`;
+    }
+  },
+  quickRange(kind,silent){
+    const now=new Date();
+    const y=now.getFullYear(), m=now.getMonth()+1;
+    const pad=n=>String(n).padStart(2,"0");
+    let fromY,fromM,toY,toM;
+    if(kind==="q"){const q=Math.ceil(m/3);fromM=(q-1)*3+1;toM=q*3;fromY=toY=y;}
+    else if(kind==="lastq"){let q=Math.ceil(m/3)-1,yy=y;if(q<1){q=4;yy=y-1;}fromM=(q-1)*3+1;toM=q*3;fromY=toY=yy;}
+    else if(kind==="h1"){fromY=toY=y;fromM=1;toM=6;}
+    else if(kind==="h2"){fromY=toY=y;fromM=7;toM=12;}
+    else if(kind==="year"){fromY=toY=y;fromM=1;toM=12;}
+    else if(kind==="lastyear"){fromY=toY=y-1;fromM=1;toM=12;}
+    else return;
+    const from=`${fromY}-${pad(fromM)}`,to=`${toY}-${pad(toM)}`;
+    const s1=$("#trend-ymfrom"),s2=$("#trend-ymto");
+    if(s1)s1.value=from;if(s2)s2.value=to;
+    if(!silent)this.render();
+  },
+  curRange(){
+    return{from:$("#trend-ymfrom")?$("#trend-ymfrom").value:"",to:$("#trend-ymto")?$("#trend-ymto").value:""};
+  },
+  inRange(ym,from,to){
+    if(!ym)return false;
+    if(from&&ym<from)return false;
+    if(to&&ym>to)return false;
+    return true;
+  },
+  quarterOf(ym){
+    if(!ym)return"";
+    const parts=ym.split("-");const y=+parts[0],m=+parts[1];
+    if(!y||!m)return"";
+    return `${y}-Q${Math.ceil(m/3)}`;
+  },
+  bucketKey(ym){
+    const gran=$("#trend-gran")?$("#trend-gran").value:"month";
+    return gran==="quarter"?this.quarterOf(ym):ym;
+  },
+  onLevelChange(){
+    this.msCat.clear();
+    this.render();
+  },
+  filteredDefs(){
+    const {from,to}=this.curRange();
+    const riskFilter=$("#trend-risk")?$("#trend-risk").value:"";
+    const vtypeFilter=$("#trend-vtype")?$("#trend-vtype").value:"";
+    const mgrFilter=$("#trend-mgr")?$("#trend-mgr").value:"";
+    return App.defs.filter(d=>{
+      const ym=d.ym||ymOf(d.date);
+      if(!this.inRange(ym,from,to))return false;
+      if(riskFilter){
+        const r=String(d.risk||"");
+        if(riskFilter==="3"&&r!=="3")return false;
+        if(riskFilter==="2"&&!["2","3"].includes(r))return false;
+      }
+      if(vtypeFilter||mgrFilter){
+        const si=this.shipInfoOf(d.ship);
+        if(vtypeFilter&&(!si||si.vtype!==vtypeFilter))return false;
+        if(mgrFilter&&(!si||si.mgr!==mgrFilter))return false;
+      }
+      return true;
+    });
+  },
+  render(){
+    if(this.mode==="trend")this.renderTrendChart();
+    else if(this.mode==="cross")this.renderCrossAnalysis();
+    else if(this.mode==="rank")this.renderRankTable();
+    else if(this.shipDir==="byitem")this.renderItemAnalysis();
+    else this.renderShipAnalysis();
+    this.renderRepeatNote();
+  },
+  renderTrendChart(){
+    if(typeof Chart==="undefined")return;
+    const el=$("#trend-chart");if(!el)return;
+    const rows=this.filteredDefs();
+    const level=$("#trend-level")?$("#trend-level").value:"main";
+    const kind=$("#trend-chartkind")?$("#trend-chartkind").value:"line";
+    const valueMode=$("#trend-valuemode")?$("#trend-valuemode").value:"count";
+    const cats=[...this.msCat.sel];
+    // matchFn(d,c)：這筆缺失算不算屬於「項目 c」——大類/細項是精確比對；三要素因為單筆
+    // 可能同時掛多個值（用頓號分隔），改用「是否包含這個值」比對。
+    const matchFn=level==="factor"
+      ?(d,c)=>String(d.ncFactor||"").split(/、|,|，/).map(x=>x.trim()).includes(c)
+      :(d,c)=>d[level==="main"?"ncMain":"ncLeaf"]===c;
+    // weightFn：數值方式選「風險加權分數」時，每筆缺失依風險等級算分（低1/中2/高3），
+    // 沒填風險的預設當低風險(1分)，不是0分——避免「有做但沒填風險」的項目被錯誤忽略。
+    const weightFn=valueMode==="risk"?(d=>({"1":1,"2":2,"3":3}[String(d.risk||"1")]||1)):(()=>1);
+    const sumFor=(list)=>list.reduce((s,d)=>s+weightFn(d),0);
+    if(this.charts.trend){this.charts.trend.destroy();this.charts.trend=null;}
+    if(kind==="pie"){
+      let labels,data;
+      if(cats.length){
+        labels=cats;data=cats.map(c=>sumFor(rows.filter(d=>matchFn(d,c))));
+      }else{
+        const counts=new Map();
+        rows.forEach(d=>{
+          if(level==="factor"){
+            String(d.ncFactor||"").split(/、|,|，/).map(x=>x.trim()).filter(Boolean).forEach(v=>counts.set(v,(counts.get(v)||0)+weightFn(d)));
+          }else{
+            const v=d[level==="main"?"ncMain":"ncLeaf"];if(v)counts.set(v,(counts.get(v)||0)+weightFn(d));
+          }
+        });
+        const top=[...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
+        labels=top.map(x=>x[0]);data=top.map(x=>x[1]);
+      }
+      this.charts.trend=new Chart(el,{type:"doughnut",data:{labels,datasets:[{data,backgroundColor:labels.map((_,i)=>this.PAL[i%this.PAL.length])}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right"}}}});
+      return;
+    }
+    const buckets=[...new Set(rows.map(d=>this.bucketKey(d.ym||ymOf(d.date))))].filter(Boolean).sort();
+    const datasets=cats.map((c,i)=>{
+      const data=buckets.map(b=>sumFor(rows.filter(d=>matchFn(d,c)&&this.bucketKey(d.ym||ymOf(d.date))===b)));
+      return {label:c,data,borderColor:this.PAL[i%this.PAL.length],backgroundColor:this.PAL[i%this.PAL.length]+"22",tension:kind==="smooth"?0.35:0,fill:false};
+    });
+    this.charts.trend=new Chart(el,{type:"line",data:{labels:buckets,datasets},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+        plugins:{legend:{position:"bottom"}},scales:{y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:valueMode==="risk"?"風險加權分數":"筆數"}}}}});
+  },
+  /* ══════════ 內外部比對分析：同一批選定項目，拆內部/外部發現次數趨勢，並計算
+     「內部攔截率」——內部檢查（Classify 模組定義的內部關鍵字，如內稽/訪船）發現某項目後，
+     同一艘船在判定期間內，外部檢查（PSC/SIRE/CDI/第三方等）是否又發現同一項目。
+     沒復發＝內部矯正措施有效攔截住了；有復發＝矯正措施沒有真正落實或沒有根除根因。
+     只在有勾選項目時才計算明細表（避免全部類別一次跑，資料量大又沒有分析重點）。══════════ */
+  renderCrossAnalysis(){
+    if(typeof parseDate!=="function")return;
+    const level=$("#trend-cross-level")?$("#trend-cross-level").value:"main";
+    const key=level==="main"?"ncMain":"ncLeaf";
+    const windowMonths=+(($("#trend-cross-window")&&$("#trend-cross-window").value)||6);
+    const cats=[...this.msCrossCat.sel];
+    const rows=this.filteredDefs();
+    const internalRows=rows.filter(d=>isInternal(d.itype));
+    const externalRows=rows.filter(d=>!isInternal(d.itype));
+    const filterFn=r=>!cats.length||cats.includes(r[key]);
+    const buckets=[...new Set(rows.map(d=>this.bucketKey(d.ym||ymOf(d.date))))].filter(Boolean).sort();
+
+    const el=$("#trend-cross-chart");
+    if(el&&typeof Chart!=="undefined"){
+      if(this.charts.cross){this.charts.cross.destroy();this.charts.cross=null;}
+      const intData=buckets.map(b=>internalRows.filter(d=>filterFn(d)&&this.bucketKey(d.ym||ymOf(d.date))===b).length);
+      const extData=buckets.map(b=>externalRows.filter(d=>filterFn(d)&&this.bucketKey(d.ym||ymOf(d.date))===b).length);
+      this.charts.cross=new Chart(el,{type:"bar",data:{labels:buckets,datasets:[
+        {label:"內部檢查發現",data:intData,backgroundColor:"#2563eb"},
+        {label:"外部檢查發現",data:extData,backgroundColor:"#c0392b"}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}});
+    }
+
+    const tableEl=$("#trend-cross-table");if(!tableEl)return;
+    if(!cats.length){
+      tableEl.innerHTML=`<span class="hint">請先在上方勾選要分析的項目，才會顯示「內部攔截效果」明細（避免全部類別一起算，資料量大反而看不出重點）。</span>`;
+      return;
+    }
+    const results=cats.map(c=>{
+      const intForCat=internalRows.filter(d=>d[key]===c);
+      const extForCat=externalRows.filter(d=>d[key]===c);
+      let recurred=0;
+      const details=[];
+      intForCat.forEach(id=>{
+        const idDate=parseDate(id.date);if(!idDate)return;
+        const found=extForCat.find(ed=>{
+          if(ed.ship!==id.ship)return false;
+          const edDate=parseDate(ed.date);if(!edDate)return false;
+          const diffMonths=(edDate-idDate)/(30*24*3600*1000);
+          return diffMonths>0&&diffMonths<=windowMonths;
+        });
+        if(found){recurred++;details.push({ship:id.ship,intDate:id.date,extDate:found.date});}
+      });
+      const total=intForCat.length;
+      const interceptRate=total?Math.round((total-recurred)/total*100):null;
+      return {cat:c,total,extTotal:extForCat.length,recurred,interceptRate,details};
+    });
+    tableEl.innerHTML=`<table class="tbl"><thead><tr>
+        <th>項目</th><th>內部發現次數</th><th>外部發現次數</th><th>內部發現後${windowMonths}個月內同船外部復發</th><th>內部攔截率</th>
+      </tr></thead><tbody>
+      ${results.map(r=>{
+        const color=r.interceptRate==null?"#999":r.interceptRate>=80?"var(--ok)":r.interceptRate>=50?"#d9a514":"#c0392b";
+        return `<tr>
+          <td><b>${esc(r.cat)}</b></td>
+          <td style="text-align:center">${r.total}</td>
+          <td style="text-align:center">${r.extTotal}</td>
+          <td style="text-align:center">${r.recurred}${r.recurred?`<div class="hint" style="font-size:10.5px;margin-top:2px">${r.details.map(d=>`${esc(d.ship)}：${esc(d.intDate)}→${esc(d.extDate)}`).join("；")}</div>`:""}</td>
+          <td style="text-align:center;font-weight:700;color:${color}">${r.interceptRate==null?"（無內部資料）":r.interceptRate+"%"}</td>
+        </tr>`;
+      }).join("")}
+      </tbody></table>
+      <p class="hint" style="margin-top:8px">「內部攔截率」＝ 1 − (內部發現後同一艘船在判定期間內、外部檢查又發現同一項目的次數 ÷ 內部發現總次數)。比率越高，代表內部檢查抓到的問題越少在外部檢查中重演，矯正措施越有效；比率偏低則代表矯正措施可能沒有真正落實或沒有根除根因，值得追查。</p>`;
+  },
+  /* ══════════ 船隊排名（League Table）：仿同業（如 risk4sea PSI）的排名呈現方式，
+     依目前時間區段，把船隊每艘船的缺失總數、風險加權分數排出名次，一眼看出後段班船舶。══════════ */
+  renderRankTable(){
+    const rows=this.filteredDefs();
+    const sortBy=$("#trend-rank-sort")?$("#trend-rank-sort").value:"risk";
+    const weight=d=>({"1":1,"2":2,"3":3}[String(d.risk||"1")]||1);
+    const byShip=new Map();
+    rows.forEach(d=>{
+      if(!d.ship)return;
+      if(!byShip.has(d.ship))byShip.set(d.ship,{ship:d.ship,count:0,riskScore:0});
+      const o=byShip.get(d.ship);o.count++;o.riskScore+=weight(d);
+    });
+    const list=[...byShip.values()].sort((a,b)=>sortBy==="risk"?b.riskScore-a.riskScore:b.count-a.count);
+    const labels=list.map(x=>x.ship);
+    const data=list.map(x=>sortBy==="risk"?x.riskScore:x.count);
+    const el=$("#trend-rank-chart");
+    if(el&&typeof Chart!=="undefined"){
+      if(this.charts.rank)this.charts.rank.destroy();
+      const colorOf=(v,max)=>v>=max*0.7?"#c0392b":v>=max*0.4?"#d97706":"#16a34a";
+      const max=Math.max(1,...data);
+      this.charts.rank=new Chart(el,{type:"bar",data:{labels,datasets:[{label:sortBy==="risk"?"風險加權分數":"缺失總數",data,backgroundColor:data.map(v=>colorOf(v,max))}]},
+        options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}},
+          onClick:(evt,els)=>{if(els.length){const ship=labels[els[0].index];this.setMode("ship");this.setShipDir("byship");const sel=$("#trend-ship-sel");if(sel)sel.value=ship;this.render();}}}});
+    }
+    const tableEl=$("#trend-rank-table");
+    if(tableEl){
+      tableEl.innerHTML=list.length?`<table class="tbl"><thead><tr><th>名次</th><th>船名</th><th>缺失總數</th><th>風險加權分數</th><th>平均風險/筆</th></tr></thead><tbody>
+        ${list.map((x,i)=>`<tr style="cursor:pointer" onclick="Trend.setMode('ship');Trend.setShipDir('byship');document.getElementById('trend-ship-sel').value='${esc(x.ship).replace(/'/g,"\\'")}'; Trend.render();">
+          <td style="text-align:center">${i+1}</td><td><b>${esc(x.ship)}</b></td><td style="text-align:center">${x.count}</td><td style="text-align:center">${x.riskScore}</td><td style="text-align:center">${(x.riskScore/x.count).toFixed(2)}</td>
+        </tr>`).join("")}
+        </tbody></table>`:`<span class="hint">此時間區段內沒有資料</span>`;
+    }
+  },
+  renderShipAnalysis(){
+    if(typeof Chart==="undefined")return;
+    const ship=$("#trend-ship-sel")?$("#trend-ship-sel").value:"";
+    const level=$("#trend-ship-level")?$("#trend-ship-level").value:"main";
+    const key=level==="main"?"ncMain":"ncLeaf";
+    const {from,to}=this.curRange();
+    const rows=App.defs.filter(d=>{
+      const ym=d.ym||ymOf(d.date);
+      if(!this.inRange(ym,from,to))return false;
+      if(ship&&d.ship!==ship)return false;
+      return true;
+    });
+    const counts=new Map();
+    rows.forEach(d=>{const v=d[key];if(v)counts.set(v,(counts.get(v)||0)+1);});
+    const top=[...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
+    const labels=top.map(x=>x[0]),data=top.map(x=>x[1]);
+    const barEl=$("#trend-ship-bar"),pieEl=$("#trend-ship-pie");
+    if(barEl){
+      if(this.charts.shipBar)this.charts.shipBar.destroy();
+      this.charts.shipBar=new Chart(barEl,{type:"bar",data:{labels,datasets:[{label:"缺失次數",data,backgroundColor:labels.map((_,i)=>this.PAL[i%this.PAL.length])}]},
+        options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false}}}});
+    }
+    if(pieEl){
+      if(this.charts.shipPie)this.charts.shipPie.destroy();
+      this.charts.shipPie=new Chart(pieEl,{type:"doughnut",data:{labels,datasets:[{data,backgroundColor:labels.map((_,i)=>this.PAL[i%this.PAL.length])}]},
+        options:{responsive:true,maintainAspectRatio:false}});
+    }
+    const listEl=$("#trend-ship-list");
+    if(listEl){
+      listEl.innerHTML=top.length?`<b style="font-size:12.5px">${esc(ship||"全船隊")} 重點類別排行（依${level==="main"?"大類":"細項"}）：</b>
+        <ol style="margin-top:6px;padding-left:20px;font-size:12.5px">${top.map(([n,c])=>`<li>${esc(n)}　<b>${c}</b> 筆</li>`).join("")}</ol>`
+        :`<span class="hint">此篩選條件下沒有資料</span>`;
+    }
+  },
+  /* 重複發生率：同一細目(ncLeaf)跨船舶合併計算——不分船，只要在篩選範圍內同一個細項出現超過一次
+     就算重複；同時附上涉及幾艘不同船，方便判斷是「單船反覆發生」還是「船隊共同弱點」。
+     若這個判斷邏輯跟預期的不一樣，需要另外討論調整。 */
+  renderRepeatNote(){
+    const rows=this.filteredDefs();
+    const map=new Map();
+    rows.forEach(d=>{
+      const v=d.ncLeaf;if(!v)return;
+      if(!map.has(v))map.set(v,{count:0,ships:new Set()});
+      const o=map.get(v);o.count++;o.ships.add(d.ship);
+    });
+    const repeated=[...map.entries()].filter(([,o])=>o.count>1).sort((a,b)=>b[1].count-a[1].count).slice(0,5);
+    const el=$("#trend-repeat-note");if(!el)return;
+    if(!repeated.length){el.innerHTML=`<span class="hint">目前篩選範圍內沒有重複發生（同一細目超過1次）的項目。</span>`;return;}
+    el.innerHTML=`<b>🔁 目前篩選範圍內重複發生率最高的細目（同一細目跨船舶合併計算，非單船各自計算）：</b><br>${repeated.map(([n,o])=>`${esc(n)}：共 <b>${o.count}</b> 次，涉及 <b>${o.ships.size}</b> 艘船`).join("　｜　")}`;
+  },
+  /* ── 儲存/查詢篩選（本機＋雲端，全公司共用，比照其他模組做法） ── */
+  loadPresets(){
+    try{const s=localStorage.getItem(this.PRESET_KEY);if(s)this.presets=JSON.parse(s);}catch(e){this.presets=[];}
+  },
+  savePresetsLocal(){try{localStorage.setItem(this.PRESET_KEY,JSON.stringify(this.presets));}catch(e){}},
+  currentFilterState(){
+    return{
+      mode:this.mode,
+      from:$("#trend-ymfrom")?$("#trend-ymfrom").value:"",
+      to:$("#trend-ymto")?$("#trend-ymto").value:"",
+      gran:$("#trend-gran")?$("#trend-gran").value:"month",
+      level:$("#trend-level")?$("#trend-level").value:"main",
+      chartkind:$("#trend-chartkind")?$("#trend-chartkind").value:"line",
+      risk:$("#trend-risk")?$("#trend-risk").value:"",
+      cats:[...this.msCat.sel],
+      crossLevel:$("#trend-cross-level")?$("#trend-cross-level").value:"main",
+      crossWindow:$("#trend-cross-window")?$("#trend-cross-window").value:"6",
+      crossCats:this.msCrossCat?[...this.msCrossCat.sel]:[],
+      ship:$("#trend-ship-sel")?$("#trend-ship-sel").value:"",
+      shipLevel:$("#trend-ship-level")?$("#trend-ship-level").value:"main",
+      shipDir:this.shipDir,
+      itemLevel:$("#trend-item-level")?$("#trend-item-level").value:"main",
+      item:$("#trend-item-sel")?$("#trend-item-sel").value:""
+    };
+  },
+  applyFilterState(f){
+    this.setMode(f.mode||"trend");
+    if($("#trend-ymfrom"))$("#trend-ymfrom").value=f.from||"";
+    if($("#trend-ymto"))$("#trend-ymto").value=f.to||"";
+    if($("#trend-gran"))$("#trend-gran").value=f.gran||"month";
+    if($("#trend-level"))$("#trend-level").value=f.level||"main";
+    if($("#trend-chartkind"))$("#trend-chartkind").value=f.chartkind||"line";
+    if($("#trend-risk"))$("#trend-risk").value=f.risk||"";
+    this.msCat.set(f.cats||[]);
+    if($("#trend-cross-level"))$("#trend-cross-level").value=f.crossLevel||"main";
+    if($("#trend-cross-window"))$("#trend-cross-window").value=f.crossWindow||"6";
+    if(this.msCrossCat)this.msCrossCat.set(f.crossCats||[]);
+    if($("#trend-ship-sel"))$("#trend-ship-sel").value=f.ship||"";
+    if($("#trend-ship-level"))$("#trend-ship-level").value=f.shipLevel||"main";
+    if($("#trend-item-level"))$("#trend-item-level").value=f.itemLevel||"main";
+    this.populateItemSel();
+    if($("#trend-item-sel")&&f.item)$("#trend-item-sel").value=f.item;
+    this.setShipDir(f.shipDir||"byship");
+    this.render();
+  },
+  openSaveModal(){const el=$("#trend-save-name");if(el)el.value="";$("#trendSaveModal").classList.add("show");},
+  closeSaveModal(){$("#trendSaveModal").classList.remove("show");},
+  saveCurrentPreset(){
+    const name=($("#trend-save-name").value||"").trim();
+    if(!name){toast("⚠ 請輸入名稱");return;}
+    const preset={id:Date.now(),name,by:(typeof Audit!=="undefined"?Audit.user():""),filter:this.currentFilterState()};
+    this.presets.push(preset);
+    this.savePresetsLocal();
+    this.pushPresetsCloud();
+    this.closeSaveModal();
+    toast(`✓ 已儲存「${name}」`);
+  },
+  openPresetModal(){
+    const box=$("#trend-preset-list");
+    if(box){
+      box.innerHTML=this.presets.length?this.presets.slice().reverse().map(p=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)">
+          <div style="flex:1"><b>${esc(p.name)}</b><div class="hint" style="font-size:11px">${esc(p.filter.from||"不限")}～${esc(p.filter.to||"不限")}${p.by?"　by "+esc(p.by):""}</div></div>
+          <button class="btn sm primary" onclick="Trend.loadPreset(${p.id})">開啟</button>
+          <button class="btn sm danger" onclick="Trend.deletePreset(${p.id})">刪除</button>
+        </div>`).join(""):`<div class="hint">尚無已儲存的篩選</div>`;
+    }
+    $("#trendPresetModal").classList.add("show");
+  },
+  closePresetModal(){$("#trendPresetModal").classList.remove("show");},
+  loadPreset(id){
+    const p=this.presets.find(x=>x.id===id);if(!p)return;
+    this.applyFilterState(p.filter);
+    this.closePresetModal();
+    toast(`✓ 已套用「${p.name}」`);
+  },
+  deletePreset(id){
+    if(!confirm("確定刪除這組已儲存的篩選？"))return;
+    this.presets=this.presets.filter(x=>x.id!==id);
+    this.savePresetsLocal();
+    this.pushPresetsCloud();
+    this.openPresetModal();
+  },
+  async pushPresetsCloud(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const usr=(typeof Audit!=="undefined")?Audit.user():"";
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.PRESET_CLOUD_KEY,updated:Date.now(),by:usr,payload:this.presets}])});
+    }catch(e){console.warn("trend presets push failed",e);}
+  },
+  async pullPresetsCloud(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api("app_db?select=payload&k=eq."+this.PRESET_CLOUD_KEY);
+      const p=rows&&rows[0]&&rows[0].payload;
+      if(Array.isArray(p)){this.presets=p;this.savePresetsLocal();}
+    }catch(e){/* 離線或讀取失敗：維持本機快取值 */}
+  },
+  /* ── PDF 匯出：截取目前圖表為靜態圖片嵌入列印區塊。Chart.js 畫在 <canvas> 上，
+     瀏覽器原生列印機制無法保留 canvas 的互動性（hover提示、圖例切換等），這點跟使用者
+     說明過，只能退而求其次輸出成清晰的靜態圖片；要看互動版本，還是要回到這個網頁畫面操作。 ── */
+  exportPdf(){
+    const canvases=this.mode==="trend"?[$("#trend-chart")]:this.mode==="cross"?[$("#trend-cross-chart")]:this.mode==="rank"?[$("#trend-rank-chart")]:this.shipDir==="byitem"?[$("#trend-item-bar")]:[$("#trend-ship-bar"),$("#trend-ship-pie")];
+    // ⚠ 每張圖表／表格各自包一層 page-break-inside:avoid（新舊瀏覽器都寫，break-inside 是新版
+    // 標準名稱，page-break-inside 是舊版但相容性更好，兩個都寫最保險）。沒包的話，瀏覽器分頁
+    // 印刷時遇到剛好卡在頁尾的圖表／圖例文字，會直接從中間切開、下半部分斷到下一頁，
+    // 使用者反映過的「圖示旁邊的字被吃掉」就是這個原因——不是文字真的不見了，是那塊內容
+    // 被硬生生從頁面邊界切成兩半，很容易誤以為是圖表沒畫完整。
+    const imgs=canvases.filter(Boolean).map(c=>`<div style="page-break-inside:avoid;break-inside:avoid;margin-bottom:16px"><img src="${c.toDataURL("image/png")}" style="max-width:100%;border:1px solid #ddd"></div>`).join("");
+    const extraTableRaw=this.mode==="cross"&&$("#trend-cross-table")?$("#trend-cross-table").innerHTML:this.mode==="rank"&&$("#trend-rank-table")?$("#trend-rank-table").innerHTML:"";
+    const extraTable=extraTableRaw?`<div style="page-break-inside:avoid;break-inside:avoid">${extraTableRaw}</div>`:"";
+    const {from,to}=this.curRange();
+    const modeLabel=this.mode==="trend"?"趨勢比較":this.mode==="cross"?"內外部比對分析":this.mode==="rank"?"船隊排名":this.shipDir==="byitem"?"依項目看船舶排行":"單船弱點分析";
+    $("#printArea").innerHTML=`<h1>缺失趨勢比較與 KPI 分析 － ${modeLabel}</h1>
+      <div class="pmeta">期間：${esc(from||"不限")} ～ ${esc(to||"不限")}　匯出時間：${todayStr()}</div>
+      ${imgs}
+      ${extraTable}
+      <div style="margin-top:10px;font-size:11px;color:#666">＊本 PDF 圖表為當下狀態的靜態截圖；如需互動式檢視（滑鼠提示、圖例切換等），請於系統網頁「缺失趨勢比較」頁面操作。</div>`;
+    doPrint();
+    if(typeof Audit!=="undefined")Audit.log("匯出","缺失趨勢分析",`PDF匯出（${modeLabel}，${from||"不限"}～${to||"不限"}）`);
+  }
+};
+
 /* ════════ 🏷 篩選清單管理(TagLists) ════════ */
 const TagLists={
   FIELDS:[
@@ -26168,6 +26885,7 @@ const Cloud={
       ()=>typeof ReadOnlyMode!=="undefined"&&ReadOnlyMode.loadCloud(),
       ()=>typeof EvidenceUpload!=="undefined"&&EvidenceUpload.loadCloud(),
       ()=>typeof PhotoUpload!=="undefined"&&PhotoUpload.loadCloud(),
+      ()=>typeof Trend!=="undefined"&&Trend.pullPresetsCloud().then(()=>{if($("#trend-section"))Trend.render();}),
       ()=>typeof FilterVisEngine!=="undefined"&&FilterVisEngine.loadCloudAll(),
       ()=>typeof EnhAuditLog!=="undefined"&&EnhAuditLog.loadCloud()
     ];
