@@ -1148,6 +1148,8 @@ body.dg-on td.dg-empty{background:rgba(232,132,44,.10)}   /* 未填：更明顯�
 .df-card-leftcol{display:flex;flex-direction:column;gap:8px}
 .df-card-photoscol{display:flex;flex-direction:column;gap:8px}
 .df-card-tag{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--teal-l);color:var(--teal)}
+.df-card-tag-eq{background:#e8eef7;color:#2c4a70}
+.df-card-tag-op{background:#fdf3e3;color:#a06a10}
 /* 查看模式字體縮放（A-/100%/A+）範圍限定：卡片內文字原本用固定 px，父層 #dfv-list 的 em 字級
    改變對它們完全沒作用（px 是絕對單位，不會隨父層 em 縮放），這是字體調整按鈕看起來沒反應的
    真正原因。改成 em（以 body 的 14px 為基準換算），才會真的隨 A-/A+ 縮放；只限定在 #dfv-list
@@ -5078,6 +5080,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <button class="btn" onclick="NCTree.importRootCauseJson()">⬆ 從 JS 還原</button>
         </div>
         <div id="nct-rc-list" style="display:flex;flex-direction:column;gap:6px"></div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+          <p class="hint" style="margin-bottom:8px;line-height:1.7">
+            ⚠ <b>舊資料修補</b>：「根因」是後來才加上的分類，在那之前有些缺失已經先手動選過三要素了。這批舊資料現在會出現「根因沒選、但三要素卻有值」的矛盾狀態——因為三要素現在的規則是完全由根因帶出、不能單獨存在。下方工具會掃描出這類紀錄，讓你確認筆數後，一次把這些「沒有根因撐著的三要素」清空，恢復成正確的空白狀態。
+          </p>
+          <div class="toolbar" style="margin-bottom:8px">
+            <button class="btn" onclick="NCTree.scanOrphanFactors()">🔍 掃描「根因空白但三要素有值」的紀錄</button>
+          </div>
+          <div id="nct-orphan-result"></div>
+        </div>
       </div>
 
       <!-- ═══ 各頁面篩選欄位顯示設定 ═══ -->
@@ -9054,7 +9065,7 @@ const App={
      不管舊名稱當初是單獨存的還是跟其他根因一起用「、」串著存，都能正確換掉。*/
   migrateRootCauseDelimiterFix(){
     try{
-      if(localStorage.getItem("vsm_rootcause_delim_fix_v1"))return;
+      if(localStorage.getItem("vsm_rootcause_delim_fix_v2"))return;
       const renames=[["CLASS審批、有相關設計","CLASS審批/有相關設計"],["設備正常損耗、老化、意外","設備正常損耗/老化/意外"]];
       let changed=0;
       const fixArr=(arr)=>{
@@ -9068,7 +9079,7 @@ const App={
       };
       fixArr(App.defs);
       (App.air||[]).forEach(a=>fixArr(a.defects));
-      localStorage.setItem("vsm_rootcause_delim_fix_v1","1");
+      localStorage.setItem("vsm_rootcause_delim_fix_v2","1");
       if(changed){
         this.saveAll();
         if(typeof Cloud!=="undefined"){Cloud.queueAutoPublish&&Cloud.queueAutoPublish("defs");if(typeof RecordSync!=="undefined"){RecordSync.queuePush("defs");RecordSync.queuePush("airReviews");}}
@@ -9317,7 +9328,6 @@ const App={
     if($("#dm-taskn"))$("#dm-taskn").innerHTML=`目前 <b>${(this.tasks||[]).length}</b> 個自查任務。可匯出給船上離線作業、匯入船上回傳的進度，或清除測試資料。`;
     $("#dm-defn").textContent=this.defs.length;
     $("#dm-insn").textContent=this.insp.length;
-    if(typeof DataHub!=="undefined")DataHub.refreshSideSummaries();
     if($("#dm-spn"))$("#dm-spn").textContent=(typeof SHIPINFO!=="undefined"?SHIPINFO.length:0);
     if($("#dm-sirepn"))$("#dm-sirepn").textContent=this.sirePos.length;
     if($("#dm-airn"))$("#dm-airn").textContent=this.air.length;
@@ -9328,6 +9338,10 @@ const App={
     if(typeof PhotoUpload!=="undefined")PhotoUpload.renderToggleUI();
     if(typeof DefsFilterVis!=="undefined")DefsFilterVis.renderSettingsUI();
     if(typeof RosterMgr!=="undefined")RosterMgr.refreshCount();
+    // ⚠ 這個一定要放在最後——它會去讀每張卡片「目前顯示的」筆數文字，抄一份給左側清單用。
+    // 之前放在中間，導致缺失/檢查以外的幾張卡片（正面評價、AIR、檢查管控、船舶資料）
+    // 筆數都還沒更新完，左側清單就先抄了舊的一份，造成「左邊清單跟右邊詳細內容數字對不上」。
+    if(typeof DataHub!=="undefined")DataHub.refreshSideSummaries();
   },
   async wipeAll(){
     if(typeof Guard!=="undefined"&&!await Guard.require())return; // 僅維護者(變更權限)
@@ -12086,6 +12100,40 @@ const NCTree={
     toast(`✓ 已刪除，影響 ${n} 筆缺失`);
     this.render();
   },
+  /* ════════ 舊資料修補：清掉「根因空白、但三要素還留著舊值」的孤兒資料 ════════
+     這是「根因」功能上線之前，有人手動選過三要素留下的殘留——現在的規則是三要素完全由
+     根因帶出、不能單獨存在，這批舊資料等於卡在一個現在規則下不該出現的狀態。
+     先掃描出來給使用者看筆數，確認後才真的清空，不會沒問過人就動資料。 */
+  _orphanFactorList:null,
+  scanOrphanFactors(){
+    const hitsDefs=(App.defs||[]).filter(d=>!d.ncRoot&&d.ncFactor);
+    const hitsAir=[];
+    (App.air||[]).forEach(a=>(a.defects||[]).forEach((df,i)=>{if(!df.ncRoot&&df.ncFactor)hitsAir.push({rec:a,idx:i,df});}));
+    this._orphanFactorList={hitsDefs,hitsAir};
+    const total=hitsDefs.length+hitsAir.length;
+    const box=$("#nct-orphan-result");
+    if(!box)return;
+    if(!total){box.innerHTML=`<p class="hint" style="color:var(--ok)">✓ 掃描完成，沒有發現這種矛盾資料。</p>`;return;}
+    box.innerHTML=`<p class="hint" style="margin-bottom:8px">找到 <b style="color:var(--bad)">${total}</b> 筆（缺失紀錄總表 ${hitsDefs.length} 筆／線上填單 ${hitsAir.length} 筆）根因空白但三要素還有值的紀錄。</p>
+      <button class="btn danger" onclick="NCTree.applyClearOrphanFactors()">🗑 清空這 ${total} 筆的三要素</button>`;
+  },
+  applyClearOrphanFactors(){
+    if(!this._orphanFactorList){toast("⚠ 請先按「掃描」");return;}
+    const {hitsDefs,hitsAir}=this._orphanFactorList;
+    const total=hitsDefs.length+hitsAir.length;
+    if(!total)return;
+    if(!confirm(`確定要清空這 ${total} 筆紀錄的三要素欄位嗎？\n\n只會清空「三要素」這一格，其餘欄位（缺失內容、其他分類等）完全不受影響；根因欄位本來就是空白，也不會被動到。\n\n此動作不經過資源回收桶，請確認清單筆數合理後再繼續。`))return;
+    hitsDefs.forEach(d=>{d.ncFactor="";});
+    hitsAir.forEach(({df})=>{df.ncFactor="";});
+    App.saveAll&&App.saveAll();
+    if(typeof RecordSync!=="undefined"){RecordSync.queuePush("defs");RecordSync.queuePush("airReviews");}
+    if(typeof Audit!=="undefined")Audit.log("清理","缺失根因分類",`清空 ${total} 筆「根因空白但三要素有值」的孤兒資料（缺失紀錄總表 ${hitsDefs.length}／線上填單 ${hitsAir.length}）`);
+    toast(`✓ 已清空 ${total} 筆的三要素`);
+    this._orphanFactorList=null;
+    const box=$("#nct-orphan-result");if(box)box.innerHTML=`<p class="hint" style="color:var(--ok)">✓ 已清空完成。</p>`;
+    if(typeof Defs!=="undefined")Defs.render&&Defs.render();
+    if(typeof Air!=="undefined")Air.render&&Air.render();
+  },
   uiAddRootCause(){
     const nameInp=$("#nct-rc-new-name"),elemSel=$("#nct-rc-new-elem");
     if(!nameInp||!elemSel)return;
@@ -12240,6 +12288,7 @@ const NCTree={
           rootCause:Array.isArray(p.rootCause)?p.rootCause:DEFAULT_ROOTCAUSE.map(x=>x.slice())};
         this.fixRootCauseNames();
         this._saveLocal();this.apply();this.render();this.refreshDependents();
+        try{if(cloudUpdatedAt)localStorage.setItem(this.BASELINE_KEY,String(cloudUpdatedAt));}catch(e){}
         return;
       }
       // 雲端也還沒有新格式，嘗試讀舊格式雲端資料做一次性遷移
@@ -12257,15 +12306,33 @@ const NCTree={
       }
     }catch(e){console.warn("nctree cloud load failed",e);}
   },
+  BASELINE_KEY:"vsm_nctree_baseline_updated_at", // 記在 localStorage，跨頁面重新整理也記得，不只是這個分頁的記憶
   async pushCloud(){
     // 記錄「本機這份分類清單最後一次異動並準備推送」的時間，讓 loadCloud() 能判斷之後
     // 背景拉回來的雲端資料，是不是比這次異動還舊——是的話代表拉到過時資料，該跳過覆蓋。
     this._localUpdatedAt=Date.now();
     if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    // ⚠ 推送前的衝突檢查：原本這裡完全沒檢查雲端當下是不是已經有更新版本，直接整份覆蓋，
+    // 這是先前「分類被別人的舊分頁蓋掉」事件的真正原因——例如有人開著很久沒重新整理的分頁，
+    // 這段期間別人已經在雲端更新過分類，這個舊分頁只要做了任何一個小動作觸發推送，就會把
+    // 後來所有人的異動整份蓋掉，且完全不會有任何錯誤訊息，看起來就像「分類無緣無故被打回舊版本」。
+    // 現在改成推送前先問一次雲端目前的時間戳，跟這個分頁「上次真正同步到」的基準比對，
+    // 如果雲端比較新，代表這段期間有人已經更新過，跳出警告讓使用者自己決定，不要靜默覆蓋。
+    try{
+      const rows=await Cloud.api("app_db?select=updated&k=eq."+encodeURIComponent(this.CLOUD_KEY));
+      const cloudUpdatedAt=rows&&rows[0]&&rows[0].updated;
+      let baseline=0;try{baseline=+(localStorage.getItem(this.BASELINE_KEY)||0);}catch(e){}
+      if(cloudUpdatedAt&&cloudUpdatedAt>baseline){
+        const ok=confirm(`⚠ 偵測到雲端的分類清單，在這個分頁上次同步之後又被更新過（可能是別人剛改的，或這個分頁開太久沒有重新整理）。\n\n如果現在繼續，會用這個分頁目前看到的內容覆蓋掉雲端上比較新的版本，可能會蓋掉別人剛做的異動。\n\n強烈建議按「取消」，先重新整理頁面拿到最新版本，再重新進行你的操作。\n\n確定仍要覆蓋嗎？`);
+        if(!ok){toast("⚠ 已取消推送，請重新整理頁面後再試一次");return;}
+      }
+    }catch(e){console.warn("nctree push 前置衝突檢查失敗，繼續推送",e);}
     try{
       const usr=(typeof Audit!=="undefined")?Audit.user():"";
-      const row={k:this.CLOUD_KEY,updated:Date.now(),by:usr,payload:this.list};
+      const nowTs=Date.now();
+      const row={k:this.CLOUD_KEY,updated:nowTs,by:usr,payload:this.list};
       await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([row])});
+      try{localStorage.setItem(this.BASELINE_KEY,String(nowTs));}catch(e){}
     }catch(e){console.warn("nctree cloud push failed",e);}
     // 順便立即推送一次「ncdb」這個給外部線上填單頁面讀取的舊版鍵值，不用等下次排程同步才更新
     if(Cloud.pushNcdbIfChanged)Cloud.pushNcdbIfChanged();
@@ -12315,6 +12382,15 @@ const NCTree={
     (App.defs||[]).forEach(d=>{if(ncTags(d.ncProb).includes(prob)&&ncTags(d.ncMain).includes(main))n++;});
     (App.air||[]).forEach(rec=>(rec.defects||[]).forEach(df=>{if(ncTags(df.ncProb).includes(prob)&&ncTags(df.ncMain).includes(main))n++;}));
     return n;
+  },
+  /* 回傳細分來源的計數，而不是只給一個總數——這個具體名稱可能只在「線上填單」裡被引用，
+     而使用者往往只查過「缺失紀錄總表」看不到就以為系統算錯了，其實兩邊都會被計入，
+     訊息裡分開列出來源，才找得到那幾筆到底在哪。 */
+  _countLeafDetail(prob,main,leaf){
+    let defsN=0,airN=0;
+    (App.defs||[]).forEach(d=>{if(ncTags(d.ncProb).includes(prob)&&ncTags(d.ncMain).includes(main)&&ncTags(d.ncLeaf).includes(leaf))defsN++;});
+    (App.air||[]).forEach(rec=>(rec.defects||[]).forEach(df=>{if(ncTags(df.ncProb).includes(prob)&&ncTags(df.ncMain).includes(main)&&ncTags(df.ncLeaf).includes(leaf))airN++;}));
+    return {total:defsN+airN,defsN,airN};
   },
   _countLeaf(prob,main,leaf){
     let n=0;
@@ -12679,8 +12755,10 @@ const NCTree={
   async deleteLeaf(prob,main,leaf){
     const key=this.arrKey(prob);if(!key)return;
     if(typeof Role!=="undefined"&&!Role.isOwner()&&typeof Guard!=="undefined"&&!await Guard.requireDelete())return;
-    const n=this._countLeaf(prob,main,leaf);
-    const warn=n>0?`\n⚠ 目前有 ${n} 筆缺失使用這個具體名稱，刪除後這些缺失的「具體名稱」欄位會被清空成空白（大類不受影響），缺失內容本身不會被刪除。`:"\n目前沒有缺失在使用這個具體名稱。";
+    const cnt=this._countLeafDetail(prob,main,leaf);
+    const n=cnt.total;
+    const srcNote=n>0?`（缺失紀錄總表 ${cnt.defsN} 筆／線上填單 ${cnt.airN} 筆）`:"";
+    const warn=n>0?`\n⚠ 目前有 ${n} 筆缺失使用這個具體名稱${srcNote}，刪除後這些缺失的「具體名稱」欄位會被清空成空白（大類不受影響），缺失內容本身不會被刪除。`:"\n目前沒有缺失在使用這個具體名稱。";
     if(!confirm(`確定要刪除「${main}／${leaf}」？${warn}\n\n如果刪完發現不對，可以用「↩ 復原上一步」還原。`))return;
     const listBefore=JSON.parse(JSON.stringify(this.list));
     const undoLog={defs:[],air:[]};
@@ -14447,8 +14525,18 @@ const Defs={
       const field=(k,label,val,full)=>vis.has(k)&&val?`<div class="df-card-field${full?" full":""}"><span class="df-card-field-l">${label}</span>${esc(val)}</div>`:"";
       const tags=[];
       if(vis.has("ncProb")&&d.ncProb)tags.push(`<span class="df-card-tag">問題分類：${esc(d.ncProb)}</span>`);
-      if(vis.has("ncMain")&&d.ncMain)tags.push(`<span class="df-card-tag">大類：${esc(d.ncMain)}</span>`);
-      if(vis.has("ncLeaf")&&d.ncLeaf)tags.push(`<span class="df-card-tag">具體：${esc(d.ncLeaf)}</span>`);
+      // 大類／具體名稱：設備跟作業各自的項目分開標，不要混在同一個「大類：」「具體：」裡看不出誰是誰。
+      // 沿用 Defs._classifyParts() 這個既有的共用邏輯（分類彙總分析等其他地方也在用），
+      // 不要自己另外寫一套判斷，確保跟系統其他地方的分類判斷結果一致。
+      if((vis.has("ncMain")&&d.ncMain)||(vis.has("ncLeaf")&&d.ncLeaf)){
+        const cp=(typeof Defs!=="undefined")?Defs._classifyParts(d):null;
+        if(cp){
+          if(vis.has("ncMain")&&cp.eqMain)tags.push(`<span class="df-card-tag df-card-tag-eq">🔧 設備大類：${esc(cp.eqMain)}</span>`);
+          if(vis.has("ncMain")&&cp.opMain)tags.push(`<span class="df-card-tag df-card-tag-op">⚙️ 作業大類：${esc(cp.opMain)}</span>`);
+          if(vis.has("ncLeaf")&&cp.eqLeaves.length)tags.push(`<span class="df-card-tag df-card-tag-eq">🔧 設備具體：${esc(cp.eqLeaves.join("、"))}</span>`);
+          if(vis.has("ncLeaf")&&cp.opLeaves.length)tags.push(`<span class="df-card-tag df-card-tag-op">⚙️ 作業具體：${esc(cp.opLeaves.join("、"))}</span>`);
+        }
+      }
       if(vis.has("ncRoot")&&d.ncRoot)tags.push(`<span class="df-card-tag">根因：${esc(d.ncRoot)}</span>`);
       if(vis.has("ncFactor")&&d.ncFactor)tags.push(`<span class="df-card-tag">三要素：${esc(d.ncFactor)}</span>`);
       const hasPhotos=vis.has("photos")&&((d.photosBefore&&d.photosBefore.length)||(d.photosAfter&&d.photosAfter.length));
@@ -21447,9 +21535,9 @@ const Air={
         <td>${canPush?`<input type="checkbox" ${this.selected.has(String(d.id))?"checked":""} onchange="Air.toggleSel('${d.id}',this.checked)">`:""}</td>
         <td style="white-space:nowrap">
           <button class="btn sm" onclick="Air.showForm(${d.id})">✎</button>
-          ${(d.defects&&d.defects.length)?`<button class="btn sm" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10;font-weight:700" onclick="Air.goToExternalReply(${d.id},0)" title="開新分頁前往對外回覆編輯">外</button>`:""}
           <button class="btn sm" onclick="Air.openListDownloadModal(${d.id})" title="下載此筆的匯出檔">⬇</button>
           <button class="btn sm danger" onclick="Air.delAir(${d.id})">🗑</button>
+          ${(d.defects&&d.defects.length)?`<button class="btn sm" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10;font-weight:700" onclick="Air.goToExternalReply(${d.id},0)" title="開新分頁前往對外回覆編輯">外</button>`:""}
         </td>
         <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span></td>
         <td>${d.reviewed?'<span style="font-size:11.5px;font-weight:700;color:var(--ok)">✅ 已確認</span>':'<span style="font-size:11.5px;color:var(--ink-3)">⬜ 尚未確認</span>'}</td>
