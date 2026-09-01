@@ -11936,6 +11936,16 @@ const NCTree={
   UNDO_KEY:"vsm_nctree_undo_v1", // 復原紀錄僅存本機瀏覽器，不同步雲端（純粹是給剛做完異動的人反悔用的安全網）
   CLOUD_KEY_LEGACY:"nctree_custom",
   CLOUD_KEY:"nctree_full_v2",
+  _pageLoadedAt:Date.now(), // 這個分頁是什麼時候開始跑的，用來提醒「開太久沒重新整理」
+  /* 分類清單是全公司共用的一份設定，不是各自獨立的紀錄，沒辦法只同步「新增的那一項」——
+     改名／搬移這類動作本來就會牽動整份清單結構。送出前雖然已經會檢查雲端是否比本機新
+    （pushCloud 裡的衝突檢查），但那是最後一道防線；這裡在「開始編輯」的那一刻先提醒一次，
+     把警覺往前移，兩層防護一起用，風險更低。開超過 30 分鐘才提醒，不會平常編輯一直被打斷。 */
+  _warnIfStale(){
+    const mins=Math.round((Date.now()-this._pageLoadedAt)/60000);
+    if(mins<30)return true;
+    return confirm(`⚠ 這個頁面已經開啟 ${mins} 分鐘了。\n\n分類清單是全公司共用的設定，如果這段期間別人已經在其他裝置更新過，繼續在這裡編輯可能會沒看到最新狀態。（送出時系統還會再檢查一次雲端有沒有更新，這裡是提早提醒你。）\n\n強烈建議按「取消」，重新整理頁面拿到最新狀態，再回來編輯。\n\n確定要忽略此提醒，繼續操作嗎？`);
+  },
   list:{equip:[],ops:[],rootCause:[]}, // 完整可變動清單，equip/ops每筆[大類,具體名稱,適用船型]；rootCause每筆[名稱,三要素]；NCDB.equip/ops就是這個清單的鏡射
   undoStack:null, // 延遲載入，見 _loadUndo()
   open:false,curProb:"设备问题",_leafTargets:[],_mainTargets:[],
@@ -12085,6 +12095,7 @@ const NCTree={
     return true;
   },
   deleteRootCause(name){
+    if(!this._warnIfStale())return;
     const used=(App.defs||[]).filter(d=>ncFactorSplit(d.ncRoot).includes(name)).length;
     if(!confirm(`確定刪除根因項目「${name}」？${used?`目前有 ${used} 筆缺失用到這個根因，刪除後這些紀錄會自動移除這個標籤（其餘分類欄位不受影響）。`:""}此動作沒有「復原」按鈕。`))return;
     this.list.rootCause=this.list.rootCause.filter(x=>x[0]!==name);
@@ -12135,11 +12146,13 @@ const NCTree={
     if(typeof Air!=="undefined")Air.render&&Air.render();
   },
   uiAddRootCause(){
+    if(!this._warnIfStale())return;
     const nameInp=$("#nct-rc-new-name"),elemSel=$("#nct-rc-new-elem");
     if(!nameInp||!elemSel)return;
     if(this.addRootCause(nameInp.value,elemSel.value)){nameInp.value="";this.render();}
   },
   uiRenameRootCause(oldName){
+    if(!this._warnIfStale())return;
     const row=this.list.rootCause.find(x=>x[0]===oldName);if(!row)return;
     const newName=prompt("修改根因名稱：",oldName);
     if(newName===null)return;
@@ -12580,6 +12593,7 @@ const NCTree={
   /* ── 改名／搬移／刪除：內建、自訂項目都可操作，會連動更新既有缺失紀錄（App.defs＋App.air 的缺失明細）── */
   async renameMainPrompt(prob,main){
     if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    if(!this._warnIfStale())return;
     const v=(prompt(`將大類「${main}」改名為：`,main)||"").trim();
     if(!v||v===main)return;
     const key=this.arrKey(prob);if(!key)return;
@@ -12600,6 +12614,7 @@ const NCTree={
   },
   async renameLeafPrompt(prob,main,leaf){
     if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    if(!this._warnIfStale())return;
     const v=(prompt(`將「${main}／${leaf}」改名為：`,leaf)||"").trim();
     if(!v||v===leaf)return;
     const key=this.arrKey(prob);if(!key)return;
@@ -12624,6 +12639,7 @@ const NCTree={
      既有缺失紀錄的「大類」欄位會一起連動更新，具體名稱本身文字不變。 */
   async moveLeafPrompt(prob,main,leaf){
     if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    if(!this._warnIfStale())return;
     const key=this.arrKey(prob);if(!key)return;
     const mains=this.mainsOf(prob).filter(m=>m!==main);
     if(!mains.length){toast("⚠ 這個問題別底下沒有別的大類可以搬過去");return;}
@@ -12731,6 +12747,7 @@ const NCTree={
   },
   async deleteMainPrompt(prob,main){
     if(typeof Role!=="undefined"&&!Role.isOwner()&&typeof Guard!=="undefined"&&!await Guard.requireDelete())return;
+    if(!this._warnIfStale())return;
     const n=this._countMain(prob,main);
     const warn=n>0?`\n⚠ 目前有 ${n} 筆缺失（含缺失紀錄總表與線上填單尚未轉入的）使用這個大類，刪除後這些缺失的「大類」與「具體名稱」欄位都會被清空成空白，缺失內容本身不會被刪除。`:"\n目前沒有缺失在使用這個大類。";
     if(!confirm(`確定要刪除整個大類「${main}」（含底下所有具體名稱）？${warn}\n\n如果刪完發現不對，可以用「↩ 復原上一步」還原。`))return;
@@ -12755,6 +12772,7 @@ const NCTree={
   async deleteLeaf(prob,main,leaf){
     const key=this.arrKey(prob);if(!key)return;
     if(typeof Role!=="undefined"&&!Role.isOwner()&&typeof Guard!=="undefined"&&!await Guard.requireDelete())return;
+    if(!this._warnIfStale())return;
     const cnt=this._countLeafDetail(prob,main,leaf);
     const n=cnt.total;
     const srcNote=n>0?`（缺失紀錄總表 ${cnt.defsN} 筆／線上填單 ${cnt.airN} 筆）`:"";
