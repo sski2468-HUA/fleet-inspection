@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>對外回覆編輯 — FPMC</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root{
   --navy:#1c3a5e; --navy-2:#234a72; --navy-3:#2f6690;
@@ -54,6 +55,25 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
 .badge.nimp{background:#fdecea;color:#a33}
 .grid2{display:grid;grid-template-columns:1fr;gap:12px}
 @media(min-width:640px){.grid2{grid-template-columns:1fr 1fr}}
+/* ── 概念卡片：一個概念（缺失狀況說明／矯正措施／根本原因／預防措施）一張卡，
+   船上填寫版本（唯讀參考）在上，岸上對外回覆（中英文，可編輯）在下，
+   不再逐格硬對齊左右欄位，各自依內容長度自然撐高。 ── */
+.concept{border:1px solid var(--line);border-radius:10px;margin-bottom:16px;overflow:hidden;background:#fff}
+.concept-head{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fbfcfc;border-bottom:1px solid var(--line);border-left:4px solid var(--navy-3)}
+.concept-head .badge{width:26px;height:26px;border-radius:7px;background:#eef4ff;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.concept-head b{font-size:14px;color:var(--ink)}
+.concept-head .en{font-size:11px;color:var(--ink-3);font-weight:400}
+.concept-body{padding:14px 16px}
+.zone-lbl{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.3px;margin:0 0 8px}
+.zone-lbl.ship{color:var(--navy-3)}
+.zone-lbl.shore{color:var(--signal-d);margin-top:14px}
+.ship-ref{background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--ink-2);line-height:1.6;white-space:pre-wrap}
+.ship-ref .fld{margin-bottom:6px}
+.ship-ref .fld:last-child{margin-bottom:0}
+.ship-ref .fld b{color:var(--ink-3);font-size:11px;font-weight:700;display:block;margin-bottom:2px}
+.divider{display:flex;align-items:center;gap:10px;margin:14px 0}
+.divider .line{flex:1;height:1px;background:var(--line)}
+.divider .icon{font-size:11.5px;color:var(--ink-3);white-space:nowrap}
 .defbox{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;background:#fafbfc}
 .tabpill{border:1.5px solid var(--line-2);background:#fff;color:var(--ink-2);padding:7px 13px;border-radius:20px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:var(--sans)}
 .tabpill.on{background:var(--navy);border-color:var(--navy);color:#fff}
@@ -155,7 +175,15 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
         </div>
       </div>
 
-      <div id="fieldsWrap" class="grid2"></div>
+      <div style="background:#f0f7f2;border:1px solid #c8e2cf;border-radius:8px;padding:10px 12px;margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span class="hint" style="font-weight:600;color:#1e7f4a">📄 Word 匯出／匯入（整筆記錄，含全部缺失）：</span>
+        <button type="button" class="btn sm" onclick="exportBilingualDocx()">⬇ 中英文 Word（可匯入回填）</button>
+        <button type="button" class="btn sm" onclick="exportCarDocx()">⬇ CAR（純英文，官方格式）</button>
+        <button type="button" class="btn sm dark" onclick="importDocxPick()">⬆ 匯入 Word 回填</button>
+        <input type="file" id="docxFilePick" accept=".doc,.docx" style="display:none" onchange="onDocxFilePicked(this)">
+      </div>
+
+      <div id="fieldsWrap"></div>
 
       <div style="margin-top:16px;display:flex;justify-content:flex-end">
         <button class="btn primary" onclick="submitAll()">🌐 全部送出</button>
@@ -278,11 +306,12 @@ async function loadList(){
     const list=Object.values(groups).map(g=>{
       g.sort((a,b)=>a.defect_idx-b.defect_idx);
       const latest=g.reduce((m,r)=>(!m||new Date(r.updated_at)>new Date(m.updated_at))?r:m,null);
-      return {rid:g[0].air_record_id, ship:g[0].ship, rows:g, latest};
+      const meta0=(g[0].items&&g[0].items[0]&&g[0].items[0]._defectMeta)||{};
+      return {rid:g[0].air_record_id, ship:g[0].ship, itype:meta0.itype||"", rows:g, latest};
     }).sort((a,b)=>new Date(b.latest.updated_at)-new Date(a.latest.updated_at));
 
     box.innerHTML=`<table class="tbl"><thead><tr>
-      <th>船舶</th><th>缺失數</th><th>確認狀況</th><th>已匯入系統</th><th>最後更新</th><th></th><th></th>
+      <th>船舶</th><th>檢查來源</th><th>缺失數</th><th>確認狀況</th><th>已匯入系統</th><th>最後更新</th><th></th><th></th>
     </tr></thead><tbody>${list.map(g=>{
       const n=g.rows.length;
       const imported=g.rows.filter(r=>r.imported).length;
@@ -292,6 +321,7 @@ async function loadList(){
       const url=`?rid=${g.rid}&didx=${g.rows[0].defect_idx}`;
       return `<tr>
         <td><a href="${url}"><b>${esc(g.ship||"")}</b></a></td>
+        <td class="hint">${esc(g.itype||"（未記錄）")}</td>
         <td>${n} 條</td>
         <td class="hint">${confirmSummary}</td>
         <td>${impBadge}</td>
@@ -409,7 +439,9 @@ function renderDefMeta(){
   if(defectMeta){
     document.getElementById("edit-title").textContent=`對外回覆 － ${defectMeta.ship||""} CODE ${defectMeta.code||""}`;
     document.getElementById("edit-meta").textContent=`${defectMeta.ship||""}　${defectMeta.date||""}　${defectMeta.itype||""}${allDrafts.length>1?`　（共 ${allDrafts.length} 條缺失，可切換上方分頁）`:""}`;
-    box.innerHTML=`<b>缺失詳情：</b>${esc(defectMeta.detail||"（未填寫）")}<br><b>實際情況：</b>${esc(defectMeta.actual||"（未填寫）")}`;
+    // 缺失詳情／實際情況已經移到下方「缺失狀況說明」卡片裡跟 Initial Operator Comment 對照顯示，
+    // 這裡不用重複列一次，改成簡短的一行提示即可。
+    box.innerHTML=`<span class="hint">缺失詳情／實際情況等船上填寫內容，已整合到下方各卡片裡跟對外回覆內容並排對照，往下捲即可看到。</span>`;
   }else{
     box.textContent="尚未取得原始缺失內容，請確認連結是否正確（需由正式系統「產生對外回覆連結」建立）。";
   }
@@ -423,12 +455,47 @@ function renderStage(){
 
   aiBar.style.display = "";
 
-  wrap.innerHTML=REPLY_FIELDS.map(f=>`<label class="full">${f.labelZh}（中文）
-      <textarea data-k="${f.key}" data-lang="cn">${esc(replyData[f.key].cn)}</textarea>
-    </label>
-    <label class="full">${f.labelZh}（English）
-      <textarea data-k="${f.key}" data-lang="en">${esc(replyData[f.key].en)}</textarea>
-    </label>`).join("");
+  /* ── 概念卡片：船上填寫版本（唯讀參考）跟岸上對外回覆（中英文，可編輯）各自獨立成一張卡，
+     不再用分隔線擠在同一張裡——卡片邊界本身就清楚區分「這是船上的」跟「這是岸上的」。
+     Initial Operator Comment 跟 直接原因 Immediate Cause 合併在同一張「岸上對外回覆」卡片裡；
+     矯正措施／根本原因／預防措施各自的船上版本、岸上版本，也都拆成兩張獨立卡片。 ── */
+  const dm=defectMeta||{};
+  const field=(f)=>`<div class="zone-lbl shore">🏖 ${esc(f.labelZh)}</div>
+    <div class="grid2">
+      <label class="full" style="margin:0">中文<textarea data-k="${f.key}" data-lang="cn">${esc(replyData[f.key].cn)}</textarea></label>
+      <label class="full" style="margin:0">English<textarea data-k="${f.key}" data-lang="en">${esc(replyData[f.key].en)}</textarea></label>
+    </div>`;
+  const shipCard=(icon,title,en,rows)=>`<div class="concept">
+      <div class="concept-head"><div class="badge">${icon}</div><b>🚢 ${esc(title)}（船上填寫版本，可在此微調） <span class="en">${esc(en)}</span></b></div>
+      <div class="concept-body">${rows.map(([label,metaKey])=>`<label class="full" style="margin-bottom:10px">${esc(label)}<textarea data-meta-k="${metaKey}">${esc(dm[metaKey]||"")}</textarea></label>`).join("")}</div>
+    </div>`;
+  const shoreCard=(icon,title,en,body)=>`<div class="concept">
+      <div class="concept-head"><div class="badge">${icon}</div><b>🏖 ${esc(title)}（岸上對外回覆） <span class="en">${esc(en)}</span></b></div>
+      <div class="concept-body">${body}</div>
+    </div>`;
+
+  const html=
+    shipCard("📝","缺失狀況說明","Initial situation",[["缺失詳情","detail"],["實際情況","actual"]])
+    +shoreCard("📝","缺失狀況說明","Initial Operator Comment & Immediate Cause",
+      field(REPLY_FIELDS[0])
+      +`<div class="divider"><div class="line"></div><div class="icon">直接原因（僅岸上填寫，無船上對應欄位）</div><div class="line"></div></div>`
+      +field(REPLY_FIELDS[1]))
+    +shipCard("🛠️","矯正措施","Corrective Action",[["矯正措施","corrective"]])
+    +shoreCard("🛠️","矯正措施","Corrective Action",field(REPLY_FIELDS[3]))
+    +shipCard("🎯","根本原因","Root Cause",[["根本原因","rootCause"]])
+    +shoreCard("🎯","根本原因","Root Cause",field(REPLY_FIELDS[2]))
+    +shipCard("🛡️","預防措施","Preventive Measures",[["預防措施","preventive"]])
+    +shoreCard("🛡️","預防措施","Preventive Measures",field(REPLY_FIELDS[4]));
+  wrap.innerHTML=html;
+  // 船上參考欄位這裡改成可編輯，但只會更新這份「對外回覆草稿」自己的 defectMeta 快照，
+  // 不會寫回主系統船上填寫的原始記錄——避免跟主系統共用資料互相覆蓋，這是刻意的設計。
+  wrap.querySelectorAll("textarea[data-meta-k]").forEach(ta=>{
+    ta.addEventListener("input",function(){
+      if(!defectMeta)defectMeta={};
+      defectMeta[this.dataset.metaK]=this.value;
+      scheduleAutoSave();
+    });
+  });
   wrap.querySelectorAll("textarea[data-k]").forEach(ta=>{
     ta.addEventListener("input",function(){
       replyData[this.dataset.k][this.dataset.lang]=this.value;
@@ -777,6 +844,163 @@ async function submitAll(){
   notify(fail?`已送出 ${ok} 條，${fail} 條失敗，請檢查後重試`:`✓ 全部 ${ok} 條缺失已送出，記得跟對方說一聲`, fail?"err":"ok2");
   await loadDraft();
   if(btn)btn.disabled=false;
+}
+
+/* ════════ Word 匯出／匯入（整筆記錄，含全部缺失）：跟正式系統「對外回覆編輯」用同一套
+   [標籤-中文]/[標籤-EN]／===DEFICIENCY N=== 格式，兩邊互通，匯出後可以互相讀回。 ════════ */
+function dl(blob,filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();
+  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},200);
+}
+function carDateFmt(s){
+  const m=String(s||"").match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if(!m)return esc(s||"");
+  const MON=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  return `${+m[3]}-${MON[+m[2]-1]}-${m[1]}`;
+}
+function exportBilingualDocx(){
+  if(!allDrafts.length){notify("尚無資料可匯出","err");return;}
+  const meta0=(allDrafts[0].items&&allDrafts[0].items[0]&&allDrafts[0].items[0]._defectMeta)||{};
+  const F="font-family:Calibri,Arial,sans-serif";
+  const p2=s=>esc(s||"").replace(/\n/g,"<br/>");
+  let body=`<p style="${F};font-size:18pt;font-weight:bold">M.V."${esc(meta0.ship||"")}" － ${esc(meta0.itype||"")} 對外回覆／External Reply（中英對照）</p>
+    <p style="${F};font-size:12pt">Port: ${esc(meta0.place||"")}　Inspection date: ${esc(meta0.date||"")}</p>
+    <p style="${F};font-size:10pt;color:#999">⚠ 本檔案可用「⬆ 匯入 Word 回填」讀回並回填，請勿更動方括號 [ ] 內的標籤文字，只需修改標籤下方的內容即可；若用 Word 另存為 .docx 也可以匯入。</p><hr/>`;
+  const field=(label,cn,en)=>{
+    body+=`<p style="${F};font-size:12pt;font-weight:bold;margin-bottom:2px">[${label} - 中文]</p>
+      <p style="${F};font-size:12pt;margin-top:0">${p2(cn)||"(尚未填寫)"}</p>
+      <p style="${F};font-size:12pt;font-weight:bold;margin-bottom:2px">[${label} - EN]</p>
+      <p style="${F};font-size:12pt;margin-top:0">${p2(en)||"(To be filled)"}</p>`;
+  };
+  allDrafts.forEach((row,i)=>{
+    const it=(row.items&&row.items[0])||{};
+    const meta=it._defectMeta||{};
+    body+=`<p style="${F};font-size:14pt;font-weight:bold;background:#eef3f7;padding:5px 8px">===DEFICIENCY ${i+1}===　${meta.code?"CODE "+esc(meta.code):"（未填CODE）"}</p>
+      <p style="${F};font-size:12pt;color:#555">${p2(meta.detail)}</p>`;
+    field("INITIAL OPERATOR COMMENT",it.opCommentCn,it.opCommentEn);
+    field("IMMEDIATE CAUSE",it.immediateCauseCn,it.immediateCauseEn);
+    field("ROOT CAUSE",it.rootCauseCn||meta.rootCause,it.rootCauseEn);
+    field("CORRECTIVE ACTION",it.correctiveCn||meta.corrective,it.correctiveEn);
+    field("PREVENTIVE MEASURES",it.preventiveCn||meta.preventive,it.preventiveEn);
+    body+=`<hr/>`;
+  });
+  const html=`<html><head><meta charset="utf-8"><title>對外回覆</title></head><body>${body}</body></html>`;
+  const blob=new Blob(["\ufeff",html],{type:"application/msword"});
+  dl(blob,`對外回覆_${meta0.ship||""}_${(meta0.date||"").replace(/\//g,"-")}.doc`);
+  notify("✓ 已匯出中英文 Word 檔（可用「⬆ 匯入 Word 回填」讀回並回填）","ok2");
+}
+function exportCarDocx(){
+  if(!allDrafts.length){notify("尚無資料可匯出","err");return;}
+  const meta0=(allDrafts[0].items&&allDrafts[0].items[0]&&allDrafts[0].items[0]._defectMeta)||{};
+  const nl2br=s=>esc(s||"").replace(/\n/g,"<br/>");
+  const missingEnNote='<span style="color:#c0392b">（尚未填寫英文版，請補上後再重新匯出）</span>';
+  const labelCell=t=>`<td width="150" style="background:#f2f2f2;font-family:Calibri,Arial,sans-serif;font-size:12pt"><b>${t}</b></td>`;
+  const valueCell=(v,note)=>`<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${v?nl2br(v):(note||"")}</td>`;
+  let body="";
+  allDrafts.forEach((row,i)=>{
+    const it=(row.items&&row.items[0])||{};
+    const meta=it._defectMeta||{};
+    if(i>0)body+='<br clear="all" style="page-break-before:always"/>';
+    body+=`<p style="font-family:Calibri,Arial,sans-serif;font-size:18pt;font-weight:bold;margin-bottom:2px">M.V."${esc(meta0.ship||"")}" -${esc(meta.itype||"")}- Corrective Action Report (CAR)</p>
+      <p style="font-family:Calibri,Arial,sans-serif;font-size:12pt;margin-top:0;margin-bottom:12px">Port: ${esc(meta.place||"")}&nbsp;&nbsp;&nbsp;&nbsp;Inspection date: ${carDateFmt(meta.date)}</p>
+      <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%">
+        <tr>${labelCell("Deficiency No.")}${valueCell(String(i+1))}</tr>
+        <tr>${labelCell("Description")}${valueCell(meta.detail)}</tr>
+        <tr>${labelCell("Code")}${valueCell(meta.code)}</tr>
+        <tr>${labelCell("Action Taken")}${valueCell(meta.psc)}</tr>
+        <tr>${labelCell("Initial operator's<br/>comments")}${valueCell(it.opCommentEn,missingEnNote)}</tr>
+        <tr>${labelCell("Immediate cause")}${valueCell(it.immediateCauseEn,missingEnNote)}</tr>
+        <tr>${labelCell("Root cause<br/>analysis")}${valueCell(it.rootCauseEn,missingEnNote)}</tr>
+        <tr>${labelCell("Corrective<br/>actions")}${valueCell(it.correctiveEn,missingEnNote)}</tr>
+        <tr>${labelCell("Preventive<br/>actions")}${valueCell(it.preventiveEn,missingEnNote)}</tr>
+        <tr>${labelCell("Supporting<br/>Material")}${valueCell(it.supportingMaterial,"（尚未填寫）")}</tr>
+      </table>`;
+  });
+  const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="utf-8"><title>CAR</title>
+    <style>@page Section1{size:29.7cm 21cm;mso-page-orientation:landscape;margin:1.8cm;}div.Section1{page:Section1;}</style></head>
+    <body><div class="Section1">${body}</div></body></html>`;
+  const blob=new Blob(["\ufeff",html],{type:"application/msword"});
+  dl(blob,`CAR_${meta0.ship||""}_${(meta0.date||"").replace(/\//g,"-")}.doc`);
+  notify(`✓ 已匯出 CAR Word 檔（橫向，共 ${allDrafts.length} 筆缺失，每筆一頁）`,"ok2");
+}
+function importDocxPick(){
+  if(!allDrafts.length){notify("尚無資料，請先確認連結是否正確","err");return;}
+  document.getElementById("docxFilePick").click();
+}
+async function onDocxFilePicked(el){
+  const file=el.files[0];el.value="";
+  if(!file)return;
+  try{
+    const buf=await file.arrayBuffer();
+    const head=new Uint8Array(buf.slice(0,2));
+    let text="";
+    if(head[0]===0x50&&head[1]===0x4B){ // "PK" 開頭＝真正的 .docx（ZIP 壓縮包）
+      if(typeof JSZip==="undefined"){notify("缺少 ZIP 解析元件，無法讀取 .docx，請改上傳原本匯出的 .doc 檔","err");return;}
+      const zip=await JSZip.loadAsync(buf);
+      const xmlFile=zip.file("word/document.xml");
+      if(!xmlFile){notify("無法識別此 .docx 內容結構，請改用本頁匯出的 Word 檔","err");return;}
+      const xml=await xmlFile.async("text");
+      text=xml.replace(/<\/w:p>/g,"\n").replace(/<w:tab\/>/g,"\t").replace(/<[^>]+>/g,"");
+    }else{ // 本頁匯出的 HTML 包裝 .doc，或用 Word 開過編輯後另存回來的版本（Word 存檔可能會轉成 UTF-16）
+      let encoding="utf-8";
+      if(head[0]===0xFF&&head[1]===0xFE)encoding="utf-16le";
+      else if(head[0]===0xFE&&head[1]===0xFF)encoding="utf-16be";
+      text=new TextDecoder(encoding).decode(buf)
+        .replace(/<br\s*\/?>/gi,"\n").replace(/<\/p>/gi,"\n").replace(/<hr\s*\/?>/gi,"\n").replace(/<[^>]+>/g,"");
+    }
+    text=text.replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"');
+    await applyDocxImport(text);
+  }catch(e){notify("檔案讀取失敗："+e.message,"err");}
+}
+async function applyDocxImport(text){
+  const blocks=[];
+  const defRe=/===\s*DEFICIENCY\s*(\d+)\s*===([\s\S]*?)(?====\s*DEFICIENCY\s*\d+\s*===|$)/gi;
+  let dm;
+  while((dm=defRe.exec(text))){
+    const n=parseInt(dm[1],10);
+    if(n>=1)blocks[n-1]=dm[2].trim();
+  }
+  const foundCount=blocks.filter(b=>b!=null).length;
+  if(!foundCount){notify("找不到「===DEFICIENCY N===」標記，請確認上傳的是本頁或正式系統匯出的中英文 Word 檔","err");return;}
+  const grab=(block,label,lang)=>{
+    const esc4re=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    const labelPattern=label.trim().split(/\s+/).map(esc4re).join("\\s+");
+    const re=new RegExp("\\["+labelPattern+"\\s*-\\s*"+lang+"\\]\\s*([\\s\\S]*?)(?=\\n?\\[[A-Z\\s]+-\\s*(?:中文|EN)\\]|$)","i");
+    const m=block.match(re);
+    if(!m)return "";
+    const v=m[1].trim();
+    if(!v||v==="(尚未填寫)"||v==="(To be filled)")return "";
+    return v;
+  };
+  const FIELDS=[["INITIAL OPERATOR COMMENT","opCommentCn","opCommentEn"],["IMMEDIATE CAUSE","immediateCauseCn","immediateCauseEn"],
+    ["ROOT CAUSE","rootCauseCn","rootCauseEn"],["CORRECTIVE ACTION","correctiveCn","correctiveEn"],["PREVENTIVE MEASURES","preventiveCn","preventiveEn"]];
+  let filled=0;
+  blocks.forEach(block=>{if(!block)return;FIELDS.forEach(([label])=>{if(grab(block,label,"中文"))filled++;if(grab(block,label,"EN"))filled++;});});
+  const ok=confirm(`在檔案中找到 ${foundCount} 筆缺失區塊（本筆填單目前有 ${allDrafts.length} 筆缺失），共可回填 ${filled} 個欄位（中文＋英文合計）。\n\n這會覆蓋目前頁面上、且檔案裡有內容的對應欄位；檔案裡是空的欄位不會清空原本已填的內容。缺失區塊是依「第幾筆」對應，若檔案裡的順序被調整過請先確認過再回填。\n\n確定要回填嗎？`);
+  if(!ok)return;
+  let patchCount=0;
+  for(let i=0;i<allDrafts.length;i++){
+    const block=blocks[i];
+    if(!block)continue;
+    const row=allDrafts[i];
+    const it=Object.assign({},(row.items&&row.items[0])||{});
+    let changed=false;
+    FIELDS.forEach(([label,cnKey,enKey])=>{
+      const cn=grab(block,label,"中文"),en=grab(block,label,"EN");
+      if(cn){it[cnKey]=cn;changed=true;}
+      if(en){it[enKey]=en;changed=true;}
+    });
+    if(!changed)continue;
+    row.items=[it];
+    try{
+      await api(`${TABLE}?id=eq.${row.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({items:[it]})});
+      patchCount++;
+    }catch(e){console.warn("匯入回填寫入失敗 defect_idx="+row.defect_idx,e);}
+  }
+  notify(`✓ 已回填並存檔 ${patchCount} 筆缺失的內容`,"ok2");
+  await loadDraft();
 }
 </script>
 
