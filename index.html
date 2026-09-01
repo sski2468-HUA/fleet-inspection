@@ -1846,7 +1846,12 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
   .air-reply-split .air-rs-id{flex:1 1 100%;max-width:none;border-right:none;border-bottom:2px solid rgba(0,0,0,.08)}
   .air-reply-split .air-rs-edit{flex:1 1 100%}
 }
-.air-rs-tab{border:none;background:none;padding:7px 12px;cursor:pointer;font-size:12.5px;font-weight:700;white-space:nowrap}
+.def2col-cols{display:flex;flex-wrap:wrap}
+.def2col-l{flex:1 1 50%;min-width:320px;padding:14px 18px}
+.def2col-r{flex:1 1 50%;min-width:320px;padding:14px 18px;border-left:2px solid rgba(0,0,0,.08)}
+@media(max-width:820px){
+  .def2col-r{border-left:none;border-top:2px solid rgba(0,0,0,.08)}
+}
 .air-rs-tabwrap{display:flex;align-items:center;border-radius:7px;overflow:hidden;border:1.5px solid;flex:none}
 /* 概念卡片：跟外部「對外回覆編輯」頁面（submit-airreply.html）同一套排版語言——
    一個概念一張卡（缺失狀況說明／矯正措施／根本原因／預防措施），船上填寫版本在上（這裡可編輯），
@@ -1935,7 +1940,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <span><span class="num">📋</span>待辦事項</span>
       <span id="todo-navbadge" style="display:none;background:var(--bad);color:#fff;border-radius:9px;min-width:18px;height:18px;font-size:11px;line-height:18px;text-align:center;padding:0 4px;font-weight:700"></span>
     </div>
-    <div class="nav-quickload" onclick="Cloud.loadDB();if(typeof closeSidebar==='function')closeSidebar();" title="從雲端載入最新的檢查／缺失／船舶／檢查管控資料，覆蓋本機暫存"><span class="num">⬇</span>載入最新資料</div>
+    <div class="nav-quickload" onclick="Cloud.loadDBBlocking();if(typeof closeSidebar==='function')closeSidebar();" title="從雲端載入最新的檢查／缺失／船舶／檢查管控資料，覆蓋本機暫存"><span class="num">⬇</span>載入最新資料</div>
     <div class="nav-group" data-group="analysis">
       <div class="nav-group-label">分析總覽</div>
       <div class="nav-item active" data-tab="dash"><span class="num">1</span>Dash Board</div>
@@ -4557,7 +4562,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             </div>
             <div id="cl-quick-actions" style="display:none;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
               <button class="btn primary" onclick="Cloud.quickStart()">🔌 測試連線</button>
-              <button class="btn" onclick="Cloud.loadDB()" title="從雲端載入最新檢查與缺失資料，覆蓋本機">⬇ 載入最新資料</button>
+              <button class="btn" onclick="Cloud.loadDBBlocking()" title="從雲端載入最新檢查與缺失資料，覆蓋本機">⬇ 載入最新資料</button>
               <span class="hint" style="font-size:11px">（以下按鈕僅 Owner／管理員可見，供連線異常時手動排查）</span>
             </div>
           </div>
@@ -5378,16 +5383,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 </div>
 
 <!-- 線上填單（單筆紀錄）：匯出格式選擇 -->
+<div class="modal-bg" id="syncStatusModal" style="z-index:9999">
+  <div class="modal" style="max-width:480px;text-align:center">
+    <div id="syncStatusBody" style="padding:20px 10px">
+      <div style="font-size:34px;margin-bottom:10px">⏳</div>
+      <h3 style="margin:0 0 8px">正在與雲端同步…</h3>
+      <p class="hint">請稍候，同步完成前請不要關閉頁面或進行其他操作。</p>
+    </div>
+  </div>
+</div>
 <div class="modal-bg" id="airRecordExportModal">
   <div class="modal" style="max-width:440px">
     <div class="mh"><h3>⬇ 匯出填單紀錄</h3><button class="x" onclick="Air.closeRecordExportModal()">✕</button></div>
     <div class="mb">
       <p class="hint" style="margin-bottom:10px">請選擇要匯出的檔案格式：</p>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.exportRecordDocx(Air._exportId);Air.closeRecordExportModal()">⬇ Word（.doc）<br><span style="font-weight:400;font-size:11px">基本資料＋缺失改善明細＋正面評價明細，含矯正前/後照片</span></button>
+        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.exportXlsx([Air._exportId]);Air.closeRecordExportModal()">⬇ Excel（.xlsx，可匯入的版本）<br><span style="font-weight:400;font-size:11px">跟批次匯出同一套格式（含序號），可用「＋新增/匯入」讀回更新這筆填單</span></button>
         <button class="btn" style="width:100%;text-align:left" onclick="Air.exportRecordPdf(Air._exportId);Air.closeRecordExportModal()">🖨 PDF（列印/另存）<br><span style="font-weight:400;font-size:11px">給督導留存查看用，逐筆缺失含矯正前/後照片，瀏覽器列印視窗選「另存為 PDF」</span></button>
-        <button class="btn" style="width:100%;text-align:left" onclick="Air.exportRecordXlsx(Air._exportId);Air.closeRecordExportModal()">⬇ Excel（.xlsx）<br><span style="font-weight:400;font-size:11px">表格式留存／查核用</span></button>
-        <button class="btn" style="width:100%;text-align:left" onclick="Air.exportCarDocx(Air._exportId);Air.closeRecordExportModal()">⬇ CAR（Word，官方格式）<br><span style="font-weight:400;font-size:11px">橫向排版，內容取自「海技對外回覆」的英文欄位</span></button>
+        <button class="btn" style="width:100%;text-align:left" onclick="Air.exportCarDocx(Air._exportId,false);Air.closeRecordExportModal()">⬇ Word CAR（純英文）<br><span style="font-weight:400;font-size:11px">官方格式，橫向排版，僅顯示對外回覆的英文內容，給外部/督導看，不支援匯入回填</span></button>
+        <button class="btn" style="width:100%;text-align:left" onclick="Air.exportCarDocx(Air._exportId,true);Air.closeRecordExportModal()">⬇ Word CAR（中英文，可匯入回填）<br><span style="font-weight:400;font-size:11px">官方格式，同時顯示中英文對照；督導或船上直接在這份檔案上修改後，可用「⬆ 匯入 Word 回填」讀回更新</span></button>
       </div>
     </div>
   </div>
@@ -9032,6 +9046,36 @@ const App={
       }
     }catch(e){console.warn("CSO migration failed",e);}
   },
+  /* 一次性資料修補：兩個根因分類項目「CLASS審批、有相關設計」「設備正常損耗、老化、意外」，
+     名稱本身含有「、」，剛好跟系統存多選結果用的分隔符號「、」相撞，導致這兩項一直沒辦法
+     正常勾選（拆解比對時把自己的名字拆散了，永遠對不上）。已經把清單裡的名稱改成用「/」，
+     這裡把過去可能已經存進 App.defs／App.air 的舊名稱字串也一併換成新名稱，避免舊資料
+     變成孤兒、對不上清單裡任何一個選項。只執行一次，用純文字取代（不拆解重組），
+     不管舊名稱當初是單獨存的還是跟其他根因一起用「、」串著存，都能正確換掉。*/
+  migrateRootCauseDelimiterFix(){
+    try{
+      if(localStorage.getItem("vsm_rootcause_delim_fix_v1"))return;
+      const renames=[["CLASS審批、有相關設計","CLASS審批/有相關設計"],["設備正常損耗、老化、意外","設備正常損耗/老化/意外"]];
+      let changed=0;
+      const fixArr=(arr)=>{
+        (arr||[]).forEach(d=>{
+          if(d&&d.ncRoot&&typeof d.ncRoot==="string"){
+            let v=d.ncRoot;
+            renames.forEach(([oldName,newName])=>{if(v.includes(oldName)){v=v.split(oldName).join(newName);}});
+            if(v!==d.ncRoot){d.ncRoot=v;changed++;}
+          }
+        });
+      };
+      fixArr(App.defs);
+      (App.air||[]).forEach(a=>fixArr(a.defects));
+      localStorage.setItem("vsm_rootcause_delim_fix_v1","1");
+      if(changed){
+        this.saveAll();
+        if(typeof Cloud!=="undefined"){Cloud.queueAutoPublish&&Cloud.queueAutoPublish("defs");if(typeof RecordSync!=="undefined"){RecordSync.queuePush("defs");RecordSync.queuePush("airReviews");}}
+        console.log(`✓ 已修正 ${changed} 筆缺失記錄裡的根因分類舊名稱`);
+      }
+    }catch(e){console.warn("root cause delimiter migration failed",e);}
+  },
   /* 一次性資料修補：把 2026/7/1 Ship Particulars 匯出檔裡的 operator 欄位併入現有船舶資料，只在該船 operator 欄位目前是空的時候才帶入，
      不會覆蓋任何已存在的資料；只執行一次。*/
   migrateOperatorData(){
@@ -11858,11 +11902,11 @@ const DEFAULT_ROOTCAUSE=[
   ["公司資格程序和表格","系統"],
   ["用於執行程序的員工不足或流程","系統"],
   ["設備儲位確認程序","系統"],
-  ["CLASS審批、有相關設計","系統"],
+  ["CLASS審批/有相關設計","系統"],
   ["儲件/物料供應","系統"],
   ["PMS管理/物料配備標準","系統"],
   ["未清單化/或清單未更新","系統"],
-  ["設備正常損耗、老化、意外","設備"],
+  ["設備正常損耗/老化/意外","設備"],
   ["英語能力不足","人員"],
   ["人員考核/評估","人員"]
 ];
@@ -11912,7 +11956,26 @@ const NCTree={
     this._saveLocal(); // 遷移完立刻存成新格式，之後不再依賴舊格式的 key
   },
   _saveLocal(){try{const s=JSON.stringify(this.list);if(BigStore.manages(this.LS_KEY))BigStore.setItem(this.LS_KEY,s);else localStorage.setItem(this.LS_KEY,s);}catch(e){}},
-  init(){this._loadLocal();this._loadUndo();this.apply();this._refreshUndoHint();},
+  /* ⚠ 補上次沒修乾淨的地方：上次只改了程式碼裡的「預設值」（DEFAULT_ROOTCAUSE），但只要
+     公司已經存過一份自訂根因清單（NCTree.list.rootCause，存在本機／雲端），這份「已存的清單」
+     優先於預設值使用，程式碼改了預設值也不會生效——這就是為什麼上次修完後這兩個項目還是選不起來。
+     這裡直接對「目前實際在用的清單」做同樣的改名，並存回本機／雲端，這次才是真的修到會生效的地方。 */
+  fixRootCauseNames(){
+    const renames=[["CLASS審批、有相關設計","CLASS審批/有相關設計"],["設備正常損耗、老化、意外","設備正常損耗/老化/意外"]];
+    if(!Array.isArray(this.list.rootCause))return false;
+    let changed=false;
+    this.list.rootCause.forEach(row=>{
+      if(!Array.isArray(row)||typeof row[0]!=="string")return;
+      renames.forEach(([oldName,newName])=>{if(row[0]===oldName){row[0]=newName;changed=true;}});
+    });
+    if(changed){
+      this._saveLocal();
+      if(typeof Cloud!=="undefined"&&Cloud.enabled())this.pushCloud();
+      console.log("✓ 已修正自訂根因分類清單裡的舊名稱（、→/）");
+    }
+    return changed;
+  },
+  init(){this._loadLocal();this.fixRootCauseNames();this._loadUndo();this.apply();this._refreshUndoHint();},
   _refreshUndoHint(){const hint=$("#nct-undo-hint");if(hint){const lbl=this.lastUndoLabel();hint.textContent=lbl?`上一步可復原：${lbl}`:"目前沒有可復原的分類異動";}},
   /* ════════ 復原機制：改名／搬移／刪除這幾個「會連動改到既有缺失紀錄」的動作，
      執行前都會先把「分類清單當下的完整內容」＋「每一筆被連動改到的缺失，改之前的原始值」
@@ -12175,6 +12238,7 @@ const NCTree={
         }
         this.list={equip:Array.isArray(p.equip)?p.equip:[],ops:Array.isArray(p.ops)?p.ops:[],
           rootCause:Array.isArray(p.rootCause)?p.rootCause:DEFAULT_ROOTCAUSE.map(x=>x.slice())};
+        this.fixRootCauseNames();
         this._saveLocal();this.apply();this.render();this.refreshDependents();
         return;
       }
@@ -19970,7 +20034,7 @@ const Air={
     const defHdr=["序號","PSC Action Taken","CODE","實際情況","缺失詳情","Initial Operator Comment","直接原因 Immediate Cause","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","根因分類","三要素","重要程度","重點關注","缺失性質判定","風險","需內控"];
     wsDef.addRow(defHdr);
     wsDef.addRow([1,"17","17","已補正並加強督導","航行當值記錄不完整","","","針對程序進行修正","體系文件不足及上船前培訓針對性有待加強","公司修正管理體系文件內容及上船前培訓","","","作业问题","","","訓練缺失","人員因素","中","否","檢查員個人意見","2","否"]);
-    wsDef.addRow([2,"","","通知岸基安排檢修","雷達顯示異常","","","","","","","","设备问题","","","設備正常損耗、老化、意外","設備因素","高","是","無","3","是"]);
+    wsDef.addRow([2,"","","通知岸基安排檢修","雷達顯示異常","","","","","","","","设备问题","","","設備正常損耗/老化/意外","設備因素","高","是","無","3","是"]);
     [6,14,8,22,26,22,22,22,22,22,12,12,10,16,20,16,12,10,10,26,6,10].forEach((w,i)=>{wsDef.getColumn(i+1).width=w;});
     const col={};defHdr.forEach((h,i)=>{col[h]=wsDef.getColumn(i+1).letter;});
 
@@ -20107,13 +20171,15 @@ const Air={
       toast("✓ 已下載填單匯入範本（船名／船型／檢查來源／問題別／大類／具體名稱／根因分類／三要素／重要程度／重點關注／風險／缺失性質判定／責任人職位／正向評論職稱皆為下拉選單，大類與具體名稱會依上一欄自動篩選，三要素會依根因分類自動帶出）");
     }catch(e){toast("⚠ 範本產生失敗："+e.message);}
   },
-  async exportXlsx(){
+  async exportXlsx(onlyIds){
     if(!hasXLSX())return;
     toast("⏳ 同步對外回覆最新內容中…");
     await this.syncAllReplyDrafts().catch(()=>{});
     const wb=XLSX.utils.book_new();
-    // 若清單上已勾選特定幾筆，匯出時只帶出勾選的那幾筆；未勾選任何一筆則維持匯出全部（跟其他頁面「已勾選只匯出勾選」的慣例一致）
-    const scope=this.selected&&this.selected.size?App.air.filter(d=>this.selected.has(String(d.id))):App.air;
+    // 若明確指定 onlyIds（例如清單單筆列的「⬇下載」），只匯出這幾筆；否則沿用原本邏輯：
+    // 清單上已勾選特定幾筆就只帶出勾選的，未勾選任何一筆則匯出全部。
+    const scope=Array.isArray(onlyIds)?App.air.filter(d=>onlyIds.includes(d.id)):
+      (this.selected&&this.selected.size?App.air.filter(d=>this.selected.has(String(d.id))):App.air);
     const baseRows=scope.map((d,i)=>({序號:i+1,船名:d.ship,船型:d.vtype,檢查來源:d.itype,檢查日期:d.date,檢查地點:d.place,"檢查單位/油公司":d.oilco,檢查員:d.inspector,缺失數:d.ndef??0,正面評論數:d.npos??0,督導確認:d.reviewed?"已確認":"尚未確認",已轉檢查紀錄:d.usedInsp?"是":"否",已轉缺失紀錄:d.usedDef?"是":"否",已轉正向評論:d.usedPos?"是":"否"}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(baseRows),"基本資料");
     const defRows=[];
@@ -20745,44 +20811,23 @@ const Air={
       </div>`).join("")+`<button class="btn sm" onclick="Air.addDefPerson(${r.id})">＋ 新增人員</button>`;
     const [bd,bg]=this.CARD_PALETTE[i%this.CARD_PALETTE.length];
     const rpv=(k)=>esc(rp[k]||"");
-    /* 跟外部「對外回覆編輯」頁面（submit-airreply.html）改成同一套「概念卡片」排版：
-       一個概念一張卡（缺失狀況說明／矯正措施／根本原因／預防措施），船上填寫版本（這裡可編輯）
-       在上，岸上對外回覆（唯讀參考，中英文）在下；不再逐格硬對齊左右欄位，兩邊各自的視覺
-       語言一致，看習慣其中一邊、換到另一邊也不用重新適應。 */
-    /* 跟外部「對外回覆編輯」頁面（submit-airreply.html）改成同一套「概念卡片」排版：
-       船上填寫版本（這裡可編輯）跟岸上對外回覆（唯讀參考，中英文）各自獨立成一張卡，
-       不再用分隔線擠在同一張裡，卡片邊界本身就清楚區分「這是船上的」跟「這是岸上的」。 */
-    const shipCard=(icon,title,en,bodyHtml)=>`<div class="concept">
-        <div class="concept-head"><div class="badge" style="background:var(--paper)">${icon}</div><b>🚢 ${esc(title)}（船上填寫版本） <span class="en">${esc(en)}</span></b></div>
-        <div class="concept-body">${bodyHtml}</div>
-      </div>`;
-    const shoreCard=(icon,title,en,bodyHtml)=>`<div class="concept">
-        <div class="concept-head"><div class="badge" style="background:var(--paper)">${icon}</div><b>🏖 ${esc(title)}（岸上對外回覆） <span class="en">${esc(en)}</span></b></div>
-        <div class="concept-body">${bodyHtml}</div>
-      </div>`;
+    /* 改回左右兩欄，但不再逐一概念配對——「缺失詳情」「實際情況」這些欄位本來就沒有對應的
+       岸上版本（岸上是 Initial Operator Comment，是另一個獨立的概念，不是「缺失詳情的翻譯」），
+       之前用「一個概念一張卡、船上岸上各一張」的排法，會讓人誤以為這些欄位彼此該互相對應，
+       其實沒有。現在單純分兩大欄：左邊＝船上填寫的全部內容（基本資料＋缺失詳情＋實際情況＋
+       矯正措施＋根本原因＋預防措施），右邊＝岸上對外回覆的全部內容，兩欄各自從上到下自然排列，
+       不強迫哪一列要對齊哪一列。 */
     const shoreField=(labelZh,cnKey,enKey)=>`<div class="zone-lbl shore">🏖 ${esc(labelZh)}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin-bottom:14px">
         <label class="fw">中文<textarea class="air-ta" readonly style="background:#f7f9f9">${rpv(cnKey)}</textarea></label>
         <label class="fw">English<textarea class="air-ta" readonly style="background:#f7f9f9">${rpv(enKey)}</textarea></label>
       </div>`;
-    const conceptsHtml=
-      shipCard("📝","缺失狀況說明","Initial situation",
-        `<label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600">缺失詳情<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'detail',this.value)">${esc(r.detail)}</textarea></label>
-         <label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:10px">實際情況<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'actual',this.value)">${esc(r.actual)}</textarea></label>`)
-      +shoreCard("📝","缺失狀況說明","Initial Operator Comment & Immediate Cause",
-        shoreField("Initial Operator Comment","opCommentCn","opCommentEn")
-        +`<div class="divider"><div class="line"></div><div class="icon">直接原因（僅岸上填寫，無船上對應欄位）</div><div class="line"></div></div>`
-        +shoreField("直接原因 Immediate Cause","immediateCauseCn","immediateCauseEn"))
-      +shipCard("🛠️","矯正措施","Corrective Action",
-        `<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'corrective',this.value)">${esc(r.corrective)}</textarea>`)
-      +shoreCard("🛠️","矯正措施","Corrective Action",shoreField("矯正措施 Corrective Action","correctiveCn","correctiveEn"))
-      +shipCard("🎯","根本原因","Root Cause",
-        `<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'rootCause',this.value)">${esc(r.rootCause)}</textarea>`)
-      +shoreCard("🎯","根本原因","Root Cause",shoreField("根本原因 Root Cause","rootCauseCn","rootCauseEn"))
-      +shipCard("🛡️","預防措施","Preventive Measures",
-        `<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'preventive',this.value)">${esc(r.preventive)}</textarea>`)
-      +shoreCard("🛡️","預防措施","Preventive Measures",shoreField("預防措施 Preventive Measures","preventiveCn","preventiveEn"));
-    const cardHtml=`<div class="card air-def-card" data-id="${r.id}" style="border-left:7px solid ${bd};padding:0;overflow:hidden">
+    const shoreHtml=shoreField("Initial Operator Comment","opCommentCn","opCommentEn")
+      +shoreField("直接原因 Immediate Cause","immediateCauseCn","immediateCauseEn")
+      +shoreField("矯正措施 Corrective Action","correctiveCn","correctiveEn")
+      +shoreField("根本原因 Root Cause","rootCauseCn","rootCauseEn")
+      +shoreField("預防措施 Preventive Measures","preventiveCn","preventiveEn");
+    const cardHtml=`<div class="card air-def-card def2col" data-id="${r.id}" style="border-left:7px solid ${bd};padding:0;overflow:hidden">
         <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;background:${bg}">
           <b style="font-size:15px;color:${bd}">缺失 #${i+1}</b>
           <span style="flex:1"></span>
@@ -20790,15 +20835,26 @@ const Air={
           <button class="btn sm primary" onclick="Air.goToExternalReply(Air.editId,${i})">✏ 前往對外回覆編輯（此筆，開新分頁）</button>
           <button class="btn sm danger" onclick="Air.rmDefectRow(${r.id})">✕ 刪除此筆</button>
         </div>
-        <div style="padding:14px 18px;border-top:1px solid var(--line)">
+        <div class="def2col-cols">
+        <div class="def2col-l" style="background:${bg}">
+          <div class="hint" style="font-weight:700;color:${bd};margin-bottom:8px">🚢 船上填寫版本</div>
           <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600">CODE<input class="air-in" type="text" value="${esc(r.code)}" oninput="Air.setDefField(${r.id},'code',this.value);Air.refreshCodeChapter(${r.id})" placeholder="VIQ/SIR/RISQ/PSC">
             <span class="hint" id="air-code-ch-${r.id}" style="font-size:9.5px;color:var(--teal);line-height:1.3">${chapterHint}</span>
           </label>
           <label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">責任人員（可新增多筆）${defPeopleHtml}</label>
           ${isPSC?`<label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">PSC Action Taken${pscMselHtml(r.psc,uid,false)}</label>`:""}
+          <label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">缺失詳情<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'detail',this.value)">${esc(r.detail)}</textarea></label>
+          <label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">實際情況<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'actual',this.value)">${esc(r.actual)}</textarea></label>
+          <label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">矯正措施<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'corrective',this.value)">${esc(r.corrective)}</textarea></label>
+          <label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">根本原因<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'rootCause',this.value)">${esc(r.rootCause)}</textarea></label>
+          <label class="fw" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600;margin-top:12px">預防措施<textarea class="air-ta" oninput="autoResizeTA(this);Air.setDefField(${r.id},'preventive',this.value)">${esc(r.preventive)}</textarea></label>
         </div>
-        <div style="padding:14px 18px 0">${conceptsHtml}</div>
-        <div style="padding:0 18px 18px">
+        <div class="def2col-r">
+          <div class="hint" style="font-weight:700;color:var(--teal);margin-bottom:8px">🏖 岸上對外回覆（唯讀參考，中英文）</div>
+          ${shoreHtml}
+        </div>
+        </div>
+        <div style="padding:14px 18px;border-top:1px solid var(--line)">
           ${((r.photosBefore&&r.photosBefore.length)||(r.photosAfter&&r.photosAfter.length))?`<div style="font-size:12px;color:var(--ink-2);font-weight:600;margin-bottom:10px">📷 矯正前/後照片（船上填單附帶，點縮圖放大）${photoStripHtml(r,"airedit_"+r.id)}</div>`:""}
           <div class="air-def-shortrow">
             <div class="adf-item" style="max-width:250px"><label>🔧 設備大類</label><select class="air-in" id="air-def-eqmain-${r.id}" onchange="Air.defSetMain(${r.id},'eq',this.value)"></select><div id="air-def-eqleaf-${r.id}" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px"></div></div>
@@ -21391,7 +21447,8 @@ const Air={
         <td>${canPush?`<input type="checkbox" ${this.selected.has(String(d.id))?"checked":""} onchange="Air.toggleSel('${d.id}',this.checked)">`:""}</td>
         <td style="white-space:nowrap">
           <button class="btn sm" onclick="Air.showForm(${d.id})">✎</button>
-          ${(d.defects&&d.defects.length)?`<button class="btn sm" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10" onclick="Air.goToExternalReply(${d.id},0)" title="開新分頁前往對外回覆編輯">✉</button>`:""}
+          ${(d.defects&&d.defects.length)?`<button class="btn sm" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10;font-weight:700" onclick="Air.goToExternalReply(${d.id},0)" title="開新分頁前往對外回覆編輯">外</button>`:""}
+          <button class="btn sm" onclick="Air.openListDownloadModal(${d.id})" title="下載此筆的匯出檔">⬇</button>
           <button class="btn sm danger" onclick="Air.delAir(${d.id})">🗑</button>
         </td>
         <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span></td>
@@ -22194,7 +22251,7 @@ const Air={
     if(!blocks.length)blocks=[text.trim()]; // 容錯：若AI未保留===DEFICIENCY n===，仍視為單一缺失嘗試解析
     this.ensureReply(d);
     const grab=(block,label)=>{
-      const re=new RegExp("\\["+label+"\\s*-\\s*EN\\]\\s*([\\s\\S]*?)(?=\\n?\\[[A-Z ]+\\s*-\\s*(?:中文|EN)\\]|$)","i");
+      const re=new RegExp("\\["+label+"\\s*-\\s*EN\\]\\s*([\\s\\S]*?)(?=\\n?\\[(?:[A-Z ]+\\s*-\\s*(?:中文|EN)|\\/FIELD)\\]|$)","i");
       const m=block.match(re);
       if(!m)return "";
       const v=m[1].trim();
@@ -22227,6 +22284,9 @@ const Air={
   },
   closeReplyExportModal(){$("#airReplyExportModal").classList.remove("show");},
   openRecordExportModal(id){this._exportId=id;$("#airRecordExportModal").classList.add("show");},
+  /* 填單清單每一列的「⬇」下載按鈕：跟進到單筆詳情頁裡「⬇ 匯出」共用同一個彈窗，
+     不用進去記錄才能下載，清單頁直接點就能選格式。 */
+  openListDownloadModal(id){this.openRecordExportModal(id);},
   /* ══════════ 對外回覆連結：把目前這筆缺失的中文內容（若已有）送到雲端 air_reply_drafts，
      產生一個網址給主管開啟外部填單網頁；同一網址依雲端目前的 stage 自動顯示對應畫面。══════════ */
   BASEKEY:"vsm_airform_base_url",
@@ -22559,7 +22619,7 @@ const Air={
       // 同時也寬鎮下一個標籤的們测條件，避免它也因為換行而對不上導致抓得太多內容。
       const esc4re=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
       const labelPattern=label.trim().split(/\s+/).map(esc4re).join("\\s+");
-      const re=new RegExp("\\["+labelPattern+"\\s*-\\s*"+lang+"\\]\\s*([\\s\\S]*?)(?=\\n?\\[[A-Z\\s]+-\\s*(?:中文|EN)\\]|$)","i");
+      const re=new RegExp("\\["+labelPattern+"\\s*-\\s*"+lang+"\\]\\s*([\\s\\S]*?)(?=\\n?\\[(?:[A-Z\\s]+-\\s*(?:中文|EN)|\\/FIELD)\\]|$)","i");
       const m=block.match(re);
       if(!m)return "";
       const v=m[1].trim();
@@ -22653,15 +22713,15 @@ const Air={
     const d=App.air.find(x=>x.id===id);
     if(!d){toast("⚠ 找不到資料");return;}
     const rows=[
-      ["船名","船型","檢查來源","檢查類型","檢查日期","檢查地點","油公司/單位","檢查員","缺失數","正面評論數","督導確認","確認人","確認時間"],
-      [d.ship,d.vtype,d.itype,icatOf(d.itype)||"",d.date,d.place,d.oilco,d.inspector,d.ndef??0,d.npos??0,
+      ["序號","船名","船型","檢查來源","檢查類型","檢查日期","檢查地點","油公司/單位","檢查員","缺失數","正面評論數","督導確認","確認人","確認時間"],
+      [1,d.ship,d.vtype,d.itype,icatOf(d.itype)||"",d.date,d.place,d.oilco,d.inspector,d.ndef??0,d.npos??0,
        d.reviewed?"已確認":"尚未確認",d.reviewedBy||"",d.reviewedAt?new Date(d.reviewedAt).toLocaleString():""],
       [],
-      ["缺失#","缺失詳情","責任人職位","責任人姓名","矯正措施(中)","矯正措施(英)","Immediate Cause(中)","Immediate Cause(英)","根本原因(中)","根本原因(英)","Initial Operator Comment(中)","Initial Operator Comment(英)","預防措施(中)","預防措施(英)","是否有證據"]
+      ["序號","缺失#","缺失詳情","責任人職位","責任人姓名","矯正措施(中)","矯正措施(英)","Immediate Cause(中)","Immediate Cause(英)","根本原因(中)","根本原因(英)","Initial Operator Comment(中)","Initial Operator Comment(英)","預防措施(中)","預防措施(英)","是否有證據"]
     ];
     (d.defects||[]).forEach((df,i)=>{
       const rp=(d.reply&&d.reply.items&&d.reply.items[i])||{};
-      rows.push([i+1,df.detail||"",df.rank||"",df.person||"",
+      rows.push([1,i+1,df.detail||"",df.rank||"",df.person||"",
         rp.correctiveCn||df.corrective||"",rp.correctiveEn||"",
         rp.immediateCauseCn||"",rp.immediateCauseEn||"",
         rp.rootCauseCn||df.rootCause||"",rp.rootCauseEn||"",
@@ -22670,7 +22730,7 @@ const Air={
         rp.hasEvidence?"是":"否"]);
     });
     const ws=XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"]=[{wch:6},{wch:35},{wch:10},{wch:10},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:10}];
+    ws["!cols"]=[{wch:6},{wch:6},{wch:35},{wch:10},{wch:10},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:10}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"AIR");
     XLSX.writeFile(wb,`AIR_${d.ship}_${(d.date||"").replace(/\//g,"-")}.xlsx`);
     toast("✓ 已匯出 Excel 檔");
@@ -22777,7 +22837,12 @@ const Air={
     const MON=["January","February","March","April","May","June","July","August","September","October","November","December"];
     return `${d.getDate()}-${MON[d.getMonth()]}-${d.getFullYear()}`;
   },
-  exportCarDocx(id){
+  /* bilingual=false（預設）：純英文官方 CAR 格式，給外部/督導看，不支援匯入回填。
+     bilingual=true：中英文都顯示，並且額外嵌入跟「中英文Word」同一套可辨識的
+     [標籤-中文]/[標籤-EN] 與 ===DEFICIENCY N=== 標記（用小字、不影響版面美觀），
+     這樣督導或船上在這份 CAR 上直接修改內容後，可以直接用「⬆ 匯入 Word 回填」讀回，
+     不用另外做一份「中英文 Word」。 */
+  exportCarDocx(id,bilingual){
     const d=App.air.find(x=>x.id===id);
     if(!d){toast("⚠ 找不到資料");return;}
     if(!d.defects||!d.defects.length){toast("⚠ 此筆尚無缺失明細，無法匯出 CAR");return;}
@@ -22788,11 +22853,20 @@ const Air={
     const missingEnNote='<span style="color:#c0392b">（尚未填寫英文版，請至「海技對外回覆」補上後再重新匯出）</span>';
     const labelCell=t=>`<td width="150" style="background:#f2f2f2;font-family:Calibri,Arial,sans-serif;font-size:12pt"><b>${t}</b></td>`;
     const valueCell=(v,fallbackNote)=>`<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${v?nl2br(v):(fallbackNote||"")}</td>`;
+    const markerTag=t=>bilingual?`<span style="font-size:8pt;color:#bbb">[${t}]</span><br/>`:"";
+    const closeTag=()=>bilingual?`<span style="font-size:8pt;color:#bbb">[/FIELD]</span><br/>`:"";
+    const biValueCell=(cn,en,tag)=>{
+      if(!cn&&!en)return `<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${markerTag(tag+" - 中文")}${closeTag()}${markerTag(tag+" - EN")}${closeTag()}${missingEnNote}</td>`;
+      const cnPart=`${markerTag(tag+" - 中文")}${cn?`<div style="color:#555">${nl2br(cn)}</div>`:`<div style="color:#999">（中文尚未填寫）</div>`}${closeTag()}`;
+      const enPart=`${markerTag(tag+" - EN")}${en?`<div style="margin-top:4px">${nl2br(en)}</div>`:`<div style="margin-top:4px;color:#c0392b">（English not filled in yet）</div>`}${closeTag()}`;
+      return `<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${cnPart}${enPart}</td>`;
+    };
     let body="";
     d.defects.forEach((df,i)=>{
       const rp=d.reply.items[i]||{};
       if(i>0)body+='<br clear="all" style="page-break-before:always"/>';
       body+=`
+        ${bilingual?`<p style="font-size:8pt;color:#bbb;margin:0">===DEFICIENCY ${i+1}===</p>`:""}
         <p style="font-family:Calibri,Arial,sans-serif;font-size:18pt;font-weight:bold;margin-bottom:2px">M.V."${esc(vesselName)}" -${esc(d.itype)}- Corrective Action Report (CAR)</p>
         <p style="font-family:Calibri,Arial,sans-serif;font-size:12pt;margin-top:0;margin-bottom:12px">Port: ${esc(d.place)}&nbsp;&nbsp;&nbsp;&nbsp;Inspection date: ${this.carDateFmt(d.date)}</p>
         <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%">
@@ -22800,11 +22874,11 @@ const Air={
           <tr>${labelCell("Description")}${valueCell(df.detail)}</tr>
           <tr>${labelCell("Code")}${valueCell(df.code)}</tr>
           <tr>${labelCell("Action Taken")}${valueCell(df.psc)}</tr>
-          <tr>${labelCell("Initial operator's<br/>comments")}${valueCell(rp.opCommentEn,missingEnNote)}</tr>
-          <tr>${labelCell("Immediate cause")}${valueCell(rp.immediateCauseEn,missingEnNote)}</tr>
-          <tr>${labelCell("Root cause<br/>analysis")}${valueCell(rp.rootCauseEn,missingEnNote)}</tr>
-          <tr>${labelCell("Corrective<br/>actions")}${valueCell(rp.correctiveEn,missingEnNote)}</tr>
-          <tr>${labelCell("Preventive<br/>actions")}${valueCell(rp.preventiveEn,missingEnNote)}</tr>
+          <tr>${labelCell("Initial operator's<br/>comments")}${bilingual?biValueCell(rp.opCommentCn,rp.opCommentEn,"INITIAL OPERATOR COMMENT"):valueCell(rp.opCommentEn,missingEnNote)}</tr>
+          <tr>${labelCell("Immediate cause")}${bilingual?biValueCell(rp.immediateCauseCn,rp.immediateCauseEn,"IMMEDIATE CAUSE"):valueCell(rp.immediateCauseEn,missingEnNote)}</tr>
+          <tr>${labelCell("Root cause<br/>analysis")}${bilingual?biValueCell(rp.rootCauseCn||df.rootCause,rp.rootCauseEn,"ROOT CAUSE"):valueCell(rp.rootCauseEn,missingEnNote)}</tr>
+          <tr>${labelCell("Corrective<br/>actions")}${bilingual?biValueCell(rp.correctiveCn||df.corrective,rp.correctiveEn,"CORRECTIVE ACTION"):valueCell(rp.correctiveEn,missingEnNote)}</tr>
+          <tr>${labelCell("Preventive<br/>actions")}${bilingual?biValueCell(rp.preventiveCn||df.preventive,rp.preventiveEn,"PREVENTIVE MEASURES"):valueCell(rp.preventiveEn,missingEnNote)}</tr>
           <tr>${labelCell("Supporting<br/>Material")}${valueCell(rp.supportingMaterial,"（尚未填寫）")}</tr>
         </table>`;
     });
@@ -22817,9 +22891,9 @@ const Air={
       </head>
       <body><div class="Section1">${body}</div></body></html>`;
     const blob=new Blob(["\ufeff",html],{type:"application/msword"});
-    dl(blob,`CAR_${d.ship}_${(d.date||"").replace(/\//g,"-")}.doc`);
-    if(typeof Audit!=="undefined")Audit.log("匯出","AIR CAR",`#${d.id} ${d.ship} ${d.date}（${d.defects.length} 筆缺失）`);
-    toast(`✓ 已匯出 CAR Word 檔（橫向，共 ${d.defects.length} 筆缺失，每筆一頁）`);
+    dl(blob,`CAR${bilingual?"雙語可回填":""}_${d.ship}_${(d.date||"").replace(/\//g,"-")}.doc`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","AIR CAR",`#${d.id} ${d.ship} ${d.date}（${d.defects.length} 筆缺失，${bilingual?"中英雙語可回填":"純英文"}）`);
+    toast(bilingual?`✓ 已匯出中英文 CAR Word 檔（可用「⬆ 匯入 Word 回填」讀回，共 ${d.defects.length} 筆缺失）`:`✓ 已匯出 CAR Word 檔（純英文，橫向，共 ${d.defects.length} 筆缺失，每筆一頁）`);
   }
 };
 /* ══════════ AirQueue：外部線上填單網頁（submit-airform.html）送出的 air_submissions
@@ -26996,7 +27070,7 @@ const Cloud={
             try{localStorage.setItem("vsm_last_loaddb_at",String(Date.now()));}catch(e){}
           }catch(e){console.warn("startup loadDB",e);}
         }
-        if(typeof App!=="undefined"){try{App.migrateCsoData();App.migrateOperatorData();}catch(e){}}
+        if(typeof App!=="undefined"){try{App.migrateCsoData();App.migrateOperatorData();App.migrateRootCauseDelimiterFix();}catch(e){}}
         /* 開機時先把雲端已知的刪除清單併入本機（涵蓋「別的裝置刪過、這台還不知道」的情況），
            再把本機已知的刪除清單同步清乾淨雲端上的殘留。
            否則若別台裝置在離線期間又把舊任務推回雲端，這裡的同步會再拉回來，
@@ -27005,7 +27079,7 @@ const Cloud={
         try{if(typeof TaskTomb!=="undefined")await TaskTomb.purgeCloud();}catch(e){console.warn("startup tombstone purge",e);}
         try{await this.syncNow(true);}catch(e){console.warn("startup syncNow",e);}
       }else{
-        if(typeof App!=="undefined"){try{App.migrateCsoData();App.migrateOperatorData();}catch(e){}}
+        if(typeof App!=="undefined"){try{App.migrateCsoData();App.migrateOperatorData();App.migrateRootCauseDelimiterFix();}catch(e){}}
       }
       if(this.enabled())await this._loadAuxCloud();
     })();
@@ -27292,6 +27366,36 @@ const Cloud={
       toast(`✓ 已發布到雲端（檢查 ${App.insp.length}／缺失 ${App.defs.length}／船舶 ${(typeof SHIPINFO!=="undefined"?SHIPINFO.length:0)}／SIRE正向評論 ${App.sirePos.length}／AIR ${App.air.length}／檢查管控 ${App.inspCtrl.length}／人員名單 ${rosterN} 筆），請通知同仁「從雲端載入」`);
     }catch(e){this.dbState("⚠ 發布失敗");toast("⚠ 發布失敗："+e.message+"（請確認已建立 app_db 資料表）");}
   },
+  /* 手動按「載入最新資料」用這個，不是直接呼叫 loadDB()：跳出不能關閉的彈窗、等真正跑完
+     才顯示結果並要求按「確認」才能關閉，避免使用者看到 toast 一閃而過就以為同步完成，
+     實際上還在跑、或忽略了失敗訊息。背景自動載入（silent=true 的那些呼叫）不會跳這個彈窗，
+     不影響原本安靜背景同步的行為。 */
+  async loadDBBlocking(){
+    const modal=$("#syncStatusModal"),body=$("#syncStatusBody");
+    if(!modal||!body)return this.loadDB(); // 找不到彈窗元素就退回原本行為，不要整個功能壞掉
+    body.innerHTML=`<div style="font-size:34px;margin-bottom:10px">⏳</div><h3 style="margin:0 0 8px">正在與雲端同步…</h3><p class="hint">請稍候，同步完成前請不要關閉頁面或進行其他操作。</p>`;
+    modal.classList.add("show");
+    let ok=true,errMsg="";
+    const origToast=window.toast;
+    let capturedMsg="";
+    // 暫時攔截 toast()，把 loadDB() 內部原本要跳的訊息文字接過來放進彈窗，不要讓它自己先彈一個小提示、
+    // 彈窗又晚一步蓋在上面，兩個訊息源打架。
+    window.toast=(msg)=>{capturedMsg=msg;};
+    try{
+      await this.loadDB(false);
+    }catch(e){ok=false;errMsg=e.message;}
+    window.toast=origToast;
+    if(ok&&capturedMsg&&!capturedMsg.includes("⚠")){
+      body.innerHTML=`<div style="font-size:34px;margin-bottom:10px;color:var(--ok)">✓</div><h3 style="margin:0 0 10px;color:var(--ok)">與雲端同步成功</h3>
+        <p style="text-align:left;background:#f7f9f9;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7">${esc(capturedMsg.replace(/^✓\s*/,""))}</p>
+        <button class="btn primary" style="margin-top:14px" onclick="Cloud.closeSyncModal()">確認</button>`;
+    }else{
+      body.innerHTML=`<div style="font-size:34px;margin-bottom:10px;color:var(--bad)">⚠</div><h3 style="margin:0 0 10px;color:var(--bad)">同步失敗</h3>
+        <p style="text-align:left;background:#fdf2f0;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7">${esc(errMsg||capturedMsg||"未知錯誤，請檢查網路連線後再試一次。")}</p>
+        <button class="btn primary" style="margin-top:14px" onclick="Cloud.closeSyncModal()">確認</button>`;
+    }
+  },
+  closeSyncModal(){const m=$("#syncStatusModal");if(m)m.classList.remove("show");},
   async loadDB(silent,notifyOnly){
     if(!silent&&typeof Air!=="undefined"&&(Air._formDirty||Air._replyDirty)){
       if(!confirm("⚠ 偵測到您目前在「線上填單」或「海技對外回覆」還有尚未存檔的輸入內容。\n\n「載入最新資料」會用雲端版本整批覆蓋本機資料，尚未存檔的部分將會遺失且無法復原。\n\n建議先按左側選單最下方「資料暫存於本機瀏覽器」區塊裡的「💾 立即儲存」按鈕，確認狀態變成已儲存後，再回來點這裡載入。\n\n仍要不儲存、直接載入最新資料嗎？"))return;
