@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>航次報表收件 | Fleet Inspection & Deficiency Manager</title>
+<style>
+:root{
+  --navy:#1c3a5e; --navy-2:#234a72; --navy-3:#2f6690;
+  --paper:#f5f7f8; --card:#ffffff; --line:#dde4e8; --line-2:#c3ced5;
+  --ink:#15262f; --ink-2:#52656f; --ink-3:#8195a0;
+  --signal:#e8842c; --signal-d:#c96a14;
+  --teal:#1e7f8c; --teal-l:#e3f1f3;
+  --ok:#2e8b57; --warn:#d9a514; --bad:#c0392b; --bad-l:#fbeae7;
+  --mono:"Consolas","Menlo","Courier New",monospace;
+  --sans:"Segoe UI","Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:14px}
+header.topbar{background:var(--card);border-bottom:1px solid var(--line);padding:12px 22px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
+header.topbar h2{font-size:17px;font-weight:700;letter-spacing:.5px;color:var(--navy)}
+header.topbar .sub{font-size:12px;color:var(--ink-3);font-family:var(--mono)}
+header.topbar .spacer{flex:1}
+header.topbar .role-badge{font-size:12px;color:var(--ink-2)}
+header.topbar .role-badge b{color:var(--navy)}
+a.back-link{font-size:12.5px;color:var(--navy-3);text-decoration:none;border:1px solid var(--line-2);border-radius:4px;padding:6px 11px;white-space:nowrap}
+a.back-link:hover{background:var(--paper);border-color:var(--navy-3)}
+.page{max-width:1320px;margin:0 auto;padding:18px 22px 60px}
+.gate-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1c3a5e,#2f6690);display:flex;align-items:center;justify-content:center;z-index:9999}
+.gate-card{background:#fff;border-radius:12px;padding:32px 34px;width:400px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.35);text-align:center}
+.gate-card h2{margin:0 0 10px;font-size:18px;color:#1c3a5e}
+.gate-card p{font-size:13px;color:#52656f;margin:0 0 18px;line-height:1.7}
+.gate-card a.go{display:inline-block;padding:10px 22px;background:#1e7f8c;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;text-decoration:none}
+.gate-card a.go:hover{background:#176470}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:#fff;color:var(--ink);padding:7px 13px;border-radius:4px;font-size:13px;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+.btn:hover{border-color:var(--ink-3);background:#fafbfc}
+.btn.primary{background:var(--signal);border-color:var(--signal);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--signal-d)}
+.btn.sm{padding:4px 9px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+select,input[type=text],input[type=date],input[type=file],textarea{border:1px solid var(--line-2);border-radius:4px;padding:7px 9px;font-size:13px;font-family:var(--sans);background:#fff;color:var(--ink)}
+select:focus,input:focus,textarea:focus{outline:2px solid rgba(232,132,44,.35);border-color:var(--signal)}
+.fgrid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600}
+.panelbox{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:16px}
+.mono{font-family:var(--mono);font-size:12px}
+.hint{font-size:11.5px;color:var(--ink-3)}
+table.tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
+table.tbl th{position:sticky;top:0;z-index:5;background:var(--navy);color:#dce9f1;font-weight:600;text-align:left;padding:8px 9px;font-size:11.5px;white-space:nowrap}
+table.tbl td{padding:var(--row-py,7px) var(--row-px,9px);font-size:12.5px;border-bottom:1px solid var(--line);vertical-align:top}
+table.tbl tbody tr:nth-child(even)>td{background:#fbfcfd}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(12,36,51,.55);z-index:100;align-items:center;justify-content:center;padding:24px}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:8px;max-width:880px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.toast{position:fixed;bottom:22px;right:22px;background:var(--navy);color:#fff;padding:11px 18px;border-radius:6px;font-size:13px;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.3);display:none;border-left:4px solid var(--signal)}
+#printArea{display:none}
+@media print{
+  body *{visibility:hidden}
+  #printArea,#printArea *{visibility:visible}
+  #printArea{display:block !important;position:absolute;left:0;top:0;width:100%;font-family:var(--sans);color:#000}
+  #printArea h1{font-size:18px;margin-bottom:4px}
+  #printArea .pmeta{font-size:11px;color:#444;margin-bottom:12px;border-bottom:2px solid #000;padding-bottom:6px}
+  #printArea table{width:100%;border-collapse:collapse;font-size:10.5px}
+  #printArea th,#printArea td{border:1px solid #888;padding:4px 6px;vertical-align:top;text-align:left}
+  #printArea th{background:#e8e8e8}
+}
+@media(max-width:820px){
+  .page{padding:12px 12px 40px}
+  header.topbar{padding:10px 12px}
+  table.tbl{display:block;overflow-x:auto}
+}
+</style>
+</head>
+<body>
+
+<div class="gate-overlay" id="gateOverlay">
+  <div class="gate-card">
+    <h2>📮 航次報表收件</h2>
+    <p id="gateMsg">正在確認登入狀態…</p>
+    <a class="go" id="gateBackLink" href="index.html">↩ 前往主系統登入</a>
+  </div>
+</div>
+
+<div id="appRoot" style="display:none">
+<header class="topbar">
+  <h2>📮 航次報表收件</h2>
+  <span class="sub">DCP-FM03 船上上傳 → 督導確認即完成</span>
+  <span class="spacer"></span>
+  <span class="role-badge" id="roleBadge"></span>
+  <a class="back-link" href="index.html">↩ 返回主系統</a>
+</header>
+
+<div class="page">
+  <div id="voy-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center"></div>
+  <div id="voy-body"></div>
+</div>
+</div>
+
+<div class="modal-bg" id="voyAttachModal">
+  <div class="modal" style="max-width:480px">
+    <div style="padding:18px 20px">
+      <h3 id="voyattach-title" style="margin:0 0 4px;font-size:16px;color:var(--navy)">附件</h3>
+      <div id="voyattach-info" class="hint" style="margin-bottom:12px"></div>
+      <div id="voyattach-files" style="font-size:14px;line-height:2"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+        <button class="btn" onclick="document.getElementById('voyAttachModal').classList.remove('show')">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="voyCatEditModal">
+  <div class="modal" style="max-width:560px">
+    <div style="padding:18px 20px">
+      <h3 id="voycat-title" style="margin:0 0 14px;font-size:16px;color:var(--navy)">編輯表單</h3>
+      <div class="fgrid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px">
+        <label>表單編號<input type="text" id="voycat-code" placeholder="如 TDP-FM17"></label>
+        <label>適用船型
+          <select id="voycat-vtype">
+            <option value="all">全部適用</option>
+            <option value="tanker">僅 TANKER</option>
+            <option value="bulk">僅 BULK</option>
+          </select>
+        </label>
+        <label style="grid-column:1/-1">表單名稱<input type="text" id="voycat-name" placeholder="如 滅火演練報告"></label>
+        <label>寄送週期
+          <select id="voycat-freq">
+            <option value="m">每月</option>
+            <option value="q">每季</option>
+            <option value="e2m">每二個月</option>
+            <option value="h6">每六個月</option>
+            <option value="y">年度</option>
+            <option value="june">每年6月</option>
+            <option value="event">事故時／發生時</option>
+          </select>
+        </label>
+        <label>船上負責人<input type="text" id="voycat-pic" list="dl-roster-names" placeholder="如 船長"></label>
+        <label>收件人<input type="text" id="voycat-sendto" list="dl-roster-names" placeholder="如 柯香吟"></label>
+        <label>副本<input type="text" id="voycat-cc" list="dl-roster-names" placeholder="可空白"></label>
+        <label style="grid-column:1/-1">備註<input type="text" id="voycat-note" placeholder="可空白"></label>
+        <label style="grid-column:1/-1"><input type="checkbox" id="voycat-active" style="width:auto;margin-right:6px"> 啟用（船上「船上上傳」頁會顯示此表單）</label>
+      </div>
+      <div class="hint" style="margin-top:4px">收件人／副本／船上負責人可從系統人員清單選取，也可保留部門代稱（如「船東督導」）等原文字。</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <button class="btn" onclick="document.getElementById('voyCatEditModal').classList.remove('show')">取消</button>
+        <button class="btn primary" onclick="VoyRecv.saveCatModal()">💾 儲存</button>
+      </div>
+    </div>
+  </div>
+</div>
+<datalist id="dl-roster-names"></datalist>
+
+<div class="modal-bg" id="voyUploadModal">
+  <div class="modal" style="max-width:520px">
+    <div style="padding:18px 20px">
+      <h3 id="voyup-title" style="margin:0 0 4px;font-size:16px;color:var(--navy)">上傳</h3>
+      <div id="voyup-info" class="hint" style="margin-bottom:12px"></div>
+      <label style="display:block;margin-bottom:10px;font-size:13px">文件日期（實際發生／演習日期，非上傳日）<br>
+        <input type="date" id="voyup-docdate" style="margin-top:4px">
+      </label>
+      <div id="voyup-checklist-wrap" style="display:none;margin-bottom:10px;padding:10px;background:var(--paper);border:1px solid var(--line);border-radius:6px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px">⚠ 請一併勾選本次使用的檢查表，並把該檢查表與所有往來信件一起選入下方檔案一起上傳（可複選、可多檔）：</div>
+        <div id="voyup-checklist-list" style="max-height:160px;overflow:auto;font-size:13px;line-height:1.9"></div>
+      </div>
+      <div style="margin-bottom:10px"><input type="file" id="voyup-file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip"></div>
+      <div style="margin-bottom:12px"><input type="text" id="voyup-note" placeholder="備註（選填，如航次編號 Ref. No.）" style="width:100%"></div>
+      <div class="hint" style="margin-bottom:12px">單檔上限 25MB；可一次選多個檔案。上傳後由督導確認即完成。</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" onclick="document.getElementById('voyUploadModal').classList.remove('show')">取消</button>
+        <button class="btn primary" id="voyup-go" onclick="VoyRecv.confirmUpload()">⬆ 上傳</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="printArea"></div>
+<div class="toast" id="toast"></div>
+
+<script id="voycat-seed" type="application/json">
+[{"id": 1, "code": "DCP-FM10", "name": "船舶證書", "en": "", "freq": "m", "freqText": "每月/換證", "pic": "船長", "sendTo": "flow系統填窵", "cc": "", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "all"}, {"id": 2, "code": "SOI-FM03", "name": "月度船舶安全會議紀錄", "en": "", "freq": "m", "freqText": "每個月", "pic": "船長", "sendTo": "flow系統填窵", "cc": "", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "all"}, {"id": 3, "code": "DMP-FM01", "name": "缺失／異常與矯正報告", "en": "", "freq": "event", "freqText": "發生時", "pic": "船長", "sendTo": "flow系統填窵", "cc": "", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "all"}, {"id": 4, "code": "DMP-FM12", "name": "異常即時報告表", "en": "", "freq": "event", "freqText": "發生時", "pic": "船長", "sendTo": "flow系統填窵", "cc": "", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "all"}, {"id": 5, "code": "DMP-FM07", "name": "虛驚/隠患事故報告", "en": "", "freq": "m", "freqText": "每個月", "pic": "船長", "sendTo": "flow系統填窵", "cc": "", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "all"}, {"id": 6, "code": "MOC-FM01", "name": "變更管理操作系統申請記錄表", "en": "", "freq": "event", "freqText": "發生時", "pic": "船長", "sendTo": "船東督導", "cc": "柯香吟", "note": "", "active": true, "vtype": "all"}, {"id": 7, "code": "MOC-FM02", "name": "改善提案表", "en": "", "freq": "event", "freqText": "發生時", "pic": "船長", "sendTo": "船東督導", "cc": "安衛組", "note": "", "active": true, "vtype": "all"}, {"id": 8, "code": "SWO-FM010", "name": "航行計畫", "en": "", "freq": "event", "freqText": "發生時", "pic": "船長", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 9, "code": "TDP-FM6-1", "name": "季度法定演練摘要", "en": "", "freq": "q", "freqText": "每三個月", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 10, "code": "TDP-FM14", "name": "在職訓練計畫", "en": "", "freq": "m", "freqText": "每個月", "pic": "船長", "sendTo": "船員組收件專用信箱", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 11, "code": "TDP-FM15", "name": "船舶訓練紀錄", "en": "", "freq": "event", "freqText": "授課後", "pic": "船長", "sendTo": "船員組收件專用信箱", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 12, "code": "TDP-FM16", "name": "強制性應急演練計畫", "en": "", "freq": "y", "freqText": "前一年年底", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 13, "code": "TDP-FM17", "name": "滅火演練報告", "en": "", "freq": "m", "freqText": "每個月", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 14, "code": "TDP-FM18", "name": "棄船演練（救生艇放落）報告", "en": "", "freq": "m", "freqText": "每個月", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 15, "code": "TDP-FM19", "name": "棄船演練（救生艇著水）報告", "en": "", "freq": "q", "freqText": "每三個月", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 16, "code": "TDP-FM20", "name": "緊急操舵演練報告", "en": "", "freq": "q", "freqText": "每三個月", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 17, "code": "TDP-FM21", "name": "進入密閉艙間救援演練報告", "en": "", "freq": "e2m", "freqText": "每二個月", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 18, "code": "GMP-FM01", "name": "垃圾數量統計表", "en": "", "freq": "m", "freqText": "每個月", "pic": "船長", "sendTo": "flow系統填窵", "cc": "", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "all"}, {"id": 19, "code": "CHP-FM07 （散貨）", "name": "貨物監測日誌", "en": "", "freq": "m", "freqText": "每個月", "pic": "大副", "sendTo": "楊治華", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 20, "code": "PTW-FM02-1 PTW-FM02-2", "name": "熱工作業計劃申請表", "en": "", "freq": "event", "freqText": "發生時", "pic": "船長", "sendTo": "船東督導", "cc": "安衛組", "note": "", "active": true, "vtype": "all"}, {"id": 21, "code": "PTW-FM12", "name": "關鍵性設備關停申請書", "en": "", "freq": "event", "freqText": "發生時", "pic": "船長", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 22, "code": "SAR-FM01", "name": "季度船長查證紀錄", "en": "", "freq": "q", "freqText": "每三個月", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 23, "code": "SAR-FM02", "name": "船長安全管理制度審查報告", "en": "", "freq": "q", "freqText": "每季", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 24, "code": "SAR-FM13", "name": "每月船上自主核查回報表", "en": "", "freq": "m", "freqText": "每個月", "pic": "船長", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 25, "code": "SAR-FM21", "name": "動態航行檢查評估表", "en": "", "freq": "y", "freqText": "年度", "pic": "船長", "sendTo": "船東督導", "cc": "柯香吟", "note": "", "active": true, "vtype": "all"}, {"id": 26, "code": "LSA/FFA-FM01", "name": "每月查核-救生設備與消防設備", "en": "", "freq": "m", "freqText": "每個月", "pic": "三副", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 27, "code": "OMG-FM600", "name": "尼龍纜鋼纜及尾索保養檢查報告", "en": "", "freq": "m", "freqText": "每個月", "pic": "大副", "sendTo": "flow系統填窵", "cc": "船東督導", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "all"}, {"id": 28, "code": "OMG-FM601", "name": "尼龍尾索檢查月報告", "en": "", "freq": "m", "freqText": "每個月", "pic": "大副", "sendTo": "flow系統填窵", "cc": "船東督導", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "all"}, {"id": 29, "code": "OMG-FM602", "name": "尼龍纜鋼纜檢查月報表", "en": "", "freq": "m", "freqText": "每個月", "pic": "大副", "sendTo": "flow系統填窵", "cc": "船東督導", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "all"}, {"id": 30, "code": "OMG-FM501", "name": "航海儀器設備月報表", "en": "", "freq": "m", "freqText": "每個月", "pic": "船長", "sendTo": "楊治華", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 31, "code": "OMG-FM100", "name": "每月／每航次甲板機械情況報告", "en": "", "freq": "m", "freqText": "每個月", "pic": "大副", "sendTo": "楊治華", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 32, "code": "OMG-FM102 OMG-FM103 OMG-FM104", "name": "貨艙壓水艙 堰艙屬具等檢查 記錄報告 Form 1 & 2 & 3", "en": "", "freq": "event", "freqText": "根據ISM規定", "pic": "大副", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 33, "code": "船舶保全計畫 Ship security Plan", "name": "Appendix S: Record of Review of Ship Security Plan", "en": "", "freq": "june", "freqText": "6月", "pic": "船長", "sendTo": "船東督導", "cc": "柯香吟", "note": "", "active": true, "vtype": "all"}, {"id": 34, "code": "SHE-FM20", "name": "緊急應變, 演習首次簡要報告, 通訊紀錄 Emergency Response, Exercise Initial Report, Contact Record", "en": "", "freq": "event", "freqText": "發生時", "pic": "船長", "sendTo": "船東督導", "cc": "安衛組", "note": "", "active": true, "vtype": "all"}, {"id": 35, "code": "DMP-FM08", "name": "意外事故自我反省報告", "en": "", "freq": "event", "freqText": "發生時", "pic": "船長", "sendTo": "船東督導", "cc": "安衛組", "note": "", "active": true, "vtype": "all"}, {"id": 36, "code": "DMP-FM09", "name": "意外事故船方報告", "en": "", "freq": "event", "freqText": "發生時", "pic": "船長", "sendTo": "船東督導", "cc": "安衛組", "note": "", "active": true, "vtype": "all"}, {"id": 37, "code": "SEP-FM38", "name": "洩(漏)油／應急操演報告", "en": "", "freq": "m", "freqText": "每個月/事故時", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "tanker", "needsChecklist": true, "checklistSet": "tanker"}, {"id": 38, "code": "SEP-FM39", "name": "每月防污設備檢查表", "en": "", "freq": "m", "freqText": "每個月", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "tanker"}, {"id": 39, "code": "SEP-FM37", "name": "年度船上應急操演計畫", "en": "", "freq": "event", "freqText": "年度計畫/事故時", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "tanker"}, {"id": 40, "code": "SEP/SOPEP-FM37", "name": "年度船上應急操演計畫", "en": "", "freq": "y", "freqText": "前一年年底", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "tanker"}, {"id": 41, "code": "HRM-FM40", "name": "定期工作評核表-船長/輪機長(企業表單)", "en": "", "freq": "m", "freqText": "每月", "pic": "船長", "sendTo": "flow系統填窵", "cc": "船東督導", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "tanker"}, {"id": 42, "code": "HRM-FM41", "name": "定期工作評核表(大副大管)》", "en": "", "freq": "m", "freqText": "每月", "pic": "船長", "sendTo": "flow系統填窵", "cc": "", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "tanker"}, {"id": 43, "code": "HRM-FM42", "name": "定期工作評核表-船副管輪(企業表單)", "en": "", "freq": "h6", "freqText": "每半年", "pic": "船長", "sendTo": "flow系統填窵", "cc": "", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "tanker"}, {"id": 44, "code": "HRM-FM43", "name": "定期工作評核表-乙級船員(企業表單)", "en": "", "freq": "h6", "freqText": "每半年", "pic": "船長", "sendTo": "flow系統填窵", "cc": "", "note": "已透過 Flow 系統填報，本系統預設不重複收件（可由維護者手動啟用）", "active": false, "vtype": "tanker"}, {"id": 45, "code": "HRM-FM45", "name": "HRM-FM45 下船工作評核表- 船長", "en": "", "freq": "event", "freqText": "每位船員下船時", "pic": "船長", "sendTo": "船員組收件專用信箱", "cc": "船東督導", "note": "", "active": true, "vtype": "tanker"}, {"id": 46, "code": "HRM-FM46", "name": "下船工作評核表- 輪機長", "en": "", "freq": "event", "freqText": "每位船員下船時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 47, "code": "HRM-FM47", "name": "下船工作評核表- 大副", "en": "", "freq": "event", "freqText": "每位船員下船時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 48, "code": "HRM-FM48", "name": "下船工作評核表- 大管", "en": "", "freq": "event", "freqText": "每位船員下船時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 49, "code": "HRM-FM49", "name": "下船工作評核表- 船副", "en": "", "freq": "event", "freqText": "每位船員下船時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 50, "code": "HRM-FM50", "name": "下船工作評核表管輪", "en": "", "freq": "event", "freqText": "每位船員下船時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 51, "code": "HRM-FM51", "name": "下船工作評核表-水手長", "en": "", "freq": "event", "freqText": "每位船員下船時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 52, "code": "HRM-FM52", "name": "下船工作評核表-乙級船員、實習生", "en": "", "freq": "event", "freqText": "每位船員下船時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 53, "code": "HRM-FM06", "name": "船員個人証照查對單", "en": "", "freq": "event", "freqText": "每船員異動時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 54, "code": "HRM-FM07", "name": "船員組 調(異)動聯繫(回報)單", "en": "", "freq": "event", "freqText": "每船員異動時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 55, "code": "TDP-FM01", "name": "船員上船前培訓和熟悉", "en": "", "freq": "event", "freqText": "新船員,由船員勞務代理公司負責", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 56, "code": "HRM-FM21", "name": "交接聲明書", "en": "", "freq": "event", "freqText": "交接時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 57, "code": "HRM-FM22", "name": "船長交接檢查表", "en": "", "freq": "event", "freqText": "交接時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 58, "code": "HRM-FM23", "name": "大副交接檢查表", "en": "", "freq": "event", "freqText": "交接時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 59, "code": "HRM-FM24", "name": "二副交接檢查表", "en": "", "freq": "event", "freqText": "交接時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 60, "code": "HRM-FM25", "name": "三副交接檢查表", "en": "", "freq": "event", "freqText": "交接時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 61, "code": "HRM-FM26", "name": "輪機長交接檢查表", "en": "", "freq": "event", "freqText": "交接時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 62, "code": "HRM-FM27", "name": "大管輪交接檢查表", "en": "", "freq": "event", "freqText": "交接時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 63, "code": "HRM-FM28", "name": "二管輪交接檢查表", "en": "", "freq": "event", "freqText": "交接時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 64, "code": "HRM-FM29", "name": "三管輪交接檢查表", "en": "", "freq": "event", "freqText": "交接時", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 65, "code": "TDP-FM02", "name": "船員上船後接任前培訓和熟悉", "en": "", "freq": "event", "freqText": "新船員開船前", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 66, "code": "TDP-FM03", "name": "船員接任後進一步培訓和熟悉", "en": "", "freq": "event", "freqText": "新船員上船後二至十班內", "pic": "船長", "sendTo": "柯香吟", "cc": "", "note": "", "active": true, "vtype": "tanker"}, {"id": 67, "code": "MMP-APPENDIX 4", "name": "非法或違禁毒品/物品與酒精書面陳述/聲明", "en": "", "freq": "event", "freqText": "新船員開船前", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "tanker"}, {"id": 68, "code": "SEP-FM26", "name": "每月防污設備檢查表", "en": "", "freq": "m", "freqText": "每個月/事故時", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "bulk"}, {"id": 69, "code": "SEP-FM27", "name": "洩(漏)油／應急操演報告", "en": "", "freq": "m", "freqText": "每個月", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "bulk", "needsChecklist": true, "checklistSet": "bulk"}, {"id": 70, "code": "SEP-FM01", "name": "年度船上應急操演計畫", "en": "", "freq": "event", "freqText": "年度計畫/事故時", "pic": "船長", "sendTo": "柯香吟", "cc": "船東督導", "note": "", "active": true, "vtype": "bulk"}, {"id": 71, "code": "", "name": "甲板保養計畫及照片", "en": "", "freq": "m", "freqText": "每個月", "pic": "船長", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 72, "code": "OMG-FM801", "name": "運轉時數報表", "en": "", "freq": "m", "freqText": "每個月", "pic": "大管/二管", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 73, "code": "OMG-FM802", "name": "主機狀況資料月報表", "en": "", "freq": "m", "freqText": "每個月", "pic": "大管輪", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 74, "code": "OMG-FM807", "name": "發電機性能資料(月報表)", "en": "", "freq": "m", "freqText": "每個月", "pic": "二管輪", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 75, "code": "OMG-FM812", "name": "鍋爐水紀錄表", "en": "", "freq": "m", "freqText": "每個月", "pic": "二管輪", "sendTo": "楊治華", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 76, "code": "OMG-FM810", "name": "主機冷水記錄表", "en": "", "freq": "m", "freqText": "每個月", "pic": "二管輪", "sendTo": "楊治華", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 77, "code": "OMG-FM811", "name": "輔機冷卻水記錄表", "en": "", "freq": "m", "freqText": "每個月", "pic": "二管輪", "sendTo": "楊治華", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 78, "code": "", "name": "PMS表格-壓縮檔", "en": "", "freq": "m", "freqText": "每個月", "pic": "輪機長", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 79, "code": "SSP-FM02", "name": "物料／配件庫存報告單", "en": "", "freq": "m", "freqText": "每個月", "pic": "輪機長", "sendTo": "黃駿達", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 80, "code": "SSP-FM03", "name": "滑油航次（月）報表", "en": "", "freq": "m", "freqText": "每個月", "pic": "輪機長", "sendTo": "黃駿達", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 81, "code": "SSP-FM04", "name": "油櫃測量記錄航次（月）報表", "en": "", "freq": "m", "freqText": "每個月", "pic": "輪機長", "sendTo": "黃駿達", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 82, "code": "SSP-FM05", "name": "化學藥劑航次（月）報表", "en": "", "freq": "m", "freqText": "每個月", "pic": "輪機長", "sendTo": "黃駿達", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 83, "code": "SSP-FM09", "name": "領料明細表", "en": "", "freq": "m", "freqText": "每個月", "pic": "輪機長", "sendTo": "黃駿達", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 84, "code": "", "name": "修復單", "en": "", "freq": "m", "freqText": "每個月", "pic": "輪機長", "sendTo": "黃駿達", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 85, "code": "OMG-FM814", "name": "MONTHLY TESTING OF CRITICAL EQUIPMENT", "en": "", "freq": "m", "freqText": "每個月", "pic": "輪機長", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 86, "code": "OMG-FM11", "name": "重要設備電池控管表(每月)", "en": "", "freq": "m", "freqText": "每個月", "pic": "輪機長", "sendTo": "楊治華", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 87, "code": "OMG-FM10", "name": "主要配件備品表", "en": "", "freq": "m", "freqText": "每個月/每航次", "pic": "大管輪", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 88, "code": "EEP-FM14", "name": "機艙排海終端管線法蘭盤控管明細表", "en": "", "freq": "q", "freqText": "每三個月", "pic": "輪機長", "sendTo": "楊治華", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 89, "code": "OMG-FM12", "name": "化學藥劑使用控制表", "en": "", "freq": "h6", "freqText": "每六個月(1月、7月)", "pic": "二管輪", "sendTo": "楊治華", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 90, "code": "OMG-FM05", "name": "輪機長執行檢驗之機器連續檢驗項目報告", "en": "", "freq": "event", "freqText": "安排檢查時", "pic": "輪機長", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 91, "code": "OMG-FM815", "name": "絕緣檢測", "en": "", "freq": "h6", "freqText": "每六個月", "pic": "二管輪", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 92, "code": "OMG-FM803", "name": "主機、缸套及活塞環", "en": "", "freq": "event", "freqText": "保養時", "pic": "大管輪", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 93, "code": "OMG-FM804", "name": "主機軸承", "en": "", "freq": "event", "freqText": "保養時", "pic": "大管輪", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 94, "code": "OMG-FM805", "name": "主機增壓機翻修", "en": "", "freq": "event", "freqText": "保養時", "pic": "大管輪", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 95, "code": "OMG-FM806", "name": "主/副機曲拐軸之曲撓度", "en": "", "freq": "event", "freqText": "保養時", "pic": "大管/二管", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 96, "code": "OMG-FM808", "name": "副機(發電機)缸套及活塞環", "en": "", "freq": "event", "freqText": "保養時", "pic": "二管輪", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 97, "code": "OMG-FM809", "name": "發電機透平增壓機量測記錄", "en": "", "freq": "event", "freqText": "保養時", "pic": "二管輪", "sendTo": "船東督導", "cc": "", "note": "", "active": true, "vtype": "all"}, {"id": 98, "code": "SSP-FM01", "name": "物料/配件申請單", "en": "", "freq": "event", "freqText": "申請時", "pic": "輪機長", "sendTo": "收件專用信箱", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}, {"id": 99, "code": "OMG-FM01", "name": "修理工程申請單(工程委託單)", "en": "", "freq": "event", "freqText": "申請時", "pic": "輪機長", "sendTo": "收件專用信箱", "cc": "船東督導", "note": "", "active": true, "vtype": "all"}]
+</script>
+<script id="voycat-checklists-seed" type="application/json">
+{"tanker": [{"code": "SEP/SOPEP-FM01", "name": "操作所致洩漏共用檢查表"}, {"code": "SEP/SOPEP-FM02", "name": "加油/裝卸液貨中管路洩漏檢查表"}, {"code": "SEP/SOPEP-FM03", "name": "加油/裝卸液貨中艙櫃洩漏檢查表"}, {"code": "SEP/SOPEP-FM04", "name": "船體洩漏檢查表"}, {"code": "SEP/SOPEP-FM05", "name": "海難所致洩漏檢查表"}, {"code": "SEP/SOPEP-FM06", "name": "火災／爆炸檢查表"}, {"code": "SEP/SOPEP-FM07", "name": "碰撞檢查表"}, {"code": "SEP/SOPEP-FM08", "name": "擱淺／觸礁／坐底檢查表"}, {"code": "SEP/SOPEP-FM09", "name": "泛水檢查表"}, {"code": "SEP/SOPEP-FM10", "name": "過度橫傾檢查表"}, {"code": "SEP/SOPEP-FM11", "name": "船體結構受損檢查表"}, {"code": "SEP-FM12", "name": "危險液貨（有害液體物質）通用檢"}, {"code": "SEP-FM13", "name": "毒性液貨洩漏追加檢查表"}, {"code": "SEP-FM14", "name": "腐蝕性液貨洩漏追加檢查表"}, {"code": "SEP-FM15", "name": "易燃液貨洩漏追加檢查表"}, {"code": "SEP-FM16", "name": "浮於水面易燃液貨追加檢查表"}, {"code": "SEP-FM17", "name": "可溶解於水之海洋污物源追加檢查表"}, {"code": "SEP-FM18", "name": "液貨艙環境控制失效檢查表"}, {"code": "SEP/SOPEP-FM19", "name": "危險蒸發氣逸出檢查表"}, {"code": "SEP/SOPEP-FM20", "name": "拖船協助檢查表"}, {"code": "SEP/SOPEP-FM21", "name": "主機故障／電力故障檢查表"}, {"code": "SEP/SOPEP-FM22", "name": "舵機故障檢查表"}, {"code": "SEP/SOPEP-FM23", "name": "航儀故障檢查表"}, {"code": "SEP/SOPEP-FM24", "name": "人員落海檢查表"}, {"code": "SEP/SOPEP-FM25", "name": "搜救檢查表"}, {"code": "SEP/SOPEP-FM26", "name": "緊急醫療與搜救傷患檢查表"}, {"code": "SEP-FM27", "name": "海盜／武裝搶劫檢查表"}, {"code": "SEP/SOPEP-FM31", "name": "火災/爆炸最初報告"}, {"code": "SEP/SOPEP-FM32", "name": "碰撞最初報告"}, {"code": "SEP/SOPEP-FM33", "name": "擱淺/觸礁/坐底最初報告"}, {"code": "SEP/SOPEP-FM34", "name": "其他海難事故最初報告"}, {"code": "SEP-FM35", "name": "偷渡/毒品/走私檢查表"}], "bulk": [{"code": "SEP-FM02", "name": "火災/爆炸最初報告"}, {"code": "SEP-FM03", "name": "碰撞最初報告"}, {"code": "SEP-FM04", "name": "擱淺/觸礁/坐底最初報告"}, {"code": "SEP-FM05", "name": "其他海難事故最初報告"}, {"code": "SEP-FM06", "name": "加油/裝卸液貨中管路洩漏檢查表"}, {"code": "SEP-FM07", "name": "加油/裝卸液貨中艙櫃洩漏檢查表"}, {"code": "SEP-FM08", "name": "火災／爆炸檢查表"}, {"code": "SEP-FM09", "name": "碰撞檢查表"}, {"code": "SEP-FM10", "name": "擱淺／觸礁／坐底檢查表"}, {"code": "SEP-FM11", "name": "泛水檢查表"}, {"code": "SEP-FM12", "name": "船體結構受損檢查表"}, {"code": "SEP-FM13", "name": "危險蒸發氣逸出檢查表"}, {"code": "SEP-FM14", "name": "拖船協助檢查表"}, {"code": "SEP-FM15", "name": "主機故障／電力故障檢查表"}, {"code": "SEP-FM16", "name": "舵機故障檢查表"}, {"code": "SEP-FM17", "name": "航儀故障檢查表"}, {"code": "SEP-FM18", "name": "人員落海檢查表"}, {"code": "SEP-FM19", "name": "搜救檢查表"}, {"code": "SEP-FM20", "name": "緊急醫療與搜救傷患檢查表"}, {"code": "SEP-FM21", "name": "海盜／武裝搶劫檢查表"}]}
+</script>
+
+<script>
+/* ════════ 共用基礎工具（精簡自主系統 index.html，僅保留本頁需要的部分） ════════ */
+const CLOUD_URL="https://iqmbircjokdzdssouwkr.supabase.co";
+const CLOUD_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY";
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+function toast(msg){const t=$("#toast");t.textContent=msg;t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",2600);}
+function todayStr(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function doPrint(){
+  if(typeof window.print!=="function"){toast("⚠ 此瀏覽器不支援列印/另存PDF");return;}
+  setTimeout(()=>{try{window.print();}catch(e){toast("⚠ 無法開啟列印視窗，請使用瀏覽器選單的「列印」");}},120);
+}
+
+const Cloud={
+  cfg:{url:CLOUD_URL,key:CLOUD_KEY},
+  hdr(){return {"apikey":CLOUD_KEY,"Authorization":"Bearer "+CLOUD_KEY,"Content-Type":"application/json"};},
+  enabled(){return true;},
+  async api(path,opts){
+    opts=opts||{};
+    const headers=Object.assign(this.hdr(),opts.headers||{});
+    const res=await fetch(CLOUD_URL+"/rest/v1/"+path,Object.assign({cache:"no-store"},opts,{headers}));
+    if(!res.ok){const t=await res.text().catch(()=>"");throw new Error("API "+res.status+" "+t.slice(0,200));}
+    if(res.status===204)return null;
+    return res.json().catch(()=>null);
+  }
+};
+
+/* 身份：與主系統同源共用 localStorage，登入狀態由主系統的登入畫面寫入，本頁僅讀取，不重新登入 */
+const Role={
+  SKEY:"vsm_identity_v1",TTL:8*3600*1000,cur:null,
+  load(){
+    try{
+      const s=JSON.parse(localStorage.getItem(this.SKEY));
+      if(s&&s.name&&s.exp>Date.now())this.cur=s;
+    }catch(e){}
+    return this.cur;
+  },
+  tier(){return this.cur?this.cur.tier:"op3";},
+  name(){return this.cur?this.cur.name:"";},
+  personName(){return this.cur?(this.cur.personName||this.cur.name):this.name();},
+  isOwner(){return this.tier()==="owner";},
+  isAdmin(){return this.tier()==="owner"||this.tier()==="admin";},
+  TIER_LABEL:{owner:"Owner",admin:"管理員",op1:"操作者1-督導",op2:"操作者2-船舶",op3:"操作者3-其他部門"}
+};
+function siteGateOk(){
+  try{
+    const s=JSON.parse(localStorage.getItem("vsm_site_gate_ok_v2"));
+    return !!(s&&s.exp>Date.now());
+  }catch(e){return false;}
+}
+
+const Audit={
+  user(){return Role.cur&&Role.cur.name?Role.cur.name+"（"+(Role.TIER_LABEL[Role.cur.tier]||Role.cur.tier)+"）":"未具名";},
+  async log(action,target,summary){
+    try{
+      await Cloud.api("audit_log",{method:"POST",body:JSON.stringify([{ts:Date.now(),usr:this.user(),action,target,summary:String(summary||"").slice(0,180)}])});
+    }catch(e){console.warn("audit log push failed",e);}
+  }
+};
+
+let SHIPINFO=[];
+async function loadShips(){
+  try{
+    const rows=await Cloud.api("sync_ships?select=payload");
+    if(rows&&rows.length){SHIPINFO=rows.map(r=>r.payload).filter(Boolean);return;}
+  }catch(e){console.warn("sync_ships load failed",e);}
+  try{
+    const rows2=await Cloud.api("app_db?select=payload&k=eq.ships");
+    const p=rows2&&rows2[0]&&rows2[0].payload;
+    if(Array.isArray(p))SHIPINFO=p;
+  }catch(e){console.warn("ships fallback load failed",e);}
+}
+function loadRosterNames(){
+  try{
+    const ls=localStorage.getItem("vsm_roster_v1");
+    const arr=ls?JSON.parse(ls):[];
+    return [...new Set(arr.map(r=>r.name))].filter(Boolean).sort();
+  }catch(e){return [];}
+}
+
+let ReadOnly={on:false};
+async function loadReadOnly(){
+  try{
+    const rows=await Cloud.api("app_db?select=payload&k=eq.readonly_mode");
+    const p=rows&&rows[0]&&rows[0].payload;
+    if(p&&typeof p.on==="boolean")ReadOnly=p;
+  }catch(e){/* 讀不到就當作非唯讀，不阻擋操作 */}
+}
+function writeBlocked(){
+  if(ReadOnly.on&&!Role.isOwner()){toast("⚠ 系統目前為唯讀模式，暫時無法寫入");return true;}
+  return false;
+}
+
+/* ════════ 📮 航次報表收件（DCP-FM03 海技部分）════════
+   船上上傳 → 督導確認 三階段收件管理（歸檔步驟已停用，比照主系統流程）。
+   檔案儲存採 VoyFiles 轉接層，實作為 Supabase Storage。
+   收件紀錄逐筆合併同步（voy_submissions 資料表，gid 唯一鍵），
+   避免多艘船同時上傳時整包互相覆蓋。 */
+const VoyFiles={
+  BUCKET:"voyage-files",
+  MAX_MB:25,
+  enabled(){return true;},
+  _encKey(key){return key.split("/").map(encodeURIComponent).join("/");},
+  safeExt(filename){
+    const dot=filename.lastIndexOf(".");
+    if(dot<0)return"";
+    const e=filename.slice(dot).toLowerCase().replace(/[^a-z0-9.]/g,"");
+    return (e.length>1&&e.length<=10)?e:"";
+  },
+  async sha256hexBuf(buf){
+    try{
+      if(window.crypto&&crypto.subtle){
+        const b=await crypto.subtle.digest("SHA-256",buf);
+        return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");
+      }
+    }catch(e){}
+    return "";
+  },
+  async put(file,prefix){
+    if(file.size>this.MAX_MB*1024*1024)throw new Error(`檔案超過 ${this.MAX_MB}MB 上限，請壓縮或分割後再上傳`);
+    const buf=await file.arrayBuffer();
+    const sha=await this.sha256hexBuf(buf);
+    const rand=Math.random().toString(36).slice(2,8);
+    const key=`${prefix}/${Date.now()}_${rand}${this.safeExt(file.name)}`;
+    const r=await fetch(CLOUD_URL+"/storage/v1/object/"+this.BUCKET+"/"+this._encKey(key),{
+      method:"POST",
+      headers:{"apikey":CLOUD_KEY,"Authorization":"Bearer "+CLOUD_KEY,"Content-Type":file.type||"application/octet-stream","x-upsert":"false"},
+      body:buf
+    });
+    if(!r.ok){
+      const tx=(await r.text()).slice(0,150);
+      if(r.status===404||tx.includes("Bucket not found"))throw new Error("找不到儲存桶 voyage-files，請維護者依「雲端設定說明」在 Supabase 建立");
+      throw new Error("上傳失敗 HTTP "+r.status+"："+tx);
+    }
+    return {key,name:file.name,size:file.size,sha256:sha};
+  },
+  url(key){return CLOUD_URL+"/storage/v1/object/public/"+this.BUCKET+"/"+this._encKey(key);},
+  async remove(key){
+    try{await fetch(CLOUD_URL+"/storage/v1/object/"+this.BUCKET+"/"+this._encKey(key),{method:"DELETE",headers:{"apikey":CLOUD_KEY,"Authorization":"Bearer "+CLOUD_KEY}});}catch(e){console.warn("voy file remove",e);}
+  }
+};
+
+const VoyRecv={
+  LSK_CAT:"vsm_voycat_v1_page",LSK_SUB:"vsm_voysub_v1_page",
+  CAT_CLOUD_KEY:"voyCatalog",TABLE:"voy_submissions",
+  GRACE_DAYS:10,
+  cat:[],subs:[],checklists:{tanker:[],bulk:[]},view:"upload",
+  CAT_SEED_VER:"v2-20260708",
+  mYear:new Date().getFullYear(),mMode:"ship",mShip:"",mForm:"",
+  fShip:"",fStatus:"",fYear:new Date().getFullYear(),catVtypeFilter:"",catActiveFilter:"",upCatFilter:"",
+  upTargetShip:"",
+  STATUS:{up:["船上已上傳","#2f6690"],sup:["已完成（督導確認）","#2e8b57"],arch:["已完成（督導確認）","#2e8b57"],rej:["已退回","#c0392b"]},
+  FREQ_ZH:{m:"每月",q:"每季",e2m:"每二個月",h6:"每六個月",y:"年度",june:"每年6月",event:"事故時／發生時"},
+  myShipCode(){return (Role.cur&&Role.cur.tier==="op2")?Role.cur.name:"";},
+  shipVtype(code){const s=SHIPINFO.find(x=>x.code===code);return s?s.vtype:"";},
+  myShipType(){return this.shipVtype(this.myShipCode());},
+  visibleCat(shipCode){
+    if(!shipCode)return this.cat;
+    const vt=this.shipVtype(shipCode);
+    return this.cat.filter(c=>c.vtype==="all"||c.vtype===vt);
+  },
+  isShip(){return !!this.myShipCode();},
+  isSup(){return Role.isAdmin()||Role.tier()==="op1";},
+  isTech(){return Role.isAdmin();},
+  canConfirm(r){
+    if(!this.isSup())return false;
+    if(Role.isOwner())return true;
+    const s=SHIPINFO.find(x=>x.code===r.ship);
+    const me=Role.personName();
+    if(!s||!me)return false;
+    return me===s.deckSup||me===s.engineSup;
+  },
+  canReject(r){return this.isTech()||this.canConfirm(r);},
+  shipName(code){const s=SHIPINFO.find(x=>x.code===code);return s?s.name:code;},
+  catPrefix(code){
+    const s=String(code||"").trim();
+    const m=s.match(/^(.*?)-FM/i);
+    return (m&&m[1]?m[1]:s)||"（未分類）";
+  },
+  exportChecklistPrint(shipCode){
+    const ship=shipCode||(this.isShip()?this.myShipCode():this.upTargetShip);
+    if(!ship){toast("⚠ 請先選擇船舶");return;}
+    const routine=this.visibleCat(ship).filter(c=>c.active&&c.freq!=="event");
+    const now=new Date();
+    const rows=[];
+    routine.forEach(c=>{
+      const cur=this.currentPeriod(c.freq);
+      const allP=this.periodsOf(c.freq,cur.year).map(p=>Object.assign({year:cur.year},p));
+      const backlog=allP.filter(p=>{
+        if(p.id===cur.id)return false;
+        const due=this.dueDate(c.freq,p.year,p.endM);
+        if(now<=due)return false;
+        return !this.findSub(ship,c.id,p.id);
+      });
+      [...backlog,cur].forEach(p=>{
+        const sub=this.findSub(ship,c.id,p.id);
+        const due=this.dueDate(c.freq,p.year,p.endM);
+        const overdue=!sub&&now>due;
+        const statusTxt=sub?(this.STATUS[sub.status]?this.STATUS[sub.status][0]:sub.status):(overdue?"逾期未繳":"未繳");
+        rows.push({code:c.code,name:c.name,freq:this.FREQ_ZH[c.freq]||c.freq,period:p.label,due:`${due.getMonth()+1}/${due.getDate()}`,status:statusTxt,overdue});
+      });
+    });
+    rows.sort((a,b)=>a.code.localeCompare(b.code));
+    const area=$("#printArea");if(!area)return;
+    area.innerHTML=`
+      <h1>航次報表收件｜應繳清單</h1>
+      <div class="pmeta">船舶：${esc(this.shipName(ship))}（${esc(ship)}）　列印時間：${new Date().toLocaleString()}</div>
+      <table>
+        <thead><tr><th style="width:90px">編號</th><th>表單名稱</th><th style="width:60px">週期</th><th style="width:70px">期別</th><th style="width:50px">截止</th><th style="width:70px">現況</th><th style="width:50px">核對</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr>
+          <td>${esc(r.code)}</td>
+          <td>${esc(r.name)}</td>
+          <td>${esc(r.freq)}</td>
+          <td>${esc(r.period)}</td>
+          <td>${esc(r.due)}</td>
+          <td>${r.overdue?"⚠ "+esc(r.status):esc(r.status)}</td>
+          <td>☐</td>
+        </tr>`).join("")||`<tr><td colspan="7">（此船目前無應繳表單）</td></tr>`}</tbody>
+      </table>`;
+    doPrint();
+  },
+  shipList(){return SHIPINFO.map(s=>({code:s.code,name:s.name}));},
+  init(){
+    const SEED_VER=this.CAT_SEED_VER;
+    try{this.cat=JSON.parse(localStorage.getItem(this.LSK_CAT)||"[]");}catch(e){this.cat=[];}
+    const curVer=localStorage.getItem(this.LSK_CAT+"_ver");
+    if(!this.cat.length||curVer!==SEED_VER){
+      try{this.cat=JSON.parse(document.getElementById("voycat-seed").textContent);localStorage.setItem(this.LSK_CAT+"_ver",SEED_VER);}catch(e){}
+    }
+    try{this.checklists=JSON.parse(document.getElementById("voycat-checklists-seed").textContent);}catch(e){this.checklists={tanker:[],bulk:[]};}
+    try{const s=localStorage.getItem(this.LSK_SUB);this.subs=s?JSON.parse(s):[];}catch(e){this.subs=[];}
+    let migrated=false;
+    this.subs.forEach(s=>{
+      if(!this.cat.some(c=>c.id===s.catId)&&s.code){
+        const m=this.cat.find(c=>c.code===s.code);
+        if(m){s.catId=m.id;migrated=true;}
+      }
+    });
+    if(migrated)this.persist();
+    if(this.isShip()){this.upTargetShip=this.myShipCode();this.mShip=this.myShipCode();}
+    else{const ships=this.shipList();this.upTargetShip=ships.length?ships[0].code:"";this.mShip=this.upTargetShip;}
+    if(this.cat.length&&!this.mForm)this.mForm=String(this.cat.find(c=>c.freq!=="event")?.id||"");
+  },
+  persist(){
+    try{
+      localStorage.setItem(this.LSK_CAT,JSON.stringify(this.cat));
+      localStorage.setItem(this.LSK_SUB,JSON.stringify(this.subs));
+    }catch(e){toast("⚠ 本機儲存空間不足");}
+  },
+  uuid(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():"v"+Date.now()+"-"+Math.random().toString(36).slice(2,10);},
+  pad2(n){return String(n).padStart(2,"0");},
+  periodsOf(freq,year){
+    const P=[];
+    if(freq==="m")for(let m=1;m<=12;m++)P.push({id:`${year}-${this.pad2(m)}`,label:`${m}月`,endM:m});
+    else if(freq==="q")for(let q=1;q<=4;q++)P.push({id:`${year}-Q${q}`,label:`第${q}季`,endM:q*3});
+    else if(freq==="e2m")for(let b=1;b<=6;b++)P.push({id:`${year}-B${b}`,label:`${b*2-1}–${b*2}月`,endM:b*2});
+    else if(freq==="h6")for(let b=1;b<=2;b++)P.push({id:`${year}-H${b}`,label:`${b*6-5}–${b*6}月`,endM:b*6});
+    else if(freq==="y")P.push({id:`${year}`,label:`${year}年度`,endM:12});
+    else if(freq==="june")P.push({id:`${year}-06`,label:`${year}年6月`,endM:6});
+    return P;
+  },
+  periodEnd(freq,year,endM){return new Date(year,endM,0);},
+  dueDate(freq,year,endM){const d=this.periodEnd(freq,year,endM);d.setDate(d.getDate()+this.GRACE_DAYS);return d;},
+  currentPeriod(freq){
+    const now=new Date(),y=now.getFullYear();
+    const P=this.periodsOf(freq,y);
+    for(const p of P){if(now<=this.dueDate(freq,y,p.endM))return Object.assign({year:y},p);}
+    return Object.assign({year:y},P[P.length-1]);
+  },
+  periodYear(pid){return parseInt(String(pid).slice(0,4),10);},
+  findSub(ship,catId,pid){return this.subs.find(s=>s.ship===ship&&s.catId===catId&&s.period===pid&&s.status!=="rej");},
+  touch(rec){rec.updated=Date.now();this.persist();this.pushRec(rec);},
+  async pushRec(rec){
+    try{
+      await Cloud.api(this.TABLE+"?on_conflict=gid",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates"},body:JSON.stringify([{gid:rec.gid,ship:rec.ship,updated:rec.updated,payload:rec}])});
+      this.cloudState("☁ 已同步 "+new Date().toLocaleTimeString());
+    }catch(e){
+      this.cloudState("⚠ 同步失敗，紀錄暫存本機");
+      console.warn("voy push",e);
+      toast("⚠ 收件紀錄同步失敗（"+e.message.slice(0,60)+"），已存本機，恢復連線後請按「同步」");
+    }
+  },
+  async syncCloud(silent){
+    this.cloudState("☁ 同步中…");
+    try{
+      const remote=await Cloud.api(this.TABLE+"?select=gid,updated,payload")||[];
+      const local=new Map(this.subs.map(r=>[r.gid,r]));
+      let pulled=0;
+      remote.forEach(r=>{
+        const lt=local.get(r.gid);
+        if(!lt){const rec=r.payload;rec.gid=r.gid;this.subs.push(rec);pulled++;}
+        else if((r.updated||0)>(lt.updated||0)){Object.assign(lt,r.payload,{gid:r.gid});pulled++;}
+      });
+      const rows=this.subs.map(r=>({gid:r.gid,ship:r.ship,updated:r.updated||Date.now(),payload:r}));
+      if(rows.length)await Cloud.api(this.TABLE+"?on_conflict=gid",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(rows)});
+      this.persist();
+      this.cloudState("☁ 已同步 "+new Date().toLocaleTimeString());
+      if(!silent)toast(`☁ 收件同步完成：更新 ${pulled} 筆／共 ${this.subs.length} 筆`);
+      this.render();
+    }catch(e){
+      this.cloudState("⚠ 同步失敗");
+      if(!silent){
+        if(e.message.includes("404")||e.message.includes("relation"))toast("⚠ 尚未建立 voy_submissions 資料表，請維護者展開「雲端設定說明」完成建置");
+        else toast("⚠ 同步失敗："+e.message.slice(0,80));
+      }
+    }
+  },
+  async loadCatCloud(){
+    try{
+      const rows=await Cloud.api("app_db?select=payload&k=eq."+this.CAT_CLOUD_KEY);
+      const p=rows&&rows[0]&&rows[0].payload;
+      const cloudItems=Array.isArray(p)?p:(p&&p.items);
+      const cloudVer=Array.isArray(p)?null:(p&&p.ver);
+      if(cloudItems&&cloudItems.length&&cloudVer===this.CAT_SEED_VER){
+        this.cat=cloudItems;
+        try{localStorage.setItem(this.LSK_CAT,JSON.stringify(cloudItems));localStorage.setItem(this.LSK_CAT+"_ver",cloudVer);}catch(e){}
+      }else if(this.cat.length){
+        this.pushCatCloud(true);
+      }
+    }catch(e){/* 離線維持本機 */}
+  },
+  async pushCatCloud(silent){
+    if(writeBlocked())return;
+    try{
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates"},body:JSON.stringify([{k:this.CAT_CLOUD_KEY,updated:Date.now(),by:Audit.user(),payload:{ver:this.CAT_SEED_VER,items:this.cat}}])});
+      if(!silent)toast("✓ 表單目錄已同步至雲端");
+    }catch(e){if(!silent)toast("⚠ 目錄同步失敗："+e.message.slice(0,80));}
+  },
+  cloudState(s){const el=$("#voy-cloudstate");if(el)el.textContent=s;},
+  openUpload(catId,pid,plabel,defaultDocDate){
+    const c=this.cat.find(x=>x.id===catId);if(!c)return;
+    const ship=this.isShip()?this.myShipCode():this.upTargetShip;
+    if(!ship){toast("⚠ 請先選擇船舶");return;}
+    if(!this.isShip()&&!this.isTech()&&!this.isSup()){toast("⚠ 無上傳權限");return;}
+    $("#voyup-title").textContent=`上傳：${c.code?c.code+" ":""}${c.name}`;
+    $("#voyup-info").textContent=`${this.shipName(ship)}（${ship}）｜期別：${plabel||pid}`;
+    $("#voyup-note").value="";
+    $("#voyup-file").value="";
+    $("#voyup-docdate").value=defaultDocDate||todayStr();
+    this._renderChecklistBox(c,[]);
+    this._pendingUp={catId,pid,plabel,ship};
+    $("#voyUploadModal").classList.add("show");
+  },
+  _renderChecklistBox(c,checked){
+    const wrap=$("#voyup-checklist-wrap"),list=$("#voyup-checklist-list");
+    if(!c.needsChecklist||!this.checklists[c.checklistSet]||!this.checklists[c.checklistSet].length){wrap.style.display="none";list.innerHTML="";return;}
+    const opts=this.checklists[c.checklistSet];
+    const checkedSet=new Set(checked||[]);
+    list.innerHTML=opts.map(o=>`<label style="display:block"><input type="checkbox" value="${esc(o.code)}" ${checkedSet.has(o.code)?"checked":""}> <span class="mono">${esc(o.code)}</span> ${esc(o.name)}</label>`).join("");
+    wrap.style.display="";
+  },
+  reupload(gid){
+    const r=this.subs.find(x=>x.gid===gid);if(!r)return;
+    if(r.status!=="up"){toast("⚠ 此筆已經督導確認，無法直接覆蓋，請改用「退回」後再重新上傳");return;}
+    const mine=this.isShip()&&r.ship===this.myShipCode();
+    if(!mine&&!this.isTech()){toast("⚠ 僅本船帳號或維護者可重新上傳此筆");return;}
+    const c=this.cat.find(x=>x.id===r.catId)||{};
+    $("#voyup-title").textContent=`重新上傳（將覆蓋原檔案）：${c.code||r.code?(c.code||r.code)+" ":""}${c.name||r.name}`;
+    $("#voyup-info").textContent=`${this.shipName(r.ship)}（${r.ship}）｜期別：${r.periodLabel||r.period}｜原檔案：${(r.files||[]).map(f=>f.name).join("、")||"（無）"}`;
+    $("#voyup-note").value=r.note||"";
+    $("#voyup-file").value="";
+    $("#voyup-docdate").value=r.docDate||todayStr();
+    this._renderChecklistBox(c,r.checklists||[]);
+    this._pendingUp={catId:r.catId,pid:r.period,plabel:r.periodLabel,ship:r.ship,replaceGid:gid};
+    $("#voyUploadModal").classList.add("show");
+  },
+  genFileName(shipCode,docDate,code,idx,total,ext){
+    const ymd=(docDate||"").replace(/-/g,"");
+    const base=`${shipCode}-${ymd}-${(code||"未編號").replace(/[\\/:*?"<>|#%&{}\s]+/g,"_")}`;
+    return (total>1?`${base}_${idx+1}`:base)+ext;
+  },
+  async confirmUpload(){
+    if(writeBlocked())return;
+    const p=this._pendingUp;if(!p)return;
+    const fi=$("#voyup-file");
+    if(!fi.files||!fi.files.length){toast("⚠ 請選擇檔案");return;}
+    const docDate=$("#voyup-docdate").value;
+    if(!docDate){toast("⚠ 請填寫文件日期（實際發生／演習日期）");return;}
+    const c=this.cat.find(x=>x.id===p.catId)||{};
+    let checklists=null;
+    if(c.needsChecklist){
+      checklists=[...document.querySelectorAll("#voyup-checklist-list input:checked")].map(el=>el.value);
+      if(!checklists.length&&!confirm("尚未勾選任何 SOPEP 檢查表，確定這次不需要一併上傳任何檢查表嗎？"))return;
+    }
+    const btn=$("#voyup-go");btn.disabled=true;btn.textContent="上傳中…";
+    try{
+      const fileList=[...fi.files];
+      const files=[];
+      for(let i=0;i<fileList.length;i++){
+        const f=fileList[i];
+        const meta=await VoyFiles.put(f,`${p.ship}/${p.pid}`);
+        const dot=f.name.lastIndexOf(".");const ext=dot>0?f.name.slice(dot).toLowerCase():"";
+        meta.name=this.genFileName(p.ship,docDate,c.code,i,fileList.length,ext);
+        files.push(meta);
+      }
+      const who=Role.personName()||"未具名";
+      if(p.replaceGid){
+        const rec=this.subs.find(x=>x.gid===p.replaceGid);
+        if(!rec){toast("⚠ 找不到原紀錄，可能已被異動，請重新整理後再試");return;}
+        if(rec.status!=="up"){toast("⚠ 此筆狀態已變更（可能已被督導確認），無法覆蓋，請重新整理後確認");this.render();return;}
+        const oldFiles=rec.files||[];
+        rec.files=files;rec.note=($("#voyup-note").value||"").trim();rec.docDate=docDate;
+        if(checklists)rec.checklists=checklists;
+        rec.upBy=who;rec.upAt=Date.now();rec.updated=Date.now();
+        this.persist();
+        await this.pushRec(rec);
+        for(const f of oldFiles)await VoyFiles.remove(f.key);
+        Audit.log("重新上傳","航次報表收件",`${p.ship} ${c.code||rec.code||""} ${p.pid}（覆蓋原檔案，共${files.length}檔）`);
+        toast("✓ 已覆蓋原上傳檔案，等待督導確認");
+      }else{
+        const rec={gid:this.uuid(),ship:p.ship,shipName:this.shipName(p.ship),catId:p.catId,code:c.code||"",name:c.name||"",period:p.pid,periodLabel:p.plabel||p.pid,
+          files,note:($("#voyup-note").value||"").trim(),docDate,status:"up",upBy:who,upAt:Date.now(),updated:Date.now()};
+        if(checklists)rec.checklists=checklists;
+        this.subs.push(rec);
+        this.persist();
+        await this.pushRec(rec);
+        Audit.log("上傳","航次報表收件",`${p.ship} ${c.code||c.name} ${p.pid}（${files.length}檔）`);
+        toast("✓ 已上傳，等待督導確認");
+      }
+      $("#voyUploadModal").classList.remove("show");
+      this.render();
+    }catch(e){toast("⚠ "+e.message);}
+    finally{btn.disabled=false;btn.textContent="⬆ 上傳";}
+  },
+  async supConfirm(gid){
+    if(writeBlocked())return;
+    const r=this.subs.find(x=>x.gid===gid);if(!r||r.status!=="up")return;
+    if(!this.canConfirm(r)){toast("⚠ 僅該船指派的甲板督導／機艙督導本人或維護者可確認此筆");return;}
+    r.status="sup";r.supBy=Role.personName();r.supAt=Date.now();
+    this.touch(r);
+    Audit.log("確認","航次報表收件",`督導確認 ${r.ship} ${r.code||r.name} ${r.period}`);
+    toast("✓ 督導已確認，待海技歸檔");this.render();
+  },
+  async archConfirm(gid){
+    if(writeBlocked())return;
+    if(!this.isTech()){toast("⚠ 僅海技組（管理員）可歸檔");return;}
+    const r=this.subs.find(x=>x.gid===gid);if(!r)return;
+    if(r.status==="up"&&!confirm("此筆尚未經督導確認，仍要直接歸檔？"))return;
+    if(r.status==="arch")return;
+    r.status="arch";r.archBy=Role.personName();r.archAt=Date.now();
+    this.touch(r);
+    Audit.log("歸檔","航次報表收件",`${r.ship} ${r.code||r.name} ${r.period}`);
+    toast("✓ 已歸檔結案");this.render();
+  },
+  async reject(gid){
+    if(writeBlocked())return;
+    const r=this.subs.find(x=>x.gid===gid);if(!r||r.status==="arch")return;
+    if(!this.canReject(r)){toast("⚠ 僅該船指派的督導本人、維護者或系統擁有者可退回此筆");return;}
+    const reason=prompt("退回原因（船上會看到此訊息）：");
+    if(reason===null)return;
+    r.status="rej";r.rejBy=Role.personName();r.rejAt=Date.now();r.rejReason=(reason||"").trim();
+    this.touch(r);
+    Audit.log("退回","航次報表收件",`${r.ship} ${r.code||r.name} ${r.period}：${r.rejReason}`);
+    toast("已退回，船上需重新上傳");this.render();
+  },
+  async delRec(gid){
+    if(writeBlocked())return;
+    const r=this.subs.find(x=>x.gid===gid);if(!r)return;
+    const mine=this.isShip()&&r.ship===this.myShipCode()&&r.status==="up";
+    if(!mine&&!this.isTech()){toast("⚠ 僅可刪除本船「尚未確認」的紀錄；其餘僅海技可刪");return;}
+    if(!confirm(`刪除此筆紀錄與已上傳檔案？\n${r.ship} ${r.code||r.name} ${r.period}`))return;
+    for(const f of (r.files||[]))await VoyFiles.remove(f.key);
+    this.subs=this.subs.filter(x=>x.gid!==gid);
+    this.persist();
+    try{await Cloud.api(this.TABLE+"?gid=eq."+encodeURIComponent(gid),{method:"DELETE"});}catch(e){console.warn("voy del",e);}
+    Audit.log("刪除","航次報表收件",`${r.ship} ${r.code||r.name} ${r.period}`);
+    toast("已刪除");this.render();
+  },
+  setView(v,btn){
+    this.view=v;
+    $$("#voy-tabs .btn").forEach(b=>b.classList.remove("primary"));
+    if(btn)btn.classList.add("primary");
+    this.render();
+  },
+  statusChip(st,overdue){
+    if(!st)return overdue?`<span style="color:var(--bad);font-weight:700">逾期未繳</span>`:`<span style="color:var(--ink-3)">未繳</span>`;
+    const[label,color]=this.STATUS[st]||[st,"#888"];
+    return `<span style="color:${color};font-weight:600">${label}</span>`;
+  },
+  fileLinks(r){
+    return (r.files||[]).map(f=>`<a href="${esc(VoyFiles.url(f.key))}" target="_blank" rel="noopener" title="SHA-256: ${esc((f.sha256||"").slice(0,16))}… / ${Math.round((f.size||0)/1024)}KB">📎 ${esc(f.name)}</a>`).join("<br>");
+  },
+  showAttachments(gid){
+    const r=this.subs.find(x=>x.gid===gid);if(!r)return;
+    $("#voyattach-title").textContent=`${r.code?r.code+" ":""}${r.name||""}`;
+    $("#voyattach-info").textContent=`${this.shipName(r.ship)}（${r.ship}）｜期別：${r.periodLabel||r.period}｜文件日期：${r.docDate||"—"}｜${this.STATUS[r.status]?this.STATUS[r.status][0]:r.status}`;
+    $("#voyattach-files").innerHTML=this.fileLinks(r)||"（無檔案）";
+    $("#voyAttachModal").classList.add("show");
+  },
+  render(){
+    const host=$("#voy-body");if(!host)return;
+    const tabs=[["upload","📤 船上上傳",true],["review","🔍 收件審核",this.isSup()],["matrix","📊 應繳矩陣",true],["catalog","⚙ 表單目錄",this.isTech()]];
+    $("#voy-tabs").innerHTML=tabs.filter(t=>t[2]).map(t=>`<button class="btn${this.view===t[0]?" primary":""}" onclick="VoyRecv.setView('${t[0]}',this)">${t[1]}</button>`).join("")
+      +`<button class="btn" style="margin-left:auto" onclick="VoyRecv.syncCloud()">☁ 同步</button><span id="voy-cloudstate" class="hint" style="align-self:center"></span>`;
+    if(this.view==="review"&&!this.isSup())this.view="upload";
+    if(this.view==="catalog"&&!this.isTech())this.view="upload";
+    if(this.view==="upload")this.renderUpload(host);
+    else if(this.view==="review")this.renderReview(host);
+    else if(this.view==="matrix")this.renderMatrix(host);
+    else if(this.view==="catalog")this.renderCatalog(host);
+  },
+  renderUpload(host){
+    const ship=this.isShip()?this.myShipCode():this.upTargetShip;
+    const shipSel=this.isShip()
+      ?`<b>${esc(this.shipName(ship))}（${esc(ship)}）</b>`
+      :`<select onchange="VoyRecv.upTargetShip=this.value;VoyRecv.render()">${this.shipList().map(s=>`<option value="${esc(s.code)}"${s.code===this.upTargetShip?" selected":""}>${esc(s.name)}（${esc(s.code)}）</option>`).join("")}</select>`;
+    const routine=this.visibleCat(ship).filter(c=>c.active&&c.freq!=="event");
+    const now=new Date();
+    let items=[];
+    routine.forEach(c=>{
+      const cur=this.currentPeriod(c.freq);
+      const allP=this.periodsOf(c.freq,cur.year).map(p=>Object.assign({year:cur.year},p));
+      const backlog=allP.filter(p=>{
+        if(p.id===cur.id)return false;
+        const due=this.dueDate(c.freq,p.year,p.endM);
+        if(now<=due)return false;
+        return !this.findSub(ship,c.id,p.id);
+      });
+      [...backlog,cur].forEach(p=>{
+        const sub=this.findSub(ship,c.id,p.id);
+        const due=this.dueDate(c.freq,p.year,p.endM);
+        const overdue=!sub&&now>due;
+        const unsubmitted=!sub||sub.status==="rej";
+        items.push({c,p,sub,due,overdue,unsubmitted,cat:this.catPrefix(c.code)});
+      });
+    });
+    const catCounts={};
+    items.forEach(it=>{if(it.unsubmitted)catCounts[it.cat]=(catCounts[it.cat]||0)+1;});
+    const cats=[...new Set(items.map(it=>it.cat))].sort();
+    if(this.upCatFilter&&!cats.includes(this.upCatFilter))this.upCatFilter="";
+    const filtered=this.upCatFilter?items.filter(it=>it.cat===this.upCatFilter):items;
+    const catChips=`<button class="btn sm${this.upCatFilter?"":" primary"}" onclick="VoyRecv.upCatFilter='';VoyRecv.render()">全部${cats.length?` (${Object.values(catCounts).reduce((a,b)=>a+b,0)})`:""}</button>`
+      +cats.map(cat=>`<button class="btn sm${this.upCatFilter===cat?" primary":""}" onclick="VoyRecv.upCatFilter='${esc(cat)}';VoyRecv.render()">${esc(cat)}${catCounts[cat]?` (${catCounts[cat]})`:""}</button>`).join("");
+    const rows=filtered.map(({c,p,sub,due,overdue,cat})=>{
+      const lastRej=this.subs.filter(s=>s.ship===ship&&s.catId===c.id&&s.period===p.id&&s.status==="rej").sort((a,b)=>b.rejAt-a.rejAt)[0];
+      return `<tr${overdue?' style="background:var(--bad-l)"':""}>
+        <td class="mono">${esc(c.code)}</td>
+        <td>${esc(c.name)}${c.note?`<div class="hint">${esc(c.note)}</div>`:""}${lastRej?`<div style="color:var(--bad);font-size:12px">↩ 退回：${esc(lastRej.rejReason||"（未填原因）")}（${esc(lastRej.rejBy||"")}）</div>`:""}${overdue?`<div style="color:var(--bad);font-size:11.5px">⚠ 補繳：此份已逾期，上傳後請留意督導確認時效</div>`:""}</td>
+        <td>${this.FREQ_ZH[c.freq]||c.freq}</td>
+        <td>${esc(p.label)}<div class="hint">截止 ${due.getMonth()+1}/${due.getDate()}</div></td>
+        <td>${this.statusChip(sub?sub.status:"",overdue)}${sub&&sub.files?`<div style="font-size:11px">${this.fileLinks(sub)}</div>`:""}</td>
+        <td>${!sub?`<button class="btn sm" onclick="VoyRecv.openUpload(${c.id},'${esc(p.id)}','${esc(p.label)}')">⬆ 上傳</button>`
+          :sub.status==="rej"?`<button class="btn sm" onclick="VoyRecv.openUpload(${c.id},'${esc(p.id)}','${esc(p.label)}')">⬆ 上傳</button>`
+          :sub.status==="up"?`<button class="btn sm" onclick="VoyRecv.reupload('${sub.gid}')">🔄 重新上傳</button>`
+          :""}</td>
+      </tr>`;
+    }).join("");
+    const hist=this.subs.filter(s=>s.ship===ship).sort((a,b)=>(b.upAt||0)-(a.upAt||0)).slice(0,60);
+    host.innerHTML=`
+      <div class="panelbox" style="margin-bottom:14px">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <span>船舶：</span>${shipSel}
+          <span class="hint">例行表單依寄送週期自動列出本期應繳項目；若有先前積欠未繳的期別也會一併列出供補繳；逾期（期末＋${this.GRACE_DAYS}日）標紅。</span>
+          <button class="btn sm" style="margin-left:auto" onclick="VoyRecv.exportChecklistPrint('${esc(ship)}')">📄 匯出PDF清單</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${catChips}</div>
+        <table class="tbl">
+          <thead><tr><th style="width:110px">編號</th><th>表單</th><th style="width:90px">週期</th><th style="width:110px">期別</th><th style="width:170px">狀態</th><th style="width:90px">動作</th></tr></thead>
+          <tbody>${rows||`<tr><td colspan="6" class="hint">（此分類目前沒有項目）</td></tr>`}</tbody>
+        </table>
+      </div>
+      <div class="panelbox">
+        <b>本船收件紀錄</b>（近 60 筆）
+        <table class="tbl" style="margin-top:8px">
+          <thead><tr><th>表單</th><th style="width:120px">期別</th><th style="width:90px">文件日期</th><th style="width:130px">狀態</th><th>檔案</th><th style="width:110px">上傳日</th><th style="width:70px"></th></tr></thead>
+          <tbody>${hist.map(r=>`<tr>
+            <td><span class="mono">${esc(r.code)}</span> ${esc(r.name)}${r.status==="rej"?`<div style="color:var(--bad);font-size:12px">退回原因：${esc(r.rejReason||"")}</div>`:""}</td>
+            <td>${esc(r.periodLabel||r.period)}</td>
+            <td class="hint">${esc(r.docDate||"—")}</td>
+            <td>${this.statusChip(r.status)}</td>
+            <td style="font-size:11px">${this.fileLinks(r)}</td>
+            <td class="hint">${r.upAt?new Date(r.upAt).toLocaleDateString():""}<br>${esc(r.upBy||"")}</td>
+            <td>${r.status==="up"?`<button class="btn sm" onclick="VoyRecv.reupload('${r.gid}')">🔄</button> `:""}${(r.status==="up"&&this.isShip())||this.isTech()?`<button class="btn sm" onclick="VoyRecv.delRec('${r.gid}')">🗑</button>`:""}</td>
+          </tr>`).join("")||`<tr><td colspan="7" class="hint">（尚無紀錄）</td></tr>`}</tbody>
+        </table>
+      </div>`;
+  },
+  renderReview(host){
+    const years=[...new Set(this.subs.map(s=>this.periodYear(s.period)))].sort().reverse();
+    if(!years.includes(this.fYear))this.fYear=years[0]||new Date().getFullYear();
+    let list=this.subs.filter(s=>this.periodYear(s.period)===this.fYear);
+    if(this.fShip)list=list.filter(s=>s.ship===this.fShip);
+    if(this.fStatus)list=list.filter(s=>this.fStatus==="done"?(s.status==="sup"||s.status==="arch"):s.status===this.fStatus);
+    list.sort((a,b)=>(b.upAt||0)-(a.upAt||0));
+    const pendSup=this.subs.filter(s=>s.status==="up");
+    const done=this.subs.filter(s=>s.status==="sup"||s.status==="arch").length;
+    const now=Date.now();
+    const overdueWaiting=pendSup.filter(s=>{const c=this.cat.find(x=>x.id===s.catId);if(!c)return false;const y=this.periodYear(s.period);const p=this.periodsOf(c.freq,y).find(p=>p.id===s.period);if(!p)return false;return now>this.dueDate(c.freq,y,p.endM).getTime();}).length;
+    host.innerHTML=`
+      <div class="panelbox" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <b>待督導確認 <span style="color:var(--navy-3)">${pendSup.length}</span> 筆・已完成 <span style="color:var(--ok)">${done}</span> 筆</b>
+        ${overdueWaiting>0?`<span style="color:var(--bad);font-weight:700">⚠ 其中 ${overdueWaiting} 筆已逾期仍待督導確認，請提醒督導盡快處理</span>`:""}
+        <span style="margin-left:auto">年度</span>
+        <select onchange="VoyRecv.fYear=parseInt(this.value);VoyRecv.render()">${(years.length?years:[this.fYear]).map(y=>`<option${y===this.fYear?" selected":""}>${y}</option>`).join("")}</select>
+        <span>船舶</span>
+        <select onchange="VoyRecv.fShip=this.value;VoyRecv.render()"><option value="">全部</option>${this.shipList().map(s=>`<option value="${esc(s.code)}"${s.code===this.fShip?" selected":""}>${esc(s.name)}</option>`).join("")}</select>
+        <span>狀態</span>
+        <select onchange="VoyRecv.fStatus=this.value;VoyRecv.render()"><option value="">全部</option><option value="up"${this.fStatus==="up"?" selected":""}>船上已上傳</option><option value="done"${this.fStatus==="done"?" selected":""}>已完成</option><option value="rej"${this.fStatus==="rej"?" selected":""}>已退回</option></select>
+      </div>
+      <table class="tbl">
+        <thead><tr><th style="width:130px">船舶</th><th>表單</th><th style="width:110px">期別</th><th style="width:95px">文件日期</th><th>檔案</th><th style="width:150px">上傳／確認</th><th style="width:130px">狀態</th><th style="width:190px">動作</th></tr></thead>
+        <tbody>${list.map(r=>{
+          const c=this.cat.find(x=>x.id===r.catId);
+          const checklistNames=r.checklists&&c&&this.checklists[c.checklistSet]?r.checklists.map(cc=>{const f=this.checklists[c.checklistSet].find(o=>o.code===cc);return f?f.code:cc;}).join("、"):"";
+          return `<tr>
+          <td>${esc(r.shipName||r.ship)}<div class="hint mono">${esc(r.ship)}</div></td>
+          <td><span class="mono">${esc(r.code)}</span> ${esc(r.name)}${r.note?`<div class="hint">${esc(r.note)}</div>`:""}${checklistNames?`<div class="hint">附檢查表：${esc(checklistNames)}</div>`:""}${r.rejReason?`<div style="color:var(--bad);font-size:12px">退回原因：${esc(r.rejReason)}</div>`:""}</td>
+          <td>${esc(r.periodLabel||r.period)}</td>
+          <td class="hint">${esc(r.docDate||"—")}</td>
+          <td style="font-size:11px">${this.fileLinks(r)}</td>
+          <td class="hint">⬆ ${esc(r.upBy||"")} ${r.upAt?new Date(r.upAt).toLocaleDateString():""}${r.supBy?`<br>✔ ${esc(r.supBy)} ${new Date(r.supAt).toLocaleDateString()}`:""}</td>
+          <td>${this.statusChip(r.status)}</td>
+          <td>
+            ${r.status==="up"?(this.canConfirm(r)?`<button class="btn sm" onclick="VoyRecv.supConfirm('${r.gid}')">☑ 督導確認（即完成）</button>`:(()=>{const s=SHIPINFO.find(x=>x.code===r.ship);const names=[s&&s.deckSup,s&&s.engineSup].filter(Boolean).join("／");return `<span class="hint" title="僅該船指派的督導本人或維護者可確認">🔒 待${esc(names||"指派督導")}確認</span>`;})()):""}
+            ${r.status!=="arch"&&r.status!=="rej"&&this.canReject(r)?`<button class="btn sm" style="color:var(--bad)" onclick="VoyRecv.reject('${r.gid}')">↩ 退回</button>`:""}
+            ${this.isTech()?`<button class="btn sm" onclick="VoyRecv.delRec('${r.gid}')">🗑</button>`:""}
+          </td>
+        </tr>`;}).join("")||`<tr><td colspan="8" class="hint">（無符合條件的紀錄）</td></tr>`}</tbody>
+      </table>`;
+  },
+  renderMatrix(host){
+    const yearOpts=[];const ty=new Date().getFullYear();for(let y=ty+1;y>=ty-3;y--)yearOpts.push(y);
+    const allRoutine=this.cat.filter(c=>c.active&&c.freq!=="event");
+    const ships=this.isShip()?this.shipList().filter(s=>s.code===this.myShipCode()):this.shipList();
+    const modeSel=this.isShip()?"":`
+      <label><input type="radio" name="voy-mmode" value="ship"${this.mMode==="ship"?" checked":""} onchange="VoyRecv.mMode='ship';VoyRecv.render()"> 依船（表單×月份）</label>
+      <label><input type="radio" name="voy-mmode" value="form"${this.mMode==="form"?" checked":""} onchange="VoyRecv.mMode='form';VoyRecv.render()"> 依表單（船×月份）</label>`;
+    const now=new Date();
+    const cell=(ship,c,p,year)=>{
+      const sub=this.findSub(ship,c.id,p.id);
+      const due=this.dueDate(c.freq,year,p.endM);
+      const overdue=!sub&&now>due;
+      const future=now<this.periodEnd(c.freq,year,p.endM)&&!sub;
+      let sym="○",color="var(--ink-3)",tip="未繳";
+      if(sub){
+        if(sub.status==="up"){sym="⬆";color="#2f6690";tip="船上已上傳";}
+        else if(sub.status==="sup"||sub.status==="arch"){sym="✔";color="var(--ok)";tip="已完成";}
+      }else if(overdue){sym="✖";color="var(--bad)";tip="逾期未繳";}
+      else if(future){sym="·";color="var(--line-2)";tip="未到期";}
+      const clickable=sub&&sub.files&&sub.files.length;
+      const symHtml=clickable
+        ?`<div style="font-weight:700;font-size:14px;cursor:pointer;text-decoration:underline" onclick="VoyRecv.showAttachments('${sub.gid}')">${sym}</div>`
+        :`<div style="font-weight:700;font-size:14px">${sym}</div>`;
+      return `<td style="text-align:center;color:${color};padding:6px 3px;cursor:default" title="${esc(tip)} ${esc(p.label)}${clickable?"（點擊查看附件）":""}">
+        ${symHtml}
+        <div style="font-size:9.5px;color:var(--ink-3);white-space:nowrap">${esc(p.label)}</div>
+      </td>`;
+    };
+    let body="";
+    const year=this.mYear;
+    const legend=`<div class="hint" style="margin-top:6px">· 未到期　○ 未繳　<span style="color:#2f6690">⬆ 已上傳</span>　<span style="color:var(--ok)">✔ 已完成（督導確認）</span>　<span style="color:var(--bad)">✖ 逾期</span>　（有底線的符號可點擊查看附件）</div>`;
+    if(this.mMode==="form"&&!this.isShip()){
+      const c=allRoutine.find(x=>String(x.id)===String(this.mForm))||allRoutine[0];
+      if(c){
+        const P=this.periodsOf(c.freq,year);
+        const shipsForForm=c.vtype==="all"?ships:ships.filter(s=>this.shipVtype(s.code)===c.vtype);
+        body=`<div style="margin:8px 0">表單：<select onchange="VoyRecv.mForm=this.value;VoyRecv.render()" style="max-width:420px">${allRoutine.map(x=>`<option value="${x.id}"${x.id===c.id?" selected":""}>${esc(x.code)} ${esc(x.name)}${x.vtype!=="all"?"（"+(x.vtype==="tanker"?"TANKER":"BULK")+"）":""}</option>`).join("")}</select> <span class="hint">${this.FREQ_ZH[c.freq]}</span></div>
+        <div style="overflow:auto"><table class="tbl"><thead><tr><th style="min-width:140px">船舶</th>${P.map(p=>`<th style="text-align:center">${esc(p.label)}</th>`).join("")}</tr></thead>
+        <tbody>${shipsForForm.map(s=>`<tr><td>${esc(s.name)}<span class="hint mono"> ${esc(s.code)}</span></td>${P.map(p=>cell(s.code,c,p,year)).join("")}</tr>`).join("")||`<tr><td colspan="${P.length+1}" class="hint">（此表單船型不適用於任何目前的船舶）</td></tr>`}</tbody></table></div>`+legend;
+      }
+    }else{
+      const shipSel=this.isShip()?`<b>${esc(this.shipName(this.myShipCode()))}</b>`:`<select onchange="VoyRecv.mShip=this.value;VoyRecv.render()">${ships.map(s=>`<option value="${esc(s.code)}"${s.code===this.mShip?" selected":""}>${esc(s.name)}（${esc(s.code)}）</option>`).join("")}</select>`;
+      const ship=this.isShip()?this.myShipCode():(this.mShip||ships[0]?.code);
+      const routine=this.visibleCat(ship).filter(c=>c.active&&c.freq!=="event");
+      body=`<div style="margin:8px 0">船舶：${shipSel}</div>
+      <div style="overflow:auto"><table class="tbl"><thead><tr><th style="min-width:220px">表單</th><th style="width:80px">週期</th><th colspan="12" style="text-align:center">期別狀態</th></tr></thead>
+      <tbody>${routine.map(c=>{
+        const P=this.periodsOf(c.freq,year);
+        return `<tr><td><span class="mono">${esc(c.code)}</span> ${esc(c.name)}</td><td>${this.FREQ_ZH[c.freq]}</td>${P.map(p=>cell(ship,c,p,year)).join("")}${"<td></td>".repeat(Math.max(0,12-P.length))}</tr>`;
+      }).join("")}</tbody></table></div>`+legend;
+    }
+    host.innerHTML=`<div class="panelbox">
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <b>應繳／實繳矩陣</b>
+        <span>年度</span><select onchange="VoyRecv.mYear=parseInt(this.value);VoyRecv.render()">${yearOpts.map(y=>`<option${y===this.mYear?" selected":""}>${y}</option>`).join("")}</select>
+        ${modeSel}
+      </div>${body}</div>`;
+  },
+  renderCatalog(host){
+    host.innerHTML=`
+      <div class="panelbox" style="margin-bottom:12px">
+        <details>
+          <summary style="cursor:pointer;font-weight:700">☁ 雲端設定說明（首次啟用必讀：建立 voy_submissions 資料表與 voyage-files 儲存桶）</summary>
+          <div style="font-size:12.5px;line-height:1.8;margin-top:8px">
+            至 Supabase 專案 → SQL Editor 執行以下 SQL（僅需一次，與主系統共用同一個 Supabase 專案）：
+            <pre style="background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:10px;overflow:auto;font-size:11.5px">-- 1) 收件紀錄資料表（逐筆同步）
+create table if not exists public.voy_submissions (
+  gid text primary key,
+  ship text,
+  updated bigint,
+  payload jsonb
+);
+alter table public.voy_submissions enable row level security;
+create policy "voy anon all" on public.voy_submissions
+  for all to anon using (true) with check (true);
+
+-- 2) 檔案儲存桶（公開讀取，anon 可上傳）
+insert into storage.buckets (id, name, public)
+  values ('voyage-files','voyage-files', true)
+  on conflict (id) do nothing;
+create policy "voy files insert" on storage.objects
+  for insert to anon with check (bucket_id = 'voyage-files');
+create policy "voy files select" on storage.objects
+  for select to anon using (bucket_id = 'voyage-files');
+create policy "voy files delete" on storage.objects
+  for delete to anon using (bucket_id = 'voyage-files');</pre>
+            完成後回本頁按「☁ 同步」測試。注意：安全性依賴 anon 政策設計，檔案為公開讀取連結。
+          </div>
+        </details>
+      </div>
+      <div class="panelbox">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+          <b>表單目錄</b><span class="hint">共 ${this.cat.length} 項（例行 ${this.cat.filter(c=>c.freq!=="event").length}／事故時 ${this.cat.filter(c=>c.freq==="event").length}／已停用 ${this.cat.filter(c=>!c.active).length}）</span>
+          <span>船型</span>
+          <select onchange="VoyRecv.catVtypeFilter=this.value;VoyRecv.render()">
+            <option value=""${!this.catVtypeFilter?" selected":""}>全部</option>
+            <option value="all"${this.catVtypeFilter==="all"?" selected":""}>僅「全部適用」</option>
+            <option value="tanker"${this.catVtypeFilter==="tanker"?" selected":""}>TANKER（含全部適用）</option>
+            <option value="bulk"${this.catVtypeFilter==="bulk"?" selected":""}>BULK（含全部適用）</option>
+          </select>
+          <span>狀態</span>
+          <select onchange="VoyRecv.catActiveFilter=this.value;VoyRecv.render()">
+            <option value=""${!this.catActiveFilter?" selected":""}>全部</option>
+            <option value="on"${this.catActiveFilter==="on"?" selected":""}>僅啟用</option>
+            <option value="off"${this.catActiveFilter==="off"?" selected":""}>僅停用</option>
+          </select>
+          <button class="btn sm" style="margin-left:auto" onclick="VoyRecv.editCat(null)">＋ 新增表單</button>
+          <button class="btn sm" onclick="VoyRecv.pushCatCloud()">☁ 發布目錄到雲端</button>
+        </div>
+        <table class="tbl">
+          <thead><tr><th style="width:110px">編號</th><th>名稱</th><th style="width:80px">船型</th><th style="width:100px">週期</th><th style="width:70px">負責</th><th style="width:80px">收件</th><th style="width:50px">啟用</th><th style="width:140px">動作</th></tr></thead>
+          <tbody>${this.cat.filter(c=>{
+            let vtOk=true;
+            if(this.catVtypeFilter==="all")vtOk=c.vtype==="all";
+            else if(this.catVtypeFilter==="tanker"||this.catVtypeFilter==="bulk")vtOk=c.vtype===this.catVtypeFilter||c.vtype==="all";
+            const actOk=!this.catActiveFilter||(this.catActiveFilter==="on"?c.active:!c.active);
+            return vtOk&&actOk;
+          }).map(c=>`<tr${c.active?"":' style="opacity:.45"'}>
+            <td class="mono">${esc(c.code)}</td>
+            <td>${esc(c.name)}${c.note?`<div class="hint">${esc(c.note)}</div>`:""}${c.needsChecklist?`<div class="hint">🔗 上傳時需複選 SOPEP 檢查表（${c.checklistSet==="tanker"?"TANKER":"BULK"}，共${(this.checklists[c.checklistSet]||[]).length}項）</div>`:""}</td>
+            <td>${c.vtype==="all"?"全部":c.vtype==="tanker"?"TANKER":c.vtype==="bulk"?"BULK":"—"}</td>
+            <td>${this.FREQ_ZH[c.freq]||c.freq}</td>
+            <td>${esc(c.pic||"")}</td>
+            <td>${esc(c.sendTo||"")}</td>
+            <td>${c.active?"✓":"—"}</td>
+            <td><button class="btn sm" onclick="VoyRecv.editCat(${c.id})">✎</button> <button class="btn sm" onclick="VoyRecv.toggleCat(${c.id})">${c.active?"停用":"啟用"}</button> <button class="btn sm" style="color:var(--bad)" onclick="VoyRecv.deleteCat(${c.id})">🗑</button></td>
+          </tr>`).join("")}</tbody>
+        </table>
+      </div>`;
+  },
+  editCat(id){
+    if(!this.isTech()){toast("⚠ 僅海技組可維護目錄");return;}
+    const c=id?this.cat.find(x=>x.id===id):null;
+    this._editCatId=id;
+    this.refreshRosterNames();
+    $("#voycat-title").textContent=c?`編輯表單：${c.code||""} ${c.name||""}`:"新增表單";
+    $("#voycat-code").value=c?c.code:"";
+    $("#voycat-name").value=c?c.name:"";
+    $("#voycat-freq").value=c?c.freq:"m";
+    $("#voycat-vtype").value=c?c.vtype:"all";
+    $("#voycat-pic").value=c?c.pic:"船長";
+    $("#voycat-sendto").value=c?c.sendTo:"柯香吟";
+    $("#voycat-cc").value=c?c.cc:"船東督導";
+    $("#voycat-note").value=c?c.note:"";
+    $("#voycat-active").checked=c?!!c.active:true;
+    $("#voyCatEditModal").classList.add("show");
+  },
+  refreshRosterNames(){
+    const dl=$("#dl-roster-names");if(!dl)return;
+    const names=loadRosterNames();
+    dl.innerHTML=names.map(n=>`<option value="${esc(n)}">`).join("");
+  },
+  saveCatModal(){
+    if(writeBlocked())return;
+    if(!this.isTech()){toast("⚠ 僅海技組可維護目錄");return;}
+    const code=$("#voycat-code").value.trim();
+    const name=$("#voycat-name").value.trim();
+    if(!name){toast("⚠ 請填寫表單名稱");return;}
+    const freq=$("#voycat-freq").value;
+    const vtype=$("#voycat-vtype").value;
+    const pic=$("#voycat-pic").value.trim();
+    const sendTo=$("#voycat-sendto").value.trim();
+    const cc=$("#voycat-cc").value.trim();
+    const note=$("#voycat-note").value.trim();
+    const active=$("#voycat-active").checked;
+    const c=this._editCatId?this.cat.find(x=>x.id===this._editCatId):null;
+    if(c){Object.assign(c,{code,name,freq,vtype,pic,sendTo,cc,note,active});}
+    else{const nid=this.cat.reduce((m,x)=>Math.max(m,x.id||0),0)+1;this.cat.push({id:nid,code,name,en:"",freq,freqText:this.FREQ_ZH[freq],vtype,pic,sendTo,cc,note,active});}
+    this.persist();
+    Audit.log(c?"編輯":"新增","航次報表目錄",`${code} ${name}（收件人：${sendTo}）`);
+    $("#voyCatEditModal").classList.remove("show");
+    toast("✓ 已儲存（記得按「發布目錄到雲端」讓全公司同步）");this.render();
+  },
+  toggleCat(id){
+    if(writeBlocked())return;
+    if(!this.isTech()){toast("⚠ 僅海技組可維護目錄");return;}
+    const c=this.cat.find(x=>x.id===id);if(!c)return;
+    c.active=!c.active;this.persist();this.render();
+  },
+  deleteCat(id){
+    if(writeBlocked())return;
+    if(!this.isTech()){toast("⚠ 僅海技組可維護目錄");return;}
+    const c=this.cat.find(x=>x.id===id);if(!c)return;
+    const n=this.subs.filter(s=>s.catId===id).length;
+    const msg=n>0
+      ?`此表單已有 ${n} 筆收件紀錄（歷史紀錄仍保留、不受影響），刪除後此表單將從應繳清單移除，之後不再產生新期別。確定刪除「${c.code?c.code+" ":""}${c.name}」？`
+      :`確定刪除「${c.code?c.code+" ":""}${c.name}」？此動作無法復原。`;
+    if(!confirm(msg))return;
+    this.cat=this.cat.filter(x=>x.id!==id);
+    this.persist();
+    Audit.log("刪除","航次報表目錄",`${c.code||""} ${c.name}`);
+    toast("✓ 已刪除（記得按「發布目錄到雲端」讓全公司同步）");
+    this.render();
+  }
+};
+
+/* ════════ 啟動流程 ════════ */
+async function boot(){
+  Role.load();
+  if(!siteGateOk()||!Role.cur){
+    $("#gateMsg").textContent=!siteGateOk()?"請先在主系統完成進站密碼驗證。":"請先在主系統登入操作身份。";
+    return;
+  }
+  $("#gateOverlay").style.display="none";
+  $("#appRoot").style.display="block";
+  const label=Role.TIER_LABEL[Role.tier()]||Role.tier();
+  $("#roleBadge").innerHTML=`<b>${esc(label)}</b>　${esc(Role.name())}`;
+  toast("⏳ 載入資料中…");
+  await loadShips();
+  await loadReadOnly();
+  VoyRecv.init();
+  VoyRecv.render();
+  await VoyRecv.loadCatCloud();
+  await VoyRecv.syncCloud(true);
+  toast("✓ 資料已載入");
+}
+boot();
+</script>
+</body>
+</html>
