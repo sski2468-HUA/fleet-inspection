@@ -4576,6 +4576,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <p class="hint" style="margin-bottom:10px;line-height:1.7">新增缺失、批量新增缺失、正面評價/優秀案例輸入「CODE」時，會依此對照表自動帶出章節名稱。預設清單已內建，點下方按鈕展開後可微調名稱（管理員權限）。</p>
             <div class="toolbar">
               <button class="btn dark" id="chmgr-toggle-btn" onclick="ChapterMgr.toggle()">📂 顯示／編輯代碼清單</button>
+              <button class="btn" onclick="ChapterMgr.exportXlsx()">⬇ 匯出 Excel</button>
+              <button class="btn" onclick="ChapterMgr.exportWord()">⬇ 匯出 Word</button>
             </div>
             <div id="chmgr-body" style="display:none;margin-top:10px"></div>
           </div>
@@ -11229,32 +11231,26 @@ const SupMgmt={
 /* ════════ PSC缺失章節分析（Tokyo MOU 標準章節）════════ */
 const PscChap={
   ms:{},pieChart:null,trendChart:null,
-  CHAPTERS:{
-    "01":"證書與文件 Certificate & Documentation",
-    "02":"船體結構 Structural Conditions",
-    "03":"水密/風雨密設備 Water/Weathertight Conditions",
-    "04":"應急系統 Emergency Systems",
-    "05":"無線電通信 Radio Communications",
-    "06":"貨物操作與設備 Cargo Operations incl. Equipment",
-    "07":"消防安全 Fire Safety",
-    "08":"警報 Alarms",
-    "09":"工作與居住條件 Working & Living Conditions",
-    "10":"航行設備 Navigation",
-    "11":"防止海洋污染 Pollution Prevention",
-    "14":"勞工條件 MLC 2006"
-  },
+  /* 章節定義改為直接讀「資料管理→系統設定→缺失代碼對照表」的 PSC 分頁（CHAPTER_BASE_MAPS.PSC，
+     含 App.chapterOverrides.PSC 微調值），不再自己另外寫死一份——這裡原本自己維護的 CHAPTERS
+     清單有兩章（11／14）章節編號對錯位置，跟後台那份（維護者可編輯、公司實際採用的版本）對不起來，
+     兩邊各自改各自的，越改越分歧。統一之後，後台改章節名稱，這裡的圖表跟表格會自動跟著變。 */
   chapterKey(code){
     const s=(code||"").trim();
     const m=s.match(/^(\d+)/);
     if(!m)return "未分類";
-    const digits=m[1];
-    const two=digits.slice(0,2).padStart(2,"0");
-    if(this.CHAPTERS[two])return two;
-    const one=digits.slice(0,1).padStart(2,"0");
-    if(this.CHAPTERS[one])return one;
-    return "未分類";
+    const two=+m[1].slice(0,2).padStart(2,"0");
+    const map=CHAPTER_BASE_MAPS.PSC||{};
+    return map[two]!==undefined?String(two).padStart(2,"0"):"未分類";
   },
-  chapterLabel(k){return k==="未分類"?"未分類／其他（代碼空白或無法判讀）":`${k}：${this.CHAPTERS[k]}`;},
+  chapterLabel(k){
+    if(k==="未分類")return "未分類／其他（代碼空白或無法判讀）";
+    const map=CHAPTER_BASE_MAPS.PSC||{};
+    const ov=(App.chapterOverrides&&App.chapterOverrides.PSC)||{};
+    const num=+k;
+    const name=ov[num]!==undefined?ov[num]:map[num];
+    return `${k}：${name||"未命名章節"}`;
+  },
   basePSC(){return App.defs.filter(d=>(d.itype||"").toUpperCase()==="PSC");},
   init(){
     const rerun=()=>this.render();
@@ -12756,7 +12752,7 @@ function pscMselHtml(value,uid,disabled){
 }
 function pscMselUpdateSummary(uid){return pscBoxRead(uid);}
 const CDI_CHAPTERS={1:"CERTIFICATION, MANNING 證書及人員配置",2:"MANAGEMENT AND PERSONNEL 管理及人員",3:"BRIDGE 駕駛台",4:"MOORING 繫泊作業",5:"CARGO OPERATIONS 貨物作業",6:"ENGINE DEPARTMENT 機艙部門",7:"OPERATIONAL SAFETY 作業安全",8:"HEALTH, SAFETY AND PERSONNEL PROTECTION 健康、安全及人員防護",9:"FIREFIGHTING 消防",10:"LIFESAVING 救生",11:"ENVIRONMENTAL PROTECTION 環境保護",12:"SECURITY 船舶保安",13:"HULL AND SUPERSTRUCTURE 船殼及上層建築",14:"ACCOMMODATION 居住艙室"};
-const PSC_CHAPTERS={1:"證書及文件 Certificates and Documentation",2:"結構狀況 Structural Conditions",3:"船殼外觀 Ship's Hull Appearance",4:"應急系統 Emergency Systems",5:"無線電通信 Radio Communications",6:"貨物操作包括設備 Cargo Operations Including Equipment",7:"消防安全 Fire Safety",8:"警報 Alarms",9:"工作及生活條件 Working and Living Conditions",10:"航行安全 Navigation Safety",11:"救生設備 Life-saving Appliances",12:"危險品 Dangerous Goods",13:"主機及輔機 Main and Auxiliary Machinery",14:"預防污染 Pollution Prevention",15:"ISM International Safety Management (ISM) Code",16:"ISPS International Ship and Port Facility Security (ISPS) Code",18:"船員生活品質 Seafarers' Living Conditions and Welfare",99:"其他 Others"};
+const PSC_CHAPTERS={1:"證書及文件 Certificates and Documentation",2:"結構狀況 Structural Conditions",3:"水密/風雨密設備 Water/Weathertight Conditions",4:"應急系統 Emergency Systems",5:"無線電通信 Radio Communications",6:"貨物操作包括設備 Cargo Operations Including Equipment",7:"消防安全 Fire Safety",8:"警報 Alarms",9:"工作及生活條件 Working and Living Conditions",10:"航行安全 Navigation Safety",11:"救生設備 Life-saving Appliances",12:"危險品 Dangerous Goods",13:"主機及輔機 Main and Auxiliary Machinery",14:"預防污染 Pollution Prevention",15:"ISM International Safety Management (ISM) Code",16:"ISPS International Ship and Port Facility Security (ISPS) Code",18:"船員生活品質 Seafarers' Living Conditions and Welfare",99:"其他 Others"};
 const RIGHTSHIP_CHAPTERS={1:"一般資訊 General Information",2:"證書及人員管理 Certification and Personnel Management",3:"航行 Navigation",4:"安全管理系統 ISM System",5:"汙染預防管控 Pollution Prevention and Control",6:"船體結構 Ship's Structure",7:"油料管理 Fuel Management",8:"貨物作業 Cargo Operation - Solid Bulk Cargo other than Grain",9:"艙蓋及吊具 Hatch Cover and Lifting Appliances",10:"纜繩作業 Mooring Operations",11:"雷達通訊 Radio and Communication",12:"船舶保安 Security",13:"機艙 Machinery Space",14:"船殼外觀 General Appearance - Hull and Superstructure",15:"人員健康及福利 Health and Welfare of Seafarers",16:"冰區或極區作業 Ice or Polar Water Operations",17:"船對船作業 Ship To Ship Operation"};
 const SIRE_CHAPTERS_BY_CODE={};
 SIRE_CHAPTERS.forEach(s=>{const m=s.match(/^([\d.]+)\s+(.*)$/);if(m){const code=m[1];if(!SIRE_CHAPTERS_BY_CODE[code])SIRE_CHAPTERS_BY_CODE[code]=s;}});
@@ -12779,6 +12775,16 @@ function chapterNameLookup(itype,codeStr){
     if(map[full])return map[full];
     if(ov[intPart]!==undefined)return ov[intPart];
     return map[intPart]||"";
+  }
+  if(t==="PSC"){
+    /* PSC 缺失代碼固定格式是「兩碼章節＋三碼細項」（如 01125 → 01章），只能取代碼開頭前兩碼
+       判斷章節；原本跟其他類型共用「整串數字當同一個代碼」的比對邏輯，對PSC來說等於拿 1125
+       去查表，永遠對不到，這裡分開處理才會真的比對得到章節。 */
+    const m=String(codeStr||"").match(/^\s*(\d+)/);
+    if(!m)return "";
+    const two=+m[1].slice(0,2).padStart(2,"0");
+    if(ov[two]!==undefined)return ov[two];
+    return map[two]||"";
   }
   const m=String(codeStr||"").match(/\d+/);
   if(!m)return "";
@@ -25305,6 +25311,46 @@ const ChapterMgr={
     const itype=btn.dataset.itype,code=btn.dataset.code;
     if(App.chapterOverrides&&App.chapterOverrides[itype])delete App.chapterOverrides[itype][code];
     App.saveAll();this.render();toast("已還原為預設名稱");
+  },
+  GROUPS:[["RIGHTSHIP","RightShip 章節"],["CDI","CDI 章節"],["PSC","PSC 章節"],["SIRE","SIRE 章節"]],
+  /* 依代碼取目前生效的章節名稱：有微調過（App.chapterOverrides）就用微調值，否則用內建預設值，
+     跟 render() 畫面上顯示的邏輯一致，匯出的內容才會跟畫面上看到的一樣。 */
+  effectiveRows(key){
+    const map=CHAPTER_BASE_MAPS[key]||{};
+    const ov=(App.chapterOverrides&&App.chapterOverrides[key])||{};
+    const codes=Object.keys(map).sort((a,b)=>parseFloat(a)-parseFloat(b));
+    return codes.map(code=>({code,name:ov[code]!==undefined?ov[code]:map[code]}));
+  },
+  exportXlsx(){
+    if(!hasXLSX())return;
+    const wb=XLSX.utils.book_new();
+    this.GROUPS.forEach(([key,label])=>{
+      const rows=this.effectiveRows(key);
+      const aoa=[["代碼","章節名稱"],...rows.map(r=>[r.code,r.name])];
+      const ws=XLSX.utils.aoa_to_sheet(aoa);
+      ws["!cols"]=[{wch:8},{wch:60}];
+      XLSX.utils.book_append_sheet(wb,ws,label.replace(/[:\\/?*[\]]/g,"").slice(0,31));
+    });
+    XLSX.writeFile(wb,`缺失代碼對照表_${todayStr()}.xlsx`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","缺失代碼對照表","匯出 Excel");
+  },
+  exportWord(){
+    const th=t=>`<td style="background:#1c3a5e;color:#fff;font-weight:bold;padding:6px 8px;border:1px solid #999">${t}</td>`;
+    const td=t=>`<td style="padding:6px 8px;border:1px solid #999">${t}</td>`;
+    const sectionHtml=this.GROUPS.map(([key,label])=>{
+      const rows=this.effectiveRows(key);
+      const body=rows.map(r=>`<tr>${td(esc(r.code))}${td(esc(r.name))}</tr>`).join("");
+      return `<h3 style="font-family:Calibri,Arial,sans-serif">${esc(label)}（${rows.length} 項）</h3>
+        <table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:12.5px;font-family:Calibri,Arial,sans-serif">
+          <tr>${["代碼","章節名稱"].map(th).join("")}</tr>
+          ${body}
+        </table>`;
+    }).join("<br>");
+    const html=`<h2 style="text-align:center;font-family:Calibri,Arial,sans-serif">缺失代碼對照表（RightShip／CDI／SIRE／PSC）</h2>${sectionHtml}`;
+    const blob=new Blob(["﻿",'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>缺失代碼對照表</title></head><body>',html,"</body></html>"],{type:"application/msword"});
+    dl(blob,`缺失代碼對照表_${todayStr()}.doc`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","缺失代碼對照表","匯出 Word");
+    toast("✓ 已匯出 Word 檔（.doc，可直接用 Word 開啟）");
   }
 };
 /* ════════ 👤 身份與權限（Role）════════
