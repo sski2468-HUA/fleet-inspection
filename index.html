@@ -8827,7 +8827,7 @@ function applyTM(rec){ // 補齊單筆紀錄的TM欄位
 
 /* ───── 資料層 ───── */
 const App={
-  insp:[], defs:[], tasks:[], curTaskId:null, sirePos:[], air:[], chapterOverrides:{}, inspCtrl:[], refDocs:[], refDocs2:[], annualPlan:[], auditDash:[], defsProjects:[], projectMembers:[], drillRecords:[], drillRecordEditors:[], defsGridEditors:[], taskCreators:[], exporters:[], defsEditMembers:[], deletedTaskGids:[], recycleBin:[], airHaijiConfirmers:[], enhAuditLog:[],
+  insp:[], defs:[], tasks:[], curTaskId:null, sirePos:[], air:[], chapterOverrides:{}, chapterCustomCodes:{}, chapterDeleted:{}, chapterGroups:[], inspCtrl:[], refDocs:[], refDocs2:[], annualPlan:[], auditDash:[], defsProjects:[], projectMembers:[], drillRecords:[], drillRecordEditors:[], defsGridEditors:[], taskCreators:[], exporters:[], defsEditMembers:[], deletedTaskGids:[], recycleBin:[], airHaijiConfirmers:[], enhAuditLog:[],
   LSK:{i:"vsm_insp_v8",d:"vsm_defs_v8",s:"vsm_tasks_v2",sp:"vsm_sirepos_v1",air:"vsm_air_v1",ch:"vsm_chapter_overrides_v1",ic:"vsm_inspctrl_v1",rd:"vsm_refdocs_v1",rd2:"vsm_refdocs2_v1",ap:"vsm_annualplan_v1",ad:"vsm_auditdash_v1",dp:"vsm_defsprojects_v1",pm:"vsm_projectmembers_v1",dr:"vsm_drillrecords_v1",dre:"vsm_drillrecordeditors_v1",dge:"vsm_defsgrideditors_v1",tcr:"vsm_taskcreators_v1",exp:"vsm_exporters_v1",dem:"vsm_defseditmembers_v1",dtg:"vsm_deletedtaskgids_v1",rb:"vsm_recyclebin_v1",ahc:"vsm_air_haiji_confirmers_v1",el:"vsm_enhauditlog_v1"},
   /* 一次性資料修補：把 2026/7/1 CSO 名單併入現有船舶資料的 CSO 欄位，只在該船 cso 欄位目前是空的時候才帶入，
      不會覆蓋任何已存在的資料；只執行一次（用 localStorage flag 記錄），之後有異動一律以「船舶資料」頁面手動維護為準。*/
@@ -8922,7 +8922,23 @@ const App={
         }
       }catch(e){}}
       if(ls){const j=JSON.parse(ls);this.tasks=j.tasks||[];this.curTaskId=j.cur||null;}
-      const lch=LZGet(this.LSK.ch);this.chapterOverrides=lch?JSON.parse(lch):{};
+      // 缺失代碼對照表的自訂內容（微調名稱／自訂代碼／已刪除代碼／自訂分類）合併存一個鍵；
+      // 相容舊格式（原本只存 overrides 物件本身，沒有 overrides/custom/deleted/groups 包一層）。
+      this.chapterOverrides={};this.chapterCustomCodes={};this.chapterDeleted={};this.chapterGroups=[];
+      try{
+        const lch=LZGet(this.LSK.ch);
+        if(lch){
+          const parsed=JSON.parse(lch);
+          if(parsed&&(parsed.overrides||parsed.custom||parsed.deleted||parsed.groups)){
+            this.chapterOverrides=parsed.overrides||{};
+            this.chapterCustomCodes=parsed.custom||{};
+            this.chapterDeleted=parsed.deleted||{};
+            this.chapterGroups=parsed.groups||[];
+          }else{
+            this.chapterOverrides=parsed||{};
+          }
+        }
+      }catch(e){}
       const lic=LZGet(this.LSK.ic);
       if(lic)this.inspCtrl=JSON.parse(lic);
       else{try{this.inspCtrl=JSON.parse(document.getElementById("inspctrl-seed").textContent);}catch(e){this.inspCtrl=[];}}
@@ -9042,7 +9058,7 @@ const App={
         [this.LSK.sp,()=>JSON.stringify(this.sirePos),"sirePositive"],
         [this.LSK.air,()=>JSON.stringify(this.air),"airReviews"],
         [this.LSK.s ,()=>JSON.stringify({tasks:this.tasks,cur:this.curTaskId}),null],
-        [this.LSK.ch,()=>JSON.stringify(this.chapterOverrides),null],
+        [this.LSK.ch,()=>JSON.stringify({overrides:this.chapterOverrides,custom:this.chapterCustomCodes,deleted:this.chapterDeleted,groups:this.chapterGroups}),"chapterConfig"],
         [this.LSK.ic,()=>JSON.stringify(this.inspCtrl),"inspctrl"],
         [this.LSK.rd,()=>JSON.stringify(this.refDocs),null],
         [this.LSK.rd2,()=>JSON.stringify(this.refDocs2),null],
@@ -9207,6 +9223,9 @@ const Snap={
       refDocs2:JSON.parse(JSON.stringify(App.refDocs2)),
       drillRecords:JSON.parse(JSON.stringify(App.drillRecords)),
       chapterOverrides:JSON.parse(JSON.stringify(App.chapterOverrides)),
+      chapterCustomCodes:JSON.parse(JSON.stringify(App.chapterCustomCodes)),
+      chapterDeleted:JSON.parse(JSON.stringify(App.chapterDeleted)),
+      chapterGroups:JSON.parse(JSON.stringify(App.chapterGroups)),
       // ⚠ 這裡原本完全沒存分類階層（問題別/大類/具體名稱）跟根因分類，也沒存篩選標籤清單——
       // 代表「設為預設備份」時，這幾樣東西不會被記錄進這個備份點；「還原預設」時，
       // 也就不會把分類階層/根因/標籤還原回設定備份當下的狀態，會維持在還原當下的內容不變。
@@ -9268,6 +9287,9 @@ const Snap={
     App.refDocs2=JSON.parse(JSON.stringify(snap.refDocs2||[]));
     App.drillRecords=JSON.parse(JSON.stringify(snap.drillRecords||[]));
     App.chapterOverrides=JSON.parse(JSON.stringify(snap.chapterOverrides||{}));
+    App.chapterCustomCodes=JSON.parse(JSON.stringify(snap.chapterCustomCodes||{}));
+    App.chapterDeleted=JSON.parse(JSON.stringify(snap.chapterDeleted||{}));
+    App.chapterGroups=JSON.parse(JSON.stringify(snap.chapterGroups||[]));
     // 若這份備份是在補上這個修正之前存的（沒有 ncTreeList/tagListExtras 欄位），
     // snap.ncTreeList 會是 undefined，這裡就維持分類階層/根因/標籤現狀不動，
     // 不會因為欄位缺席就誤把現有分類清空。
@@ -11240,15 +11262,13 @@ const PscChap={
     const m=s.match(/^(\d+)/);
     if(!m)return "未分類";
     const two=+m[1].slice(0,2).padStart(2,"0");
-    const map=CHAPTER_BASE_MAPS.PSC||{};
+    const map=(typeof ChapterMgr!=="undefined")?ChapterMgr.effectiveMap("PSC"):(CHAPTER_BASE_MAPS.PSC||{});
     return map[two]!==undefined?String(two).padStart(2,"0"):"未分類";
   },
   chapterLabel(k){
     if(k==="未分類")return "未分類／其他（代碼空白或無法判讀）";
-    const map=CHAPTER_BASE_MAPS.PSC||{};
-    const ov=(App.chapterOverrides&&App.chapterOverrides.PSC)||{};
-    const num=+k;
-    const name=ov[num]!==undefined?ov[num]:map[num];
+    const map=(typeof ChapterMgr!=="undefined")?ChapterMgr.effectiveMap("PSC"):(CHAPTER_BASE_MAPS.PSC||{});
+    const name=map[+k];
     return `${k}：${name||"未命名章節"}`;
   },
   basePSC(){return App.defs.filter(d=>(d.itype||"").toUpperCase()==="PSC");},
@@ -12752,11 +12772,16 @@ function pscMselHtml(value,uid,disabled){
 }
 function pscMselUpdateSummary(uid){return pscBoxRead(uid);}
 const CDI_CHAPTERS={1:"CERTIFICATION, MANNING 證書及人員配置",2:"MANAGEMENT AND PERSONNEL 管理及人員",3:"BRIDGE 駕駛台",4:"MOORING 繫泊作業",5:"CARGO OPERATIONS 貨物作業",6:"ENGINE DEPARTMENT 機艙部門",7:"OPERATIONAL SAFETY 作業安全",8:"HEALTH, SAFETY AND PERSONNEL PROTECTION 健康、安全及人員防護",9:"FIREFIGHTING 消防",10:"LIFESAVING 救生",11:"ENVIRONMENTAL PROTECTION 環境保護",12:"SECURITY 船舶保安",13:"HULL AND SUPERSTRUCTURE 船殼及上層建築",14:"ACCOMMODATION 居住艙室"};
-const PSC_CHAPTERS={1:"證書及文件 Certificates and Documentation",2:"結構狀況 Structural Conditions",3:"水密/風雨密設備 Water/Weathertight Conditions",4:"應急系統 Emergency Systems",5:"無線電通信 Radio Communications",6:"貨物操作包括設備 Cargo Operations Including Equipment",7:"消防安全 Fire Safety",8:"警報 Alarms",9:"工作及生活條件 Working and Living Conditions",10:"航行安全 Navigation Safety",11:"救生設備 Life-saving Appliances",12:"危險品 Dangerous Goods",13:"主機及輔機 Main and Auxiliary Machinery",14:"預防污染 Pollution Prevention",15:"ISM International Safety Management (ISM) Code",16:"ISPS International Ship and Port Facility Security (ISPS) Code",18:"船員生活品質 Seafarers' Living Conditions and Welfare",99:"其他 Others"};
+/* 依 Tokyo MOU 官方 Deficiency Codes 章節定義核對更新（2025/12 生效版本，無第17章；
+   第18、19章依使用者現場核對官方文件後於 2026/9 校正），英文標題採官方原文用字，
+   中文為對照翻譯，方便本機作業人員閱讀。 */
+const PSC_CHAPTERS={1:"證書及文件 Certificates & Documentation",2:"結構狀況 Structural Condition",3:"水密/風雨密設備 Water/Weathertight Condition",4:"應急系統 Emergency Systems",5:"無線電通信 Radio Communication",6:"貨物操作包括設備 Cargo Operations Including Equipment",7:"消防安全 Fire Safety",8:"警報 Alarms",9:"工作及生活條件 Working and Living Conditions",10:"航行安全 Safety of Navigation",11:"救生設備 Life-Saving Appliances",12:"危險品 Dangerous Goods",13:"推進及輔助機械 Propulsion and Auxiliary Machinery",14:"污染防止 Pollution Prevention",15:"安全管理系統 ISM (International Safety Management Code)",16:"船舶保安 ISPS (International Ship and Port Facility Security Code)",18:"勞動條件 Labour Conditions",19:"產業人員 Industrial Personnel",99:"其他 Other"};
 const RIGHTSHIP_CHAPTERS={1:"一般資訊 General Information",2:"證書及人員管理 Certification and Personnel Management",3:"航行 Navigation",4:"安全管理系統 ISM System",5:"汙染預防管控 Pollution Prevention and Control",6:"船體結構 Ship's Structure",7:"油料管理 Fuel Management",8:"貨物作業 Cargo Operation - Solid Bulk Cargo other than Grain",9:"艙蓋及吊具 Hatch Cover and Lifting Appliances",10:"纜繩作業 Mooring Operations",11:"雷達通訊 Radio and Communication",12:"船舶保安 Security",13:"機艙 Machinery Space",14:"船殼外觀 General Appearance - Hull and Superstructure",15:"人員健康及福利 Health and Welfare of Seafarers",16:"冰區或極區作業 Ice or Polar Water Operations",17:"船對船作業 Ship To Ship Operation"};
 const SIRE_CHAPTERS_BY_CODE={};
 SIRE_CHAPTERS.forEach(s=>{const m=s.match(/^([\d.]+)\s+(.*)$/);if(m){const code=m[1];if(!SIRE_CHAPTERS_BY_CODE[code])SIRE_CHAPTERS_BY_CODE[code]=s;}});
 const CHAPTER_BASE_MAPS={CDI:CDI_CHAPTERS,PSC:PSC_CHAPTERS,RIGHTSHIP:RIGHTSHIP_CHAPTERS,SIRE:SIRE_CHAPTERS_BY_CODE};
+/* 舊版相容用：現在改由 ChapterMgr.effectiveMap(t) 統一計算「預設值 + 微調覆蓋 + 自訂代碼 - 已刪除代碼」，
+   這個函式保留給還在呼叫它的少數地方，行為等同 ChapterMgr.effectiveMap 尚未載入完成前的備援保底值。 */
 function chapterOverrideMap(t){
   if(typeof App==="undefined"||!App.chapterOverrides)return {};
   return App.chapterOverrides[t]||{};
@@ -12764,16 +12789,13 @@ function chapterOverrideMap(t){
 function chapterNameLookup(itype,codeStr){
   let t=(itype||"").toUpperCase().trim();
   if(t==="RIGHT SHIP")t="RIGHTSHIP";
-  const map=CHAPTER_BASE_MAPS[t];
+  const map=(typeof ChapterMgr!=="undefined")?ChapterMgr.effectiveMap(t):(CHAPTER_BASE_MAPS[t]||null);
   if(!map)return "";
-  const ov=chapterOverrideMap(t);
   if(t==="SIRE"){
     const m=String(codeStr||"").match(/\d+(?:\.\d+)?/);
     if(!m)return "";
     const full=m[0],intPart=full.split(".")[0];
-    if(ov[full]!==undefined)return ov[full];
-    if(map[full])return map[full];
-    if(ov[intPart]!==undefined)return ov[intPart];
+    if(map[full]!==undefined)return map[full];
     return map[intPart]||"";
   }
   if(t==="PSC"){
@@ -12783,13 +12805,10 @@ function chapterNameLookup(itype,codeStr){
     const m=String(codeStr||"").match(/^\s*(\d+)/);
     if(!m)return "";
     const two=+m[1].slice(0,2).padStart(2,"0");
-    if(ov[two]!==undefined)return ov[two];
     return map[two]||"";
   }
   const m=String(codeStr||"").match(/\d+/);
   if(!m)return "";
-  const key=String(+m[0]);
-  if(ov[key]!==undefined)return ov[key];
   return map[+m[0]]||"";
 }
 const PSC_ACTION_CODES=[
@@ -24538,6 +24557,9 @@ const DM={
         airReviews:App.air,
         selfCheckTasks:App.tasks,
         chapterOverrides:App.chapterOverrides,
+        chapterCustomCodes:App.chapterCustomCodes,
+        chapterDeleted:App.chapterDeleted,
+        chapterGroups:App.chapterGroups,
         inspCtrl:App.inspCtrl,
         refDocs:App.refDocs,
         refDocs2:App.refDocs2,
@@ -24738,6 +24760,9 @@ const DM={
       if(Array.isArray(d.refDocs)){App.refDocs=d.refDocs;hit=true;}
       if(Array.isArray(d.refDocs2)){App.refDocs2=d.refDocs2;hit=true;}
       if(d.chapterOverrides&&typeof d.chapterOverrides==="object"){App.chapterOverrides=d.chapterOverrides;hit=true;}
+      if(d.chapterCustomCodes&&typeof d.chapterCustomCodes==="object"){App.chapterCustomCodes=d.chapterCustomCodes;hit=true;}
+      if(d.chapterDeleted&&typeof d.chapterDeleted==="object"){App.chapterDeleted=d.chapterDeleted;hit=true;}
+      if(Array.isArray(d.chapterGroups)){App.chapterGroups=d.chapterGroups;hit=true;}
       return hit;
     }},
     {cat:"classify",label:"分類階層與根因分類",run(d){
@@ -24772,7 +24797,7 @@ const DM={
     try{
       const safety={
         insp:App.insp,defs:App.defs,sirePos:App.sirePos,air:App.air,tasks:App.tasks,curTaskId:App.curTaskId,
-        chapterOverrides:App.chapterOverrides,inspCtrl:App.inspCtrl,refDocs:App.refDocs,refDocs2:App.refDocs2,
+        chapterOverrides:App.chapterOverrides,chapterCustomCodes:App.chapterCustomCodes,chapterDeleted:App.chapterDeleted,chapterGroups:App.chapterGroups,inspCtrl:App.inspCtrl,refDocs:App.refDocs,refDocs2:App.refDocs2,
         drillRecords:App.drillRecords,drillRecordEditors:App.drillRecordEditors,annualPlan:App.annualPlan,
         auditDash:App.auditDash,defsProjects:App.defsProjects,projectMembers:App.projectMembers,
         defsGridEditors:App.defsGridEditors,taskCreators:App.taskCreators,exporters:App.exporters,
@@ -24812,7 +24837,7 @@ const DM={
     }
     if(!confirm(`確定要回復至上次「從完整備份還原」之前的狀態嗎？（備份時間：${new Date(s.savedAt).toLocaleString()}）`))return;
     App.insp=s.insp||[];App.defs=s.defs||[];App.sirePos=s.sirePos||[];App.air=s.air||[];App.tasks=s.tasks||[];App.curTaskId=s.curTaskId||null;
-    App.chapterOverrides=s.chapterOverrides||{};App.inspCtrl=s.inspCtrl||[];App.refDocs=s.refDocs||[];App.refDocs2=s.refDocs2||[];
+    App.chapterOverrides=s.chapterOverrides||{};App.chapterCustomCodes=s.chapterCustomCodes||{};App.chapterDeleted=s.chapterDeleted||{};App.chapterGroups=s.chapterGroups||[];App.inspCtrl=s.inspCtrl||[];App.refDocs=s.refDocs||[];App.refDocs2=s.refDocs2||[];
     App.drillRecords=s.drillRecords||[];App.drillRecordEditors=s.drillRecordEditors||[];App.annualPlan=s.annualPlan||[];
     App.auditDash=s.auditDash||[];App.defsProjects=s.defsProjects||[];App.projectMembers=s.projectMembers||[];
     App.defsGridEditors=s.defsGridEditors||[];App.taskCreators=s.taskCreators||[];App.exporters=s.exporters||[];
@@ -25263,6 +25288,33 @@ function refreshRoleWho(){
 /* ════════ 缺失代碼對照表管理（RightShip／CDI／SIRE／PSC）════════ */
 const ChapterMgr={
   open:false,
+  /* 內建四個分類（RightShip／CDI／PSC／SIRE）：Dashboard 的 PSC 圖表、SIRE 代碼建議清單等
+     其他功能都用固定的代號直接參照這四個分類，所以這四個不開放刪除，只開放編輯/新增/刪除底下的代碼。
+     自訂分類（App.chapterGroups）則是使用者自行新增的「檢查來源」對照表，可自由新增/刪除整個分類。 */
+  BUILTIN_GROUPS:[["RIGHTSHIP","RightShip 章節"],["CDI","CDI 章節"],["PSC","PSC 章節"],["SIRE","SIRE 章節"]],
+  GROUPS:[["RIGHTSHIP","RightShip 章節"],["CDI","CDI 章節"],["PSC","PSC 章節"],["SIRE","SIRE 章節"]], // 舊名保留相容
+  allGroups(){
+    return [...this.BUILTIN_GROUPS,...((App.chapterGroups||[]).map(g=>[g.key,g.label]))];
+  },
+  isBuiltin(key){return this.BUILTIN_GROUPS.some(([k])=>k===key);},
+  /* 統一計算「這個分類目前實際生效」的代碼→名稱對照：
+     內建預設值（CHAPTER_BASE_MAPS）－已刪除的代碼（App.chapterDeleted）
+     ＋名稱微調（App.chapterOverrides，僅套用在內建代碼上）＋使用者自行新增的代碼（App.chapterCustomCodes）。
+     全系統（Dashboard PSC圖表、CODE自動比對提示、這裡的畫面／匯出）都改叫這個函式，
+     不再各自兜一份邏輯，才不會又變成兩份對不上。 */
+  effectiveMap(key){
+    const base=CHAPTER_BASE_MAPS[key]||{};
+    const deleted=new Set(((App.chapterDeleted&&App.chapterDeleted[key])||[]).map(String));
+    const ov=(App.chapterOverrides&&App.chapterOverrides[key])||{};
+    const custom=(App.chapterCustomCodes&&App.chapterCustomCodes[key])||{};
+    const out={};
+    Object.keys(base).forEach(code=>{
+      if(deleted.has(String(code)))return;
+      out[code]=ov[code]!==undefined?ov[code]:base[code];
+    });
+    Object.keys(custom).forEach(code=>{out[code]=custom[code];});
+    return out;
+  },
   toggle(){
     this.open=!this.open;
     const box=$("#chmgr-body"),btn=$("#chmgr-toggle-btn");
@@ -25272,37 +25324,59 @@ const ChapterMgr={
   },
   render(){
     const box=$("#chmgr-body");if(!box)return;
-    const groups=[["RIGHTSHIP","RightShip 章節"],["CDI","CDI 章節"],["PSC","PSC 章節"],["SIRE","SIRE 章節"]];
-    box.innerHTML=groups.map(([key,label])=>{
-      const map=CHAPTER_BASE_MAPS[key]||{};
-      const ov=(App.chapterOverrides&&App.chapterOverrides[key])||{};
+    const groups=this.allGroups();
+    const toolbar=`<div class="toolbar" style="margin-bottom:10px">
+        <button class="btn sm" onclick="ChapterMgr.addGroup()">＋ 新增檢查來源分類</button>
+        <button class="btn sm" onclick="ChapterMgr.exportJson()">⬇ 匯出 JSON</button>
+        <button class="btn sm dark" onclick="ChapterMgr.importJson()">⬆ 匯入 JSON</button>
+      </div>`;
+    box.innerHTML=toolbar+groups.map(([key,label])=>{
+      const base=CHAPTER_BASE_MAPS[key]||{};
+      const map=this.effectiveMap(key);
       const codes=Object.keys(map).sort((a,b)=>parseFloat(a)-parseFloat(b));
+      const custom=this.isBuiltin(key);
       const rows=codes.map(code=>{
-        const def=map[code];
-        const cur=ov[code]!==undefined?ov[code]:def;
-        const changed=ov[code]!==undefined&&ov[code]!==def;
+        const cur=map[code];
+        const isDefaultCode=Object.prototype.hasOwnProperty.call(base,code);
+        const def=base[code];
+        const changed=isDefaultCode&&(App.chapterOverrides&&App.chapterOverrides[key]&&App.chapterOverrides[key][code]!==undefined);
         return `<tr>
           <td style="font-family:var(--mono);white-space:nowrap;width:60px">${esc(code)}</td>
-          <td><input type="text" value="${esc(cur)}" style="width:100%" data-itype="${key}" data-code="${esc(code)}" onchange="ChapterMgr.setOverride(this)"></td>
-          <td style="text-align:center;width:56px">${changed?`<button class="btn sm" data-itype="${key}" data-code="${esc(code)}" onclick="ChapterMgr.resetOneBtn(this)">還原</button>`:""}</td>
+          <td><input type="text" value="${esc(cur)}" style="width:100%" data-itype="${key}" data-code="${esc(code)}" onchange="ChapterMgr.setValue(this)"></td>
+          <td style="text-align:center;white-space:nowrap;width:120px">
+            ${changed?`<button class="btn sm" data-itype="${key}" data-code="${esc(code)}" onclick="ChapterMgr.resetOneBtn(this)">還原</button>`:""}
+            <button class="btn sm danger" onclick="ChapterMgr.deleteCode('${esc(key)}','${esc(code).replace(/'/g,"\\'")}')">🗑</button>
+          </td>
         </tr>`;
       }).join("");
       return `<div style="margin-bottom:14px">
-        <h4 style="margin:6px 0;font-size:13px">${label}（${codes.length} 項）</h4>
-        <div class="tblwrap" style="max-height:260px"><table class="tbl"><thead><tr><th style="width:60px">代碼</th><th>章節名稱</th><th style="width:56px"></th></tr></thead><tbody>${rows}</tbody></table></div>
+        <h4 style="margin:6px 0;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span>${esc(label)}（${codes.length} 項）</span>
+          <button class="btn sm" onclick="ChapterMgr.addCode('${esc(key)}')">＋ 新增代碼</button>
+          ${!custom?`<button class="btn sm danger" onclick="ChapterMgr.deleteGroup('${esc(key)}')" style="margin-left:auto">🗑 刪除此分類</button>`:""}
+        </h4>
+        <div class="tblwrap" style="max-height:260px"><table class="tbl"><thead><tr><th style="width:60px">代碼</th><th>章節名稱</th><th style="width:120px"></th></tr></thead><tbody>${rows||`<tr><td colspan="3" style="text-align:center;color:#8195a0">（尚無代碼，請按上方「＋ 新增代碼」）</td></tr>`}</tbody></table></div>
       </div>`;
     }).join("");
   },
-  async setOverride(inputEl){
+  async setValue(inputEl){
     if(typeof Guard!=="undefined"&&!await Guard.require()){this.render();return;}
-    const itype=inputEl.dataset.itype,code=inputEl.dataset.code,val=inputEl.value.trim();
-    if(!App.chapterOverrides)App.chapterOverrides={};
-    if(!App.chapterOverrides[itype])App.chapterOverrides[itype]={};
-    const def=(CHAPTER_BASE_MAPS[itype]||{})[code];
-    if(val===def||val===""){delete App.chapterOverrides[itype][code];}
-    else{App.chapterOverrides[itype][code]=val;}
+    const key=inputEl.dataset.itype,code=inputEl.dataset.code,val=inputEl.value.trim();
+    const isDefaultCode=Object.prototype.hasOwnProperty.call(CHAPTER_BASE_MAPS[key]||{},code);
+    if(isDefaultCode){
+      if(!App.chapterOverrides)App.chapterOverrides={};
+      if(!App.chapterOverrides[key])App.chapterOverrides[key]={};
+      const def=(CHAPTER_BASE_MAPS[key]||{})[code];
+      if(val===def||val===""){delete App.chapterOverrides[key][code];}
+      else{App.chapterOverrides[key][code]=val;}
+    }else{
+      if(!val){toast("⚠ 名稱不可空白，如需移除請按 🗑 刪除代碼");this.render();return;}
+      if(!App.chapterCustomCodes)App.chapterCustomCodes={};
+      if(!App.chapterCustomCodes[key])App.chapterCustomCodes[key]={};
+      App.chapterCustomCodes[key][code]=val;
+    }
     App.saveAll();
-    if(typeof Audit!=="undefined")Audit.log("編輯","缺失代碼對照表",`${itype} 代碼${code}：${val}`);
+    if(typeof Audit!=="undefined")Audit.log("編輯","缺失代碼對照表",`${key} 代碼${code}：${val}`);
     toast("✓ 已更新代碼名稱");
     this.render();
   },
@@ -25312,19 +25386,78 @@ const ChapterMgr={
     if(App.chapterOverrides&&App.chapterOverrides[itype])delete App.chapterOverrides[itype][code];
     App.saveAll();this.render();toast("已還原為預設名稱");
   },
-  GROUPS:[["RIGHTSHIP","RightShip 章節"],["CDI","CDI 章節"],["PSC","PSC 章節"],["SIRE","SIRE 章節"]],
-  /* 依代碼取目前生效的章節名稱：有微調過（App.chapterOverrides）就用微調值，否則用內建預設值，
-     跟 render() 畫面上顯示的邏輯一致，匯出的內容才會跟畫面上看到的一樣。 */
+  async addCode(key){
+    if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    const code=((prompt("新代碼（例如 20，或 SIRE 的 1.5 這種格式）：")||"").trim());
+    if(!code)return;
+    const map=this.effectiveMap(key);
+    if(map[code]!==undefined){toast("⚠ 此代碼已存在，請直接修改上方欄位的名稱");return;}
+    const name=((prompt("章節名稱：")||"").trim());
+    if(!name){toast("⚠ 請輸入章節名稱");return;}
+    if(!App.chapterCustomCodes)App.chapterCustomCodes={};
+    if(!App.chapterCustomCodes[key])App.chapterCustomCodes[key]={};
+    App.chapterCustomCodes[key][code]=name;
+    App.saveAll();
+    if(typeof Audit!=="undefined")Audit.log("新增","缺失代碼對照表",`${key} 新增代碼${code}：${name}`);
+    toast("✓ 已新增代碼");
+    this.render();
+  },
+  async deleteCode(key,code){
+    if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    if(!confirm(`確定刪除「${key}」分類的代碼「${code}」？`))return;
+    const isDefaultCode=Object.prototype.hasOwnProperty.call(CHAPTER_BASE_MAPS[key]||{},code);
+    if(isDefaultCode){
+      if(!App.chapterDeleted)App.chapterDeleted={};
+      if(!App.chapterDeleted[key])App.chapterDeleted[key]=[];
+      if(!App.chapterDeleted[key].includes(code))App.chapterDeleted[key].push(code);
+      if(App.chapterOverrides&&App.chapterOverrides[key])delete App.chapterOverrides[key][code];
+    }else if(App.chapterCustomCodes&&App.chapterCustomCodes[key]){
+      delete App.chapterCustomCodes[key][code];
+    }
+    App.saveAll();
+    if(typeof Audit!=="undefined")Audit.log("刪除","缺失代碼對照表",`${key} 刪除代碼${code}`);
+    toast("已刪除代碼");
+    this.render();
+  },
+  async addGroup(){
+    if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    const rawKey=((prompt("分類代號（請跟「檢查來源」欄位會輸入的名稱一致，例如 USCG）：")||"").trim());
+    if(!rawKey)return;
+    const key=rawKey.toUpperCase().replace(/\s+/g,"");
+    if(!key)return;
+    if(this.allGroups().some(([k])=>k===key)){toast("⚠ 此分類代號已存在");return;}
+    const label=((prompt("分類顯示名稱（例如「USCG 章節」）：",`${rawKey} 章節`)||"").trim())||`${rawKey} 章節`;
+    if(!App.chapterGroups)App.chapterGroups=[];
+    App.chapterGroups.push({key,label});
+    App.saveAll();
+    if(typeof Audit!=="undefined")Audit.log("新增","缺失代碼對照表",`新增分類 ${key}（${label}）`);
+    toast(`✓ 已新增分類「${label}」，請在下方輸入代碼`);
+    this.render();
+  },
+  async deleteGroup(key){
+    if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    if(this.isBuiltin(key)){toast("⚠ 系統內建的四個分類（RightShip／CDI／PSC／SIRE）無法整個刪除，其他功能（如 Dashboard 的 PSC 章節分析）都依賴這幾個分類代號；如需清空可逐一刪除底下的代碼");return;}
+    if(!confirm(`確定刪除整個分類「${key}」？底下所有代碼都會一併刪除，此動作無法復原（可先匯出 JSON 備份）。`))return;
+    App.chapterGroups=(App.chapterGroups||[]).filter(g=>g.key!==key);
+    if(App.chapterCustomCodes)delete App.chapterCustomCodes[key];
+    if(App.chapterOverrides)delete App.chapterOverrides[key];
+    if(App.chapterDeleted)delete App.chapterDeleted[key];
+    App.saveAll();
+    if(typeof Audit!=="undefined")Audit.log("刪除","缺失代碼對照表",`刪除分類 ${key}`);
+    toast("已刪除分類");
+    this.render();
+  },
+  /* 依代碼取目前生效的章節名稱（含新增/刪除/微調），跟 render() 畫面上顯示的邏輯一致，
+     匯出的內容才會跟畫面上看到的一樣。 */
   effectiveRows(key){
-    const map=CHAPTER_BASE_MAPS[key]||{};
-    const ov=(App.chapterOverrides&&App.chapterOverrides[key])||{};
+    const map=this.effectiveMap(key);
     const codes=Object.keys(map).sort((a,b)=>parseFloat(a)-parseFloat(b));
-    return codes.map(code=>({code,name:ov[code]!==undefined?ov[code]:map[code]}));
+    return codes.map(code=>({code,name:map[code]}));
   },
   exportXlsx(){
     if(!hasXLSX())return;
     const wb=XLSX.utils.book_new();
-    this.GROUPS.forEach(([key,label])=>{
+    this.allGroups().forEach(([key,label])=>{
       const rows=this.effectiveRows(key);
       const aoa=[["代碼","章節名稱"],...rows.map(r=>[r.code,r.name])];
       const ws=XLSX.utils.aoa_to_sheet(aoa);
@@ -25337,7 +25470,7 @@ const ChapterMgr={
   exportWord(){
     const th=t=>`<td style="background:#1c3a5e;color:#fff;font-weight:bold;padding:6px 8px;border:1px solid #999">${t}</td>`;
     const td=t=>`<td style="padding:6px 8px;border:1px solid #999">${t}</td>`;
-    const sectionHtml=this.GROUPS.map(([key,label])=>{
+    const sectionHtml=this.allGroups().map(([key,label])=>{
       const rows=this.effectiveRows(key);
       const body=rows.map(r=>`<tr>${td(esc(r.code))}${td(esc(r.name))}</tr>`).join("");
       return `<h3 style="font-family:Calibri,Arial,sans-serif">${esc(label)}（${rows.length} 項）</h3>
@@ -25346,11 +25479,70 @@ const ChapterMgr={
           ${body}
         </table>`;
     }).join("<br>");
-    const html=`<h2 style="text-align:center;font-family:Calibri,Arial,sans-serif">缺失代碼對照表（RightShip／CDI／SIRE／PSC）</h2>${sectionHtml}`;
+    const html=`<h2 style="text-align:center;font-family:Calibri,Arial,sans-serif">缺失代碼對照表</h2>${sectionHtml}`;
     const blob=new Blob(["﻿",'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>缺失代碼對照表</title></head><body>',html,"</body></html>"],{type:"application/msword"});
     dl(blob,`缺失代碼對照表_${todayStr()}.doc`);
     if(typeof Audit!=="undefined")Audit.log("匯出","缺失代碼對照表","匯出 Word");
     toast("✓ 已匯出 Word 檔（.doc，可直接用 Word 開啟）");
+  },
+  /* JSON 匯出/匯入：匯出的是「目前實際生效」的完整內容（含內建四分類＋所有自訂分類），
+     匯入時整批取代對應分類的代碼內容——內建分類會反推出「跟預設值不同的部分」轉成微調/新增/刪除
+     三種記錄；自訂分類則整包直接取代，等於用這份 JSON 檔重建整份對照表，方便備份、搬到別的環境，
+     或離線用文字編輯器整批調整後再匯入。 */
+  exportJson(){
+    const data={exportedAt:new Date().toISOString(),groups:this.allGroups().map(([key,label])=>({key,label,codes:this.effectiveMap(key)}))};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    dl(blob,`缺失代碼對照表_${todayStr()}.json`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","缺失代碼對照表","匯出 JSON");
+  },
+  importJson(){
+    const fp=$("#filepick");if(!fp)return;
+    fp.accept=".json";
+    fp.value="";
+    fp.onchange=()=>{const f=fp.files[0];if(f)this.readImportJson(f);};
+    fp.click();
+  },
+  readImportJson(file){
+    const r=new FileReader();
+    r.onload=async()=>{
+      let data;
+      try{data=JSON.parse(r.result);}catch(e){toast("⚠ JSON 檔案格式錯誤："+e.message);return;}
+      if(!data||!Array.isArray(data.groups)){toast("⚠ 檔案格式不符，需含 groups 陣列（請用本頁「⬇ 匯出 JSON」產生的格式）");return;}
+      if(typeof Guard!=="undefined"&&!await Guard.require())return;
+      if(!confirm(`確定匯入？將以檔案內容整批覆蓋「缺失代碼對照表」共 ${data.groups.length} 個分類的代碼內容，此動作無法復原（建議先按「⬇ 匯出 JSON」備份目前內容）。`))return;
+      data.groups.forEach(g=>{
+        if(!g||!g.key)return;
+        const key=String(g.key).toUpperCase().trim();
+        if(!key)return;
+        const codes=(g.codes&&typeof g.codes==="object")?g.codes:{};
+        if(this.isBuiltin(key)){
+          const base=CHAPTER_BASE_MAPS[key]||{};
+          if(!App.chapterOverrides)App.chapterOverrides={};
+          if(!App.chapterCustomCodes)App.chapterCustomCodes={};
+          if(!App.chapterDeleted)App.chapterDeleted={};
+          App.chapterOverrides[key]={};
+          App.chapterCustomCodes[key]={};
+          App.chapterDeleted[key]=[];
+          Object.keys(base).forEach(code=>{
+            if(codes[code]===undefined){App.chapterDeleted[key].push(code);}
+            else if(codes[code]!==base[code]){App.chapterOverrides[key][code]=codes[code];}
+          });
+          Object.keys(codes).forEach(code=>{
+            if(!Object.prototype.hasOwnProperty.call(base,code))App.chapterCustomCodes[key][code]=codes[code];
+          });
+        }else{
+          if(!App.chapterGroups)App.chapterGroups=[];
+          if(!App.chapterGroups.some(x=>x.key===key))App.chapterGroups.push({key,label:g.label||`${key} 章節`});
+          if(!App.chapterCustomCodes)App.chapterCustomCodes={};
+          App.chapterCustomCodes[key]=Object.assign({},codes);
+        }
+      });
+      App.saveAll();
+      if(typeof Audit!=="undefined")Audit.log("匯入","缺失代碼對照表",`匯入 JSON，共 ${data.groups.length} 個分類`);
+      toast("✓ 已匯入缺失代碼對照表");
+      this.render();
+    };
+    r.readAsText(file,"utf-8");
   }
 };
 /* ════════ 👤 身份與權限（Role）════════
@@ -26641,8 +26833,8 @@ const Cloud={
       return rows.filter(r=>(r.updated||0)>(this._cloudSeen[r.k]||0));
     }catch(e){return null;}
   },
-  AUTO_PAYLOAD:{sirePositive:()=>App.sirePos,inspctrl:()=>App.inspCtrl,inspections:()=>App.insp,deficiencies:()=>App.defs,ships:()=>(typeof SHIPINFO!=="undefined"?SHIPINFO:[]),airReviews:()=>App.air,annualPlan:()=>App.annualPlan,auditDash:()=>App.auditDash,defsProjects:()=>App.defsProjects},
-  KEY_ZH:{inspections:"檢查紀錄",deficiencies:"缺失紀錄",ships:"船舶資料",sirePositive:"SIRE正向評論",airReviews:"AIR",inspctrl:"檢查管控",roster:"人員名單",refDocs:"參考連結",refDocs2:"海技參考資料",drillRecords:"操演紀錄",annualPlan:"年度計畫",auditDash:"內稽動態紀錄",defsProjects:"缺失專案分析",voyCatalog:"航次報表目錄"},
+  AUTO_PAYLOAD:{sirePositive:()=>App.sirePos,inspctrl:()=>App.inspCtrl,inspections:()=>App.insp,deficiencies:()=>App.defs,ships:()=>(typeof SHIPINFO!=="undefined"?SHIPINFO:[]),airReviews:()=>App.air,annualPlan:()=>App.annualPlan,auditDash:()=>App.auditDash,defsProjects:()=>App.defsProjects,chapterConfig:()=>({overrides:App.chapterOverrides,custom:App.chapterCustomCodes,deleted:App.chapterDeleted,groups:App.chapterGroups})},
+  KEY_ZH:{inspections:"檢查紀錄",deficiencies:"缺失紀錄",ships:"船舶資料",sirePositive:"SIRE正向評論",airReviews:"AIR",inspctrl:"檢查管控",roster:"人員名單",refDocs:"參考連結",refDocs2:"海技參考資料",drillRecords:"操演紀錄",annualPlan:"年度計畫",auditDash:"內稽動態紀錄",defsProjects:"缺失專案分析",voyCatalog:"航次報表目錄",chapterConfig:"缺失代碼對照表"},
   showConflict(msg){ // 沿用同步失敗橫幅顯示「雲端已有更新版本」的衝突警示
     const b=$("#syncFailBanner");if(!b)return;
     b.classList.add("show");
@@ -26735,7 +26927,7 @@ const Cloud={
     const rosterN=(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[]).length;
     if(!confirm(`將本機 ${App.insp.length} 筆檢查紀錄、${App.defs.length} 筆缺失紀錄、${App.sirePos.length} 筆SIRE正向評論、${App.air.length} 筆填單、${App.inspCtrl.length} 筆檢查管控(含排程)、${rosterN} 位人員名單整批發布到雲端，覆蓋雲端現有版本。\n（其他人「從雲端載入」後會以此為準）\n確定發布？`))return;
     // ═ 併發覆蓋保護：發布前比對雲端時間戳，若他人已發布更新版本，需明確確認才覆蓋 ═
-    const _pubKeys=["inspections","deficiencies","ships","sirePositive","airReviews","inspctrl","roster","refDocs","refDocs2","drillRecords","annualPlan","auditDash","defsProjects"];
+    const _pubKeys=["inspections","deficiencies","ships","sirePositive","airReviews","inspctrl","roster","refDocs","refDocs2","drillRecords","annualPlan","auditDash","defsProjects","chapterConfig"];
     const _conf=await this.checkConflicts(_pubKeys);
     if(_conf&&_conf.length){
       const who=[...new Set(_conf.map(c=>c.by).filter(Boolean))].join("、")||"其他使用者";
@@ -26759,7 +26951,8 @@ const Cloud={
         {k:"drillRecords",updated:now,by:usr,payload:App.drillRecords},
         {k:"annualPlan",updated:now,by:usr,payload:App.annualPlan},
         {k:"auditDash",updated:now,by:usr,payload:App.auditDash},
-        {k:"defsProjects",updated:now,by:usr,payload:App.defsProjects}
+        {k:"defsProjects",updated:now,by:usr,payload:App.defsProjects},
+        {k:"chapterConfig",updated:now,by:usr,payload:{overrides:App.chapterOverrides,custom:App.chapterCustomCodes,deleted:App.chapterDeleted,groups:App.chapterGroups}}
       ];
       await this.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(this.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify(rows)});
       rows.forEach(r=>this.markSeen(r.k,now)); // 我們剛寫入的版本視為「已看過」
@@ -26806,7 +26999,7 @@ const Cloud={
     if(!this.enabled()){if(!silent)toast("⚠ 請先完成雲端設定");return;}
     this.dbState("⬇ 載入中…");
     try{
-      const rows=await this.api("app_db?select=k,updated,by,payload&k=in.(inspections,deficiencies,ships,sirePositive,airReviews,inspctrl,roster,refDocs,refDocs2,annualPlan,auditDash,defsProjects,drillRecords)");
+      const rows=await this.api("app_db?select=k,updated,by,payload&k=in.(inspections,deficiencies,ships,sirePositive,airReviews,inspctrl,roster,refDocs,refDocs2,annualPlan,auditDash,defsProjects,drillRecords,chapterConfig)");
       if(!rows||!rows.length){this.dbState("雲端尚無資料庫");if(!silent)toast("⚠ 雲端尚無已發布的資料庫，請維護者先「發布到雲端」");return;}
       const map={};rows.forEach(r=>map[r.k]=r);
       let info=[];
@@ -26874,6 +27067,13 @@ const Cloud={
       if(map.refDocs&&Array.isArray(map.refDocs.payload)){App.refDocs=map.refDocs.payload;try{LZSet(App.LSK.rd,JSON.stringify(App.refDocs));}catch(e){}info.push("參考連結 "+App.refDocs.length);if(typeof RefDocs!=="undefined")RefDocs.render();}
       if(map.refDocs2&&Array.isArray(map.refDocs2.payload)){App.refDocs2=map.refDocs2.payload;try{LZSet(App.LSK.rd2,JSON.stringify(App.refDocs2));}catch(e){}info.push("海技參考資料 "+App.refDocs2.length);if(typeof RefDocs2!=="undefined")RefDocs2.render();}
       if(map.drillRecords&&Array.isArray(map.drillRecords.payload)){App.drillRecords=map.drillRecords.payload;try{LZSet(App.LSK.dr,JSON.stringify(App.drillRecords));}catch(e){}info.push("操演紀錄 "+App.drillRecords.length);}
+      if(map.chapterConfig&&map.chapterConfig.payload&&typeof map.chapterConfig.payload==="object"){
+        const cc=map.chapterConfig.payload;
+        App.chapterOverrides=cc.overrides||{};App.chapterCustomCodes=cc.custom||{};App.chapterDeleted=cc.deleted||{};App.chapterGroups=cc.groups||[];
+        try{LZSet(App.LSK.ch,JSON.stringify({overrides:App.chapterOverrides,custom:App.chapterCustomCodes,deleted:App.chapterDeleted,groups:App.chapterGroups}));}catch(e){}
+        info.push("缺失代碼對照表");
+        if(typeof ChapterMgr!=="undefined"&&ChapterMgr.open)ChapterMgr.render();
+      }
       if(migResult.annualPlan&&migResult.annualPlan.source==="new"){
         try{LZSet(App.LSK.ap,JSON.stringify(App.annualPlan));}catch(e){}
         info.push("年度計畫 "+App.annualPlan.length);if(typeof AnnualPlan!=="undefined")AnnualPlan.render();
