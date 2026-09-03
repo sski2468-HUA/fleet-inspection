@@ -1276,13 +1276,17 @@ function downloadExcelFile(payload, silent){
 
   const wb = XLSX.utils.book_new();
   const b = payload.basic;
-  const shipRow = { 船名:b.ship, 船型:b.vtype, 檢查來源:b.itype, "FLAG項目":b.flagType||"", 檢查日期:b.date, 檢查地點:b.place,
+  // 序號：跟系統「匯入 Excel」的比對邏輯一致，是用來把「基本資料」「缺失改善明細」「正向評論明細」
+  // 三張工作表的列連結回同一筆填單的代號，不是缺失自己的編號——這裡固定只有一筆記錄，全部列都填 1，
+  // 缺失彼此的順序單純看列在表裡出現的先後，不需要各自不同的序號（之前這裡誤填缺失編號 i+1，
+  // 會讓系統匯入時只認到序號=1 的第一筆缺失，其餘缺失全部被漏掉）。
+  const shipRow = { 序號:1, 船名:b.ship, 船型:b.vtype, 檢查來源:b.itype, "FLAG項目":b.flagType||"", 檢查日期:b.date, 檢查地點:b.place,
     "檢查單位/油公司":b.oilco, 檢查員:b.inspector, 缺失數:payload.defects.length, 正面評論數:(payload.posComments||[]).length };
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([shipRow]), "基本資料");
 
   const NC_OPINION_LABEL = Object.fromEntries(NC_OPINION_OPTS);
   const defRows = payload.defects.map((d,i)=>({
-    序號: i+1,
+    序號: 1,
     "PSC Action Taken": "",
     CODE: d.code,
     實際情況: d.actual,
@@ -1313,7 +1317,7 @@ function downloadExcelFile(payload, silent){
   (payload.posComments||[]).forEach(pc=>{
     const people = (pc.people && pc.people.length) ? pc.people : [{rank:"", person:""}];
     people.forEach(p=>{
-      posRows.push({ "CODE（章節）":pc.code, 評論項目:pc.item, 正向評論內容:pc.comment, 職稱:p.rank, 姓名:p.person });
+      posRows.push({ 序號:1, "CODE（章節）":pc.code, 評論項目:pc.item, 正向評論內容:pc.comment, 職稱:p.rank, 姓名:p.person });
     });
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(posRows), "正向評論明細");

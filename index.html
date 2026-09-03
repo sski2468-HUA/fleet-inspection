@@ -19671,7 +19671,7 @@ const Air={
       "岸上_矯正措施CorrectiveAction_中文":rp.correctiveCn||"","岸上_矯正措施CorrectiveAction_English":rp.correctiveEn||"",
       "岸上_根本原因RootCause_中文":rp.rootCauseCn||"","岸上_根本原因RootCause_English":rp.rootCauseEn||"",
       "岸上_預防措施PreventiveMeasures_中文":rp.preventiveCn||"","岸上_預防措施PreventiveMeasures_English":rp.preventiveEn||"",
-      責任人職位:df.rank||"",責任人姓名:df.person||"",問題別:df.ncProb||"",大類:df.ncMain||"",具體名稱:df.ncLeaf||"",根因分類:df.ncRoot||"",三要素:df.ncFactor||"",
+      責任人職位:df.rank||"",責任人姓名:df.person||"",問題別:(df.ncProb||"").split("‖").join("、"),大類:(df.ncMain||"").split("‖").join("、"),具體名稱:(df.ncLeaf||"").split("‖").join("、"),根因分類:df.ncRoot||"",三要素:df.ncFactor||"",
       重要程度:df.ncImp||"",重點關注:df.ncFocus||"","缺失性質判定":ncOpinionLabel(df.ncOpinion),風險:df.risk||"",需內控:df.needControl?"是":"否"
     });});});
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(defRows),"缺失改善明細");
@@ -19709,6 +19709,16 @@ const Air={
         const posRows=wsPos?XLSX.utils.sheet_to_json(wsPos,{defval:""}):[];
         const g=(o,...keys)=>{for(const k of keys){if(o[k]!==undefined&&String(o[k]).trim()!=="")return String(o[k]).trim();}return "";};
         const truthy=v=>["是","Y","y","1","true","TRUE","✓"].includes(String(v).trim());
+        // 問題別/大類/具體名稱是多選欄位，系統內部一律用「‖」分隔存值；匯出成 Excel 給人看時
+        // （不論是系統自己匯出的、還是船上 submit-airform 匯出的）都會換成人眼比較習慣的「、」，
+        // 這裡匯入時要換回來，不然多選會被當成一整串沒拆開，後面「大類→具體名稱」的連動篩選會失效。
+        // 問題別的值域是簡體「设备问题/作业问题」（跟 NCDB 對照表一致），但匯出檔為了給人看轉成繁體
+        // 「設備問題/作業問題」，這裡一併轉回簡體，不管是哪個來源匯出的都能正確對回去。
+        const NC_PROB_NORMALIZE={"設備問題":"设备问题","作業問題":"作业问题"};
+        const ncMultiNormalize=(raw,translateMap)=>{
+          const parts=String(raw||"").split(/[‖、]/).map(s=>s.trim()).filter(Boolean);
+          return (translateMap?parts.map(p=>translateMap[p]||p):parts).join("‖");
+        };
         const records=baseRows.filter(o=>g(o,"序號")&&g(o,"船名","船舶","Ship")).map(o=>{
           const seq=g(o,"序號");
           const ship=g(o,"船名","船舶","Ship");
@@ -19716,7 +19726,7 @@ const Air={
             psc:g(x,"PSC Action Taken","PSC"),code:g(x,"CODE","代碼"),
             actual:g(x,"船上_實際情況","實際情況"),detail:g(x,"船上_缺失詳情","缺失詳情"),
             corrective:g(x,"船上_矯正措施","改善措施"),rootCause:g(x,"船上_根本原因","根本原因"),preventive:g(x,"船上_預防措施","預防措施"),
-            ncProb:g(x,"問題別"),ncMain:g(x,"大類"),ncLeaf:g(x,"具體名稱"),ncRoot:g(x,"根因分類"),ncFactor:g(x,"三要素"),
+            ncProb:ncMultiNormalize(g(x,"問題別"),NC_PROB_NORMALIZE),ncMain:ncMultiNormalize(g(x,"大類")),ncLeaf:ncMultiNormalize(g(x,"具體名稱")),ncRoot:g(x,"根因分類"),ncFactor:g(x,"三要素"),
             ncImp:g(x,"重要程度"),ncFocus:truthy(g(x,"重點關注"))?"是":(g(x,"重點關注")?"否":""),
             ncOpinion:ncOpinionNormalize(g(x,"缺失性質判定","檢查員意見/BP","檢查員意見","Best Practice")),risk:g(x,"風險"),
             needControl:truthy(g(x,"需內控","是否內控","內控")),
@@ -19758,24 +19768,30 @@ const Air={
             usedInsp:false,usedDef:false,usedPos:false,reviewed:false
           };
         });
-        if(!records.length){toast("⚠ 未讀到有效紀錄（請確認「基本資料」工作表含序號與船名）");return;}
-        const nDef=records.reduce((s,rc)=>s+rc.defects.length,0),nPos=records.reduce((s,rc)=>s+rc.posComments.length,0);
-        if(!confirm(`讀取到 ${records.length} 筆 填單（共 ${nDef} 筆缺失明細、${nPos} 筆正向評論），確定要匯入嗎？`))return;
-        records.forEach(rec=>{
-          rec.id=this.nextId();rec.createdAt=Date.now();rec.createdBy=(typeof Audit!=="undefined")?Audit.user():"";rec.importSource="excel";
-          // 岸上對外回覆資料原本先暫存在每筆缺失的 _reply 裡（因為匯入當下還沒有 rec.id 可以組
-          // reply.items 結構），這裡統一搬到 rec.reply.items[]（跟系統其他地方存對外回覆的結構
-          // 一致），並把暫存用的 _reply 從缺失明細本身清掉，避免留下不屬於這個物件形狀的雜欄位。
-          rec.reply={items:rec.defects.map(d=>{const rp={...(d._reply||{})};delete d._reply;return rp;})};
-          App.air.push(rec);
-        });
-        App.saveAll();if(App.refreshMeta)App.refreshMeta();
-        if(typeof Audit!=="undefined")Audit.log("匯入","AIR",`匯入 ${records.length} 筆（缺失${nDef}／正向評論${nPos}）`);
-        this.renderList();
-        toast(`✓ 已匯入 ${records.length} 筆 填單`);
+        this._confirmAndInsertRecords(records,"excel");
       }catch(e){toast("⚠ Excel 檔解析失敗："+e.message);}
     };
     r.readAsArrayBuffer(file);
+  },
+  /* Excel／Word 匯入最後一步共用：確認筆數後寫入 App.air，避免兩條匯入路徑各自維護一份
+     幾乎一樣的「岸上回覆暫存搬移＋寫入＋存檔＋記錄」邏輯，之後要調整也只要改這裡一處。 */
+  _confirmAndInsertRecords(records,importSource){
+    if(!records.length){toast("⚠ 未讀到有效紀錄（請確認基本資料含船名等必填欄位）");return false;}
+    const nDef=records.reduce((s,rc)=>s+rc.defects.length,0),nPos=records.reduce((s,rc)=>s+rc.posComments.length,0);
+    if(!confirm(`讀取到 ${records.length} 筆 填單（共 ${nDef} 筆缺失明細、${nPos} 筆正向評論），確定要匯入嗎？`))return false;
+    records.forEach(rec=>{
+      rec.id=this.nextId();rec.createdAt=Date.now();rec.createdBy=(typeof Audit!=="undefined")?Audit.user():"";rec.importSource=importSource;
+      // 岸上對外回覆資料原本先暫存在每筆缺失的 _reply 裡（因為匯入當下還沒有 rec.id 可以組
+      // reply.items 結構），這裡統一搬到 rec.reply.items[]（跟系統其他地方存對外回覆的結構
+      // 一致），並把暫存用的 _reply 從缺失明細本身清掉，避免留下不屬於這個物件形狀的雜欄位。
+      rec.reply={items:rec.defects.map(d=>{const rp={...(d._reply||{})};delete d._reply;return rp;})};
+      App.air.push(rec);
+    });
+    App.saveAll();if(App.refreshMeta)App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("匯入","AIR",`匯入 ${records.length} 筆（缺失${nDef}／正向評論${nPos}，來源：${importSource}）`);
+    this.renderList();
+    toast(`✓ 已匯入 ${records.length} 筆 填單`);
+    return true;
   },
   ms:{},page:1,PER:30,selected:new Set(),editId:null,defRows:[],defSeq:0,posRows:[],posSeq:0,defMs:{},defSel:new Set(),posSel:new Set(),_lastCount:0,sortKey:null,sortDir:"asc",
   refreshAdminOnlyVisibility(){
