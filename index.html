@@ -5289,7 +5289,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <p class="hint" style="margin-bottom:10px">請選擇要進行的操作：</p>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button class="btn primary" style="width:100%;text-align:left" onclick="Air.closeNewOrImportModal();Air.openIntakeSite()">🔗 前往線上填單網站<br><span style="font-weight:400;font-size:11px">岸上／船上都統一在外部網站填寫缺失明細，不在系統內手動新建</span></button>
-        <button class="btn dark" style="width:100%;text-align:left" onclick="Air.closeNewOrImportModal();Air.importFile()">⬆ 匯入 Excel／Word（維護者）<br><span style="font-weight:400;font-size:11px">船上填妥 Excel 或 Word 範本後，批次匯入多筆；兩種格式皆可</span></button>
+        <button class="btn dark" style="width:100%;text-align:left" onclick="Air.closeNewOrImportModal();Air.importFile()">⬆ 匯入 Excel／Word／JSON（維護者）<br><span style="font-weight:400;font-size:11px">船上填妥 Excel、Word 範本或匯出草稿存檔（.json，含照片）後，批次匯入多筆；三種格式皆可</span></button>
       </div>
     </div>
   </div>
@@ -19803,16 +19803,55 @@ const Air={
     if(!hasXLSXLib())return;
     if(!await Guard.require()){toast("⚠ 匯入填單僅限維護者操作");return;}
     const fp=$("#filepick");
-    fp.accept=".xlsx,.xls,.doc,.docx";
+    fp.accept=".xlsx,.xls,.doc,.docx,.json";
     fp.value="";
     fp.onchange=()=>{
       const f=fp.files[0];if(!f)return;
-      // Excel／Word 共用同一個「＋新增／匯入」入口，依副檔名分流到各自的解析函式，
-      // 使用者不用另外記兩個不同的匯入按鈕。
+      // Excel／Word／JSON 共用同一個「＋新增／匯入」入口，依副檔名分流到各自的解析函式，
+      // 使用者不用另外記三個不同的匯入按鈕。
       if(/\.(docx?|DOCX?)$/.test(f.name))this._readImportDocxFile(f);
+      else if(/\.json$/i.test(f.name))this._readImportJsonFile(f);
       else this._readImportFile(f);
     };
     fp.click();
+  },
+  /* JSON 匯入：跟 submit-airform.html「匯出草稿存檔」產生的 .json 是同一種格式（collectPayload()
+     的完整輸出），本來就已經完整包含照片（base64），欄位形狀也已經很接近 App.air 的缺失明細，
+     不需要像 Word 那樣解析標記，直接 JSON.parse 後對應欄位名稱即可。 */
+  async _readImportJsonFile(file){
+    try{
+      const text=await file.text();
+      const data=JSON.parse(text);
+      const b=data&&data.basic;
+      if(!b||!b.ship){toast("⚠ 找不到有效的船名，請確認是 submit-airform 頁面「匯出草稿存檔」產生的 .json 檔");return;}
+      const defs=(data.defects||[]).map(d=>({
+        psc:d.psc||"",code:d.code||"",
+        detail:d.detail||"",actual:d.actual||"",
+        corrective:d.corrective||"",rootCause:d.rootCause||"",preventive:d.preventive||"",
+        rank:d.rank||"",person:d.person||"",
+        people:Array.isArray(d.people)?d.people.filter(p=>p.rank||p.person):[],
+        ncProb:d.ncProb||"",ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",ncRoot:d.ncRoot||"",ncFactor:d.ncFactor||"",
+        ncImp:d.ncImp||"",ncFocus:d.ncFocus||"",
+        ncOpinion:typeof ncOpinionNormalize==="function"?ncOpinionNormalize(d.ncOpinion):(d.ncOpinion||""),
+        risk:d.risk||"",needControl:!!d.internalControl,
+        photosBefore:Array.isArray(d.photosBefore)?d.photosBefore:[],photosAfter:Array.isArray(d.photosAfter)?d.photosAfter:[],
+        // 船上填單時可能已經先寫好一版初步回覆草稿（Initial Operator Comment／直接原因），
+        // 沿用 Excel／Word 匯入同一套慣例，先放進 _reply 暫存，稍後統一搬進 reply.items[]。
+        _reply:{opCommentCn:d.opComment||"",immediateCauseCn:d.immediateCause||""}
+      })).filter(d=>d.detail||d.corrective||d.rootCause||d.preventive||d.code||d.actual||d.ncProb||d.ncMain);
+      const posComments=(data.posComments||[]).map(p=>({
+        code:p.code||"",item:p.item||"",comment:p.comment||"",
+        people:(Array.isArray(p.people)&&p.people.length?p.people:[{rank:p.rank||"",person:p.person||""}]).filter(x=>x.rank||x.person)
+      })).filter(p=>p.item||p.comment);
+      const record={
+        ship:b.ship,vtype:b.vtype||(typeof vtypeOfShip==="function"?vtypeOfShip(b.ship):"")||"tanker",
+        itype:b.itype||"",date:b.date||"",place:b.place||"",oilco:b.oilco||"",inspector:b.inspector||"",
+        ndef:String(defs.length),npos:String(posComments.length),
+        defects:defs,posComments,
+        usedInsp:false,usedDef:false,usedPos:false,reviewed:false
+      };
+      this._confirmAndInsertRecords([record],"json");
+    }catch(e){toast("⚠ JSON 檔解析失敗："+e.message);}
   },
   _readImportFile(file){
     const r=new FileReader();
