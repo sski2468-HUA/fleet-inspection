@@ -11701,7 +11701,13 @@ const Todo={
           if(!sub)unsub++;
         });
       });
-      rej=VoyRecv.subs.filter(s=>s.ship===ship&&s.status==="rej").length;
+      // 被退回後只要船上重新上傳（甚至已再獲督導確認），舊的那筆退回紀錄仍會永遠留在 subs 裡
+      // （VoyRecv.findSub 設計上刻意排除 rej 狀態，才能讓「已重新上傳」正確判定為已完成）；
+      // 所以這裡要排除掉「已經有更晚的非退回紀錄」的舊退回筆，否則待辦事項會卡著永遠不會消失，
+      // 即使船上早就已經補傳成功。
+      rej=VoyRecv.subs.filter(s=>s.ship===ship&&s.status==="rej"
+        &&!VoyRecv.subs.some(x=>x.ship===ship&&x.catId===s.catId&&x.period===s.period&&x.status!=="rej"&&(x.upAt||0)>(s.upAt||0))
+      ).length;
       if(unsub>0)items.push({icon:"📮",text:`航次報表收件：還有 ${unsub} 份表單尚未上傳（含補繳，點擊前往獨立頁面）`,
         action:()=>window.open("voyage-report.html","_blank")});
       if(rej>0)items.push({icon:"↩",text:`航次報表收件：有 ${rej} 份被退回，需重新上傳（點擊前往獨立頁面）`,
@@ -22045,13 +22051,29 @@ const Air={
       });
       rp._replyStage=draft.stage; rp._confirmCount=draft.confirm_count||0;
       rp._confirmedBy=draft.confirmed_by||""; rp._confirmedAt=draft.confirmed_at||"";
+      // 對外回覆頁左欄「船上填寫版本」的欄位（缺失詳情/實際情況/矯正措施/根本原因/預防措施）
+      // 也可能被岸上人員在那邊微調過（存在草稿的 _defectMeta 裡），一併拉回來寫進本機這筆
+      // 缺失明細，不然「拉取最新回覆」看起來像只更新了右邊、左邊卻什麼都沒變。這是使用者
+      // 明確按下這顆按鈕才會做的手動同步，不是自動覆蓋，符合原本「避免互相覆蓋」的設計精神。
+      const meta=it._defectMeta;
+      if(meta){
+        const shipKeys=["detail","actual","corrective","rootCause","preventive"];
+        const r=(this.editId===this.replyId&&Array.isArray(this.defRows))?this.defRows[i]:null;
+        if(r){
+          shipKeys.forEach(k=>{if(meta[k]!==undefined)r[k]=meta[k];});
+          this.scheduleFormAutoSave();
+        }else if(d.defects&&d.defects[i]){
+          shipKeys.forEach(k=>{if(meta[k]!==undefined)d.defects[i][k]=meta[k];});
+        }
+      }
       App.saveAll();
       if(!draft.imported){
         Cloud.api(`air_reply_drafts?id=eq.${draft.id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
           body:JSON.stringify({imported:true,imported_at:new Date().toISOString()})}).catch(()=>{});
       }
-      if(!silent)toast("✓ 已拉取最新對外回覆內容");
+      if(!silent)toast("✓ 已拉取最新對外回覆內容（含船上版本微調）");
       this.renderReplyDefects(d);
+      if(this.editId===this.replyId)this.renderDefectRows();
     }catch(e){ if(!silent)toast("⚠ 拉取失敗："+e.message); }
   },
   closeRecordExportModal(){$("#airRecordExportModal").classList.remove("show");},
