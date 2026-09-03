@@ -859,71 +859,62 @@ function carDateFmt(s){
   const MON=["January","February","March","April","May","June","July","August","September","October","November","December"];
   return `${+m[3]}-${MON[+m[2]-1]}-${m[1]}`;
 }
-function exportBilingualDocx(){
-  if(!allDrafts.length){notify("尚無資料可匯出","err");return;}
-  const meta0=(allDrafts[0].items&&allDrafts[0].items[0]&&allDrafts[0].items[0]._defectMeta)||{};
-  const F="font-family:Calibri,Arial,sans-serif";
-  const p2=s=>esc(s||"").replace(/\n/g,"<br/>");
-  let body=`<p style="${F};font-size:18pt;font-weight:bold">M.V."${esc(meta0.ship||"")}" － ${esc(meta0.itype||"")} 對外回覆／External Reply（中英對照）</p>
-    <p style="${F};font-size:12pt">Port: ${esc(meta0.place||"")}　Inspection date: ${esc(meta0.date||"")}</p>
-    <p style="${F};font-size:10pt;color:#999">⚠ 本檔案可用「⬆ 匯入 Word 回填」讀回並回填，請勿更動方括號 [ ] 內的標籤文字，只需修改標籤下方的內容即可；若用 Word 另存為 .docx 也可以匯入。</p><hr/>`;
-  const field=(label,cn,en)=>{
-    body+=`<p style="${F};font-size:12pt;font-weight:bold;margin-bottom:2px">[${label} - 中文]</p>
-      <p style="${F};font-size:12pt;margin-top:0">${p2(cn)||"(尚未填寫)"}</p>
-      <p style="${F};font-size:12pt;font-weight:bold;margin-bottom:2px">[${label} - EN]</p>
-      <p style="${F};font-size:12pt;margin-top:0">${p2(en)||"(To be filled)"}</p>`;
-  };
-  allDrafts.forEach((row,i)=>{
-    const it=(row.items&&row.items[0])||{};
-    const meta=it._defectMeta||{};
-    body+=`<p style="${F};font-size:14pt;font-weight:bold;background:#eef3f7;padding:5px 8px">===DEFICIENCY ${i+1}===　${meta.code?"CODE "+esc(meta.code):"（未填CODE）"}</p>
-      <p style="${F};font-size:12pt;color:#555">${p2(meta.detail)}</p>`;
-    field("INITIAL OPERATOR COMMENT",it.opCommentCn,it.opCommentEn);
-    field("IMMEDIATE CAUSE",it.immediateCauseCn,it.immediateCauseEn);
-    field("ROOT CAUSE",it.rootCauseCn||meta.rootCause,it.rootCauseEn);
-    field("CORRECTIVE ACTION",it.correctiveCn||meta.corrective,it.correctiveEn);
-    field("PREVENTIVE MEASURES",it.preventiveCn||meta.preventive,it.preventiveEn);
-    body+=`<hr/>`;
-  });
-  const html=`<html><head><meta charset="utf-8"><title>對外回覆</title></head><body>${body}</body></html>`;
-  const blob=new Blob(["\ufeff",html],{type:"application/msword"});
-  dl(blob,`對外回覆_${meta0.ship||""}_${(meta0.date||"").replace(/\//g,"-")}.doc`);
-  notify("✓ 已匯出中英文 Word 檔（可用「⬆ 匯入 Word 回填」讀回並回填）","ok2");
-}
-function exportCarDocx(){
-  if(!allDrafts.length){notify("尚無資料可匯出","err");return;}
+/* ── CAR 表格版面（官方格式）：純英文版與中英文可回填版共用同一套排版，
+   差別只在 bilingual=true 時每個欄位多顯示中文、並嵌入 [標籤-中文]/[標籤-EN] 隱藏標記
+   （小字灰色，不影響版面觀感），讓「中英文 Word」也能直接用「⬆ 匯入 Word 回填」讀回，
+   不用再維護一份跟官方格式長得不一樣的版面。 ── */
+function buildCarBody(bilingual){
   const meta0=(allDrafts[0].items&&allDrafts[0].items[0]&&allDrafts[0].items[0]._defectMeta)||{};
   const nl2br=s=>esc(s||"").replace(/\n/g,"<br/>");
   const missingEnNote='<span style="color:#c0392b">（尚未填寫英文版，請補上後再重新匯出）</span>';
   const labelCell=t=>`<td width="150" style="background:#f2f2f2;font-family:Calibri,Arial,sans-serif;font-size:12pt"><b>${t}</b></td>`;
   const valueCell=(v,note)=>`<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${v?nl2br(v):(note||"")}</td>`;
+  const markerTag=t=>bilingual?`<span style="font-size:8pt;color:#bbb">[${t}]</span><br/>`:"";
+  const closeTag=()=>bilingual?`<span style="font-size:8pt;color:#bbb">[/FIELD]</span><br/>`:"";
+  const biValueCell=(cn,en,tag)=>{
+    if(!cn&&!en)return `<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${markerTag(tag+" - 中文")}${closeTag()}${markerTag(tag+" - EN")}${closeTag()}${missingEnNote}</td>`;
+    const cnPart=`${markerTag(tag+" - 中文")}${cn?`<div style="color:#555">${nl2br(cn)}</div>`:`<div style="color:#999">（中文尚未填寫）</div>`}${closeTag()}`;
+    const enPart=`${markerTag(tag+" - EN")}${en?`<div style="margin-top:4px">${nl2br(en)}</div>`:`<div style="margin-top:4px;color:#c0392b">（English not filled in yet）</div>`}${closeTag()}`;
+    return `<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${cnPart}${enPart}</td>`;
+  };
   let body="";
   allDrafts.forEach((row,i)=>{
     const it=(row.items&&row.items[0])||{};
     const meta=it._defectMeta||{};
     if(i>0)body+='<br clear="all" style="page-break-before:always"/>';
-    body+=`<p style="font-family:Calibri,Arial,sans-serif;font-size:18pt;font-weight:bold;margin-bottom:2px">M.V."${esc(meta0.ship||"")}" -${esc(meta.itype||"")}- Corrective Action Report (CAR)</p>
+    body+=`
+      ${bilingual?`<p style="font-size:8pt;color:#bbb;margin:0">===DEFICIENCY ${i+1}===</p>`:""}
+      <p style="font-family:Calibri,Arial,sans-serif;font-size:18pt;font-weight:bold;margin-bottom:2px">M.V."${esc(meta0.ship||"")}" -${esc(meta.itype||"")}- Corrective Action Report (CAR)</p>
       <p style="font-family:Calibri,Arial,sans-serif;font-size:12pt;margin-top:0;margin-bottom:12px">Port: ${esc(meta.place||"")}&nbsp;&nbsp;&nbsp;&nbsp;Inspection date: ${carDateFmt(meta.date)}</p>
       <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%">
         <tr>${labelCell("Deficiency No.")}${valueCell(String(i+1))}</tr>
         <tr>${labelCell("Description")}${valueCell(meta.detail)}</tr>
         <tr>${labelCell("Code")}${valueCell(meta.code)}</tr>
         <tr>${labelCell("Action Taken")}${valueCell(meta.psc)}</tr>
-        <tr>${labelCell("Initial operator's<br/>comments")}${valueCell(it.opCommentEn,missingEnNote)}</tr>
-        <tr>${labelCell("Immediate cause")}${valueCell(it.immediateCauseEn,missingEnNote)}</tr>
-        <tr>${labelCell("Root cause<br/>analysis")}${valueCell(it.rootCauseEn,missingEnNote)}</tr>
-        <tr>${labelCell("Corrective<br/>actions")}${valueCell(it.correctiveEn,missingEnNote)}</tr>
-        <tr>${labelCell("Preventive<br/>actions")}${valueCell(it.preventiveEn,missingEnNote)}</tr>
+        <tr>${labelCell("Initial operator's<br/>comments")}${bilingual?biValueCell(it.opCommentCn,it.opCommentEn,"INITIAL OPERATOR COMMENT"):valueCell(it.opCommentEn,missingEnNote)}</tr>
+        <tr>${labelCell("Immediate cause")}${bilingual?biValueCell(it.immediateCauseCn,it.immediateCauseEn,"IMMEDIATE CAUSE"):valueCell(it.immediateCauseEn,missingEnNote)}</tr>
+        <tr>${labelCell("Root cause<br/>analysis")}${bilingual?biValueCell(it.rootCauseCn||meta.rootCause,it.rootCauseEn,"ROOT CAUSE"):valueCell(it.rootCauseEn,missingEnNote)}</tr>
+        <tr>${labelCell("Corrective<br/>actions")}${bilingual?biValueCell(it.correctiveCn||meta.corrective,it.correctiveEn,"CORRECTIVE ACTION"):valueCell(it.correctiveEn,missingEnNote)}</tr>
+        <tr>${labelCell("Preventive<br/>actions")}${bilingual?biValueCell(it.preventiveCn||meta.preventive,it.preventiveEn,"PREVENTIVE MEASURES"):valueCell(it.preventiveEn,missingEnNote)}</tr>
         <tr>${labelCell("Supporting<br/>Material")}${valueCell(it.supportingMaterial,"（尚未填寫）")}</tr>
       </table>`;
   });
+  return body;
+}
+function exportCarDocx(bilingual){
+  if(!allDrafts.length){notify("尚無資料可匯出","err");return;}
+  const meta0=(allDrafts[0].items&&allDrafts[0].items[0]&&allDrafts[0].items[0]._defectMeta)||{};
+  const body=buildCarBody(!!bilingual);
   const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
     <head><meta charset="utf-8"><title>CAR</title>
     <style>@page Section1{size:29.7cm 21cm;mso-page-orientation:landscape;margin:1.8cm;}div.Section1{page:Section1;}</style></head>
     <body><div class="Section1">${body}</div></body></html>`;
-  const blob=new Blob(["\ufeff",html],{type:"application/msword"});
-  dl(blob,`CAR_${meta0.ship||""}_${(meta0.date||"").replace(/\//g,"-")}.doc`);
-  notify(`✓ 已匯出 CAR Word 檔（橫向，共 ${allDrafts.length} 筆缺失，每筆一頁）`,"ok2");
+  const blob=new Blob(["﻿",html],{type:"application/msword"});
+  dl(blob,`CAR${bilingual?"雙語可回填":""}_${meta0.ship||""}_${(meta0.date||"").replace(/\//g,"-")}.doc`);
+  notify(bilingual?`✓ 已匯出中英文 CAR Word 檔（官方表格版面，可用「⬆ 匯入 Word 回填」讀回，共 ${allDrafts.length} 筆缺失）`:`✓ 已匯出 CAR Word 檔（橫向，共 ${allDrafts.length} 筆缺失，每筆一頁）`,"ok2");
+}
+function exportBilingualDocx(){
+  exportCarDocx(true);
 }
 function importDocxPick(){
   if(!allDrafts.length){notify("尚無資料，請先確認連結是否正確","err");return;}
@@ -967,7 +958,9 @@ async function applyDocxImport(text){
   const grab=(block,label,lang)=>{
     const esc4re=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
     const labelPattern=label.trim().split(/\s+/).map(esc4re).join("\\s+");
-    const re=new RegExp("\\["+labelPattern+"\\s*-\\s*"+lang+"\\]\\s*([\\s\\S]*?)(?=\\n?\\[[A-Z\\s]+-\\s*(?:中文|EN)\\]|$)","i");
+    // 停止邊界除了下一個 [LABEL - 中文/EN] 標籤，也要認得 CAR 表格版面用的 [/FIELD] 結束標記，
+    // 否則會一路吃到下一格的內容（例如吃進 [/FIELD] 本身，甚至再往後吃到下一列的標籤文字）。
+    const re=new RegExp("\\["+labelPattern+"\\s*-\\s*"+lang+"\\]\\s*([\\s\\S]*?)(?=\\n?\\[(?:[A-Z\\s]+-\\s*(?:中文|EN)|\\/FIELD)\\]|$)","i");
     const m=block.match(re);
     if(!m)return "";
     const v=m[1].trim();
