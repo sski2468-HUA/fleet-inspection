@@ -881,6 +881,10 @@ function buildCarBody(bilingual){
   const valueCell=(v,note)=>`<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${v?nl2br(v):(note||"")}</td>`;
   const markerTag=t=>bilingual?`<span style="font-size:8pt;color:#bbb">[${t}]</span><br/>`:"";
   const closeTag=()=>bilingual?`<span style="font-size:8pt;color:#bbb">[/FIELD]</span><br/>`:"";
+  // Description／Code／Action Taken 不是中英文並排欄位（不需要 -中文/-EN 後綴），但一樣要能編輯後
+  // 匯入回填，所以用同一套 [LABEL]…[/FIELD] 標記包起來，跟下面幾格的雙語標記共用同一個開關
+  // （只有中英文版才加標記，純英文版維持原本「僅供閱讀」不支援匯入）。
+  const editableCell=(v,label)=>`<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${markerTag(label)}${v?nl2br(v):""}${closeTag()}</td>`;
   const biValueCell=(cn,en,tag)=>{
     if(!cn&&!en)return `<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${markerTag(tag+" - 中文")}${closeTag()}${markerTag(tag+" - EN")}${closeTag()}${missingEnNote}</td>`;
     const cnPart=`${markerTag(tag+" - 中文")}${cn?`<div style="color:#555">${nl2br(cn)}</div>`:`<div style="color:#999">（中文尚未填寫）</div>`}${closeTag()}`;
@@ -898,9 +902,9 @@ function buildCarBody(bilingual){
       <p style="font-family:Calibri,Arial,sans-serif;font-size:12pt;margin-top:0;margin-bottom:12px">Port: ${esc(meta.place||"")}&nbsp;&nbsp;&nbsp;&nbsp;Inspection date: ${carDateFmt(meta.date)}</p>
       <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%">
         <tr>${labelCell("Deficiency No.")}${valueCell(String(i+1))}</tr>
-        <tr>${labelCell("Description")}${valueCell(meta.detail)}</tr>
-        <tr>${labelCell("Code")}${valueCell(meta.code)}</tr>
-        <tr>${labelCell("Action Taken")}${valueCell(meta.psc)}</tr>
+        <tr>${labelCell("Description")}${editableCell(meta.detail,"DESCRIPTION")}</tr>
+        <tr>${labelCell("Code")}${editableCell(meta.code,"CODE")}</tr>
+        <tr>${labelCell("Action Taken")}${editableCell(meta.psc,"ACTION TAKEN")}</tr>
         <tr>${labelCell("Initial operator's<br/>comments")}${bilingual?biValueCell(it.opCommentCn,it.opCommentEn,"INITIAL OPERATOR COMMENT"):valueCell(it.opCommentEn,missingEnNote)}</tr>
         <tr>${labelCell("Immediate cause")}${bilingual?biValueCell(it.immediateCauseCn,it.immediateCauseEn,"IMMEDIATE CAUSE"):valueCell(it.immediateCauseEn,missingEnNote)}</tr>
         <tr>${labelCell("Root cause<br/>analysis")}${bilingual?biValueCell(it.rootCauseCn||meta.rootCause,it.rootCauseEn,"ROOT CAUSE"):valueCell(it.rootCauseEn,missingEnNote)}</tr>
@@ -977,10 +981,23 @@ async function applyDocxImport(text){
     if(!v||v==="(尚未填寫)"||v==="(To be filled)")return "";
     return v;
   };
+  // Description／Code／Action Taken 不是「中文/EN」並排欄位，用單一 [LABEL]…[/FIELD] 標記，
+  // 停止邊界要同時認得下一個單一標記、下一個雙語標記、或 [/FIELD] 本身，不然會吃過頭。
+  const grabPlain=(block,label)=>{
+    const esc4re=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    const labelPattern=label.trim().split(/\s+/).map(esc4re).join("\\s+");
+    const re=new RegExp("\\["+labelPattern+"\\]\\s*([\\s\\S]*?)(?=\\n?\\[(?:[A-Z\\s]+(?:\\s*-\\s*(?:中文|EN))?|\\/FIELD)\\]|$)","i");
+    const m=block.match(re);
+    if(!m)return "";
+    const v=m[1].trim();
+    if(!v||v==="(尚未填寫)"||v==="(To be filled)")return "";
+    return v;
+  };
   const FIELDS=[["INITIAL OPERATOR COMMENT","opCommentCn","opCommentEn"],["IMMEDIATE CAUSE","immediateCauseCn","immediateCauseEn"],
     ["ROOT CAUSE","rootCauseCn","rootCauseEn"],["CORRECTIVE ACTION","correctiveCn","correctiveEn"],["PREVENTIVE MEASURES","preventiveCn","preventiveEn"]];
+  const META_FIELDS=[["DESCRIPTION","detail"],["CODE","code"],["ACTION TAKEN","psc"]];
   let filled=0;
-  blocks.forEach(block=>{if(!block)return;FIELDS.forEach(([label])=>{if(grab(block,label,"中文"))filled++;if(grab(block,label,"EN"))filled++;});});
+  blocks.forEach(block=>{if(!block)return;FIELDS.forEach(([label])=>{if(grab(block,label,"中文"))filled++;if(grab(block,label,"EN"))filled++;});META_FIELDS.forEach(([label])=>{if(grabPlain(block,label))filled++;});});
   const ok=confirm(`在檔案中找到 ${foundCount} 筆缺失區塊（本筆填單目前有 ${allDrafts.length} 筆缺失），共可回填 ${filled} 個欄位（中文＋英文合計）。\n\n這會覆蓋目前頁面上、且檔案裡有內容的對應欄位；檔案裡是空的欄位不會清空原本已填的內容。缺失區塊是依「第幾筆」對應，若檔案裡的順序被調整過請先確認過再回填。\n\n確定要回填嗎？`);
   if(!ok)return;
   let patchCount=0;
@@ -989,11 +1006,16 @@ async function applyDocxImport(text){
     if(!block)continue;
     const row=allDrafts[i];
     const it=Object.assign({},(row.items&&row.items[0])||{});
+    it._defectMeta=Object.assign({},it._defectMeta||{});
     let changed=false;
     FIELDS.forEach(([label,cnKey,enKey])=>{
       const cn=grab(block,label,"中文"),en=grab(block,label,"EN");
       if(cn){it[cnKey]=cn;changed=true;}
       if(en){it[enKey]=en;changed=true;}
+    });
+    META_FIELDS.forEach(([label,metaKey])=>{
+      const v=grabPlain(block,label);
+      if(v){it._defectMeta[metaKey]=v;changed=true;}
     });
     if(!changed)continue;
     row.items=[it];

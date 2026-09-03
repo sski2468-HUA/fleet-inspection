@@ -1397,55 +1397,62 @@ function exportDraftFile(silent){
   return fname;
 }
 /* 匯出 Word：把目前整份表單內容（缺失明細、正面評論、矯正前/後照片）整理成一份可直接
-   用 Word 開啟、閱讀、列印的 .doc 檔案，格式跟系統裡「線上填單記錄→匯出→Word」一致，
-   方便督導離線時也能留一份可讀文件查看，不用等資料匯入系統後才能匯出。
-   這份檔案只能看，不支援匯入回這個表單（要繼續編輯內容請用旁邊的 .json 草稿檔）。 */
+   用 Word 開啟、閱讀、列印的 .doc 檔案。每個欄位都用 [標籤]…[/FIELD] 包起來（小字灰色，
+   不影響版面觀感），船上/督導可以直接在 Word 裡編輯內容、甚至換照片，存檔後拿去系統
+   「線上填單→⬆匯入」讀回，系統依標籤位置抓值、抓照片，不需要另外維護一份 .json 草稿
+   才能匯入——離線很久、沒空用系統填單時，直接用 Word 編輯完照樣能匯進去。 */
 function exportDraftWordFile(silent){
   const payload = collectPayload();
   const b = payload.basic;
   const nl2br=s=>esc(s||"").replace(/\n/g,"<br/>");
-  let html = `<h2 style="font-family:Calibri,Arial,sans-serif">線上填單 — ${esc(b.ship)} ${esc(b.date)}</h2>
+  const markerTag=t=>`<span style="font-size:8pt;color:#bbb">[${esc(t)}]</span>`;
+  const closeTag=()=>`<span style="font-size:8pt;color:#bbb">[/FIELD]</span>`;
+  const fieldCell=(label,value)=>`<td>${markerTag(label)}<br/>${nl2br(value)}<br/>${closeTag()}</td>`;
+  let html = `<p style="font-size:8pt;color:#bbb;margin:0">===RECORD 1===</p>
+    <h2 style="font-family:Calibri,Arial,sans-serif">線上填單 — ${esc(b.ship)} ${esc(b.date)}</h2>
     <table border="1" cellspacing="0" cellpadding="5" style="border-collapse:collapse;width:100%;font-size:13px;font-family:Calibri,Arial,sans-serif">
-      <tr><td width="120"><b>船名</b></td><td>${esc(b.ship)}</td><td width="120"><b>船型</b></td><td>${esc(b.vtype)}</td></tr>
-      <tr><td><b>檢查來源</b></td><td>${esc(b.itype)}${b.flagType?"（"+esc(b.flagType)+"）":""}</td><td><b>檢查地點</b></td><td>${esc(b.place)}</td></tr>
-      <tr><td><b>檢查日期</b></td><td>${esc(b.date)}</td><td><b>檢查員</b></td><td>${esc(b.inspector)}</td></tr>
-      <tr><td><b>油公司/單位</b></td><td>${esc(b.oilco)}</td><td><b>缺失數／正面評論數</b></td><td>${payload.defects.length} ／ ${(payload.posComments||[]).length}</td></tr>
+      <tr>${fieldCell("船名",b.ship)}${fieldCell("船型",b.vtype)}</tr>
+      <tr>${fieldCell("檢查來源",b.itype+(b.flagType?"（"+b.flagType+"）":""))}${fieldCell("檢查地點",b.place)}</tr>
+      <tr>${fieldCell("檢查日期",b.date)}${fieldCell("檢查員",b.inspector)}</tr>
+      <tr>${fieldCell("檢查單位/油公司",b.oilco)}<td>缺失數／正面評論數<br/>${payload.defects.length} ／ ${(payload.posComments||[]).length}</td></tr>
     </table><br/>`;
   const DOC_IMG_W = 200; // Word 文件裡照片顯示寬度（像素）
   const photoRow=(label,list)=>{
-    if(!list||!list.length)return"";
-    const imgs=list.map(p=>{
+    const imgs=(list||[]).map(p=>{
       const w=DOC_IMG_W;
       const h=(p.w&&p.h)?Math.round(DOC_IMG_W*p.h/p.w):Math.round(DOC_IMG_W*0.75);
       // Word 的 HTML→DOC 轉換器對純 CSS 的 width/height 不可靠，常常直接用圖片原始像素塞版，
       // 一定要同時加上 <img> 的 width/height 屬性（不是只有 style），Word 才會確實照這個尺寸縮放。
-      return `<img src="${p.url||p.dataUrl}" width="${w}" height="${h}" style="width:${w}px;height:${h}px;margin:3px" alt="${esc(p.name||"")}">`;
+      // data-name 保留原始檔名，讓系統匯入時能還原照片名稱（Word 存檔不會保留 alt 屬性）。
+      return `<img src="${p.url||p.dataUrl}" width="${w}" height="${h}" style="width:${w}px;height:${h}px;margin:3px" alt="${esc(p.name||"")}" data-name="${esc(p.name||"")}">`;
     }).join("");
-    return `<tr><td width="140"><b>${label}</b></td><td colspan="3">${imgs}</td></tr>`;
+    return `<tr><td colspan="2">${markerTag(label)}<br/>${imgs||"（無照片）"}<br/>${closeTag()}</td></tr>`;
   };
   payload.defects.forEach((d,i)=>{
-    html += `<h3 style="font-family:Calibri,Arial,sans-serif">缺失 #${i+1}${d.code?`　CODE ${esc(d.code)}`:""}</h3>
+    html += `<p style="font-size:8pt;color:#bbb;margin:0">===DEFECT ${i+1}===</p>
+      <h3 style="font-family:Calibri,Arial,sans-serif">缺失 #${i+1}${d.code?`　CODE ${esc(d.code)}`:""}</h3>
       <table border="1" cellspacing="0" cellpadding="5" style="border-collapse:collapse;width:100%;font-size:13px;font-family:Calibri,Arial,sans-serif">
-        <tr><td width="140"><b>CODE</b></td><td colspan="3">${esc(d.code||"")}</td></tr>
-        <tr><td width="140"><b>缺失詳情</b></td><td colspan="3">${nl2br(d.detail)}</td></tr>
-        <tr><td><b>實際情況</b></td><td colspan="3">${nl2br(d.actual)}</td></tr>
-        <tr><td><b>責任人職位</b></td><td>${esc(d.rank)}</td><td width="140"><b>責任人姓名</b></td><td>${esc(d.person)}</td></tr>
-        <tr><td><b>Initial Operator Comment</b></td><td colspan="3">${nl2br(d.opComment)}</td></tr>
-        <tr><td><b>直接原因 Immediate Cause</b></td><td colspan="3">${nl2br(d.immediateCause)}</td></tr>
-        <tr><td><b>改善措施</b></td><td colspan="3">${nl2br(d.corrective)}</td></tr>
-        <tr><td><b>根本原因</b></td><td colspan="3">${nl2br(d.rootCause)}</td></tr>
-        <tr><td><b>預防措施</b></td><td colspan="3">${nl2br(d.preventive)}</td></tr>
+        <tr><td colspan="2">${markerTag("CODE")}<br/>${esc(d.code||"")}<br/>${closeTag()}</td></tr>
+        <tr><td colspan="2">${markerTag("缺失詳情")}<br/>${nl2br(d.detail)}<br/>${closeTag()}</td></tr>
+        <tr><td colspan="2">${markerTag("實際情況")}<br/>${nl2br(d.actual)}<br/>${closeTag()}</td></tr>
+        <tr>${fieldCell("責任人職位",d.rank)}${fieldCell("責任人姓名",d.person)}</tr>
+        <tr><td colspan="2">${markerTag("Initial Operator Comment")}<br/>${nl2br(d.opComment)}<br/>${closeTag()}</td></tr>
+        <tr><td colspan="2">${markerTag("直接原因 Immediate Cause")}<br/>${nl2br(d.immediateCause)}<br/>${closeTag()}</td></tr>
+        <tr><td colspan="2">${markerTag("改善措施")}<br/>${nl2br(d.corrective)}<br/>${closeTag()}</td></tr>
+        <tr><td colspan="2">${markerTag("根本原因")}<br/>${nl2br(d.rootCause)}<br/>${closeTag()}</td></tr>
+        <tr><td colspan="2">${markerTag("預防措施")}<br/>${nl2br(d.preventive)}<br/>${closeTag()}</td></tr>
         ${photoRow("矯正前照片",d.photosBefore)}
         ${photoRow("矯正後照片",d.photosAfter)}
       </table><br/>`;
   });
+  html += `<p style="font-size:8pt;color:#bbb;margin:0">===RECORD END===</p>`;
   if(payload.posComments && payload.posComments.length){
     html += `<h2 style="font-family:Calibri,Arial,sans-serif">正面評論</h2>`;
     payload.posComments.forEach((p,i)=>{
       html += `<p style="font-family:Calibri,Arial,sans-serif;font-size:13px"><b>#${i+1}　${esc(p.item||"")}</b><br/>${nl2br(p.comment)}</p>`;
     });
   }
-  const blob = new Blob(["\ufeff",'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>線上填單</title></head><body>',html,"</body></html>"],{type:"application/msword"});
+  const blob = new Blob(["﻿",'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>線上填單</title></head><body>',html,"</body></html>"],{type:"application/msword"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   const ts = new Date().toISOString().slice(0,16).replace(/[-:T]/g,"");
