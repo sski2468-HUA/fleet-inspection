@@ -20313,7 +20313,7 @@ const Air={
           <b style="font-size:15px;color:${bd}">缺失 #${i+1}</b>
           <span style="flex:1"></span>
           <button class="btn sm" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10" onclick="Air.replyId=Air.editId;Air.activeDefectIdx=${i};Air.openNotifyPopover(event)">🔔 通知</button>
-          <button class="btn sm" style="background:#e8f4f0;border-color:#a8d8c8;color:#1e7f4a" onclick="Air.replyId=Air.editId;Air.pullReplyDraft(${i})" title="從雲端重新拉取對方剛送出的對外回覆最新內容">🔄 拉取最新回覆</button>
+          <button class="btn sm" style="background:#e8f4f0;border-color:#a8d8c8;color:#1e7f4a" onclick="Air.replyId=Air.editId;Air.pullAllReplyDrafts()" title="從雲端重新拉取這筆填單「全部缺失」的對外回覆最新內容">🔄 拉取最新回覆（全部缺失）</button>
           <button class="btn sm primary" onclick="Air.goToExternalReply(Air.editId,${i})">✏ 前往對外回覆編輯（此筆，開新分頁）</button>
           <button class="btn sm danger" onclick="Air.rmDefectRow(${r.id})">✕ 刪除此筆</button>
         </div>
@@ -22034,7 +22034,21 @@ const Air={
       return n;
     }catch(e){ console.warn("syncAllReplyDrafts failed",e); return -1; }
   },
-  async pullReplyDraft(i,silent){
+  /* 「拉取最新回覆」原本只拉目前分頁選到的這一條缺失，容易讓人誤以為已經全部同步，
+     結果切到別條缺失一看內容還是舊的。改成預設一次拉「這筆填單底下的全部缺失」，
+     只要使用者是在②缺失明細分頁按這顆鈕，就不用一條一條切過去按。 */
+  async pullAllReplyDrafts(){
+    if(this.replyId==null)return;
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){toast("⚠ 雲端未連線");return;}
+    const d=App.air.find(x=>x.id===this.replyId);if(!d)return;
+    const n=(d.defects||[]).length;
+    if(!n){toast("⚠ 此筆尚無缺失明細");return;}
+    for(let i=0;i<n;i++){await this.pullReplyDraft(i,true,true);}
+    toast(`✓ 已拉取全部 ${n} 條缺失的最新對外回覆內容（含船上版本微調）`);
+    this.renderReplyDefects(d);
+    if(this.editId===this.replyId)this.renderDefectRows();
+  },
+  async pullReplyDraft(i,silent,noRender){
     if(this.replyId==null)return;
     if(typeof Cloud==="undefined"||!Cloud.enabled()){if(!silent)toast("⚠ 雲端未連線");return;}
     const d=App.air.find(x=>x.id===this.replyId);if(!d)return;
@@ -22072,8 +22086,10 @@ const Air={
           body:JSON.stringify({imported:true,imported_at:new Date().toISOString()})}).catch(()=>{});
       }
       if(!silent)toast("✓ 已拉取最新對外回覆內容（含船上版本微調）");
-      this.renderReplyDefects(d);
-      if(this.editId===this.replyId)this.renderDefectRows();
+      if(!noRender){
+        this.renderReplyDefects(d);
+        if(this.editId===this.replyId)this.renderDefectRows();
+      }
     }catch(e){ if(!silent)toast("⚠ 拉取失敗："+e.message); }
   },
   closeRecordExportModal(){$("#airRecordExportModal").classList.remove("show");},
