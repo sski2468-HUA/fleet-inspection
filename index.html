@@ -2742,7 +2742,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <th style="cursor:pointer" onclick="Air.sortBy('place')">檢查地點 <span id="sh-air-place"></span></th>
               <th style="cursor:pointer" onclick="Air.sortBy('ndef')">缺失數 <span id="sh-air-ndef"></span></th>
               <th style="cursor:pointer" onclick="Air.sortBy('npos')">正評數 <span id="sh-air-npos"></span></th>
-              <th style="cursor:pointer" onclick="Air.sortBy('createdBy')">建立者 <span id="sh-air-createdBy"></span></th>
+              <th style="cursor:pointer" onclick="Air.sortBy('createdBy')">匯入方式／匯入者 <span id="sh-air-createdBy"></span></th>
             </tr></thead><tbody id="air-tbody"></tbody></table>
           </div>
           <div class="pager" id="air-pager"></div>
@@ -19662,7 +19662,7 @@ const Air={
         const nDef=records.reduce((s,rc)=>s+rc.defects.length,0),nPos=records.reduce((s,rc)=>s+rc.posComments.length,0);
         if(!confirm(`讀取到 ${records.length} 筆 填單（共 ${nDef} 筆缺失明細、${nPos} 筆正向評論），確定要匯入嗎？`))return;
         records.forEach(rec=>{
-          rec.id=this.nextId();rec.createdAt=Date.now();rec.createdBy=(typeof Audit!=="undefined")?Audit.user():"";
+          rec.id=this.nextId();rec.createdAt=Date.now();rec.createdBy=(typeof Audit!=="undefined")?Audit.user():"";rec.importSource="excel";
           // 岸上對外回覆資料原本先暫存在每筆缺失的 _reply 裡（因為匯入當下還沒有 rec.id 可以組
           // reply.items 結構），這裡統一搬到 rec.reply.items[]（跟系統其他地方存對外回覆的結構
           // 一致），並把暫存用的 _reply 從缺失明細本身清掉，避免留下不屬於這個物件形狀的雜欄位。
@@ -20479,7 +20479,7 @@ const Air={
       ndef:+$("#air-ndef").value||0,npos:+$("#air-npos").value||0,
       flagType:_airFlagVal,
       defects:[],posComments:[],
-      id:this.nextId(),createdAt:Date.now(),createdBy:(typeof Audit!=="undefined")?Audit.user():"",
+      id:this.nextId(),createdAt:Date.now(),createdBy:(typeof Audit!=="undefined")?Audit.user():"",importSource:"manual",
       usedInsp:false,usedDef:false,usedPos:false
     };
     App.air.push(rec);
@@ -20793,6 +20793,15 @@ const Air={
     if(typeof Audit!=="undefined")Audit.log("轉入","正面評價/優秀案例記錄",`由AIR#${d.id}${mode==="overwrite"?"覆蓋轉入":"轉入"}（更新${updated}／新增${added}）`);
     toast(msg);
   },
+  /* 匯入方式／匯入者：依 importSource 分辨這筆是怎麼進系統的，早期（此欄位上線前）建立的舊資料
+     沒有 importSource，退回原本「只顯示建立者姓名」的舊行為，不會變成空白或誤判。 */
+  originLabel(d){
+    const who=esc(d.createdBy||"");
+    if(d.importSource==="excel")return who?`Excel匯入<div class="hint">（${who}建立）</div>`:"Excel匯入";
+    if(d.importSource==="queue")return who?`線上填單轉入<div class="hint">（${who}核准匯入）</div>`:"線上填單轉入";
+    if(d.importSource==="manual")return who?`手動新增<div class="hint">（${who}建立）</div>`:"手動新增";
+    return who||"";
+  },
   toggleAll(on){this.selected=on?new Set(this.filtered().map(d=>String(d.id))):new Set();this.renderList();},
   clearSel(){this.selected=new Set();this.renderList();},
   toggleSel(id,on){id=String(id);on?this.selected.add(id):this.selected.delete(id);this.refreshStat();},
@@ -20842,7 +20851,7 @@ const Air={
         <td class="col-narrow">${esc(d.place)}</td>
         <td style="text-align:center">${d.ndef??0}</td>
         <td style="text-align:center">${d.npos??0}</td>
-        <td class="col-narrow">${esc(d.createdBy||"")}</td>
+        <td class="col-narrow" style="font-size:11.5px;line-height:1.5">${this.originLabel(d)}</td>
       </tr>`;
     }).join("");
     const pg2=$("#air-pager");
@@ -22381,7 +22390,8 @@ const AirQueue={
         pushedDefId:null,followUp:{on:false,assignee:"",status:"open",log:[],closedAt:0}})),
       posComments:(p.posComments||[]).map(pc=>({code:pc.code||"",item:pc.item||"",comment:pc.comment||"",
         people:Array.isArray(pc.people)?pc.people.filter(x=>x.rank||x.person):[],pushedPosIds:null})),
-      updatedAt:Date.now(),importedFromQueueId:r.id
+      updatedAt:Date.now(),importedFromQueueId:r.id,
+      importSource:"queue",createdBy:(typeof Audit!=="undefined")?Audit.user():""
     };
   },
   async importRow(id){
