@@ -16,10 +16,13 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--paper);font-family:var(--sans);color:var(--ink)}
-.wrap{max-width:1200px;margin:0 auto;padding:0 0 70px}
-header{background:var(--navy);color:#fff;padding:22px 18px}
+.wrap{max-width:none;margin:0 auto;padding:0 0 70px}
+.wrap>:not(header){padding-left:18px;padding-right:18px}
+header{background:var(--navy);color:#fff;padding:22px 18px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
 header h1{margin:0;font-size:19px}
 header p{margin:6px 0 0;font-size:13px;color:#b9c8d6;line-height:1.6}
+header .back-link{flex-shrink:0;color:#cfe0ee;font-size:12.5px;text-decoration:none;border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:6px 12px;white-space:nowrap;transition:background .15s,color .15s}
+header .back-link:hover{background:rgba(255,255,255,.12);color:#fff}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:14px;padding:16px}
 .card h2{font-size:15px;margin:0 0 4px}
 .hint{color:var(--ink-3);font-size:12px;line-height:1.7}
@@ -83,8 +86,11 @@ input[type=text]{padding:9px 10px;border:1px solid var(--line-2);border-radius:8
 <body>
 <div class="wrap">
   <header>
-    <h1>✏ 對外回覆編輯</h1>
-    <p id="hdr-note">讀取中…</p>
+    <div>
+      <h1>✏ 對外回覆編輯</h1>
+      <p id="hdr-note">讀取中…</p>
+    </div>
+    <a href="index.html" class="back-link">↩ 回主系統</a>
   </header>
 
   <div id="listView" style="display:none">
@@ -455,37 +461,39 @@ function renderStage(){
 
   aiBar.style.display = "";
 
-  /* ── 概念卡片：船上填寫版本（唯讀參考）跟岸上對外回覆（中英文，可編輯）各自獨立成一張卡，
-     不再用分隔線擠在同一張裡——卡片邊界本身就清楚區分「這是船上的」跟「這是岸上的」。
-     Initial Operator Comment 跟 直接原因 Immediate Cause 合併在同一張「岸上對外回覆」卡片裡；
-     矯正措施／根本原因／預防措施各自的船上版本、岸上版本，也都拆成兩張獨立卡片。 ── */
+  /* ── 左右兩欄對照：左邊「船上填寫版本」、右邊「岸上對外回覆」，
+     跟正式系統「線上填單」缺失改善明細畫面同樣的左右對照排版，一次看完不用一直往下捲；
+     右邊岸上回覆每一格都是中英文並排、可自由編輯。 ── */
   const dm=defectMeta||{};
   const field=(f)=>`<div class="zone-lbl shore">🏖 ${esc(f.labelZh)}</div>
     <div class="grid2">
       <label class="full" style="margin:0">中文<textarea data-k="${f.key}" data-lang="cn">${esc(replyData[f.key].cn)}</textarea></label>
       <label class="full" style="margin:0">English<textarea data-k="${f.key}" data-lang="en">${esc(replyData[f.key].en)}</textarea></label>
     </div>`;
-  const shipCard=(icon,title,en,rows)=>`<div class="concept">
-      <div class="concept-head"><div class="badge">${icon}</div><b>🚢 ${esc(title)}（船上填寫版本，可在此微調） <span class="en">${esc(en)}</span></b></div>
-      <div class="concept-body">${rows.map(([label,metaKey])=>`<label class="full" style="margin-bottom:10px">${esc(label)}<textarea data-meta-k="${metaKey}">${esc(dm[metaKey]||"")}</textarea></label>`).join("")}</div>
-    </div>`;
-  const shoreCard=(icon,title,en,body)=>`<div class="concept">
-      <div class="concept-head"><div class="badge">${icon}</div><b>🏖 ${esc(title)}（岸上對外回覆） <span class="en">${esc(en)}</span></b></div>
-      <div class="concept-body">${body}</div>
-    </div>`;
+  const shipRow=(label,metaKey)=>`<label class="full" style="margin-bottom:14px">${esc(label)}<textarea data-meta-k="${metaKey}">${esc(dm[metaKey]||"")}</textarea></label>`;
 
-  const html=
-    shipCard("📝","缺失狀況說明","Initial situation",[["缺失詳情","detail"],["實際情況","actual"]])
-    +shoreCard("📝","缺失狀況說明","Initial Operator Comment & Immediate Cause",
-      field(REPLY_FIELDS[0])
-      +`<div class="divider"><div class="line"></div><div class="icon">直接原因（僅岸上填寫，無船上對應欄位）</div><div class="line"></div></div>`
-      +field(REPLY_FIELDS[1]))
-    +shipCard("🛠️","矯正措施","Corrective Action",[["矯正措施","corrective"]])
-    +shoreCard("🛠️","矯正措施","Corrective Action",field(REPLY_FIELDS[3]))
-    +shipCard("🎯","根本原因","Root Cause",[["根本原因","rootCause"]])
-    +shoreCard("🎯","根本原因","Root Cause",field(REPLY_FIELDS[2]))
-    +shipCard("🛡️","預防措施","Preventive Measures",[["預防措施","preventive"]])
-    +shoreCard("🛡️","預防措施","Preventive Measures",field(REPLY_FIELDS[4]));
+  const html=`<div class="grid2" style="align-items:start">
+      <div class="concept">
+        <div class="concept-head"><div class="badge">🚢</div><b>船上填寫版本（可在此微調） <span class="en">Ship-filled version</span></b></div>
+        <div class="concept-body">
+          ${shipRow("缺失詳情","detail")}
+          ${shipRow("實際情況","actual")}
+          ${shipRow("矯正措施","corrective")}
+          ${shipRow("根本原因","rootCause")}
+          ${shipRow("預防措施","preventive")}
+        </div>
+      </div>
+      <div class="concept">
+        <div class="concept-head"><div class="badge">🏖</div><b>岸上對外回覆（中英文，可編輯） <span class="en">Shore reply</span></b></div>
+        <div class="concept-body">
+          ${field(REPLY_FIELDS[0])}
+          ${field(REPLY_FIELDS[1])}
+          ${field(REPLY_FIELDS[3])}
+          ${field(REPLY_FIELDS[2])}
+          ${field(REPLY_FIELDS[4])}
+        </div>
+      </div>
+    </div>`;
   wrap.innerHTML=html;
   // 船上參考欄位這裡改成可編輯，但只會更新這份「對外回覆草稿」自己的 defectMeta 快照，
   // 不會寫回主系統船上填寫的原始記錄——避免跟主系統共用資料互相覆蓋，這是刻意的設計。
