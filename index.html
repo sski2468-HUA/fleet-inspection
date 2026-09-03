@@ -681,6 +681,18 @@ select:focus,input:focus,textarea:focus{outline:2px solid rgba(232,132,44,.35);b
 .kpi.orange::before{background:var(--signal)} .kpi.red::before{background:var(--bad)} .kpi.green::before{background:var(--ok)}
 .kpi .v{font-size:26px;font-weight:700;font-family:var(--mono);line-height:1.2}
 .kpi .l{font-size:12px;color:var(--ink-2);margin-top:2px}
+/* 首頁：功能入口（圖示＋文字的互動式方格，依分類分行排列，仿註冊系統入口頁風格） */
+.home-section{margin-bottom:28px}
+.home-section-label{font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--ink-3);text-transform:uppercase;margin-bottom:14px;padding-left:2px}
+.home-row{display:flex;flex-wrap:wrap;gap:30px 38px}
+@keyframes homeChipIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.home-tile{display:flex;flex-direction:column;align-items:center;gap:9px;width:100px;cursor:pointer;text-align:center;animation:homeChipIn .4s cubic-bezier(.2,.7,.3,1) backwards}
+.home-tile-icon{width:62px;height:62px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;background:rgba(28,58,94,.06);transition:background .2s,transform .18s,box-shadow .2s}
+.home-tile:hover .home-tile-icon{background:linear-gradient(135deg,var(--navy-3),var(--signal));transform:translateY(-4px) scale(1.06);box-shadow:0 12px 22px rgba(28,58,94,.28)}
+.home-tile:active .home-tile-icon{transform:translateY(-1px) scale(.97);transition-duration:.06s}
+.home-tile-label{font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.35;transition:color .18s}
+.home-tile:hover .home-tile-label{color:var(--navy-3)}
+.home-tile .ext-mark{font-size:10px;opacity:.7;margin-left:1px;font-weight:400}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
 .grid2 .card h3,.card h3{font-size:13.5px;font-weight:700;color:var(--navy);margin-bottom:10px;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
 .card h3 .tag{font-size:10px;font-family:var(--mono);background:var(--teal-l);color:var(--teal);padding:2px 6px;border-radius:3px;font-weight:600}
@@ -1937,6 +1949,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <small>FLEET INSPECTION DB · TM</small>
   </div>
   <nav id="sidebarNav">
+    <div class="nav-item active" data-tab="home" style="border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:2px;padding-bottom:7px"><span class="num">🏠</span>首頁</div>
     <div class="nav-item nav-item-guide" data-tab="guide"><span class="num">📖</span>操作說明</div>
     <div class="nav-todo" id="todo-navbtn" onclick="Todo.toggle();if(typeof closeSidebar==='function')closeSidebar();" style="display:none">
       <span><span class="num">📋</span>待辦事項</span>
@@ -1945,7 +1958,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="nav-quickload" onclick="Cloud.loadDBBlocking();if(typeof closeSidebar==='function')closeSidebar();" title="從雲端載入最新的檢查／缺失／船舶／檢查管控資料，覆蓋本機暫存"><span class="num">⬇</span>載入最新資料</div>
     <div class="nav-group" data-group="analysis">
       <div class="nav-group-label">分析總覽</div>
-      <div class="nav-item active" data-tab="dash"><span class="num">1</span>Dash Board</div>
+      <div class="nav-item" data-tab="dash"><span class="num">1</span>Dash Board</div>
       <div class="nav-item" data-tab="recur"><span class="num">0</span>重複性缺失分析</div>
       <div class="nav-item" data-tab="ref"><span class="num">6</span>分類彙總分析</div>
       <div class="nav-item" data-tab="trend"><span class="num">📈</span>缺失趨勢比較</div>
@@ -1989,8 +2002,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 <div id="main">
   <header class="topbar">
     <button id="hamburgerBtn" onclick="toggleSidebar()" aria-label="選單">☰</button>
-    <h2 id="pageTitle">Dash Board</h2>
-    <span class="sub" id="pageSub"></span>
+    <h2 id="pageTitle">首頁</h2>
+    <span class="sub" id="pageSub">Home</span>
+    <button id="homeTopbarBtn" class="btn sm" style="display:none;margin-left:14px" onclick="document.querySelector('.nav-item[data-tab=home]').click()">🏠 回首頁</button>
     <span class="spacer"></span>
     <span class="hint">QMS & Vetting Unit（海技組）</span>
   </header>
@@ -2010,9 +2024,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   <div class="page">
 
-    <!-- ════════ 1. DASHBOARD ════════ -->
-    <section id="tab-dash" class="tabpage show">
+    <!-- ════════ 0. 首頁 ════════ -->
+    <section id="tab-home" class="tabpage show">
+      <div class="card" style="margin-bottom:16px">
+        <h3 style="margin:0 0 4px" id="home-greeting">👋 歡迎回來</h3>
+        <p class="hint">點選下方卡片快速前往各項功能，內容跟左側導覽欄一致（含目前身份看得到的項目）。</p>
+      </div>
       <div id="todo-panel"></div>
+      <div id="home-cards"></div>
+    </section>
+
+    <!-- ════════ 1. DASHBOARD ════════ -->
+    <section id="tab-dash" class="tabpage">
       <div class="filterbar">
         <span class="lbl">篩選</span>
         <div class="msel" id="ms-d-ship"></div>
@@ -3534,7 +3557,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <button class="btn" style="background:var(--teal);border-color:var(--teal);color:#fff;font-weight:700" onclick="Cloud.syncNow()">☁ 雲端同步</button>
           <span class="statline" id="cl-state2"></span>
           <button class="btn" style="background:var(--teal-l);border-color:var(--teal);color:var(--teal);font-weight:700" onclick="$('#helpModal').classList.add('show')">📖 使用說明</button>
-          <button class="btn" title="重新設定外部自查網頁網址" onclick="SelfCheck.resetExternalBase()">⚙ 外部網址設定</button>
+          <button class="btn" id="sc-exturl-btn" style="display:none" title="重新設定外部自查網頁網址" onclick="SelfCheck.resetExternalBase()">⚙ 外部網址設定</button>
           <span class="sep"></span>
           <span class="lbl" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">篩選</span>
           <div class="msel" id="ms-t-ship"></div>
@@ -10000,7 +10023,7 @@ const NavConfig={
   ALL_TABS(){
     return [...document.querySelectorAll("#sidebarNav .nav-item[data-tab]")]
       .map(el=>el.dataset.tab)
-      .filter(t=>t!=="data"&&t!=="guide");
+      .filter(t=>t!=="data"&&t!=="guide"&&t!=="home");
   },
   loadLocal(){
     const DEF={labels:{},order:{},hidden:{},itemGroup:{},groups:null,groupLabels:{}};
@@ -10038,7 +10061,7 @@ const NavConfig={
     // 依設定把每個項目搬到它所屬的分類容器（「操作說明」與「資料管理」固定不參與分類）
     document.querySelectorAll("#sidebarNav .nav-item[data-tab]").forEach(it=>{
       const tab=it.dataset.tab;
-      if(tab==="data"||tab==="guide")return;
+      if(tab==="data"||tab==="guide"||tab==="home")return;
       const gk=this.effectiveItemGroup(tab);
       const grp=document.querySelector(`#sidebarNav .nav-group[data-group="${gk}"]`);
       if(grp&&it.parentElement!==grp)grp.appendChild(it);
@@ -10085,7 +10108,7 @@ const NavConfig={
   renumber(){
     let n=1;
     $$("#sidebar .nav-item").forEach(it=>{
-      if(it.dataset.tab==="data"||it.dataset.tab==="guide"||it.style.display==="none")return;
+      if(it.dataset.tab==="data"||it.dataset.tab==="guide"||it.dataset.tab==="home"||it.style.display==="none")return;
       it.querySelector(".num").textContent=n++;
     });
   },
@@ -10253,9 +10276,68 @@ const NavConfig={
   }
 };
 
+/* ════════ 🏠 首頁：功能入口（依分類分行） ════════
+   每個項目不另外維護一份標籤/圖示——用 key 去比對「目前實際看得到」的側邊欄項目（NavConfig
+   套用隱藏/排序、Owner/管理員的例外規則都已經反映在 DOM 上），取它現成的圖示與文字，
+   跳轉也直接觸發側邊欄那顆按鈕的 click，行為永遠跟側邊欄一致。ROWS 只決定「首頁想怎麼分組
+   呈現」，不是複製一份側邊欄清單；某個角色看不到的項目，該行就自動略過那一張、甚至整行消失。 */
+const Home={
+  ROWS:[
+    {label:"分析總覽",keys:["dash","recur","ref","trend"]},
+    {label:"資料總表",keys:["ov","defs","sirepos","inspctrl","sp"]},
+    {label:"填單",keys:["air","self","ext:voyage-report.html"]},
+    {label:"參考資料",keys:["refdocs2","refdocs"]},
+    {label:"其他",keys:["guide","pdfx","data"]}
+  ],
+  /* 側邊欄的 .num 大多被 NavConfig.renumber() 統一改成數字（1、2、3…），不適合拿來當首頁圖示，
+     所以首頁另外維護一份跟功能意義相符的圖示，用 key 對應（跟側邊欄用同一把 key，不用另外改動）。 */
+  ICONS:{
+    dash:"📊",recur:"🔁",ref:"🗂️",trend:"📈",
+    ov:"📋",defs:"⚠️",sirepos:"⭐",inspctrl:"🔔",sp:"🚢",
+    air:"📝",self:"✅","ext:voyage-report.html":"📮",
+    refdocs2:"📚",refdocs:"📢",
+    guide:"📘",pdfx:"📄",data:"⚙️"
+  },
+  findNavItem(key){
+    if(key.indexOf("ext:")===0){
+      const url=key.slice(4);
+      return [...document.querySelectorAll("#sidebarNav .nav-item[data-external]")].find(el=>el.dataset.external===url)||null;
+    }
+    return document.querySelector(`#sidebarNav .nav-item[data-tab="${key}"]`);
+  },
+  isVisible(el){
+    if(!el)return false;
+    const cs=getComputedStyle(el);
+    return cs.display!=="none"&&el.offsetParent!==null;
+  },
+  cardHtml(key,el,idx){
+    const numEl=el.querySelector(".num");
+    const label=(numEl?el.textContent.replace(numEl.textContent,""):el.textContent).replace(/↗\s*$/,"").trim();
+    const tab=el.dataset.tab,ext=el.dataset.external;
+    const action=ext?`window.open('${esc(ext)}','_blank')`:`document.querySelector(&apos;.nav-item[data-tab=${esc(tab)}]&apos;).click()`;
+    const icon=this.ICONS[key]||"🔹";
+    return `<div class="home-tile" style="animation-delay:${(idx*0.035).toFixed(3)}s" onclick="${action}">
+      <span class="home-tile-icon">${icon}</span>
+      <span class="home-tile-label">${esc(label)}${ext?' <span class="ext-mark">↗</span>':""}</span>
+    </div>`;
+  },
+  render(){
+    const box=$("#home-cards");if(!box)return;
+    const greet=$("#home-greeting");
+    if(greet)greet.textContent=(typeof Role!=="undefined"&&Role.cur)?`👋 歡迎回來，${Role.name()}`:"👋 歡迎回來";
+    let idx=0;
+    const html=this.ROWS.map(row=>{
+      const cards=row.keys.map(k=>({k,el:this.findNavItem(k)})).filter(x=>this.isVisible(x.el)).map(x=>this.cardHtml(x.k,x.el,idx++));
+      if(!cards.length)return "";
+      return `<div class="home-section"><div class="home-section-label">${esc(row.label)}</div><div class="home-row">${cards.join("")}</div></div>`;
+    }).join("");
+    box.innerHTML=html||`<div class="hint">目前身份沒有可顯示的功能項目。</div>`;
+    if(typeof Todo!=="undefined")Todo.render();
+  }
+};
 
 /* ───── 導航 ───── */
-const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["船舶缺失自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["線上填單","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"]};
+const TITLES={home:["首頁","Home"],dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["船舶缺失自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["線上填單","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"]};
 $$(".nav-item").forEach(n=>n.onclick=()=>{
   if(n.dataset.external){window.open(n.dataset.external,"_blank");if(typeof closeSidebar==="function")closeSidebar();return;}
   $$(".nav-item").forEach(x=>x.classList.remove("active"));n.classList.add("active");
@@ -10263,6 +10345,8 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
   $("#tab-"+n.dataset.tab).classList.add("show");
   $("#pageTitle").textContent=TITLES[n.dataset.tab][0];
   $("#pageSub").textContent=TITLES[n.dataset.tab][1];
+  $("#homeTopbarBtn").style.display=n.dataset.tab==="home"?"none":"";
+  if(n.dataset.tab==="home"&&typeof Home!=="undefined")Home.render();
   if(n.dataset.tab==="dash"){Dash.render();if(typeof PscChap!=="undefined")PscChap.render();}
   if(n.dataset.tab==="ov")Ov.render();
   if(n.dataset.tab==="data"&&typeof EditorList!=="undefined")EditorList.renderAll();
@@ -16021,6 +16105,11 @@ const InspCtrl={
     if($("#ic-red"))$("#ic-red").value=t.red;
     const rerun=()=>{this.page=1;this.render();};
     this.ms.ship=MSel("ms-ic-ship","船舶",()=>[...new Set(App.inspCtrl.map(d=>d.ship))].filter(Boolean).sort(),rerun);
+    // 船舶帳號登入時，這裡預設只篩出自己船的項目，不用每次進來都手動選一次；其他角色維持顯示全部船隊。
+    if(typeof Role!=="undefined"&&Role.cur&&Role.cur.tier==="op2"){
+      const myShip=(typeof resolveShipCode==="function")?(resolveShipCode(Role.cur.name)||Role.cur.name):Role.cur.name;
+      if(myShip)this.ms.ship.set([myShip]);
+    }
     this.ms.item=MSel("ms-ic-item","檢查項目",()=>[...new Set(App.inspCtrl.map(d=>d.itype))].filter(Boolean).sort(),rerun);
     this.ms.owner=MSel("ms-ic-owner","檢查安排人",()=>[...new Set(App.inspCtrl.map(d=>d.owner))].filter(Boolean).sort(),rerun);
     this.ms.deckSup=MSel("ms-ic-decksup","甲板督導",()=>[...new Set((typeof SHIPINFO!=="undefined"?SHIPINFO:[]).map(s=>s.deckSup))].filter(Boolean).sort(),rerun);
@@ -21675,7 +21764,12 @@ const Air={
     $("#airReplyExportModal").classList.add("show");
   },
   closeReplyExportModal(){$("#airReplyExportModal").classList.remove("show");},
-  openRecordExportModal(id){this._exportId=id;$("#airRecordExportModal").classList.add("show");},
+  /* 沒有匯出權限（例如船舶帳號 op2）的人先前點「⬇」還是會跳出匯出格式選單，選了格式才被擋下、
+     彈窗留在畫面上讓人不知道怎麼關掉；現在先在這裡擋，直接告知無權限，不再打開格式選單。 */
+  openRecordExportModal(id){
+    if(!requireExport())return;
+    this._exportId=id;$("#airRecordExportModal").classList.add("show");
+  },
   /* 填單清單每一列的「⬇」下載按鈕：跟進到單筆詳情頁裡「⬇ 匯出」共用同一個彈窗，
      不用進去記錄才能下載，清單頁直接點就能選格式。 */
   openListDownloadModal(id){this.openRecordExportModal(id);},
@@ -25898,6 +25992,7 @@ const GateSite={
     if(typeof Defs!=="undefined")Defs.refreshEditTabVisibility();
     if(typeof Air!=="undefined")Air.refreshAdminOnlyVisibility();
     if(typeof Todo!=="undefined")Todo.render();
+    if(typeof Home!=="undefined")Home.render();
   }
 };
 /* ════════ 🔐 第二道關卡：選擇人員身份（部門／姓名；Owner／管理員需密碼）════════ */
@@ -27667,6 +27762,31 @@ const SelfCheck={
     try{localStorage.setItem(this.SC_BASEKEY,v);}catch(e){}
     toast("✓ 已更新，下次「開啟」會用新網址");
   },
+  /* 建立／更新這個任務在外部頁面用的雲端草稿（openExternalEditor 開啟編輯、copyExternalLink
+     複製連結給船隊自查都需要先確保這份草稿存在，抽成共用函式避免兩邊各寫一份、以後改一個忘了改另一個。 */
+  async _ensureExternalDraft(t){
+    const rows=await Cloud.api(`selfcheck_drafts?task_id=eq.${t.id}&limit=1`);
+    if(!rows||!rows.length){
+      await Cloud.api("selfcheck_drafts",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+        body:JSON.stringify([{task_id:t.id,ship:t.ship,title:t.title||"",items:t.items.map(it=>({...it})),imported:false,history:[]}])});
+    }else{
+      // 重新整理「題目本身」的參考內容（以防任務項目後續有調整），但保留船上／督導已經填的作答進度
+      const remote=rows[0].items||[];
+      const merged=t.items.map((local,i)=>{
+        const r=remote[i]||{};
+        return Object.assign({},local,{
+          status:r.status!==undefined?r.status:local.status,
+          note:r.note!==undefined?r.note:local.note,
+          actual:r.actual!==undefined?r.actual:local.actual,
+          closed:r.closed!==undefined?r.closed:local.closed,
+          checkedBy:r.checkedBy!==undefined?r.checkedBy:local.checkedBy,
+          checkedAt:r.checkedAt!==undefined?r.checkedAt:local.checkedAt
+        });
+      });
+      await Cloud.api(`selfcheck_drafts?task_id=eq.${t.id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+        body:JSON.stringify({ship:t.ship,title:t.title||"",items:merged})});
+    }
+  },
   async openExternalEditor(taskId){
     const t=App.tasks.find(x=>x.id===taskId);
     if(!t){toast("⚠ 找不到此任務");return;}
@@ -27675,27 +27795,7 @@ const SelfCheck={
     if(!base){toast("⚠ 未設定外部網頁網址");return;}
     if(typeof Cloud!=="undefined"&&Cloud.enabled()){
       try{
-        const rows=await Cloud.api(`selfcheck_drafts?task_id=eq.${taskId}&limit=1`);
-        if(!rows||!rows.length){
-          await Cloud.api("selfcheck_drafts",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
-            body:JSON.stringify([{task_id:taskId,ship:t.ship,title:t.title||"",items:t.items.map(it=>({...it})),imported:false,history:[]}])});
-        }else{
-          // 重新整理「題目本身」的參考內容（以防任務項目後續有調整），但保留船上／督導已經填的作答進度
-          const remote=rows[0].items||[];
-          const merged=t.items.map((local,i)=>{
-            const r=remote[i]||{};
-            return Object.assign({},local,{
-              status:r.status!==undefined?r.status:local.status,
-              note:r.note!==undefined?r.note:local.note,
-              actual:r.actual!==undefined?r.actual:local.actual,
-              closed:r.closed!==undefined?r.closed:local.closed,
-              checkedBy:r.checkedBy!==undefined?r.checkedBy:local.checkedBy,
-              checkedAt:r.checkedAt!==undefined?r.checkedAt:local.checkedAt
-            });
-          });
-          await Cloud.api(`selfcheck_drafts?task_id=eq.${taskId}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
-            body:JSON.stringify({ship:t.ship,title:t.title||"",items:merged})});
-        }
+        await this._ensureExternalDraft(t);
       }catch(e){
         toast("⚠ 建立/更新自查草稿失敗："+e.message+"（可能是 Supabase 資料表還沒建，請確認已執行最新的 supabase_setup.sql）");
         console.warn("SelfCheck.openExternalEditor failed",e);
@@ -27705,6 +27805,27 @@ const SelfCheck={
       toast("⚠ 雲端未連線，無法開啟外部自查頁");return;
     }
     window.open(`${base}?tid=${taskId}`,"_blank");
+  },
+  /* 複製連結：讓督導或負責人不需要開啟頁面，直接把連結傳給船隊自行點開作答——外部頁面
+     （submit-selfcheck.html）本身不需要登入本系統，所以不用先給船上帳密就能讓船隊自查。
+     跟「開啟」共用同一套「確保雲端草稿存在」的邏輯，但不強制要求操作者符合 canCheck()
+     （督導本來就常常是「幫船上點連結」，不是船上帳號本人在操作這一步）。 */
+  async copyExternalLink(taskId){
+    const t=App.tasks.find(x=>x.id===taskId);
+    if(!t){toast("⚠ 找不到此任務");return;}
+    const base=this.getExternalBase();
+    if(!base){toast("⚠ 未設定外部網頁網址");return;}
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){toast("⚠ 雲端未連線，無法產生連結");return;}
+    try{
+      await this._ensureExternalDraft(t);
+    }catch(e){
+      toast("⚠ 建立/更新自查草稿失敗："+e.message+"（可能是 Supabase 資料表還沒建，請確認已執行最新的 supabase_setup.sql）");
+      console.warn("SelfCheck.copyExternalLink failed",e);
+      return;
+    }
+    const url=`${base}?tid=${taskId}`;
+    safeCopyText(url,"✓ 已複製自查連結，可直接傳給船隊（不需登入本系統即可作答）");
+    if(typeof Audit!=="undefined")Audit.log("複製連結","船舶缺失自查",`${t.ship} ${t.date}（任務#${taskId}）`);
   },
   async viewExternalDraft(taskId){
     const t=App.tasks.find(x=>x.id===taskId);
@@ -27764,6 +27885,9 @@ const SelfCheck={
     const t=this.cur();
     $("#sc-listview").style.display=t?"none":"";
     $("#sc-runview").style.display=t?"":"none";
+    // 外部網址設定只影響全公司共用的部署網址，改錯會讓所有人的連結都失效，僅 Owner／管理員需要看到。
+    const exturlBtn=$("#sc-exturl-btn");
+    if(exturlBtn)exturlBtn.style.display=(typeof Role!=="undefined"&&Role.isAdmin())?"":"none";
     if(t)this.renderRun();else this.renderTasks();
   },
 
@@ -27937,6 +28061,7 @@ const SelfCheck={
           </label>
           <button class="btn sm primary" ${canOpen?"":"disabled title=\""+openTitle+"\""} onclick="event.stopPropagation();SelfCheck.openExternalEditor(${t.id})">📤 開啟</button>
           <button class="btn sm" onclick="event.stopPropagation();SelfCheck.viewExternalDraft(${t.id})">👀 查看</button>
+          <button class="btn sm" title="複製這個任務的自查連結，可直接傳給船隊，不需登入本系統即可作答" onclick="event.stopPropagation();SelfCheck.copyExternalLink(${t.id})">🔗 複製連結</button>
           <button class="btn sm" onclick="event.stopPropagation();SelfCheck.openTaskDownload(${t.id})">下載</button>
           <button class="btn sm danger" onclick="event.stopPropagation();SelfCheck.delTask(${t.id})">刪除</button>
         </div>
