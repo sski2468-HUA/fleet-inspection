@@ -10350,6 +10350,7 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
   $("#pageTitle").textContent=TITLES[n.dataset.tab][0];
   $("#pageSub").textContent=TITLES[n.dataset.tab][1];
   $("#homeTopbarBtn").style.display=n.dataset.tab==="home"?"none":"";
+  try{localStorage.setItem("vsm_last_tab_v1",n.dataset.tab);}catch(e){}
   if(n.dataset.tab==="home"&&typeof Home!=="undefined")Home.render();
   if(n.dataset.tab==="dash"){Dash.render();if(typeof PscChap!=="undefined")PscChap.render();}
   if(n.dataset.tab==="ov")Ov.render();
@@ -20255,6 +20256,7 @@ const Air={
     const box=$("#air-defect-cards");if(!box)return;
     const wrap=$("#air-defcard-wrap");if(wrap)wrap.style.display=this.defRows.length?"":"none";
     const isPSC=this.isPSC();
+    const canEditDef=typeof Role==="undefined"||Role.isAdmin();
     if(this.activeDefRowIdx==null||this.activeDefRowIdx>=this.defRows.length||this.activeDefRowIdx<0)this.activeDefRowIdx=0;
     const tabsHtml=this.defRows.length>1?`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
         ${this.defRows.map((r,i)=>{
@@ -20305,6 +20307,7 @@ const Air={
           <b style="font-size:15px;color:${bd}">缺失 #${i+1}</b>
           <span style="flex:1"></span>
           <button class="btn sm" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10" onclick="Air.replyId=Air.editId;Air.activeDefectIdx=${i};Air.openNotifyPopover(event)">🔔 通知</button>
+          <button class="btn sm" style="background:#e8f4f0;border-color:#a8d8c8;color:#1e7f4a" onclick="Air.replyId=Air.editId;Air.pullReplyDraft(${i})" title="從雲端重新拉取對方剛送出的對外回覆最新內容">🔄 拉取最新回覆</button>
           <button class="btn sm primary" onclick="Air.goToExternalReply(Air.editId,${i})">✏ 前往對外回覆編輯（此筆，開新分頁）</button>
           <button class="btn sm danger" onclick="Air.rmDefectRow(${r.id})">✕ 刪除此筆</button>
         </div>
@@ -20339,6 +20342,7 @@ const Air={
             <div class="adf-item adf-chk"><label style="flex-direction:row;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${r.ncFocus==="是"?"checked":""} style="width:18px;height:18px;accent-color:var(--bad)" onchange="Air.setDefField(${r.id},'ncFocus',this.checked?'是':'否')">重點關注</label></div>
             <div class="adf-item adf-chk"><label style="flex-direction:row;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${r.needControl?"checked":""} style="width:18px;height:18px;accent-color:var(--signal)" onchange="Air.setDefField(${r.id},'needControl',this.checked)">需內控</label></div>
           </div>
+          ${this.renderDefFollowUpBox(r,canEditDef)}
         </div>
       </div>`;
     box.innerHTML=tabsHtml+cardHtml;
@@ -20432,6 +20436,76 @@ const Air={
   },
 
   setDefField(id,k,v){const r=this.defRows.find(x=>x.id===id);if(r){r[k]=v;this.scheduleFormAutoSave();}},
+  /* ── Follow Up 追蹤（缺失明細列的欄位之一，跟 code/detail 等其他欄位一樣存在 defRows 裡，
+     隨「線上填單」本身的自動儲存一起存檔——不是獨立的資料表，也不會跟外部「對外回覆編輯」頁
+     互相覆蓋）。原本這組功能只掛在已經沒有入口的舊版「對外回覆」內嵌分頁（showFormTab('reply')），
+     搬到這裡（②缺失明細及對外回覆分頁，目前實際在用的畫面）才有地方勾選。 ── */
+  renderDefFollowUpBox(r,canEdit){
+    const fu=r.followUp||{on:false,assignee:"",status:"open",log:[]};
+    const closed=fu.status==="closed";
+    return `<div style="margin-top:14px;padding:10px;background:${fu.on?(closed?"#eaf5ee":"#fff8e1"):"#f6f7f9"};border-radius:6px;border:1px solid ${fu.on?(closed?"#bfe3cc":"#f1e2c4"):"var(--line)"}">
+      <label style="display:flex;align-items:center;gap:6px;cursor:${canEdit?"pointer":"not-allowed"};font-weight:700">
+        <input type="checkbox" ${fu.on?"checked":""} ${canEdit?"":"disabled"} onchange="Air.setDefFollowUp(${r.id},this.checked)"> 🔖 需要 Follow Up 追蹤
+        ${fu.on?`<span class="hint" style="font-weight:400">${closed?"（已結案）":"（追蹤中）"}</span>`:""}
+      </label>
+      ${fu.on?`<div style="margin-top:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+          <label class="hint" style="font-size:12px">指定追蹤人員：</label>
+          <input type="text" list="dl-roster-names" value="${esc(fu.assignee)}" ${canEdit&&!closed?"":"disabled"} placeholder="人員姓名" style="padding:5px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px" onchange="Air.setDefFollowUpField(${r.id},'assignee',this.value)">
+        </div>
+        ${fu.log.length?`<div style="background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:8px;font-size:12.5px;max-height:160px;overflow:auto">
+          ${fu.log.map(l=>`<div style="padding:4px 0;border-bottom:1px dashed var(--line)"><b>${esc(this.fmtTs(l.at))} ${esc(l.by)}</b>：${esc(l.note)}</div>`).join("")}
+        </div>`:""}
+        ${canEdit&&!closed?`<div style="display:flex;gap:6px;flex-wrap:wrap">
+          <input type="text" id="fu-note-${r.id}" placeholder="更新改善情形…" style="flex:1;min-width:180px;padding:5px 8px;font-size:12.5px;border:1px solid var(--line);border-radius:5px">
+          <button class="btn sm" onclick="Air.addDefFollowUpLog(${r.id})">➕ 新增更新</button>
+          <button class="btn sm dark" onclick="Air.closeDefFollowUp(${r.id})">✅ 標記已結案</button>
+        </div>`:""}
+        ${canEdit&&closed?`<button class="btn sm" onclick="Air.reopenDefFollowUp(${r.id})">↺ 重新開啟追蹤</button>`:""}
+      </div>`:""}
+    </div>`;
+  },
+  setDefFollowUp(id,on){
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／管理員可設定 Follow Up");return;}
+    const r=this.defRows.find(x=>x.id===id);if(!r)return;
+    if(!r.followUp)r.followUp={on:false,assignee:"",status:"open",log:[],closedAt:0};
+    r.followUp.on=on;
+    if(on&&r.followUp.status==="closed"){r.followUp.status="open";r.followUp.closedAt=0;}
+    this.scheduleFormAutoSave();
+    this.renderDefectRows();
+    if(typeof Todo!=="undefined")Todo.render();
+  },
+  setDefFollowUpField(id,key,v){
+    const r=this.defRows.find(x=>x.id===id);if(!r||!r.followUp)return;
+    r.followUp[key]=v;
+    this.scheduleFormAutoSave();
+    toast(v?`✓ 已指定 ${v} 追蹤此項目`:"已清除指定人員");
+  },
+  addDefFollowUpLog(id){
+    const note=($("#fu-note-"+id)?.value||"").trim();
+    if(!note){toast("⚠ 請先填寫更新內容");return;}
+    const r=this.defRows.find(x=>x.id===id);if(!r||!r.followUp)return;
+    r.followUp.log.push({at:Date.now(),by:(typeof Role!=="undefined"&&Role.personName)?Role.personName():"",note});
+    this.scheduleFormAutoSave();
+    this.renderDefectRows();
+    toast("✓ 已新增追蹤更新");
+  },
+  closeDefFollowUp(id){
+    if(!confirm("確定要將此項目標記為已結案？結案後可再點「重新開啟追蹤」恢復。"))return;
+    const r=this.defRows.find(x=>x.id===id);if(!r||!r.followUp)return;
+    r.followUp.status="closed";r.followUp.closedAt=Date.now();
+    this.scheduleFormAutoSave();
+    this.renderDefectRows();
+    if(typeof Todo!=="undefined")Todo.render();
+    toast("✓ 已標記結案");
+  },
+  reopenDefFollowUp(id){
+    const r=this.defRows.find(x=>x.id===id);if(!r||!r.followUp)return;
+    r.followUp.status="open";r.followUp.closedAt=0;
+    this.scheduleFormAutoSave();
+    this.renderDefectRows();
+    if(typeof Todo!=="undefined")Todo.render();
+  },
   /* 責任人員可能不只一位（例如同一項缺失牽涉大副與大管輪），改成跟「正面評價受訪人員」一樣的
      可新增多筆設計；r.rank／r.person 仍會自動用「、」串起所有人，保留給匯出Excel、CAR、
      轉入缺失紀錄總表等既有邏輯使用，不用大動其他地方的程式碼。 */
@@ -25997,6 +26071,16 @@ const GateSite={
     if(typeof Air!=="undefined")Air.refreshAdminOnlyVisibility();
     if(typeof Todo!=="undefined")Todo.render();
     if(typeof Home!=="undefined")Home.render();
+    // 重新整理頁面後，留在使用者上次瀏覽的分頁（而不是每次都跳回首頁）——
+    // 只認內部分頁（有 data-tab 的項目），且該項目此刻要真的存在且沒被權限隱藏才還原，
+    // 否則就維持預設的首頁（HTML 原本就是首頁為 active/show，不用特別處理 fallback）。
+    try{
+      const lastTab=localStorage.getItem("vsm_last_tab_v1");
+      if(lastTab&&lastTab!=="home"){
+        const it=document.querySelector(`#sidebar .nav-item[data-tab="${lastTab}"]`);
+        if(it&&getComputedStyle(it).display!=="none"&&it.offsetParent!==null)it.click();
+      }
+    }catch(e){}
   }
 };
 /* ════════ 🔐 第二道關卡：選擇人員身份（部門／姓名；Owner／管理員需密碼）════════ */
