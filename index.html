@@ -2779,7 +2779,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <th style="cursor:pointer" onclick="Air.sortBy('place')">檢查地點 <span id="sh-air-place"></span></th>
               <th style="cursor:pointer" onclick="Air.sortBy('ndef')">缺失數 <span id="sh-air-ndef"></span></th>
               <th style="cursor:pointer" onclick="Air.sortBy('npos')">正評數 <span id="sh-air-npos"></span></th>
-              <th style="cursor:pointer" onclick="Air.sortBy('createdBy')">匯入方式／匯入者 <span id="sh-air-createdBy"></span></th>
+              <th style="cursor:pointer" onclick="Air.sortBy('createdBy')">匯入方式／匯入者／時間 <span id="sh-air-createdBy"></span></th>
             </tr></thead><tbody id="air-tbody"></tbody></table>
           </div>
           <div class="pager" id="air-pager"></div>
@@ -5235,20 +5235,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     </div>
   </div>
 </div>
-<div class="modal-bg" id="airRecordExportModal">
-  <div class="modal" style="max-width:440px">
-    <div class="mh"><h3>⬇ 匯出填單紀錄</h3><button class="x" onclick="Air.closeRecordExportModal()">✕</button></div>
-    <div class="mb">
-      <p class="hint" style="margin-bottom:10px">請選擇要匯出的檔案格式：</p>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.exportXlsx([Air._exportId]);Air.closeRecordExportModal()">⬇ Excel（.xlsx，可匯入的版本）<br><span style="font-weight:400;font-size:11px">跟批次匯出同一套格式（含序號），可用「＋新增/匯入」讀回更新這筆填單</span></button>
-        <button class="btn" style="width:100%;text-align:left" onclick="Air.exportRecordPdf(Air._exportId);Air.closeRecordExportModal()">🖨 PDF（列印/另存）<br><span style="font-weight:400;font-size:11px">給督導留存查看用，逐筆缺失含矯正前/後照片，瀏覽器列印視窗選「另存為 PDF」</span></button>
-        <button class="btn" style="width:100%;text-align:left" onclick="Air.exportCarDocx(Air._exportId,false);Air.closeRecordExportModal()">⬇ Word CAR（純英文）<br><span style="font-weight:400;font-size:11px">官方格式，橫向排版，僅顯示對外回覆的英文內容，給外部/督導看，不支援匯入回填</span></button>
-        <button class="btn" style="width:100%;text-align:left" onclick="Air.exportCarDocx(Air._exportId,true);Air.closeRecordExportModal()">⬇ Word CAR（中英文，可匯入回填）<br><span style="font-weight:400;font-size:11px">官方格式，同時顯示中英文對照；督導或船上直接在這份檔案上修改後，可用「⬆ 匯入 Word 回填」讀回更新</span></button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- 產生對外回覆連結：把目前這筆缺失的中文內容送到雲端草稿表，給主管開啟外部網頁填寫 -->
 <!-- 年度計畫：重複完成標記診斷 -->
@@ -5296,16 +5282,29 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 </div>
 
 <!-- 填單清單：匯出（Excel/Word 皆可匯入版本，或下載空白範本） -->
+<!-- 匯出：清單上方「⬇匯出」（批次／全部）跟每列「⬇」（單筆）共用同一個彈窗——
+     Air._exportId 有值時代表是單筆（清單列或詳情頁點進來的），主要格式一律只帶這一筆，
+     並多顯示「其他格式」（CAR官方格式／PDF，這兩種本來就沒有支援批次匯出）；
+     Air._exportId 是 null 時代表批次（用清單勾選的幾筆，或沒勾就是全部）。 -->
 <div class="modal-bg" id="airExportPickModal">
-  <div class="modal" style="max-width:420px">
+  <div class="modal" style="max-width:440px">
     <div class="mh"><h3>⬇ 匯出</h3><button class="x" onclick="Air.closeExportPickModal()">✕</button></div>
     <div class="mb">
-      <p class="hint" style="margin-bottom:10px">若已勾選特定幾筆，只匯出勾選的；未勾選任何一筆則匯出全部。四種都能用「＋新增／匯入」讀回系統，船上網路不好時可用 Excel／Word 把資料帶回來給維護人員匯入。</p>
+      <p class="hint" style="margin-bottom:10px" id="air-export-scope-hint">若已勾選特定幾筆，只匯出勾選的；未勾選任何一筆則匯出全部。前三種都能用「＋新增／匯入」讀回系統，船上網路不好時可用這幾種格式把資料帶回來給維護人員匯入。</p>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.closeExportPickModal();Air.exportXlsx()">⬇ 匯出 Excel（可匯入）<br><span style="font-weight:400;font-size:11px">帶出目前資料，可直接用「⬆ 匯入」讀回更新</span></button>
-        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.closeExportPickModal();Air.exportDefectsDocx()">⬇ 匯出 Word（可匯入）<br><span style="font-weight:400;font-size:11px">帶出目前資料，含代碼對照表，可直接用「⬆ 匯入」讀回更新</span></button>
+        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.closeExportPickModal();Air.exportXlsx(Air._exportId?[Air._exportId]:undefined)">⬇ 匯出 Excel（可匯入）<br><span style="font-weight:400;font-size:11px">缺失明細＋岸上對外回覆文字，可直接用「⬆ 匯入」讀回更新；不含照片本身（只有張數）</span></button>
+        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.closeExportPickModal();Air.exportDefectsDocx(Air._exportId?[Air._exportId]:undefined)">⬇ 匯出 Word（可匯入）<br><span style="font-weight:400;font-size:11px">缺失明細＋岸上對外回覆＋照片＋代碼對照表，可直接用「⬆ 匯入」讀回更新</span></button>
+        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.closeExportPickModal();Air.exportJson(Air._exportId?[Air._exportId]:undefined)">⬇ 匯出 JSON（可匯入）<br><span style="font-weight:400;font-size:11px">跟船上 submit-airform 匯出草稿存檔同一種格式，含完整照片＋對外回覆，檔案最小</span></button>
         <button class="btn" style="width:100%;text-align:left" onclick="Air.closeExportPickModal();Air.exportTemplate()">📋 匯入範本－Excel<br><span style="font-weight:400;font-size:11px">空白範本，欄位皆為下拉選單，適合離線填寫</span></button>
         <button class="btn" style="width:100%;text-align:left" onclick="Air.closeExportPickModal();Air.exportDefectsDocx(null,true)">📋 匯入範本－Word<br><span style="font-weight:400;font-size:11px">空白範本，附完整代碼對照表供人工圈選/填寫</span></button>
+        <div id="air-export-single-only" style="display:none">
+          <div class="divider" style="margin:10px 0"><div class="line"></div><div class="icon">其他格式（僅供閱讀，不支援匯入）</div><div class="line"></div></div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn" style="width:100%;text-align:left" onclick="Air.exportRecordPdf(Air._exportId);Air.closeExportPickModal()">🖨 PDF（列印/另存）<br><span style="font-weight:400;font-size:11px">給督導留存查看用，逐筆缺失含矯正前/後照片，瀏覽器列印視窗選「另存為 PDF」</span></button>
+            <button class="btn" style="width:100%;text-align:left" onclick="Air.exportCarDocx(Air._exportId,false);Air.closeExportPickModal()">⬇ Word CAR（純英文，官方格式）<br><span style="font-weight:400;font-size:11px">橫向排版，僅顯示對外回覆的英文內容，給外部/督導看，不支援匯入回填</span></button>
+            <button class="btn" style="width:100%;text-align:left" onclick="Air.exportCarDocx(Air._exportId,true);Air.closeExportPickModal()">⬇ Word CAR（中英文，可回填對外回覆）<br><span style="font-weight:400;font-size:11px">官方格式，中英文對照；改完用「✏對外回覆編輯→⬆匯入Word」讀回，只會更新對外回覆文字，不會動缺失明細本身</span></button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -19799,6 +19798,41 @@ const Air={
       toast(`✓ 已匯出 ${scope.length} 筆填單的 Word 檔（可用「⬆ 匯入」讀回）`);
     }
   },
+  /* JSON 匯出：跟 Excel／Word 是同一套「可匯入」路線的第三種格式，欄位形狀直接比照
+     submit-airform.html 匯出草稿存檔的 collectPayload() 格式（船上那邊的匯入邏輯也認得這個
+     形狀），差別只在這裡一次可以包含多筆填單（陣列），船上那邊固定只有一筆（單一物件）；
+     _readImportJsonFile() 兩種都吃。照片跟對外回覆都是完整內容，不是像 Excel 只有張數。 */
+  async exportJson(onlyIds){
+    await this.syncAllReplyDrafts().catch(()=>{});
+    const scope=Array.isArray(onlyIds)?App.air.filter(d=>onlyIds.includes(d.id)):
+      (this.selected&&this.selected.size?App.air.filter(d=>this.selected.has(String(d.id))):App.air);
+    if(!scope.length){toast("⚠ 沒有可匯出的填單");return;}
+    const records=scope.map(d=>({
+      basic:{ship:d.ship||"",vtype:d.vtype||"",itype:d.itype||"",date:d.date||"",place:d.place||"",oilco:d.oilco||"",inspector:d.inspector||"",ndef:(d.defects||[]).length,npos:(d.posComments||[]).length,flagType:d.flagType||""},
+      defects:(d.defects||[]).map((df,i)=>{
+        const rp=(d.reply&&d.reply.items&&d.reply.items[i])||{};
+        return {code:df.code||"",psc:df.psc||"",people:df.people||[],rank:df.rank||"",person:df.person||"",
+          detail:df.detail||"",actual:df.actual||"",
+          corrective:df.corrective||"",rootCause:df.rootCause||"",preventive:df.preventive||"",
+          ncProb:df.ncProb||"",ncMain:df.ncMain||"",ncLeaf:df.ncLeaf||"",ncRoot:df.ncRoot||"",ncFactor:df.ncFactor||"",
+          ncImp:df.ncImp||"",risk:df.risk||"",ncOpinion:df.ncOpinion||"",ncFocus:df.ncFocus||"",internalControl:!!df.needControl,
+          photosBefore:df.photosBefore||[],photosAfter:df.photosAfter||[],
+          // reply：跟 App.air 內部 d.reply.items[i] 完全同一套鍵名，岸上對外回覆中英文都完整帶出；
+          // opComment／immediateCause 額外保留給 submit-airform 那邊船上預填草稿用（只有中文，沒有巢狀 reply 物件），
+          // 匯入時兩種來源都認得。
+          opComment:rp.opCommentCn||"",immediateCause:rp.immediateCauseCn||"",
+          reply:{opCommentCn:rp.opCommentCn||"",opCommentEn:rp.opCommentEn||"",immediateCauseCn:rp.immediateCauseCn||"",immediateCauseEn:rp.immediateCauseEn||"",
+            correctiveCn:rp.correctiveCn||"",correctiveEn:rp.correctiveEn||"",rootCauseCn:rp.rootCauseCn||"",rootCauseEn:rp.rootCauseEn||"",
+            preventiveCn:rp.preventiveCn||"",preventiveEn:rp.preventiveEn||""}};
+      }),
+      posComments:(d.posComments||[]).map(p=>({code:p.code||"",item:p.item||"",comment:p.comment||"",people:p.people||[],rank:p.rank||"",person:p.person||""}))
+    }));
+    const payload=records.length===1?records[0]:records; // 單筆時跟船上匯出的格式完全一樣（單一物件），批次才用陣列包起來
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+    dl(blob,`AfterInspectionReview_${scope.length>1?"批次"+scope.length+"筆":(scope[0].ship||"")}_${todayStr()}.json`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","AIR",`匯出 JSON ${scope.length} 筆`);
+    toast(`✓ 已匯出 ${scope.length} 筆填單的 JSON 檔（含照片與對外回覆，可用「⬆ 匯入」讀回）`);
+  },
   async importFile(){
     if(!hasXLSXLib())return;
     if(!await Guard.require()){toast("⚠ 匯入填單僅限維護者操作");return;}
@@ -19822,35 +19856,45 @@ const Air={
     try{
       const text=await file.text();
       const data=JSON.parse(text);
-      const b=data&&data.basic;
-      if(!b||!b.ship){toast("⚠ 找不到有效的船名，請確認是 submit-airform 頁面「匯出草稿存檔」產生的 .json 檔");return;}
-      const defs=(data.defects||[]).map(d=>({
-        psc:d.psc||"",code:d.code||"",
-        detail:d.detail||"",actual:d.actual||"",
-        corrective:d.corrective||"",rootCause:d.rootCause||"",preventive:d.preventive||"",
-        rank:d.rank||"",person:d.person||"",
-        people:Array.isArray(d.people)?d.people.filter(p=>p.rank||p.person):[],
-        ncProb:d.ncProb||"",ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",ncRoot:d.ncRoot||"",ncFactor:d.ncFactor||"",
-        ncImp:d.ncImp||"",ncFocus:d.ncFocus||"",
-        ncOpinion:typeof ncOpinionNormalize==="function"?ncOpinionNormalize(d.ncOpinion):(d.ncOpinion||""),
-        risk:d.risk||"",needControl:!!d.internalControl,
-        photosBefore:Array.isArray(d.photosBefore)?d.photosBefore:[],photosAfter:Array.isArray(d.photosAfter)?d.photosAfter:[],
-        // 船上填單時可能已經先寫好一版初步回覆草稿（Initial Operator Comment／直接原因），
-        // 沿用 Excel／Word 匯入同一套慣例，先放進 _reply 暫存，稍後統一搬進 reply.items[]。
-        _reply:{opCommentCn:d.opComment||"",immediateCauseCn:d.immediateCause||""}
-      })).filter(d=>d.detail||d.corrective||d.rootCause||d.preventive||d.code||d.actual||d.ncProb||d.ncMain);
-      const posComments=(data.posComments||[]).map(p=>({
-        code:p.code||"",item:p.item||"",comment:p.comment||"",
-        people:(Array.isArray(p.people)&&p.people.length?p.people:[{rank:p.rank||"",person:p.person||""}]).filter(x=>x.rank||x.person)
-      })).filter(p=>p.item||p.comment);
-      const record={
-        ship:b.ship,vtype:b.vtype||(typeof vtypeOfShip==="function"?vtypeOfShip(b.ship):"")||"tanker",
-        itype:b.itype||"",date:b.date||"",place:b.place||"",oilco:b.oilco||"",inspector:b.inspector||"",
-        ndef:String(defs.length),npos:String(posComments.length),
-        defects:defs,posComments,
-        usedInsp:false,usedDef:false,usedPos:false,reviewed:false
-      };
-      this._confirmAndInsertRecords([record],"json");
+      // 船上 submit-airform「匯出草稿存檔」固定只有一筆（單一物件）；本系統自己批次匯出
+      // 是陣列（可能好幾筆）——兩種都認得，統一先轉成陣列處理。
+      const items=Array.isArray(data)?data:[data];
+      const records=items.map(item=>{
+        const b=item&&item.basic;
+        if(!b||!b.ship)return null;
+        const defs=(item.defects||[]).map(d=>{
+          // reply：本系統自己匯出的 JSON 會有完整巢狀 reply 物件（中英文都有）；
+          // submit-airform 船上匯出的只有 opComment／immediateCause 這兩個中文欄位（沒有 reply 物件），
+          // 兩種來源都要認得，reply 物件優先，沒有的話退回船上那組簡單欄位。
+          const _reply=d.reply?{...d.reply}:{opCommentCn:d.opComment||"",immediateCauseCn:d.immediateCause||""};
+          return {
+            psc:d.psc||"",code:d.code||"",
+            detail:d.detail||"",actual:d.actual||"",
+            corrective:d.corrective||"",rootCause:d.rootCause||"",preventive:d.preventive||"",
+            rank:d.rank||"",person:d.person||"",
+            people:Array.isArray(d.people)?d.people.filter(p=>p.rank||p.person):[],
+            ncProb:d.ncProb||"",ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",ncRoot:d.ncRoot||"",ncFactor:d.ncFactor||"",
+            ncImp:d.ncImp||"",ncFocus:d.ncFocus||"",
+            ncOpinion:typeof ncOpinionNormalize==="function"?ncOpinionNormalize(d.ncOpinion):(d.ncOpinion||""),
+            risk:d.risk||"",needControl:!!d.internalControl,
+            photosBefore:Array.isArray(d.photosBefore)?d.photosBefore:[],photosAfter:Array.isArray(d.photosAfter)?d.photosAfter:[],
+            _reply
+          };
+        }).filter(d=>d.detail||d.corrective||d.rootCause||d.preventive||d.code||d.actual||d.ncProb||d.ncMain);
+        const posComments=(item.posComments||[]).map(p=>({
+          code:p.code||"",item:p.item||"",comment:p.comment||"",
+          people:(Array.isArray(p.people)&&p.people.length?p.people:[{rank:p.rank||"",person:p.person||""}]).filter(x=>x.rank||x.person)
+        })).filter(p=>p.item||p.comment);
+        return {
+          ship:b.ship,vtype:b.vtype||(typeof vtypeOfShip==="function"?vtypeOfShip(b.ship):"")||"tanker",
+          itype:b.itype||"",date:b.date||"",place:b.place||"",oilco:b.oilco||"",inspector:b.inspector||"",
+          ndef:String(defs.length),npos:String(posComments.length),
+          defects:defs,posComments,
+          usedInsp:false,usedDef:false,usedPos:false,reviewed:false
+        };
+      }).filter(Boolean);
+      if(!records.length){toast("⚠ 找不到有效的船名，請確認是 submit-airform「匯出草稿存檔」或本系統匯出的 .json 檔");return;}
+      this._confirmAndInsertRecords(records,"json");
     }catch(e){toast("⚠ JSON 檔解析失敗："+e.message);}
   },
   _readImportFile(file){
@@ -21366,10 +21410,16 @@ const Air={
      沒有 importSource，退回原本「只顯示建立者姓名」的舊行為，不會變成空白或誤判。 */
   originLabel(d){
     const who=esc(d.createdBy||"");
-    if(d.importSource==="excel")return who?`Excel匯入<div class="hint">（${who}建立）</div>`:"Excel匯入";
-    if(d.importSource==="queue")return who?`線上填單轉入<div class="hint">（${who}核准匯入）</div>`:"線上填單轉入";
-    if(d.importSource==="manual")return who?`手動新增<div class="hint">（${who}建立）</div>`:"手動新增";
-    return who||"";
+    const when=d.createdAt?new Date(d.createdAt).toLocaleString("zh-TW",{hour12:false}):"";
+    const detail=[who&&(who+(d.importSource==="queue"?"核准匯入":"建立")),when].filter(Boolean).join(" · ");
+    const wrap=t=>detail?`${t}<div class="hint">（${detail}）</div>`:t;
+    if(d.importSource==="excel")return wrap("Excel匯入");
+    if(d.importSource==="word")return wrap("Word匯入");
+    if(d.importSource==="json")return wrap("JSON匯入");
+    if(d.importSource==="queue")return wrap("線上填單轉入");
+    if(d.importSource==="manual")return wrap("手動新增");
+    // 早期（這個欄位上線前）建立的舊資料沒有 importSource，退回只顯示建立者姓名／時間，不誤判成任何一種來源。
+    return [who,when].filter(Boolean).join(" · ");
   },
   toggleAll(on){this.selected=on?new Set(this.filtered().map(d=>String(d.id))):new Set();this.renderList();},
   clearSel(){this.selected=new Set();this.renderList();},
@@ -21443,7 +21493,13 @@ const Air={
   closePushModal(){$("#airPushModal").classList.remove("show");},
   openNewOrImportModal(){$("#airNewOrImportModal").classList.add("show");},
   closeNewOrImportModal(){$("#airNewOrImportModal").classList.remove("show");},
-  openExportPickModal(){$("#airExportPickModal").classList.add("show");},
+  openExportPickModal(id){
+    this._exportId=id||null;
+    const single=$("#air-export-single-only");if(single)single.style.display=id?"":"none";
+    const hint=$("#air-export-scope-hint");
+    if(hint)hint.textContent=id?"僅匯出這一筆填單。前三種格式都能用「＋新增／匯入」讀回系統。":"若已勾選特定幾筆，只匯出勾選的；未勾選任何一筆則匯出全部。前三種都能用「＋新增／匯入」讀回系統，船上網路不好時可用這幾種格式把資料帶回來給維護人員匯入。";
+    $("#airExportPickModal").classList.add("show");
+  },
   closeExportPickModal(){$("#airExportPickModal").classList.remove("show");},
   async confirmPushSelected(){
     const targets=[];
@@ -22250,7 +22306,7 @@ const Air={
      彈窗留在畫面上讓人不知道怎麼關掉；現在先在這裡擋，直接告知無權限，不再打開格式選單。 */
   openRecordExportModal(id){
     if(!requireExport())return;
-    this._exportId=id;$("#airRecordExportModal").classList.add("show");
+    this.openExportPickModal(id);
   },
   /* 填單清單每一列的「⬇」下載按鈕：跟進到單筆詳情頁裡「⬇ 匯出」共用同一個彈窗，
      不用進去記錄才能下載，清單頁直接點就能選格式。 */
@@ -22490,7 +22546,7 @@ const Air={
       }
     }catch(e){ if(!silent)toast("⚠ 拉取失敗："+e.message); }
   },
-  closeRecordExportModal(){$("#airRecordExportModal").classList.remove("show");},
+  closeRecordExportModal(){this.closeExportPickModal();},
   /* 岸上與船上都統一透過外部網站填寫缺失明細，不在系統內手動新建一筆，
      所以「新增/匯入」跟原本的「複製線上填單連結」都改成直接開啟外部網站，不用再複製連結傳來傳去。 */
   openIntakeSite(){
