@@ -952,12 +952,12 @@ body.no-defs_edit [data-perm="defs_edit"]{display:none!important}
 .sc-allmeta{display:flex;gap:7px;align-items:center;margin-bottom:3px;font-size:11px;color:var(--ink-3);flex-wrap:wrap}
 .sc-allmeta b{color:var(--navy)}
 
-/* 清單模式中的彙整項目：顯示代表性例子 */
+/* 清單模式中的彙整項目：顯示代表性例子（含完整缺失詳情＋實際情況，不再截斷） */
 .sc-lsamples{margin:6px 0 8px;padding:8px 11px;background:var(--paper);border-radius:6px;
   border-left:3px solid var(--teal)}
-.sc-lsample{font-size:12px;line-height:1.6;color:var(--ink-2);margin-bottom:5px;
-  display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
-.sc-lsample:last-of-type{margin-bottom:0}
+.sc-lsample{font-size:12px;line-height:1.6;color:var(--ink-2);margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+.sc-lsample:last-of-type{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.sc-gs-actual{margin-top:3px;color:var(--ink-3);border-left:2px solid var(--teal);padding-left:8px}
 
 /* 自查使用說明視窗 */
 .sc-hbanner{background:var(--teal-l);border:1px solid var(--teal);border-radius:7px;padding:11px 14px;
@@ -1255,6 +1255,23 @@ table.ap-tbl tbody tr:hover td:first-child{background:#f3f8fa}
 .sc-item .chks input[type=checkbox]{width:16px;height:16px;accent-color:var(--signal)}
 .sc-item .note{flex:1;min-width:240px}
 .sc-item .note input{width:100%}
+/* 清單模式：左邊缺失內容、右邊三個查核選項並排，答案按鈕永遠貼在旁邊看得到，
+   不用往下捲到最後才能作答；版面比原本的上下堆疊更能利用寬螢幕的橫向空間。 */
+.sc-item .sc-row2{display:flex;gap:18px;align-items:flex-start;margin-top:2px}
+.sc-item .sc-col-l{flex:1;min-width:0}
+.sc-item .sc-col-r{flex:0 0 210px;display:flex;flex-direction:column;gap:6px}
+.sc-item .sc-col-r button{width:100%;text-align:left;padding:9px 12px;border-radius:5px;border:1px solid var(--line-2);background:#fff;font-size:12.5px;cursor:pointer;font-weight:700;color:var(--ink-2);font-family:var(--sans)}
+.sc-item .sc-col-r button:hover{background:var(--paper)}
+.sc-item .sc-col-r button.on-ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.sc-item .sc-col-r button.on-sim{background:var(--bad);border-color:var(--bad);color:#fff}
+.sc-item .sc-col-r button.on-na{background:#6b7a84;border-color:#6b7a84;color:#fff}
+.sc-item .sc-col-r button.sc-reset{border:none;background:none;color:var(--ink-3);text-decoration:underline;font-weight:400;padding:3px 4px;text-align:center}
+.sc-item .sc-col-r button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:880px){
+  .sc-item .sc-row2{flex-direction:column}
+  .sc-item .sc-col-r{flex:none;width:100%;flex-direction:row;flex-wrap:wrap}
+  .sc-item .sc-col-r button{width:auto;flex:1 1 auto}
+}
 .banner{background:var(--teal-l);border:1px solid #bcdde2;color:#11616c;border-radius:5px;padding:9px 13px;font-size:12.5px;margin-bottom:12px;line-height:1.5}
 .sc-howto{background:#fff8ec;border:1px solid #f0d8a8;border-left:4px solid #e0a93a;border-radius:6px;padding:10px 14px;margin-bottom:12px}
 .sc-howto-t{font-weight:800;color:#9a6a12;font-size:13px;margin-bottom:4px}
@@ -3655,6 +3672,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <option value="closed">⚠ 有類似缺失－結案</option>
             <option value="na">⊘ 本船不適用</option>
           </select>
+          <select id="sc-sort" onchange="SelfCheck.render()">
+            <option value="">預設順序</option>
+            <option value="date_desc">日期：新→舊</option>
+            <option value="date_asc">日期：舊→新</option>
+            <option value="risk_desc">風險：高→低</option>
+            <option value="status">狀態：有情形優先</option>
+          </select>
           <button class="btn sm" onclick="SelfCheck.openWizard('append')">＋ 加入項目</button>
           <span class="seg" style="margin:0 2px">
             <button onclick="SelfCheck.bulkSetStatus('ok')" title="將目前檢視中的項目一次標記為已確認無類似缺失">✓ 一鍵全選已確認</button>
@@ -5312,13 +5336,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
 <!-- 填單清單：新增填單／匯入 Excel 二選一 -->
 <div class="modal-bg" id="airNewOrImportModal">
-  <div class="modal" style="max-width:400px">
+  <div class="modal" style="max-width:600px">
     <div class="mh"><h3>＋ 新增／匯入</h3><button class="x" onclick="Air.closeNewOrImportModal()">✕</button></div>
     <div class="mb">
       <p class="hint" style="margin-bottom:10px">請選擇要進行的操作：</p>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.closeNewOrImportModal();Air.openIntakeSite()">🔗 前往線上填單網站<br><span style="font-weight:400;font-size:11px">岸上／船上都統一在外部網站填寫缺失明細，不在系統內手動新建</span></button>
-        <button class="btn dark" style="width:100%;text-align:left" onclick="Air.closeNewOrImportModal();Air.importFile()">⬆ 匯入 Excel／Word／JSON（維護者）<br><span style="font-weight:400;font-size:11px">船上填妥 Excel、Word 範本或匯出草稿存檔（.json，含照片）後，批次匯入多筆；三種格式皆可</span></button>
+        <div class="air-export-row" onclick="Air.closeNewOrImportModal();Air.openIntakeSite()"><button class="btn primary air-export-row-btn" tabindex="-1">🔗 前往線上<br>填單網站</button><div class="hint air-export-row-desc">岸上／船上都統一在外部網站填寫缺失明細，不在系統內手動新建</div></div>
+        <div class="air-export-row" onclick="Air.closeNewOrImportModal();Air.importFile()"><button class="btn dark air-export-row-btn" tabindex="-1">⬆ 匯入 Excel／<br>Word／JSON<br><span style="font-weight:400">（維護者）</span></button><div class="hint air-export-row-desc">船上填妥 Excel、Word 範本或匯出草稿存檔（.json，含照片）後，批次匯入多筆；三種格式皆可</div></div>
       </div>
     </div>
   </div>
@@ -28984,6 +29008,14 @@ const SelfCheck={
     if(typeof Cloud!=="undefined"&&Cloud.enabled()&&t.gid){
       try{
         await Cloud.api("self_tasks?gid=eq."+encodeURIComponent(t.gid),{method:"DELETE"});
+        // ⚠ 外部自查頁面的作答草稿（selfcheck_drafts）是用本機這個數字 id 當 task_id 存的，
+        // 這個 id 是「目前最大 id + 1」算出來的、不是永久唯一——刪掉這筆任務後，id 就會被
+        // 之後新建的任務「回收」再用。之前這裡沒清掉對應的草稿列，新任務若剛好分到同一個
+        // id、又被人點開「開啟」，_ensureExternalDraft() 會找到這筆本來早該刪除的舊草稿，
+        // 把裡面別的任務（甚至別次自查）留下的作答狀態，依欄位順序誤套進全新任務的題目上，
+        // 使用者會看到「剛建立的任務卻已經有好幾題被查核過」。刪任務時把草稿也一併刪掉，
+        // 新任務之後才不會意外撿到別人的舊答案。
+        try{await Cloud.api("selfcheck_drafts?task_id=eq."+id,{method:"DELETE"});}catch(e){console.warn("selfcheck_drafts cleanup failed",e);}
         if(typeof Audit!=="undefined")Audit.log("刪除","自檢任務",`刪除「${t.ship} ${t.date} ${t.title||"自檢"}」並同步雲端`);
         toast("✓ 已刪除任務，並同步從雲端移除");
       }catch(e){
@@ -29238,7 +29270,7 @@ const SelfCheck={
         refIds:g.list.map(d=>d.id),          // 來源缺失，可完整追溯
         refCount:g.n,
         /* 代表性例子（重要程度高、日期新者優先），船上先看這幾筆就抓得到重點 */
-        samples:g.samples.map(d=>({id:d.id,ship:d.ship,date:d.date,imp:d.ncImp||"",detail:d.detail||""})),
+        samples:g.samples.map(d=>({id:d.id,ship:d.ship,date:d.date,imp:d.ncImp||"",detail:d.detail||"",actual:d.actual||""})),
         ship:"",itype:"",date:todayStr(),place:"",code:"",
         ncMain:lvl==="ncMain"?g.key:(g.list[0]&&g.list[0].ncMain)||"",
         ncLeaf:lvl==="ncLeaf"?g.key:"",
@@ -29683,8 +29715,18 @@ const SelfCheck={
     $("#sc-progress").innerHTML=`已查核 <b>${done}/${n}</b>${sim?` · <span style="color:var(--bad)">⚠ 類似缺失 ${sim}</span> · 結案 ${cls}`:""}${na?` · <span style="color:#6b7a84">⊘ 不適用 ${na}</span>`:""}${canChk?"":` · <span style="color:#a06b2b">🔒 唯讀（僅「${esc(t.ship)}」本船帳號或管理員可勾選查核狀態）</span>`}`;
     $("#sc-pbar").style.width=(n?Math.round(done/n*100):0)+"%";
     const view=$("#sc-view").value;
+    const sortKey=$("#sc-sort")?$("#sc-sort").value:"";
     const attnMap=new Map(App.defs.map(d=>[d.id,!!d.attn]));
-    $("#sc-list").innerHTML=t.items.map((it,i)=>{
+    const defsMap=new Map(App.defs.map(d=>[d.id,d]));
+    // ⚠ 排序只能動「顯示順序」，不能動陣列本身──setStatus/setNote 等操作都是用
+    // 「這一項在 t.items 裡的原始索引」去改資料，先把 {it,i}（原始索引）配對好，
+    // 排序時只重排這個配對陣列，i 永遠指回正確的那一項，不會點錯。
+    let pairs=t.items.map((it,i)=>({it,i}));
+    if(sortKey==="date_desc")pairs.sort((a,b)=>dateSortVal(b.it.date)-dateSortVal(a.it.date));
+    else if(sortKey==="date_asc")pairs.sort((a,b)=>dateSortVal(a.it.date)-dateSortVal(b.it.date));
+    else if(sortKey==="risk_desc")pairs.sort((a,b)=>(+b.it.risk||0)-(+a.it.risk||0));
+    else if(sortKey==="status")pairs.sort((a,b)=>{const ord={similar:0,pending:1,ok:2,na:3};return (ord[a.it.status]??9)-(ord[b.it.status]??9);});
+    $("#sc-list").innerHTML=pairs.map(({it,i})=>{
       const isAttn=attnMap.has(it.defId)?attnMap.get(it.defId):!!it.attn;
       if(view==="pending"&&it.status!=="pending")return"";
       if(view==="done"&&it.status==="pending")return"";
@@ -29728,38 +29770,56 @@ const SelfCheck={
              <span style="margin-left:auto"><button class="btn sm danger" onclick="SelfCheck.removeItem(${i})">移除</button></span>
            </div>`;
 
-      /* 彙整項目的內容：列出代表性例子，並可展開全部來源缺失 */
+      /* 彙整項目的內容：列出代表性例子（含實際情況），並可展開全部來源缺失。
+         ⚠ 之前這裡把每個範例的缺失詳情截到 220 字、也完全沒帶「實際情況」——
+         船上要靠這些內容判斷自己有沒有同樣的情形，內容被砍掉一半、又少了實際情況，
+         很容易誤判。改成顯示完整內容；沒有 actual 欄位的舊任務（建立於本次修正前）
+         則退而用 refIds／來源缺失 id 回頭查 App.defs 補上。 */
       const samples=(it.samples||[]);
+      const sampleActual=s=>{
+        if(s.actual!==undefined&&s.actual!=="")return s.actual;
+        const d=defsMap.get(s.id);
+        return (d&&d.actual)||"";
+      };
       const bodyHtml=it.grouped
         ? `<div class="sc-lsamples">
              <div class="sc-gsub">其他船舶曾發生的問題：</div>
-             ${samples.length?samples.map(s=>`<div class="sc-lsample">
-                 ${s.imp?`<span class="st ${impCls(s.imp)}">${esc(s.imp)}</span>`:""}
-                 <span class="sc-gs-txt">${esc(String(s.detail||"").slice(0,220))}</span>
+             ${samples.length?samples.map(s=>{
+               const act=sampleActual(s);
+               return `<div class="sc-lsample">
+                 <div>${s.imp?`<span class="st ${impCls(s.imp)}">${esc(s.imp)}</span> `:""}<span class="sc-gs-txt">${esc(String(s.detail||""))}</span></div>
+                 ${act?`<div class="sc-gs-actual">實際情況：${esc(act)}</div>`:""}
                  ${s.ship?`<span class="sc-gs-meta">${esc(s.ship)}${s.date?" · "+esc(s.date):""}</span>`:""}
-               </div>`).join(""):`<div class="hint">（無範例）</div>`}
+               </div>`;
+             }).join(""):`<div class="hint">（無範例）</div>`}
              ${(it.refCount||0)>samples.length?`
                <button class="btn sm" style="margin-top:6px" onclick="SelfCheck.gShowAll(${i})">查看全部 ${it.refCount} 筆 →</button>`:""}
            </div>`
         : `<div class="dtl">${esc(it.detail)}</div>
            ${it.srcActual?`<div class="dtl" style="color:var(--ink-2);border-left-color:var(--teal)">實際情況：${esc(it.srcActual)}</div>`:""}`;
 
+      const ansButtons=`<div class="sc-col-r">
+          <button ${dis} class="${it.status==='ok'?'on-ok':''}" onclick="SelfCheck.setStatus(${i},'ok')">✓ 沒有／已確認無類似缺失</button>
+          <button ${dis} class="${it.status==='similar'?'on-sim':''}" onclick="SelfCheck.setStatus(${i},'similar')">⚠ 有，需處理</button>
+          <button ${dis} class="${it.status==='na'?'on-na':''}" onclick="SelfCheck.setStatus(${i},'na')">⊘ 不適用本船</button>
+          ${it.status!=="pending"?`<button ${dis} class="sc-reset" onclick="SelfCheck.setStatus(${i},'pending')">↺ 改回待查核</button>`:""}
+          ${it.checkedBy?`<span class="hint">✍ ${esc(it.checkedBy)}${it.checkedAt?" · "+esc(it.checkedAt):""}</span>`:""}
+        </div>`;
+
       return `<div class="sc-item ${cls2} ${isAttn?"flag-attn":""}">
         ${metaHtml}
-        ${bodyHtml}
-        ${histBox}
-        <div class="chks">
-          <span class="seg">
-            <button ${dis} class="${it.status==='pending'?'on-pend':''}" onclick="SelfCheck.setStatus(${i},'pending')">待查核</button>
-            <button ${dis} class="${it.status==='ok'?'on-ok':''}" onclick="SelfCheck.setStatus(${i},'ok')">✓ 已確認無類似缺失</button>
-            <button ${dis} class="${it.status==='similar'?'on-sim':''}" onclick="SelfCheck.setStatus(${i},'similar')">⚠ 船上有類似缺失</button>
-            <button ${dis} class="${it.status==='na'?'on-na':''}" onclick="SelfCheck.setStatus(${i},'na')">⊘ 本船不適用</button>
-          </span>
-          ${it.status==="similar"?`
-          <span class="note">處理情形：<input type="text" ${dis} value="${esc(it.note)}" placeholder="簡要說明" onchange="SelfCheck.setNote(${i},this.value)"></span>
-          <label><input type="checkbox" ${dis} ${it.closed?"checked":""} onchange="SelfCheck.setClosed(${i},this.checked)"> 結案</label>`:""}
-          ${it.checkedBy?`<span class="hint" style="margin-left:8px">✍ ${esc(it.checkedBy)}${it.checkedAt?" · "+esc(it.checkedAt):""}</span>`:""}
+        <div class="sc-row2">
+          <div class="sc-col-l">
+            ${bodyHtml}
+            ${histBox}
+          </div>
+          ${ansButtons}
         </div>
+        ${it.status==="similar"?`
+        <div class="chks">
+          <span class="note">處理情形：<input type="text" ${dis} value="${esc(it.note)}" placeholder="簡要說明" onchange="SelfCheck.setNote(${i},this.value)"></span>
+          <label><input type="checkbox" ${dis} ${it.closed?"checked":""} onchange="SelfCheck.setClosed(${i},this.checked)"> 結案</label>
+        </div>`:""}
       </div>`;
     }).join("")||`<div class="empty"><div class="big">☑</div>此檢視下無項目</div>`;
   },
