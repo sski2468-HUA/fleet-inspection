@@ -1880,7 +1880,20 @@ table.gnv-matrix td.pagecell:hover{background:var(--teal-l);color:var(--teal)}
 @media(max-width:820px){
   .def2col-r{border-left:none;border-top:2px solid rgba(0,0,0,.08)}
 }
-.air-rs-tabwrap{display:flex;align-items:center;border-radius:7px;overflow:hidden;border:1.5px solid;flex:none}
+.air-rs-tabwrap{display:flex;align-items:center;border-radius:7px;overflow:hidden;border:1.5px solid;flex:none;transition:box-shadow .15s}
+/* ⚠ .air-rs-tab 原本是純 <button> 沒有樣式重置，瀏覽器預設的按鈕底色（灰白）會蓋掉外層
+   .air-rs-tabwrap 用 inline style 設的背景色，導致「目前點選在哪一筆」幾乎看不出來——
+   這裡重置成透明底、繼承外層顏色，並加粗字重，讓 active 狀態的深色底+白字真的顯示出來。 */
+.air-rs-tab{background:none;border:none;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1.3}
+.air-rs-tabwrap.sel{box-shadow:0 0 0 2px #e8842c}
+/* ⚠ 匯出視窗原本是「按鈕文字＋<br>＋說明」全部塞在同一個 <button> 裡，但 .btn 有
+   white-space:nowrap，說明那行不會自動換行，一長就直接被彈窗寬度截斷、完全看不到。
+   改成左邊固定寬度的按鈕（純標籤）、右邊獨立的說明區塊（可正常換行），點整列都算點擊，
+   說明才看得到、也不用每個按鈕自己再處理換行。 */
+.air-export-row{display:flex;align-items:stretch;border:1px solid var(--line-2);border-radius:6px;overflow:hidden;cursor:pointer;transition:border-color .15s}
+.air-export-row:hover{border-color:var(--navy-3,#2e6db4)}
+.air-export-row-btn{flex:0 0 168px;border-radius:0;border:none;border-right:1px solid rgba(0,0,0,.1);white-space:normal;text-align:center;line-height:1.4;pointer-events:none}
+.air-export-row-desc{flex:1;padding:8px 14px;display:flex;align-items:center;font-size:12px;line-height:1.6}
 /* 概念卡片：跟外部「對外回覆編輯」頁面（submit-airreply.html）同一套排版語言——
    一個概念一張卡（缺失狀況說明／矯正措施／根本原因／預防措施），船上填寫版本在上（這裡可編輯），
    岸上對外回覆在下（唯讀參考，中英文並排）。兩邊看習慣同一套視覺語言，不用切換時重新適應。 */
@@ -5317,22 +5330,22 @@ https://github.com/nodeca/pako/blob/main/LICENSE
      並多顯示「其他格式」（CAR官方格式／PDF，這兩種本來就沒有支援批次匯出）；
      Air._exportId 是 null 時代表批次（用清單勾選的幾筆，或沒勾就是全部）。 -->
 <div class="modal-bg" id="airExportPickModal">
-  <div class="modal" style="max-width:440px">
+  <div class="modal" style="max-width:640px">
     <div class="mh"><h3>⬇ 匯出</h3><button class="x" onclick="Air.closeExportPickModal()">✕</button></div>
     <div class="mb">
       <p class="hint" style="margin-bottom:10px" id="air-export-scope-hint">若已勾選特定幾筆，只匯出勾選的；未勾選任何一筆則匯出全部。前三種都能用「＋新增／匯入」讀回系統，船上網路不好時可用這幾種格式把資料帶回來給維護人員匯入。</p>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.closeExportPickModal();Air.exportXlsx(Air._exportId?[Air._exportId]:undefined)">⬇ 匯出 Excel（可匯入）<br><span style="font-weight:400;font-size:11px">缺失明細＋岸上對外回覆文字，可直接用「⬆ 匯入」讀回更新；不含照片本身（只有張數）</span></button>
-        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.closeExportPickModal();Air.exportDefectsDocx(Air._exportId?[Air._exportId]:undefined)">⬇ 匯出 Word（可匯入）<br><span style="font-weight:400;font-size:11px">缺失明細＋岸上對外回覆＋照片＋代碼對照表，可直接用「⬆ 匯入」讀回更新</span></button>
-        <button class="btn primary" style="width:100%;text-align:left" onclick="Air.closeExportPickModal();Air.exportJson(Air._exportId?[Air._exportId]:undefined)">⬇ 匯出 JSON（可匯入）<br><span style="font-weight:400;font-size:11px">跟船上 submit-airform 匯出草稿存檔同一種格式，含完整照片＋對外回覆，檔案最小</span></button>
-        <button class="btn" style="width:100%;text-align:left" onclick="Air.closeExportPickModal();Air.exportTemplate()">📋 匯入範本－Excel<br><span style="font-weight:400;font-size:11px">空白範本，欄位皆為下拉選單，適合離線填寫</span></button>
-        <button class="btn" style="width:100%;text-align:left" onclick="Air.closeExportPickModal();Air.exportDefectsDocx(null,true)">📋 匯入範本－Word<br><span style="font-weight:400;font-size:11px">空白範本，附完整代碼對照表供人工圈選/填寫</span></button>
+        <div class="air-export-row" onclick="Air.closeExportPickModal();Air.exportXlsx(Air._exportId?[Air._exportId]:undefined)"><button class="btn primary air-export-row-btn" tabindex="-1">⬇ 匯出 Excel<br><span style="font-weight:400">（可匯入）</span></button><div class="hint air-export-row-desc">缺失明細＋岸上對外回覆文字，可直接用「⬆ 匯入」讀回更新；不含照片本身（只有張數）</div></div>
+        <div class="air-export-row" onclick="Air.closeExportPickModal();Air.exportDefectsDocx(Air._exportId?[Air._exportId]:undefined)"><button class="btn primary air-export-row-btn" tabindex="-1">⬇ 匯出 Word<br><span style="font-weight:400">（可匯入）</span></button><div class="hint air-export-row-desc">缺失明細＋岸上對外回覆＋照片＋代碼對照表，可直接用「⬆ 匯入」讀回更新</div></div>
+        <div class="air-export-row" onclick="Air.closeExportPickModal();Air.exportJson(Air._exportId?[Air._exportId]:undefined)"><button class="btn primary air-export-row-btn" tabindex="-1">⬇ 匯出 JSON<br><span style="font-weight:400">（可匯入）</span></button><div class="hint air-export-row-desc">跟船上 submit-airform 匯出草稿存檔同一種格式，含完整照片＋對外回覆，檔案最小</div></div>
+        <div class="air-export-row" onclick="Air.closeExportPickModal();Air.exportTemplate()"><button class="btn air-export-row-btn" tabindex="-1">📋 匯入範本<br><span style="font-weight:400">－Excel</span></button><div class="hint air-export-row-desc">空白範本，欄位皆為下拉選單，適合離線填寫</div></div>
+        <div class="air-export-row" onclick="Air.closeExportPickModal();Air.exportDefectsDocx(null,true)"><button class="btn air-export-row-btn" tabindex="-1">📋 匯入範本<br><span style="font-weight:400">－Word</span></button><div class="hint air-export-row-desc">空白範本，附完整代碼對照表供人工圈選/填寫</div></div>
         <div id="air-export-single-only" style="display:none">
           <div class="divider" style="margin:10px 0"><div class="line"></div><div class="icon">其他格式（僅供閱讀，不支援匯入）</div><div class="line"></div></div>
           <div style="display:flex;flex-direction:column;gap:8px">
-            <button class="btn" style="width:100%;text-align:left" onclick="Air.exportRecordPdf(Air._exportId);Air.closeExportPickModal()">🖨 PDF（列印/另存）<br><span style="font-weight:400;font-size:11px">給督導留存查看用，逐筆缺失含矯正前/後照片，瀏覽器列印視窗選「另存為 PDF」</span></button>
-            <button class="btn" style="width:100%;text-align:left" onclick="Air.exportCarDocx(Air._exportId,false);Air.closeExportPickModal()">⬇ Word CAR（純英文，官方格式）<br><span style="font-weight:400;font-size:11px">橫向排版，僅顯示對外回覆的英文內容，給外部/督導看，不支援匯入回填</span></button>
-            <button class="btn" style="width:100%;text-align:left" onclick="Air.exportCarDocx(Air._exportId,true);Air.closeExportPickModal()">⬇ Word CAR（中英文，可回填對外回覆）<br><span style="font-weight:400;font-size:11px">官方格式，中英文對照；改完用「✏對外回覆編輯→⬆匯入Word」讀回，只會更新對外回覆文字，不會動缺失明細本身</span></button>
+            <div class="air-export-row" onclick="Air.exportRecordPdf(Air._exportId);Air.closeExportPickModal()"><button class="btn air-export-row-btn" tabindex="-1">🖨 PDF<br><span style="font-weight:400">（列印/另存）</span></button><div class="hint air-export-row-desc">給督導留存查看用，逐筆缺失含矯正前/後照片，瀏覽器列印視窗選「另存為 PDF」</div></div>
+            <div class="air-export-row" onclick="Air.exportCarDocx(Air._exportId,false);Air.closeExportPickModal()"><button class="btn air-export-row-btn" tabindex="-1">⬇ Word CAR<br><span style="font-weight:400">（純英文，官方格式）</span></button><div class="hint air-export-row-desc">橫向排版，僅顯示對外回覆的英文內容，給外部/督導看，不支援匯入回填</div></div>
+            <div class="air-export-row" onclick="Air.exportCarDocx(Air._exportId,true);Air.closeExportPickModal()"><button class="btn air-export-row-btn" tabindex="-1">⬇ Word CAR<br><span style="font-weight:400">（中英文，可回填對外回覆）</span></button><div class="hint air-export-row-desc">官方格式，中英文對照；改完用「✏對外回覆編輯→⬆匯入Word」讀回，只會更新對外回覆文字，不會動缺失明細本身</div></div>
           </div>
         </div>
       </div>
@@ -20647,6 +20660,79 @@ const Air={
   addDefectRow(){this.defRows.push(this.blankDefect());this.activeDefRowIdx=this.defRows.length-1;this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
   rmDefectRow(id){this.defRows=this.defRows.filter(r=>r.id!==id);this.defSel.delete(id);this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
   syncNdefField(){const el=$("#air-ndef");if(el)el.value=this.defRows.length;},
+  /* ── 缺失明細照片（矯正前/後）：原本這裡只有唯讀縮圖（船上填單附帶的才看得到），維護者／督導
+     在「填單紀錄」編輯缺失時完全沒有上傳功能，只有「缺失紀錄總表」的編輯視窗才能傳照片——
+     等於督導事後補照片還得先轉入缺失紀錄總表才能傳，本末倒置。這裡比照 Defs.addPhotos／
+     Defs.renderPhotoThumbs 同一套壓縮＋（可用時）上傳 Storage 的邏輯，做一份 id 可變動版本
+     （這裡一張卡可能同時有好幾筆缺失，DOM id 要帶 r.id 才不會互撞），並比照同一個
+     PhotoUpload.enabled 開關決定是否顯示，跟缺失紀錄總表那邊行為一致。 ── */
+  renderDefPhotoSection(r,canEdit){
+    if(typeof PhotoUpload!=="undefined"&&!PhotoUpload.enabled){
+      return ((r.photosBefore&&r.photosBefore.length)||(r.photosAfter&&r.photosAfter.length))?
+        `<div style="font-size:12px;color:var(--ink-2);font-weight:600;margin-bottom:10px">📷 矯正前/後照片（點縮圖放大）${photoStripHtml(r,"airedit_"+r.id)}</div>`:"";
+    }
+    if(!canEdit){
+      return ((r.photosBefore&&r.photosBefore.length)||(r.photosAfter&&r.photosAfter.length))?
+        `<div style="font-size:12px;color:var(--ink-2);font-weight:600;margin-bottom:10px">📷 矯正前/後照片（點縮圖放大）${photoStripHtml(r,"airedit_"+r.id)}</div>`:"";
+    }
+    const kindBox=(kind,label)=>{
+      const key=kind==="before"?"photosBefore":"photosAfter";
+      const list=r[key]||[];
+      const thumbs=list.map((p,idx)=>{
+        const src=(p.url||p.dataUrl||"").replace(/'/g,"\\'");
+        return `<div style="position:relative;display:inline-block">
+          <img src="${p.url||p.dataUrl}" title="${esc(p.name||"")}" onclick="Photobox.open('${src}','${esc(p.name||"")}')" style="width:60px;height:60px;object-fit:cover;border-radius:5px;border:1px solid var(--line-2);cursor:pointer">
+          <button type="button" onclick="Air.removeDefPhoto(${r.id},'${kind}',${idx})" title="刪除" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--bad);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1;padding:0">✕</button>
+        </div>`;
+      }).join("");
+      return `<div style="min-width:180px">
+        <div class="hint" style="margin-bottom:4px">${label}（${list.length}/3）</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${thumbs}</div>
+        <button class="btn sm" onclick="document.getElementById('air-def-photoin-${kind}-${r.id}').click()" ${list.length>=3?"disabled":""}>＋ 新增照片</button>
+        <input type="file" id="air-def-photoin-${kind}-${r.id}" accept="image/*" multiple style="display:none" onchange="Air.addDefPhotos(${r.id},'${kind}',this.files);this.value=''">
+      </div>`;
+    };
+    return `<div style="margin-bottom:14px">
+      <div style="font-size:12px;color:var(--ink-2);font-weight:600;margin-bottom:8px">📷 矯正前/後照片（每種最多 3 張）</div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">${kindBox("before","矯正前")}${kindBox("after","矯正後")}</div>
+    </div>`;
+  },
+  async addDefPhotos(rid,kind,files){
+    const r=this.defRows.find(x=>x.id===rid);if(!r)return;
+    const key=kind==="before"?"photosBefore":"photosAfter";
+    if(!Array.isArray(r[key]))r[key]=[];
+    const list=r[key];
+    const room=3-list.length;
+    if(room<=0){toast(`⚠ 矯正${kind==="before"?"前":"後"}照片最多 3 張，請先刪除舊的再新增`);return;}
+    const picked=[...files].slice(0,room);
+    if(files.length>room)toast(`超過張數上限，只加入前 ${room} 張`);
+    for(const f of picked){
+      if(!/^image\//.test(f.type))continue;
+      try{
+        const {dataUrl,w,h}=await compressPhotoForUpload(f);
+        let entry={name:f.name||"photo.jpg",dataUrl,w,h};
+        if(typeof PhotoUpload!=="undefined"&&PhotoUpload.enabled&&typeof Cloud!=="undefined"&&Cloud.enabled()){
+          try{
+            const airRec=App.air.find(x=>x.id===this.editId);
+            const folder=`${(airRec&&airRec.ship)||"未填船名"}/${(airRec&&airRec.date)||"未填日期"}`;
+            const uploaded=await uploadDefectPhotoToStorage(entry,folder);
+            entry={...entry,...uploaded};
+          }catch(e){console.warn("air defect photo upload failed, keep base64 fallback",e);}
+        }
+        list.push(entry);
+      }catch(e){toast(`「${f.name}」處理失敗：${e.message||"未知錯誤"}`);}
+    }
+    this.renderDefectRows();
+    this.scheduleFormAutoSave();
+  },
+  removeDefPhoto(rid,kind,idx){
+    const r=this.defRows.find(x=>x.id===rid);if(!r)return;
+    const key=kind==="before"?"photosBefore":"photosAfter";
+    if(!Array.isArray(r[key]))return;
+    r[key].splice(idx,1);
+    this.renderDefectRows();
+    this.scheduleFormAutoSave();
+  },
   DEF_XLSX_HDR:["PSC Action Taken","CODE","缺失詳情","實際情況","改善措施","根本原因","預防措施","責任人職位","責任人姓名","問題別","大類","具體名稱","三要素","重要程度","重點關注","缺失性質判定","風險",
     "岸上_InitialOperatorComment_中文","岸上_InitialOperatorComment_English","岸上_直接原因ImmediateCause_中文","岸上_直接原因ImmediateCause_English",
     "岸上_矯正措施CorrectiveAction_中文","岸上_矯正措施CorrectiveAction_English","岸上_根本原因RootCause_中文","岸上_根本原因RootCause_English",
@@ -20742,12 +20828,18 @@ const Air={
         ${this.defRows.map((r,i)=>{
           const on=i===this.activeDefRowIdx;
           const [bd]=this.CARD_PALETTE[i%this.CARD_PALETTE.length];
-          return `<div class="air-rs-tabwrap" style="border-color:${bd};${on?`background:${bd}`:"background:#fff"}">
-            <label style="display:flex;align-items:center;padding-left:8px;cursor:pointer" title="勾選以進行批次操作（刪除／匯出等），跟切換分頁互不影響" onclick="event.stopPropagation()"><input type="checkbox" ${this.defSel.has(r.id)?"checked":""} onchange="Air.toggleDefSel(${r.id},this.checked)"></label>
+          const sel=this.defSel.has(r.id);
+          return `<div class="air-rs-tabwrap${sel?" sel":""}" style="border-color:${bd};${on?`background:${bd}`:"background:#fff"}">
+            <label style="display:flex;align-items:center;padding-left:8px;cursor:pointer" title="勾選以進行批次操作（刪除／匯出／合併等），跟切換分頁互不影響" onclick="event.stopPropagation()"><input type="checkbox" ${sel?"checked":""} onchange="Air.toggleDefSel(${r.id},this.checked)"></label>
             <button type="button" class="air-rs-tab" style="color:${on?"#fff":bd}" onclick="Air.setActiveDefRow(${i})">#${i+1}${r.code?" · CODE "+esc(r.code):""}</button>
           </div>`;
         }).join("")}
-      </div>`:"";
+      </div>${canEditDef&&this.defSel.size>1?`
+      <div style="margin-top:-6px;margin-bottom:14px;padding:8px 10px;background:#fdf6ec;border:1px solid #f1e2c4;border-radius:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="hint" style="font-size:12px">已勾選 ${this.defSel.size} 筆準備合併</span>
+        <button class="btn sm dark" onclick="Air.mergeSelectedDefRows()">🔗 合併已勾選的 ${this.defSel.size} 筆</button>
+        <button class="btn sm" onclick="Air.defSel.clear();Air.renderDefectRows();">清除勾選</button>
+      </div>`:""}`:"";
     const i=this.activeDefRowIdx;
     const r=this.defRows[i];
     if(!r){box.innerHTML=tabsHtml+`<p class="hint" style="padding:16px 0">尚無缺失明細，請按上方「新增一筆缺失明細」。</p>`;this.defMs={};return;}
@@ -20811,7 +20903,7 @@ const Air={
         </div>
         </div>
         <div style="padding:14px 18px;border-top:1px solid var(--line)">
-          ${((r.photosBefore&&r.photosBefore.length)||(r.photosAfter&&r.photosAfter.length))?`<div style="font-size:12px;color:var(--ink-2);font-weight:600;margin-bottom:10px">📷 矯正前/後照片（船上填單附帶，點縮圖放大）${photoStripHtml(r,"airedit_"+r.id)}</div>`:""}
+          ${this.renderDefPhotoSection(r,canEditDef)}
           <div class="air-def-shortrow">
             <div class="adf-item" style="max-width:250px"><label>🔧 設備大類</label><select class="air-in" id="air-def-eqmain-${r.id}" onchange="Air.defSetMain(${r.id},'eq',this.value)"></select><div id="air-def-eqleaf-${r.id}" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px"></div></div>
             <div class="adf-item" style="max-width:250px"><label>⚙️ 作業大類</label><select class="air-in" id="air-def-opmain-${r.id}" onchange="Air.defSetMain(${r.id},'op',this.value)"></select><div id="air-def-opleaf-${r.id}" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px"></div></div>
@@ -21059,8 +21151,59 @@ const Air={
     }
     this.renderPosRows();
   },
-  toggleDefSel(id,on){on?this.defSel.add(id):this.defSel.delete(id);},
+  // ⚠ 原本這裡勾選後不會重新渲染——單純只是瀏覽器自己把checkbox打勾，畫面上完全看不出
+  // 「勾了有沒有用」，使用者會誤以為勾選已經沒有作用。現在勾選同時驅動分頁外框的選取樣式
+  // 與合併操作列的顯示/隱藏，才看得出勾選確實有反應。
+  toggleDefSel(id,on){on?this.defSel.add(id):this.defSel.delete(id);this.renderDefectRows();},
   toggleAllDefSel(on){this.defSel=on?new Set(this.defRows.map(r=>r.id)):new Set();this.renderDefectRows();},
+  /* ── 缺失合併：有時候同一個 SIRE 缺失船上會拆成 HUMAN／HARDWARE 兩筆填，但督導覆核時
+     認為算同一案，就會想把兩筆併成一筆——內容是「依序合併保留」（各欄位前面標註原CODE），
+     不是拿其中一筆去蓋掉另一筆，避免遺失任何一邊已經填好的內容。這組功能以前掛在已經沒有
+     入口的舊版「對外回覆」內嵌分頁，這裡搬到「②缺失明細及對外回覆」分頁（目前實際在用的
+     畫面），沿用勾選框（跟批次匯出/轉入共用同一組 defSel）。 ── */
+  mergeSelectedDefRows(){
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／管理員可合併缺失明細");return;}
+    const idxs=this.defRows.map((r,i)=>this.defSel.has(r.id)?i:-1).filter(i=>i>=0);
+    if(idxs.length<2){toast("⚠ 請至少勾選 2 筆要合併的缺失");return;}
+    if(!confirm(`確定要將勾選的 ${idxs.length} 筆缺失合併成同一案？\n\n缺失詳情、實際情況、改善措施等內容與矯正前/後照片會依序合併保留（不會遺失，照片超過3張的部分會被截掉），原本的 CODE 會記錄在合併後的標籤上；已填寫的對外回覆內容也會一併合併。此動作無法復原，建議先確認內容已無誤。\n\n確定要繼續？`))return;
+    const d=App.air.find(x=>x.id===this.editId);
+    if(!d)return;
+    this.ensureReply(d);
+    const rows=idxs.map(i=>this.defRows[i]);
+    const joinField=(arr,key)=>arr.map(x=>x[key]?`【原CODE ${esc(x.code||"?")}】${x[key]}`:"").filter(Boolean).join("\n\n");
+    const merged=Object.assign({},rows[0]);
+    ["detail","actual","corrective","rootCause","preventive","opComment","immediateCause"].forEach(k=>{merged[k]=joinField(rows,k);});
+    merged.mergedCodes=rows.map(x=>x.code).filter(Boolean);
+    merged.photosBefore=[].concat(...rows.map(x=>x.photosBefore||[])).slice(0,3);
+    merged.photosAfter=[].concat(...rows.map(x=>x.photosAfter||[])).slice(0,3);
+    const peopleAll=[].concat(...rows.map(x=>x.people||[])).filter(p=>p.rank||p.person);
+    merged.people=peopleAll.length?peopleAll:[{rank:"",person:""}];
+    const mergeRps=idxs.map(i=>d.reply.items[i]||{});
+    const mergedRp={};
+    ["opComment","immediateCause","rootCause","corrective","preventive"].forEach(k=>{
+      mergedRp[k+"Cn"]=joinField(mergeRps.map((rp,n)=>({[k+"Cn"]:rp[k+"Cn"],code:rows[n].code})),k+"Cn");
+      mergedRp[k+"En"]=joinField(mergeRps.map((rp,n)=>({[k+"En"]:rp[k+"En"],code:rows[n].code})),k+"En");
+    });
+    mergedRp.hasEvidence=mergeRps.some(rp=>rp.hasEvidence);
+    mergedRp.supportingMaterial=mergeRps.map(rp=>rp.supportingMaterial).filter(Boolean).join("；");
+    mergedRp.evidenceFiles=[].concat(...mergeRps.map(rp=>rp.evidenceFiles||[]));
+    mergedRp.notify={to:"",note:"",from:"",at:0,status:"",ackNote:"",ackAt:0};
+    const keepPos=idxs[0];
+    const dropIdxSet=new Set(idxs.slice(1));
+    const newDefRows=[],newReplyItems=[];
+    this.defRows.forEach((row,i)=>{
+      if(i===keepPos){newDefRows.push(merged);newReplyItems.push(mergedRp);}
+      else if(!dropIdxSet.has(i)){newDefRows.push(row);newReplyItems.push(d.reply.items[i]||{});}
+    });
+    this.defRows=newDefRows;
+    d.reply.items=newReplyItems;
+    this.defSel.clear();
+    this.activeDefRowIdx=newDefRows.indexOf(merged);
+    this.syncNdefField();
+    this.renderDefectRows();
+    this.scheduleFormAutoSave();
+    toast(`✓ 已合併為 1 筆（原 ${idxs.length} 筆），記得確認合併後內容`);
+  },
   togglePosSel(id,on){on?this.posSel.add(id):this.posSel.delete(id);},
   toggleAllPosSel(on){this.posSel=on?new Set(this.posRows.map(r=>r.id)):new Set();this.renderPosRows();},
   renderPosRows(){
