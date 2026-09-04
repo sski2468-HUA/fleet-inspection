@@ -27738,6 +27738,19 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
   }
 };
 RecordSync._cleanupBloatedSnapshotsOnce();
+/* 自檢任務的本機數字 id：不能再用「目前最大 id + 1」算——任務刪除後這個數字會被
+   回收給下一個新建的任務重用，但外部自查頁面的作答草稿（selfcheck_drafts）是用
+   這個數字當 task_id 存進 Supabase（該欄位是數字型別，無法直接改存 gid 字串），
+   一旦 id 被回收，新任務就可能撿到舊任務（甚至別艘船、別次自查）留下的作答草稿，
+   使用者會看到「剛建立的任務卻已經有好幾題被查核過」——每艘船、每次自查應該互不
+   相干（case by case），絕不能因為 id 剛好被回收就共用到別的任務的資料。
+   改用「目前時間戳記，同一毫秒內遞增」產生，一經指派後就不再重用，从根本杜絕撞號。 */
+let _scTaskIdSeq=0;
+function nextScTaskId(){
+  const base=Date.now();
+  _scTaskIdSeq=(_scTaskIdSeq>=base)?_scTaskIdSeq+1:base;
+  return _scTaskIdSeq;
+}
 const Cloud={
 
   KEY:"vsm_cloud_v1",cfg:{url:CLOUD_DEFAULT.url,key:CLOUD_DEFAULT.key,auto:CLOUD_DEFAULT.auto},_snap:{},_timer:null,_busy:false,
@@ -28282,7 +28295,7 @@ const Cloud={
         const lt=local.get(r.gid);
         if(!lt){
           const t=r.payload;t.gid=r.gid;
-          t.id=App.tasks.reduce((m,x)=>Math.max(m,x.id||0),0)+1;
+          t.id=nextScTaskId();
           App.tasks.unshift(t);pulled++;
         }else if((r.updated||0)>(lt.updated||0)){
           const keepId=lt.id;
@@ -28739,7 +28752,6 @@ const DefsProj={
     const allChecked=$("#dfp-tw-all").checked;
     const ships=allChecked?SHIPINFO.filter(s=>s.operator==="FPMC").map(s=>s.code):[...this.ms.twShip.sel];
     if(!ships.length){toast("⚠ 請至少選擇一艘船，或勾選全船隊");return;}
-    let nid=App.tasks.reduce((m,x)=>Math.max(m,x.id||0),0);
     const created=[];
     ships.forEach(s=>{
       const items=p.checklist.map((it,i)=>({
@@ -28748,7 +28760,7 @@ const DefsProj={
         ncMain:p.name,ncLeaf:"",risk:"",attn:false,
         detail:it.text,actual:"",status:"pending",note:"",closed:false
       }));
-      const t={id:++nid,ship:s,date:todayStr(),title:`專案盤查：${p.name}`,inspector:(typeof Audit!=="undefined")?Audit.user():"",
+      const t={id:nextScTaskId(),ship:s,date:todayStr(),title:`專案盤查：${p.name}`,inspector:(typeof Audit!=="undefined")?Audit.user():"",
         created:todayStr(),items};
       App.tasks.unshift(t);created.push(t);
     });
@@ -29489,9 +29501,8 @@ const SelfCheck={
       const ships=[...this.msTgt.sel];
       if(!ships.length){toast("⚠ 批次模式請至少選擇一艘自查船舶");return;}
       const created=[];
-      let nid=App.tasks.reduce((m,x)=>Math.max(m,x.id||0),0);
       ships.forEach(s=>{
-        const t={id:++nid,ship:s,date,title:title||"船隊自檢",inspector,created:todayStr(),createdBy:(typeof Role!=="undefined"?Role.name():""),
+        const t={id:nextScTaskId(),ship:s,date,title:title||"船隊自檢",inspector,created:todayStr(),createdBy:(typeof Role!=="undefined"?Role.name():""),
           items:this.mkItems(rows).map(it=>({...it}))};
         App.tasks.unshift(t);created.push(t);
       });
@@ -29507,7 +29518,7 @@ const SelfCheck={
     }
     const ship=$("#tw-ship").value;
     if(!ship){toast("⚠ 請選擇自查船舶");return;}
-    const t={id:App.tasks.reduce((m,x)=>Math.max(m,x.id||0),0)+1,
+    const t={id:nextScTaskId(),
       ship,date,title,inspector,
       created:todayStr(),createdBy:(typeof Role!=="undefined"?Role.name():""),items:this.mkItems(rows)};
     App.tasks.unshift(t);App.curTaskId=t.id;App.saveAll();
@@ -30251,8 +30262,7 @@ const SelfCheck={
     toast(`已匯出任務 JS 檔（含 ${Object.keys(sourceDefs).length} 筆來源缺失）`);
   },
   ingest(j){
-    const nextId=()=>App.tasks.reduce((m,x)=>Math.max(m,x.id||0),0)+1;
-    const norm=t=>({...t,id:nextId(),created:t.created||todayStr(),inspector:t.inspector||"",
+    const norm=t=>({...t,id:nextScTaskId(),created:t.created||todayStr(),inspector:t.inspector||"",
       items:(t.items||[]).map(it=>({...it,status:it.status||(it.similar?"similar":(it.confirmed?"ok":"pending")),note:it.note||"",closed:!!it.closed}))});
     // 依 gid 比對：若本機已有相同任務（gid 相同），就地更新覆蓋而非新增，避免重複任務造成雲端同步衝突；
     // 若雙方皆有時間戳，僅匯入版本較新時才覆蓋，較舊則略過並保留本機版本。沒有 gid（舊版匯出檔）則一律視為新任務。
