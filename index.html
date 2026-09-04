@@ -10004,7 +10004,20 @@ function MSel(elId,label,getOptions,onChange){
     // 同一時間只展開一個下拉面板，避免像「問題別」「大類」這種放在同一張卡片、
     // 但各自獨立容器的欄位，因為各自的直屬父層裡只有自己，導致關不掉彼此、同時開好幾個。
     $$(".msel.open").forEach(m=>m.classList.remove("open"));
-    if(!was){root.classList.add("open");renderPanel();const p=root.querySelector(".panel");if(p)p.setAttribute("data-title","選擇"+label+"（可單選或多選）");}};
+    if(!was){
+      root.classList.add("open");renderPanel();
+      const p=root.querySelector(".panel");
+      if(p){
+        p.setAttribute("data-title","選擇"+label+"（可單選或多選）");
+        // 面板預設從按鈕左邊界往右展開，若欄位靠近視窗（或彈出視窗）右側，寬版面板
+        // 會被撐出可視範圍外變成看不到/點不到——開啟後偵測一次，超出就改成靠右對齊往左展開。
+        p.style.left="0";p.style.right="auto";
+        requestAnimationFrame(()=>{
+          const r=p.getBoundingClientRect();
+          if(r.right>window.innerWidth-8){p.style.left="auto";p.style.right="0";}
+        });
+      }
+    }};
   document.addEventListener("click",e=>{if(!root.contains(e.target))root.classList.remove("open");});
   return {get sel(){return st.sel;},clear(){st.sel.clear();refreshBtn();},pass(v){return st.sel.size===0||st.sel.has(v);},
     set(arr){st.sel=new Set(arr);refreshBtn();},refresh(){refreshBtn();}};
