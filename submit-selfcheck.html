@@ -213,7 +213,7 @@ function preparePrint(){
   const stLabel={ok:"✅ 沒有",similar:"⚠️ 需處理",na:"➖ 不適用",pending:"（未作答）"};
   const rows=items.map((it,i)=>{
     const refTxt=it.grouped&&Array.isArray(it.samples)&&it.samples.length
-      ? it.samples.map(s=>`${esc(s.ship||"")} ${esc(s.date||"")} ${esc((s.detail||"").slice(0,70))}`).join("；")
+      ? it.samples.map(s=>`${esc(s.ship||"")} ${esc(s.date||"")}：${esc(s.detail||"")}${s.actual?"（實際情況："+esc(s.actual)+"）":""}`).join("；")
       : "";
     return `<tr>
       <td class="pnum">${i+1}</td>
@@ -237,9 +237,11 @@ function preparePrint(){
   setTimeout(()=>window.print(),50);
 }
 function renderRef(it){
+  // ⚠ 之前這裡把每個範例砍到160字、也完全沒帶「實際情況」——船上要靠這些內容判斷
+  // 自己有沒有同樣的情形，內容被砍一半、又少了實際情況，很容易誤判。改成完整顯示。
   if(it.grouped && Array.isArray(it.samples) && it.samples.length){
     return `<div class="refbox"><b>其他船舶曾發生的問題：</b>${it.samples.map(s=>
-      `<div class="samp">${esc(s.ship||"")}　${esc(s.date||"")}　${esc((s.detail||"").slice(0,160))}${(s.detail||"").length>160?"…":""}</div>`
+      `<div class="samp">${esc(s.ship||"")}　${esc(s.date||"")}<br>${esc(s.detail||"")}${s.actual?`<br><span style="color:#8195a0">實際情況：${esc(s.actual)}</span>`:""}</div>`
     ).join("")}</div>`;
   }
   return `<div class="refbox">
