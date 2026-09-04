@@ -29298,6 +29298,7 @@ const SelfCheck={
     }
     Object.values(this.msW).forEach(m=>m.clear());
     $("#tw-kw").value="";
+    this._wizExcluded=new Set();this._wizSort="freq";
     this.wizCount();
     $("#taskModal").classList.add("show");
   },
@@ -29327,8 +29328,12 @@ const SelfCheck={
     const p=(d.ncProb||"").trim();
     return p?p+"（未分類）":"（未分類）";
   },
-  groupRows(rows,level){
+  /* sortBy："freq"（預設，依出現筆數）或 "imp"（依重要程度：高重要程度筆數多的排前面，
+     同分再比筆數）——量大時（例如半年份幾百筆）讓督導能快速抓出「最常發生」或「最嚴重」
+     的查核重點，挑前幾大給船上查，不用逐項瀏覽全部重點才能判斷該保留哪些。 */
+  groupRows(rows,level,sortBy){
     level=level||this.groupLevel;
+    sortBy=sortBy||"freq";
     if(level==="none")return null;
     const map=new Map();
     // 大類／具體名稱支援多選（用 ‖ 分隔存多個標籤）：之前直接拿整串字串當分組鍵值，
@@ -29343,11 +29348,13 @@ const SelfCheck={
         map.get(k).push(d);
       });
     });
+    const IMPW={"高":3,"中":2,"低":1};
     return [...map.entries()]
       .map(([key,list])=>({
         key,
         list,
         n:list.length,
+        highN:list.filter(d=>d.ncImp==="高").length,   // 重要程度＝高的筆數，供「依重要程度」排序用
         /* 代表性例子：優先取重要程度高、日期新的，讓船上一眼看到最該注意的 */
         samples:[...list].sort((a,b)=>{
           const w={"高":3,"中":2,"低":1};
@@ -29355,19 +29362,36 @@ const SelfCheck={
           return d!==0?d:dateSortVal(b.date)-dateSortVal(a.date);
         }).slice(0,3)
       }))
-      .sort((a,b)=>b.n-a.n);   // 筆數多的排前面＝越常發生越該先查
+      .sort((a,b)=>{
+        if(sortBy==="imp"){const d=b.highN-a.highN;return d!==0?d:b.n-a.n;}
+        return b.n-a.n;   // 筆數多的排前面＝越常發生越該先查（預設）
+      });
   },
   _wizExcluded:new Set(),
+  _wizSort:"freq",
   toggleWizGroup(key){
     if(this._wizExcluded.has(key))this._wizExcluded.delete(key);
     else this._wizExcluded.add(key);
     this.renderWizPreview();
   },
+  setWizSort(v){this._wizSort=v;this.renderWizPreview();},
+  /* 依目前排序（頻率／重要程度）取前 N 個查核重點，其餘自動排除——量大時（例如半年
+     份幾百筆缺失彙整出來的幾十個重點）不用逐項勾掉，一次抓出「重點中的重點」給船上查。 */
+  applyWizTopN(){
+    const n=parseInt($("#tw-topn").value,10);
+    if(!n||n<1){toast("⚠ 請輸入大於 0 的數字");return;}
+    const groups=this.groupRows(this.wizRows(),this.groupLevel,this._wizSort);
+    if(!groups){toast("⚠ 目前為「不彙整」模式，請先切換到「大類」或「具體名稱」再套用");return;}
+    this._wizExcluded=new Set(groups.slice(n).map(g=>g.key));
+    this.renderWizPreview();
+    toast(`✓ 已保留前 ${Math.min(n,groups.length)} 個查核重點（依${this._wizSort==="imp"?"重要程度":"出現頻率"}排序）`);
+  },
+  clearWizExcluded(){this._wizExcluded=new Set();this.renderWizPreview();},
   renderWizPreview(){
     const box=$("#tw-preview");if(!box)return;
     const rows=this.wizRows();
     const lvl=this.groupLevel;
-    const groups=this.groupRows(rows,lvl);
+    const groups=this.groupRows(rows,lvl,this._wizSort);
     const btns=this.GROUP_LEVELS.map(g=>{
       let n=rows.length;
       if(g.id!=="none"){const gg=this.groupRows(rows,g.id);n=gg?gg.length:0;}
@@ -29384,12 +29408,21 @@ const SelfCheck={
       return;
     }
     const kept=groups.filter(g=>!this._wizExcluded.has(g.key));
+    const sortBtns=`<button class="btn sm ${this._wizSort==="freq"?"dark":""}" title="出現次數越多的重點排前面" onclick="SelfCheck.setWizSort('freq')">依出現頻率</button>
+      <button class="btn sm ${this._wizSort==="imp"?"dark":""}" title="重要程度為「高」的筆數越多，排越前面" onclick="SelfCheck.setWizSort('imp')">依重要程度</button>`;
     box.innerHTML=`
       <div class="sc-gbar">
         <span class="sc-glabel">彙整粒度</span>${btns}
       </div>
-      <div class="sc-gnote">已將 <b>${rows.length}</b> 筆缺失彙整為 <b>${kept.length}</b> 個查核重點
-        ${this._wizExcluded.size?`（已排除 ${this._wizExcluded.size} 個）`:""}　
+      <div class="sc-gbar">
+        <span class="sc-glabel">排序</span>${sortBtns}
+        <span class="sc-glabel" style="margin-left:10px">只保留前</span>
+        <input type="number" id="tw-topn" min="1" placeholder="N" style="width:56px;padding:5px 6px">
+        <button class="btn sm" onclick="SelfCheck.applyWizTopN()">大重點</button>
+        ${this._wizExcluded.size?`<button class="btn sm" onclick="SelfCheck.clearWizExcluded()">↺ 全部納入</button>`:""}
+      </div>
+      <div class="sc-gnote">已將 <b>${rows.length}</b> 筆缺失彙整為 <b>${groups.length}</b> 個查核重點，將建立 <b>${kept.length}</b> 題
+        ${this._wizExcluded.size?`（已排除 ${this._wizExcluded.size} 個）`:""}
         <span class="hint">— 船上只需就每個重點回答一次，底下所有原始缺失都會保留可查。</span></div>
       <div class="sc-glist">
         ${groups.map(g=>{
@@ -29397,7 +29430,7 @@ const SelfCheck={
           return `<label class="sc-gitem ${off?"off":""}">
             <input type="checkbox" ${off?"":"checked"} onchange="SelfCheck.toggleWizGroup('${esc(g.key).replace(/'/g,"\\'")}')">
             <span class="sc-gkey">${esc(g.key)}</span>
-            <span class="sc-gcnt">${g.n} 筆</span>
+            <span class="sc-gcnt">${g.n} 筆${g.highN?`　<span style="color:var(--bad)">高 ${g.highN}</span>`:""}</span>
           </label>`;
         }).join("")}
       </div>`;
@@ -29762,6 +29795,8 @@ const SelfCheck={
     });
     return [...ids];
   },
+  _regroupExcluded:new Set(),
+  _regroupSort:"freq",
   openRegroup(){
     const t=this.cur();if(!t)return;
     if(typeof Guard!=="undefined"&&!Role.isAdmin()&&!this.canCreateTask()){
@@ -29770,11 +29805,31 @@ const SelfCheck={
     const src=this.taskSrcIds(t);
     if(!src.length){toast("⚠ 此任務找不到來源缺失，無法重新彙整（可能是舊任務或來源已刪除）");return;}
     this.regroupLevel=(t.items[0]&&t.items[0].glevel)||"ncLeaf";
+    this._regroupExcluded=new Set();this._regroupSort="freq";
     this.renderRegroup();
     $("#scRegroupModal").classList.add("show");
   },
   closeRegroup(){$("#scRegroupModal").classList.remove("show");},
   setRegroupLevel(v){this.regroupLevel=v;this.renderRegroup();},
+  setRegroupSort(v){this._regroupSort=v;this.renderRegroup();},
+  toggleRegroupGroup(key){
+    if(this._regroupExcluded.has(key))this._regroupExcluded.delete(key);
+    else this._regroupExcluded.add(key);
+    this.renderRegroup();
+  },
+  applyRegroupTopN(){
+    const t=this.cur();if(!t)return;
+    const n=parseInt($("#rg-topn").value,10);
+    if(!n||n<1){toast("⚠ 請輸入大於 0 的數字");return;}
+    const map=new Map(App.defs.map(d=>[d.id,d]));
+    const rows=this.taskSrcIds(t).map(id=>map.get(id)).filter(Boolean);
+    const groups=this.groupRows(rows,this.regroupLevel,this._regroupSort);
+    if(!groups){toast("⚠ 目前為「不彙整」模式，請先切換到「大類」或「具體名稱」再套用");return;}
+    this._regroupExcluded=new Set(groups.slice(n).map(g=>g.key));
+    this.renderRegroup();
+    toast(`✓ 已保留前 ${Math.min(n,groups.length)} 個查核重點（依${this._regroupSort==="imp"?"重要程度":"出現頻率"}排序）`);
+  },
+  clearRegroupExcluded(){this._regroupExcluded=new Set();this.renderRegroup();},
   renderRegroup(){
     const t=this.cur();if(!t)return;
     const box=$("#scRegroupBody");if(!box)return;
@@ -29789,8 +29844,9 @@ const SelfCheck={
       if(it.status&&it.status!=="pending")answered.set(it.gkey||it.detail,it);
     });
 
-    const groups=this.groupRows(rows,lvl);
-    const newKeys=groups?groups.map(g=>g.key):rows.map(d=>d.detail);
+    const groups=this.groupRows(rows,lvl,this._regroupSort);
+    const keptGroups=groups?groups.filter(g=>!this._regroupExcluded.has(g.key)):null;
+    const newKeys=groups?keptGroups.map(g=>g.key):rows.map(d=>d.detail);
     const keep=newKeys.filter(k=>answered.has(k)).length;
     const lose=answered.size-keep;
 
@@ -29799,12 +29855,23 @@ const SelfCheck={
       if(g.id!=="none"){const gg=this.groupRows(rows,g.id);n=gg?gg.length:0;}
       return `<button class="btn sm ${lvl===g.id?"dark":""}" onclick="SelfCheck.setRegroupLevel('${g.id}')">${esc(g.label)}<span class="sc-gn">${n} 題</span></button>`;
     }).join("");
+    const sortBtns=groups?`<div class="sc-gbar">
+        <span class="sc-glabel">排序</span>
+        <button class="btn sm ${this._regroupSort==="freq"?"dark":""}" title="出現次數越多的重點排前面" onclick="SelfCheck.setRegroupSort('freq')">依出現頻率</button>
+        <button class="btn sm ${this._regroupSort==="imp"?"dark":""}" title="重要程度為「高」的筆數越多，排越前面" onclick="SelfCheck.setRegroupSort('imp')">依重要程度</button>
+        <span class="sc-glabel" style="margin-left:10px">只保留前</span>
+        <input type="number" id="rg-topn" min="1" placeholder="N" style="width:56px;padding:5px 6px">
+        <button class="btn sm" onclick="SelfCheck.applyRegroupTopN()">大重點</button>
+        ${this._regroupExcluded.size?`<button class="btn sm" onclick="SelfCheck.clearRegroupExcluded()">↺ 全部納入</button>`:""}
+      </div>`:"";
 
     box.innerHTML=`
       <p class="hint" style="margin-bottom:10px">來源缺失 <b>${rows.length}</b> 筆${missing?`（另有 ${missing} 筆來源已被刪除，將略過）`:""}。
-        調整粒度後，<b>重點名稱不變的題目會保留原本的作答</b>，其餘需重新回答。</p>
+        調整粒度後，<b>重點名稱不變的題目會保留原本的作答</b>，其餘需重新回答；勾掉的重點會直接從任務中移除。</p>
       <div class="sc-gbar"><span class="sc-glabel">彙整粒度</span>${btns}</div>
-      <div class="sc-gnote">將產生 <b>${newKeys.length}</b> 個查核重點（目前 ${t.items.length} 題）</div>
+      ${sortBtns}
+      <div class="sc-gnote">將產生 <b>${newKeys.length}</b> 個查核重點（目前 ${t.items.length} 題）
+        ${groups&&this._regroupExcluded.size?`（已排除 ${this._regroupExcluded.size} 個）`:""}</div>
       ${answered.size?`
         <div class="${lose?"sc-rg-warn":"sc-rg-ok"}">
           目前已作答 <b>${answered.size}</b> 題 →
@@ -29816,11 +29883,13 @@ const SelfCheck={
       <div class="sc-glist" style="margin-top:8px">
         ${(groups||[]).map(g=>{
           const kept=answered.has(g.key);
-          return `<div class="sc-gitem" style="cursor:default">
+          const off=this._regroupExcluded.has(g.key);
+          return `<label class="sc-gitem ${off?"off":""}">
+            <input type="checkbox" ${off?"":"checked"} onchange="SelfCheck.toggleRegroupGroup('${esc(g.key).replace(/'/g,"\\'")}')">
             <span class="sc-gkey">${esc(g.key)}</span>
             ${kept?`<span class="st st-lo">保留作答</span>`:""}
-            <span class="sc-gcnt">${g.n} 筆</span>
-          </div>`;
+            <span class="sc-gcnt">${g.n} 筆${g.highN?`　<span style="color:var(--bad)">高 ${g.highN}</span>`:""}</span>
+          </label>`;
         }).join("")||`<div class="hint" style="padding:10px">逐筆作答（${rows.length} 題）</div>`}
       </div>`;
     const btn=$("#scRegroupGo");
@@ -29837,14 +29906,15 @@ const SelfCheck={
       if(it.status&&it.status!=="pending")answered.set(it.gkey||it.detail,it);
     });
     const lvl=this.regroupLevel;
-    const groups=this.groupRows(rows,lvl);
-    const newKeys=groups?groups.map(g=>g.key):[];
+    const groups=this.groupRows(rows,lvl,this._regroupSort);
+    const newKeys=groups?groups.filter(g=>!this._regroupExcluded.has(g.key)).map(g=>g.key):[];
     const lose=answered.size-newKeys.filter(k=>answered.has(k)).length;
     if(lose>0&&!confirm(`重新彙整後，有 ${lose} 題的作答（含已填寫的處理情形）將被清除，且無法復原。\n\n確定繼續？`))return;
 
-    /* 用既有的 mkItems 重建項目，確保結構與新建任務完全一致 */
+    /* 用既有的 mkItems 重建項目，確保結構與新建任務完全一致；勾掉的重點沿用跟建立任務精靈
+       同一套排除機制（_wizExcluded），暫時借用來套用這裡的排除清單。 */
     const savedExcluded=this._wizExcluded, savedLevel=this.groupLevel;
-    this._wizExcluded=new Set(); this.groupLevel=lvl;
+    this._wizExcluded=this._regroupExcluded; this.groupLevel=lvl;
     const items=this.mkItems(rows);
     this._wizExcluded=savedExcluded; this.groupLevel=savedLevel;
 
