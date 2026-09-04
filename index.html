@@ -1986,8 +1986,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     </div>
     <div class="nav-group" data-group="forms">
       <div class="nav-group-label">填單</div>
-      <div class="nav-item" data-tab="air"><span class="num">📝</span>線上填單</div>
+      <div class="nav-item" data-tab="air"><span class="num">📝</span>填單紀錄</div>
       <div class="nav-item" data-tab="self"><span class="num">4</span>船舶缺失自查</div>
+      <div class="nav-item" data-external="__air_intake__"><span class="num">🔗</span>前往線上填單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
       <div class="nav-item" data-external="voyage-report.html"><span class="num">📮</span>航次報表收件 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
       <div class="nav-item" data-external="drill-plan.html"><span class="num">🚨</span>操演計畫表 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
     </div>
@@ -10340,7 +10341,7 @@ const Home={
   ROWS:[
     {label:"分析總覽",keys:["dash","recur","ref","trend"]},
     {label:"資料總表",keys:["ov","defs","sirepos","inspctrl","sp"]},
-    {label:"填單",keys:["air","self","ext:voyage-report.html","ext:drill-plan.html"]},
+    {label:"填單",keys:["air","self","ext:__air_intake__","ext:voyage-report.html","ext:drill-plan.html"]},
     {label:"參考資料",keys:["refdocs2","refdocs"]},
     {label:"其他",keys:["guide","pdfx","data"]}
   ],
@@ -10349,7 +10350,7 @@ const Home={
   ICONS:{
     dash:"📊",recur:"🔁",ref:"🗂️",trend:"📈",
     ov:"📋",defs:"⚠️",sirepos:"⭐",inspctrl:"🔔",sp:"🚢",
-    air:"📝",self:"✅","ext:voyage-report.html":"📮","ext:drill-plan.html":"🚨",
+    air:"📝",self:"✅","ext:__air_intake__":"🔗","ext:voyage-report.html":"📮","ext:drill-plan.html":"🚨",
     refdocs2:"📚",refdocs:"📢",
     guide:"📘",pdfx:"📄",data:"⚙️"
   },
@@ -10369,7 +10370,7 @@ const Home={
     const numEl=el.querySelector(".num");
     const label=(numEl?el.textContent.replace(numEl.textContent,""):el.textContent).replace(/↗\s*$/,"").trim();
     const tab=el.dataset.tab,ext=el.dataset.external;
-    const action=ext?`window.open('${esc(ext)}','_blank')`:`document.querySelector(&apos;.nav-item[data-tab=${esc(tab)}]&apos;).click()`;
+    const action=ext==="__air_intake__"?`Air.openIntakeSite()`:ext?`window.open('${esc(ext)}','_blank')`:`document.querySelector(&apos;.nav-item[data-tab=${esc(tab)}]&apos;).click()`;
     const icon=this.ICONS[key]||"🔹";
     return `<div class="home-tile" style="animation-delay:${(idx*0.035).toFixed(3)}s" onclick="${action}">
       <span class="home-tile-icon">${icon}</span>
@@ -10392,9 +10393,13 @@ const Home={
 };
 
 /* ───── 導航 ───── */
-const TITLES={home:["首頁","Home"],dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["船舶缺失自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["線上填單","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"]};
+const TITLES={home:["首頁","Home"],dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["船舶缺失自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["填單紀錄","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"]};
 $$(".nav-item").forEach(n=>n.onclick=()=>{
-  if(n.dataset.external){window.open(n.dataset.external,"_blank");if(typeof closeSidebar==="function")closeSidebar();return;}
+  if(n.dataset.external){
+    if(n.dataset.external==="__air_intake__"){if(typeof Air!=="undefined")Air.openIntakeSite();}
+    else window.open(n.dataset.external,"_blank");
+    if(typeof closeSidebar==="function")closeSidebar();return;
+  }
   $$(".nav-item").forEach(x=>x.classList.remove("active"));n.classList.add("active");
   $$(".tabpage").forEach(p=>p.classList.remove("show"));
   $("#tab-"+n.dataset.tab).classList.add("show");
@@ -16432,8 +16437,8 @@ const InspCtrl={
   statusClass(s){return (s==="逾期"||s==="即將到期(紅)")?"bad":s==="即將到期(黃)"?"warn":s==="正常"?"ok":"mute";},
   filtered(){
     let rows=App.inspCtrl.map(d=>this.computeRow(d)).filter(r=>{
-      if(!this.ms.ship.pass(r.ship))return false;
-      if(!this.ms.item.pass(r.itype))return false;
+      if(this.ms.ship&&!this.ms.ship.pass(r.ship))return false;
+      if(this.ms.item&&!this.ms.item.pass(r.itype))return false;
       if(this.ms.owner&&!this.ms.owner.pass(r.owner))return false;
       if(this.ms.deckSup||this.ms.engineSup){
         const shipRef=SHIPINFO.find(s=>s.code===r.ship);
@@ -17071,7 +17076,7 @@ const InspCtrl={
     }
     if($("#ic-enh-card")&&$("#ic-enh-card").style.display!=="none")this.renderEnhPanel();
     // 統計一律以「船舶/檢查項目」篩選後、尚未套用 quickStatus 的全集計算，讓使用者看得到各狀態總數
-    const allRows=App.inspCtrl.map(d=>this.computeRow(d)).filter(r=>this.ms.ship.pass(r.ship)&&this.ms.item.pass(r.itype));
+    const allRows=App.inspCtrl.map(d=>this.computeRow(d)).filter(r=>(!this.ms.ship||this.ms.ship.pass(r.ship))&&(!this.ms.item||this.ms.item.pass(r.itype)));
     const rows=this.filtered();
     ["ship","itype","lastDateCalc","daysLeft"].forEach(k=>{
       const el=$("#ich-"+k);if(!el)return;
@@ -21490,6 +21495,7 @@ const Air={
           <button class="btn sm" onclick="Air.openListDownloadModal(${d.id})" title="下載此筆的匯出檔">⬇</button>
           <button class="btn sm danger" onclick="Air.delAir(${d.id})">🗑</button>
           ${(d.defects&&d.defects.length)?`<button class="btn sm" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10;font-weight:700" onclick="Air.goToExternalReply(${d.id},0)" title="開新分頁前往對外回覆編輯">外</button>`:""}
+          ${canPush?`<button class="btn sm dark" onclick="Air.openPushModal(${d.id})" title="轉入檢查紀錄／缺失紀錄總表／正面評價，可複選">轉</button>`:""}
         </td>
         <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span></td>
         <td>${d.reviewed?'<span style="font-size:11.5px;font-weight:700;color:var(--ok)">✅ 已確認</span>':'<span style="font-size:11.5px;color:var(--ink-3)">⬜ 尚未確認</span>'}</td>
@@ -21508,10 +21514,11 @@ const Air={
     this.updateSortIndicators();
     this.refreshStat();
   },
-  openPushModal(){
+  openPushModal(id){
     try{
-      if(!this.selected.size){toast("⚠ 請先勾選要轉入的項目");return;}
-      $("#air-push-summary").textContent=`已勾選 ${this.selected.size} 筆填單紀錄，請選擇要轉入的地方（可複選）：`;
+      this._pushScopeId=id!=null?id:null;
+      if(!this._pushScopeId&&!this.selected.size){toast("⚠ 請先勾選要轉入的項目");return;}
+      $("#air-push-summary").textContent=this._pushScopeId?`將轉入這 1 筆填單紀錄，請選擇要轉入的地方（可複選）：`:`已勾選 ${this.selected.size} 筆填單紀錄，請選擇要轉入的地方（可複選）：`;
       $("#air-push-insp").checked=false;$("#air-push-defs").checked=false;$("#air-push-sirepos").checked=false;
       $("#airPushModal").classList.add("show");
     }catch(e){
@@ -21552,12 +21559,14 @@ const Air={
     }else{
       toast(`✓ 已完成轉入（${targets.map(t=>labelMap[t]).join("、")}）`);
     }
+    this._pushScopeId=null;
     this.selected.clear();this.renderList();
   },
   async pushSelected(target){
     if(!await Guard.require())return;
-    if(!this.selected.size){toast("⚠ 請先勾選要轉入的項目");return;}
-    const items=App.air.filter(d=>this.selected.has(String(d.id)));
+    const scoped=this._pushScopeId!=null;
+    if(!scoped&&!this.selected.size){toast("⚠ 請先勾選要轉入的項目");return;}
+    const items=scoped?App.air.filter(d=>d.id===this._pushScopeId):App.air.filter(d=>this.selected.has(String(d.id)));
     if(!items.length){
       toast("⚠ 找不到勾選的紀錄（可能清單剛好被重新整理過），請重新勾選後再試一次");
       throw new Error("勾選的紀錄已找不到，可能清單被重新整理過，請重新勾選再試一次");
@@ -22711,12 +22720,28 @@ const Air={
       if(!v||v==="(尚未填寫)"||v==="(To be filled)")return "";
       return v;
     };
+    // Description／Code／Action Taken 不是「中文/EN」並排欄位，用單一 [LABEL]…[/FIELD] 標記，
+    // 停止邊界要同時認得下一個單一標記、下一個雙語標記、或 [/FIELD] 本身，不然會吃過頭。
+    const grabPlain=(block,label)=>{
+      const esc4re=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+      const labelPattern=label.trim().split(/\s+/).map(esc4re).join("\\s+");
+      const re=new RegExp("\\["+labelPattern+"\\]\\s*([\\s\\S]*?)(?=\\n?\\[(?:[A-Z\\s]+(?:\\s*-\\s*(?:中文|EN))?|\\/FIELD)\\]|$)","i");
+      const m=block.match(re);
+      if(!m)return "";
+      const v=m[1].trim();
+      if(!v||v==="(尚未填寫)"||v==="(To be filled)")return "";
+      return v;
+    };
     const FIELDS=[["INITIAL OPERATOR COMMENT","opCommentCn","opCommentEn"],["IMMEDIATE CAUSE","immediateCauseCn","immediateCauseEn"],
       ["ROOT CAUSE","rootCauseCn","rootCauseEn"],["CORRECTIVE ACTION","correctiveCn","correctiveEn"],["PREVENTIVE MEASURES","preventiveCn","preventiveEn"]];
+    const META_FIELDS=[["DESCRIPTION","detail"],["CODE","code"],["ACTION TAKEN","psc"]];
     let filled=0;
-    blocks.forEach(block=>FIELDS.forEach(([label])=>{if(grab(block,label,"中文"))filled++;if(grab(block,label,"EN"))filled++;}));
-    $("#air-reply-import-summary").innerHTML=`在檔案中找到 <b>${foundCount}</b> 筆缺失區塊（本筆填單目前有 ${d.defects.length} 筆缺失），共可回填 <b>${filled}</b> 個欄位（中文＋英文合計）。<br><br>⚠ 這會<b>覆蓋</b>目前頁面上、且檔案裡有內容的對應欄位；檔案裡是空的欄位不會清空原本已填的內容。缺失區塊是依「第幾筆」對應，若檔案裡的順序被調整過請先確認過再回填。`;
-    this._pendingImportBlocks=blocks;this._pendingImportGrab=grab;this._pendingImportFields=FIELDS;
+    blocks.forEach(block=>{
+      FIELDS.forEach(([label])=>{if(grab(block,label,"中文"))filled++;if(grab(block,label,"EN"))filled++;});
+      META_FIELDS.forEach(([label])=>{if(grabPlain(block,label))filled++;});
+    });
+    $("#air-reply-import-summary").innerHTML=`在檔案中找到 <b>${foundCount}</b> 筆缺失區塊（本筆填單目前有 ${d.defects.length} 筆缺失），共可回填 <b>${filled}</b> 個欄位（中文＋英文＋Description/Code/Action Taken 合計）。<br><br>⚠ 這會<b>覆蓋</b>目前頁面上、且檔案裡有內容的對應欄位；檔案裡是空的欄位不會清空原本已填的內容。缺失區塊是依「第幾筆」對應，若檔案裡的順序被調整過請先確認過再回填。`;
+    this._pendingImportBlocks=blocks;this._pendingImportGrab=grab;this._pendingImportGrabPlain=grabPlain;this._pendingImportFields=FIELDS;this._pendingImportMetaFields=META_FIELDS;
     $("#air-reply-import-confirm").onclick=()=>this._confirmReplyImport();
     $("#airReplyImportModal").classList.add("show");
   },
@@ -22734,6 +22759,7 @@ const Air={
     if(!d||!this._pendingImportBlocks){this.closeReplyImportModal();return;}
     this.ensureReply(d);
     const grab=this._pendingImportGrab,FIELDS=this._pendingImportFields;
+    const grabPlain=this._pendingImportGrabPlain,META_FIELDS=this._pendingImportMetaFields;
     let filled=0;
     const changedIdx=new Set();
     this._pendingImportBlocks.forEach((block,i)=>{
@@ -22744,6 +22770,15 @@ const Air={
         if(cn){d.reply.items[i][ck]=cn;filled++;changedIdx.add(i);}
         if(en){d.reply.items[i][ek]=en;filled++;changedIdx.add(i);}
       });
+      // Description／Code／Action Taken 屬於缺失本身的欄位（不是對外回覆），直接寫回
+      // d.defects[i]；下次開啟「海技對外回覆」頁時，openExternalEditor() 既有的
+      // staleOrMissing 比對邏輯會自動偵測到 _defectMeta 過期並同步最新內容，這裡不用額外處理雲端草稿。
+      if(grabPlain&&META_FIELDS&&d.defects&&d.defects[i]){
+        META_FIELDS.forEach(([label,fk])=>{
+          const v=grabPlain(block,label);
+          if(v){d.defects[i][fk]=v;filled++;changedIdx.add(i);}
+        });
+      }
     });
     App.saveAll();
     this.renderReplyDefects(d);
@@ -22940,6 +22975,9 @@ const Air={
     const valueCell=(v,fallbackNote)=>`<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${v?nl2br(v):(fallbackNote||"")}</td>`;
     const markerTag=t=>bilingual?`<span style="font-size:8pt;color:#bbb">[${t}]</span><br/>`:"";
     const closeTag=()=>bilingual?`<span style="font-size:8pt;color:#bbb">[/FIELD]</span><br/>`:"";
+    // Description／Code／Action Taken 不是中英文並排欄位（不需要 -中文/-EN 後綴），但一樣要能編輯後
+    // 匯入回填，所以用同一套 [LABEL]…[/FIELD] 標記包起來，跟「海技對外回覆」頁匯出的中英文Word共用同一套格式。
+    const editableCell=(v,label)=>`<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${markerTag(label)}${v?nl2br(v):""}${closeTag()}</td>`;
     const biValueCell=(cn,en,tag)=>{
       if(!cn&&!en)return `<td style="font-family:Calibri,Arial,sans-serif;font-size:12pt">${markerTag(tag+" - 中文")}${closeTag()}${markerTag(tag+" - EN")}${closeTag()}${missingEnNote}</td>`;
       const cnPart=`${markerTag(tag+" - 中文")}${cn?`<div style="color:#555">${nl2br(cn)}</div>`:`<div style="color:#999">（中文尚未填寫）</div>`}${closeTag()}`;
@@ -22956,9 +22994,9 @@ const Air={
         <p style="font-family:Calibri,Arial,sans-serif;font-size:12pt;margin-top:0;margin-bottom:12px">Port: ${esc(d.place)}&nbsp;&nbsp;&nbsp;&nbsp;Inspection date: ${this.carDateFmt(d.date)}</p>
         <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%">
           <tr>${labelCell("Deficiency No.")}${valueCell(String(i+1))}</tr>
-          <tr>${labelCell("Description")}${valueCell(df.detail)}</tr>
-          <tr>${labelCell("Code")}${valueCell(df.code)}</tr>
-          <tr>${labelCell("Action Taken")}${valueCell(df.psc)}</tr>
+          <tr>${labelCell("Description")}${bilingual?editableCell(df.detail,"DESCRIPTION"):valueCell(df.detail)}</tr>
+          <tr>${labelCell("Code")}${bilingual?editableCell(df.code,"CODE"):valueCell(df.code)}</tr>
+          <tr>${labelCell("Action Taken")}${bilingual?editableCell(df.psc,"ACTION TAKEN"):valueCell(df.psc)}</tr>
           <tr>${labelCell("Initial operator's<br/>comments")}${bilingual?biValueCell(rp.opCommentCn,rp.opCommentEn,"INITIAL OPERATOR COMMENT"):valueCell(rp.opCommentEn,missingEnNote)}</tr>
           <tr>${labelCell("Immediate cause")}${bilingual?biValueCell(rp.immediateCauseCn,rp.immediateCauseEn,"IMMEDIATE CAUSE"):valueCell(rp.immediateCauseEn,missingEnNote)}</tr>
           <tr>${labelCell("Root cause<br/>analysis")}${bilingual?biValueCell(rp.rootCauseCn||df.rootCause,rp.rootCauseEn,"ROOT CAUSE"):valueCell(rp.rootCauseEn,missingEnNote)}</tr>
