@@ -27731,12 +27731,21 @@ const Cloud={
     if($("#au-name"))Audit.saveName();
     this.test();
   },
-  /* — 偵測任務變更(由App.saveAll呼叫) — */
+  /* — 偵測任務變更(由App.saveAll呼叫) —
+     ⚠ 這裡一定要先排除已經在刪除清單（TaskTomb）裡的任務，不能只靠呼叫端（例如
+     syncNow()）自己先把 App.tasks 濾乾淨就以為沒事——TaskTomb.pullCloud() 本身在
+     發現「這台裝置還不知道的刪除」時，會呼叫 App.saveAll() 存檔，而這個函式就是
+     saveAll() 內部一定會呼叫的那個，此時呼叫端可能都還沒來得及把 App.tasks 濾掉
+     這一筆。若這裡沒有自己再擋一次，這一筆會被當成「有變動」排入 1.2 秒後的
+     debounced push，即使呼叫端事後馬上把它從 App.tasks 移除也來不及——那個
+     setTimeout 早就把這筆任務的物件參照存進 changed 陣列了，時間到了照樣會把
+     這個已經被刪除的任務重新推回雲端，讓使用者看到「剛刪除的任務又自己跑回來」。 */
   onTasksMaybeChanged(){
     this.ensureGids();
     const changed=[];
     const now={};
     App.tasks.forEach(t=>{
+      if(typeof TaskTomb!=="undefined"&&TaskTomb.has(t.gid))return; // 已刪除的任務不算變更，不排入推送
       const j=JSON.stringify({...t,updated:0});
       now[t.gid]=j;
       if(this._snap[t.gid]!==j){t.updated=Date.now();changed.push(t);}
@@ -27752,6 +27761,10 @@ const Cloud={
   async push(tasks,removedGids){
     if(!this.enabled())return;
     try{
+      // ⚠ 二次防呆：這批 tasks 是 1.2 秒前排入 debounce 時就決定好的物件參照，
+      // 這段時間內如果這幾筆被刪除、補上刪除清單，這裡還是要再擋一次，
+      // 不能只靠排入當下有沒有先過濾。
+      if(tasks&&tasks.length&&typeof TaskTomb!=="undefined")tasks=tasks.filter(t=>!TaskTomb.has(t.gid));
       if(tasks&&tasks.length){
         const rows=tasks.map(t=>({gid:t.gid,ship:t.ship||"",updated:t.updated,payload:t}));
         await this.api("self_tasks?on_conflict=gid",{method:"POST",headers:Object.assign(this.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify(rows)});
@@ -28096,6 +28109,16 @@ const Cloud={
          否則已刪除的任務會在下面被當成「新任務」拉回本機 */
       if(typeof TaskTomb!=="undefined")await TaskTomb.pullCloud();
       if(typeof TaskTomb!=="undefined")await TaskTomb.purgeCloud();
+      // ⚠ 上面兩步只同步好了「刪除清單」本身，從來沒有真的把本機 App.tasks 裡已經快取的
+      // 那幾筆砍掉——如果這台裝置之前就已經載入過那筆任務（例如某船帳號先前開過），
+      // 別人之後才在別的裝置刪除，這裡少這段的話，本機那份會一直留著，該船帳號登入
+      // 還是會看到「已經被刪除」的任務。刪別人這台還沒同步過的任務不受影響，因為
+      // 那種情況下 App.tasks 裡本來就沒有這一筆，filter 不到東西可刪，不會出錯。
+      if(typeof TaskTomb!=="undefined"){
+        const beforeN=App.tasks.length;
+        App.tasks=App.tasks.filter(t=>!TaskTomb.has(t.gid));
+        if(App.tasks.length!==beforeN&&App.curTaskId!=null&&!App.tasks.some(t=>t.id===App.curTaskId))App.curTaskId=null;
+      }
       const remote=await this.api("self_tasks?select=gid,updated,payload")||[];
       const local=new Map(App.tasks.map(t=>[t.gid,t]));
       let pulled=0,kept=0,skipped=0;
