@@ -28825,7 +28825,7 @@ const SelfCheck={
   async openExternalEditor(taskId){
     const t=App.tasks.find(x=>x.id===taskId);
     if(!t){toast("⚠ 找不到此任務");return;}
-    if(!this.canCheck(t)){toast(`⚠ 僅「${t.ship}」本船帳號或管理員可開啟編輯，其他角色請用「👀 查看」瀏覽進度`);return;}
+    if(!this.canCheck(t)){toast(`⚠ 僅 Owner／管理員／督導可開啟編輯，其他角色請用「👀 查看」瀏覽進度`);return;}
     const base=this.getExternalBase();
     if(!base){toast("⚠ 未設定外部網頁網址");return;}
     if(typeof Cloud!=="undefined"&&Cloud.enabled()){
@@ -29082,7 +29082,7 @@ const SelfCheck={
       const supCanEdit=this.isSup();
       const supDis=supCanEdit?"":"disabled";
       const canOpen=this.canCheck(t);
-      const openTitle=canOpen?"開啟編輯":`僅「${esc(t.ship)}」本船帳號或管理員可開啟編輯，請改用「查看」`;
+      const openTitle=canOpen?"開啟編輯":`僅 Owner／管理員／督導可開啟編輯，請改用「查看」`;
       return `<div class="task-card">
         <div class="tc-main" style="${canOpen?"":"cursor:default"}" onclick="${canOpen?`SelfCheck.openExternalEditor(${t.id})`:`SelfCheck.viewExternalDraft(${t.id})`}">
           <div class="tc-name">${esc(t.ship)} <span>·</span> ${esc(t.date)} <span>·</span> ${esc(t.title||"自檢")}${canOpen?"":` <span class="hint" style="color:#a06b2b">🔒 唯讀</span>`}</div>
@@ -29097,6 +29097,7 @@ const SelfCheck={
           <button class="btn sm primary" ${canOpen?"":"disabled title=\""+openTitle+"\""} onclick="event.stopPropagation();SelfCheck.openExternalEditor(${t.id})">📤 開啟</button>
           <button class="btn sm" onclick="event.stopPropagation();SelfCheck.viewExternalDraft(${t.id})">👀 查看</button>
           <button class="btn sm" title="複製這個任務的自查連結，可直接傳給船隊，不需登入本系統即可作答" onclick="event.stopPropagation();SelfCheck.copyExternalLink(${t.id})">🔗 複製連結</button>
+          ${this.isSup()?`<button class="btn sm" title="Owner／管理員／督導可直接在系統內代為作答，跟外部連結共用同一份進度" onclick="event.stopPropagation();SelfCheck.openTask(${t.id})">✎ 編輯</button>`:""}
           <button class="btn sm" onclick="event.stopPropagation();SelfCheck.openTaskDownload(${t.id})">下載</button>
           <button class="btn sm danger" onclick="event.stopPropagation();SelfCheck.delTask(${t.id})">刪除</button>
         </div>
@@ -29544,16 +29545,17 @@ const SelfCheck={
   },
 
   /* ───── 任務執行 ───── */
-  /* ⚠ 主系統的「船舶缺失自查」已改為全面唯讀：查核只透過督導/海技分享的外部自查連結
+  /* ⚠ 主系統的「船舶缺失自查」對船舶帳號一律唯讀：查核只透過督導/海技分享的外部自查連結
      （submit-selfcheck.html）進行，船舶帳號在主系統這邊只能看自己船的進度，不能直接勾選。
      這樣兩邊才不會都能填、資料各存各的、又要手動同步才會合併，容易對不起來。
-     （原本這裡船舶帳號可透過「執行查核」權限開關控制，但那個開關實際上沒被讀取過，
-     形同虛設；現在直接把主系統的查核動作收回只留給 Owner／管理員，比較不會混淆。） */
+     Owner／管理員／督導（isSup()）例外：這幾種身份本來就是在幫船上代填、確認結果，
+     允許在主系統任務清單按「✎ 編輯」直接站內作答（不用另外開外部連結），
+     跟外部頁面共用同一份資料，不會互相覆蓋。 */
   canCheck(t){
     if(!t)return false;
     if(typeof Role==="undefined")return true;
-    if(Role.isAdmin())return true;
-    return false; // 船舶帳號、督導、其他部門：主系統一律唯讀，查核請至外部自查連結
+    if(this.isSup())return true;
+    return false; // 船舶帳號、其他部門：主系統一律唯讀，查核請至外部自查連結
   },
   /* ════════ 自動同步（取代原本「☁ 雲端同步」手動按鈕）════════
      船上在外部自查頁面填的答案（selfcheck_drafts）本來就已經會自動拉回來（renderTasks／
@@ -29709,7 +29711,7 @@ const SelfCheck={
             <button class="sc-ansbtn sim ${it.status==="similar"?"on":""}" ${canChk?"":"disabled"} onclick="SelfCheck.gAnswer('similar')">⚠️ 有，需處理</button>
             <button class="sc-ansbtn na ${it.status==="na"?"on":""}"      ${canChk?"":"disabled"} onclick="SelfCheck.gAnswer('na')">➖ 不適用本船</button>
           </div>
-          ${canChk?"":`<div class="hint" style="margin-top:8px">🔒 唯讀：僅「${esc(t.ship)}」本船帳號或管理員可作答。</div>`}
+          ${canChk?"":`<div class="hint" style="margin-top:8px">🔒 唯讀：僅 Owner／管理員／督導可作答。</div>`}
 
           ${it.status==="similar"?`
             <div class="sc-gdetail">
@@ -29918,7 +29920,7 @@ const SelfCheck={
       sim=t.items.filter(i=>i.status==="similar").length,
       na=t.items.filter(i=>i.status==="na").length,
       cls=t.items.filter(i=>i.status==="similar"&&i.closed).length;
-    $("#sc-progress").innerHTML=`已查核 <b>${done}/${n}</b>${sim?` · <span style="color:var(--bad)">⚠ 類似缺失 ${sim}</span> · 結案 ${cls}`:""}${na?` · <span style="color:#6b7a84">⊘ 不適用 ${na}</span>`:""}${canChk?"":` · <span style="color:#a06b2b">🔒 唯讀（僅「${esc(t.ship)}」本船帳號或管理員可勾選查核狀態）</span>`}`;
+    $("#sc-progress").innerHTML=`已查核 <b>${done}/${n}</b>${sim?` · <span style="color:var(--bad)">⚠ 類似缺失 ${sim}</span> · 結案 ${cls}`:""}${na?` · <span style="color:#6b7a84">⊘ 不適用 ${na}</span>`:""}${canChk?"":` · <span style="color:#a06b2b">🔒 唯讀（僅 Owner／管理員／督導可勾選查核狀態）</span>`}`;
     $("#sc-pbar").style.width=(n?Math.round(done/n*100):0)+"%";
     const view=$("#sc-view").value;
     const sortKey=$("#sc-sort")?$("#sc-sort").value:"";
@@ -30046,14 +30048,14 @@ const SelfCheck={
     t.title=$("#m-title").value.trim();t.inspector=$("#m-inspector").value.trim();
     App.saveAll();this.closeMeta();this.renderRun();toast("✓ 任務資料已更新");
   },
-  setStatus(i,s){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅「"+t.ship+"」本船帳號或管理員可勾選查核狀態");this.renderRun();return;}t.items[i].status=s;if(s!=="similar")t.items[i].closed=false;
+  setStatus(i,s){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅 Owner／管理員／督導可勾選查核狀態");this.renderRun();return;}t.items[i].status=s;if(s!=="similar")t.items[i].closed=false;
     if(s!=="pending"){const pn=(typeof Role!=="undefined"&&Role.personName)?Role.personName():"";if(pn){t.items[i].checkedBy=pn;t.items[i].checkedAt=todayStr();}}
     t.updated=Date.now();
     App._op2Bypass=true;App.saveAll();this.renderRun();
     if(s!=="pending")Audit.log("查核","自檢任務",`${t.ship}／#${i+1} ${s==="ok"?"✓無類似缺失":(s==="na"?"⊘本船不適用":"⚠有類似缺失")}：${(t.items[i].detail||"").slice(0,30)}`);},
   bulkSetStatus(target){
     const t=this.cur();if(!t)return;
-    if(!this.canCheck(t)){toast("⚠ 僅「"+t.ship+"」本船帳號或管理員可勾選查核狀態");return;}
+    if(!this.canCheck(t)){toast("⚠ 僅 Owner／管理員／督導可勾選查核狀態");return;}
     const view=$("#sc-view")?$("#sc-view").value:"all";
     let targets=t.items,viewLabel="全部項目";
     if(view==="pending"){targets=t.items.filter(i=>i.status==="pending");viewLabel="未完成查核";}
@@ -30148,11 +30150,11 @@ const SelfCheck={
   copyDataOnly(){
     safeCopyText($("#sc-data-box").value,"✓ 已複製自檢資料 JSON");
   },
-  setNote(i,v){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅「"+t.ship+"」本船帳號或管理員可編輯處理情形");this.renderRun();return;}t.items[i].note=v;t.updated=Date.now();App._op2Bypass=true;App.saveAll();},
+  setNote(i,v){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅 Owner／管理員／督導可編輯處理情形");this.renderRun();return;}t.items[i].note=v;t.updated=Date.now();App._op2Bypass=true;App.saveAll();},
   /* 引導模式把「實際情形」與「處理方式」拆成兩欄：
      note = 本船的實際狀況；actual = 打算怎麼處理。 */
-  setActual(i,v){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅「"+t.ship+"」本船帳號或管理員可編輯處理方式");this.renderRun();return;}t.items[i].actual=v;t.updated=Date.now();App._op2Bypass=true;App.saveAll();},
-  setClosed(i,v){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅「"+t.ship+"」本船帳號或管理員可勾選結案");this.renderRun();return;}t.items[i].closed=v;t.updated=Date.now();App._op2Bypass=true;App.saveAll();this.renderRun();
+  setActual(i,v){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅 Owner／管理員／督導可編輯處理方式");this.renderRun();return;}t.items[i].actual=v;t.updated=Date.now();App._op2Bypass=true;App.saveAll();},
+  setClosed(i,v){const t=this.cur();if(!t)return;if(!this.canCheck(t)){toast("⚠ 僅 Owner／管理員／督導可勾選結案");this.renderRun();return;}t.items[i].closed=v;t.updated=Date.now();App._op2Bypass=true;App.saveAll();this.renderRun();
     if(v)Audit.log("結案","自檢任務",`${t.ship}／#${i+1}：${(t.items[i].detail||"").slice(0,30)}`);},
   async removeItem(i){const t=this.cur();if(!t)return;if(typeof Guard!=="undefined"&&!await Guard.requireDelete())return;t.items.splice(i,1);App.saveAll();this.renderRun();},
 
