@@ -1445,13 +1445,23 @@ function exportDraftWordFile(silent){
         ${photoRow("矯正後照片",d.photosAfter)}
       </table><br/>`;
   });
-  html += `<p style="font-size:8pt;color:#bbb;margin:0">===RECORD END===</p>`;
   if(payload.posComments && payload.posComments.length){
-    html += `<h2 style="font-family:Calibri,Arial,sans-serif">正面評論</h2>`;
+    // 跟缺失一樣加上 ===POSCOMMENTS===／===POS N=== 標記＋[FIELD]包欄位，系統匯入時才抓得回來
+    // （舊版只是純文字印出來給人看，沒有標記，匯入永遠是 0 筆——這裡補上讓 Word 匯入也能無損還原）。
+    html += `<p style="font-size:8pt;color:#bbb;margin:0">===POSCOMMENTS===</p>
+      <h2 style="font-family:Calibri,Arial,sans-serif">正面評論</h2>`;
     payload.posComments.forEach((p,i)=>{
-      html += `<p style="font-family:Calibri,Arial,sans-serif;font-size:13px"><b>#${i+1}　${esc(p.item||"")}</b><br/>${nl2br(p.comment)}</p>`;
+      const first=(p.people&&p.people[0])||{rank:p.rank||"",person:p.person||""};
+      html += `<p style="font-size:8pt;color:#bbb;margin:0">===POS ${i+1}===</p>
+        <table border="1" cellspacing="0" cellpadding="5" style="border-collapse:collapse;width:100%;font-size:13px;font-family:Calibri,Arial,sans-serif">
+          <tr><td colspan="2">${markerTag("CODE")}<br/>${esc(p.code||"")}<br/>${closeTag()}</td></tr>
+          <tr><td colspan="2">${markerTag("項目")}<br/>${esc(p.item||"")}<br/>${closeTag()}</td></tr>
+          <tr><td colspan="2">${markerTag("評論內容")}<br/>${nl2br(p.comment)}<br/>${closeTag()}</td></tr>
+          <tr>${fieldCell("職稱",first.rank)}${fieldCell("姓名",first.person)}</tr>
+        </table><br/>`;
     });
   }
+  html += `<p style="font-size:8pt;color:#bbb;margin:0">===RECORD END===</p>`;
   const blob = new Blob(["﻿",'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>線上填單</title></head><body>',html,"</body></html>"],{type:"application/msword"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

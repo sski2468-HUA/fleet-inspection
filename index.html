@@ -3400,6 +3400,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       </div>
 
       <div id="ig-page-audit" class="ig-subpage" style="display:none">
+        <div class="toolbar" style="margin-bottom:10px">
+          <button class="btn sm ad-subtabbtn" data-t="plan" onclick="AuditDash.setSubTab('plan')">📊 計畫與進度</button>
+          <button class="btn sm ad-subtabbtn" data-t="history" onclick="AuditDash.setSubTab('history')">📖 內稽紀錄</button>
+          <span class="hint" style="margin-left:10px">「計畫與進度」處理當年度排程、查核與結案；「內稽紀錄」以船舶為單位，橫向比對歷年稽核記錄。</span>
+        </div>
+
+        <div id="ad-subtab-plan">
         <div class="card" style="margin-bottom:14px">
           <div class="toolbar">
             <h3 style="margin:0">📋 內部稽核動態表</h3>
@@ -3411,12 +3418,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <button class="btn sm" onclick="PrintLetterhead.openSettings()" title="調整右上角框框跟頁尾要印什麼內容">📋 頁首頁尾設定</button>
           </div>
           <div class="toolbar" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
-            <span class="hint" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">篩選</span>
-            <select id="ad-f-closed" onchange="AuditDash.render()" style="padding:5px 8px">
-              <option value="">結案狀態：全部</option>
-              <option value="1">✓ 已結案</option>
-              <option value="0">✗ 未結案</option>
-            </select>
+            <span class="hint" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">🔍 找船舶</span>
+            <input type="text" id="ad-f-kw" placeholder="輸入船舶代碼或船名關鍵字…" oninput="AuditDash.render()" style="padding:5px 8px;width:180px">
+            <span class="hint" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px;margin-left:14px">狀態篩選</span>
             <select id="ad-f-schedstatus" onchange="AuditDash.render()" style="padding:5px 8px" title="依排程／完成狀態篩選">
               <option value="">排程狀態：全部</option>
               <option value="scheduled">🔴 已進入排程（未完成）</option>
@@ -3424,20 +3428,28 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <option value="done_open">🔵 已完成稽核未結案</option>
               <option value="done_closed">✅ 已完成稽核已結案</option>
             </select>
+            <select id="ad-f-closed" onchange="AuditDash.render()" style="padding:5px 8px">
+              <option value="">結案狀態：全部</option>
+              <option value="1">✓ 已結案</option>
+              <option value="0">✗ 未結案</option>
+            </select>
             <select id="ad-f-year" onchange="AuditDash.render()" style="padding:5px 8px">
               <option value="">完成年度：全部（含尚未完成）</option>
             </select>
+            <span class="spacer" style="flex:1"></span>
+            <span class="hint" id="ad-result-count" style="font-weight:600"></span>
+          </div>
+          <div class="toolbar" style="margin-top:8px;border-top:1px dashed var(--line);padding-top:8px">
+            <span class="hint" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">進階篩選</span>
             <div class="msel" id="ms-ad-auditor"></div>
             <div class="msel" id="ms-ad-schedmonth"></div>
             <span class="hint" style="font-size:12px">計畫檢查日：</span>
             <input type="month" id="ad-f-plandate-from" onchange="AuditDash.render()" style="padding:5px 6px;font-size:12px">
             <span class="hint">～</span>
             <input type="month" id="ad-f-plandate-to" onchange="AuditDash.render()" style="padding:5px 6px;font-size:12px">
-            <button class="btn sm" onclick="AuditDash.clearFilters()">清除篩選</button>
-            <span class="spacer" style="flex:1"></span>
-            <span class="hint" id="ad-result-count" style="font-weight:600"></span>
-            <button class="btn sm" id="ad-addrow-btn" onclick="AuditDash.addRowPrompt()">➕ 新增一列（同船第二輪稽核）</button>
+            <button class="btn sm" onclick="AuditDash.addRowPrompt()">➕ 新增一列（同船第二輪稽核）</button>
           </div>
+          <div id="ad-filter-summary" style="display:none;margin-top:8px;padding:8px 12px;background:#fff7e6;border:1.5px solid var(--warn);border-radius:6px;font-size:12.5px;align-items:center;gap:8px;flex-wrap:wrap"></div>
           <div class="toolbar" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
             <span class="hint" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">檢視模式</span>
             <button class="btn sm ad-viewbtn" data-v="table" onclick="AuditDash.setView('table')">📋 列表</button>
@@ -3466,6 +3478,39 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           </div>
         </div>
         <div id="ad-groupedview" style="display:none"></div>
+        </div>
+
+        <div id="ad-subtab-history" style="display:none">
+          <div class="card" style="margin-bottom:14px">
+            <div class="toolbar">
+              <h3 style="margin:0">📖 內稽紀錄（35艘船 × 年度對照）</h3>
+              <span class="spacer" style="flex:1"></span>
+              <button class="btn sm" onclick="AuditDash.exportXlsx()">⬇ 匯出 Excel</button>
+            </div>
+            <div class="toolbar" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
+              <span class="hint" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">🔍 找船舶</span>
+              <input type="text" id="ad-h-kw" placeholder="輸入船舶代碼或船名關鍵字…" oninput="AuditDash.renderHistory()" style="padding:5px 8px;width:180px">
+              <span class="hint" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px;margin-left:14px">對照年度</span>
+              <select id="ad-h-yearA" onchange="AuditDash.renderHistory()" style="padding:5px 8px"></select>
+              <span class="hint">vs</span>
+              <select id="ad-h-yearB" onchange="AuditDash.renderHistory()" style="padding:5px 8px"></select>
+              <span class="hint">vs</span>
+              <select id="ad-h-yearC" onchange="AuditDash.renderHistory()" style="padding:5px 8px"></select>
+              <span class="spacer" style="flex:1"></span>
+              <span class="hint" id="ad-h-count" style="font-weight:600"></span>
+            </div>
+            <p class="hint" style="margin-top:8px;line-height:1.6">每艘船固定一列，橫向比對三個年度各自的執行日／港口／稽核員，不用在一長串列表裡逐列翻找同一艘船的歷史紀錄。點任一列可展開查看該輪完整詳情（缺失內容、備註）。</p>
+            <div id="ad-hist-body"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-bg" id="adHistDetailModal">
+        <div class="modal" style="max-width:640px">
+          <div class="mh"><h3 id="adHistDetailTitle">稽核詳情</h3><button class="x" onclick="AuditDash.closeHistDetail()">✕</button></div>
+          <div class="mb" id="adHistDetailBody" style="max-height:70vh;overflow:auto"></div>
+          <div class="mf"><button class="btn" onclick="AuditDash.closeHistDetail()">關閉</button></div>
+        </div>
       </div>
 
       <div class="modal-bg" id="adPrintModal">
@@ -18828,6 +18873,7 @@ const AuditDash={
     this.render();
   },
   clearFilters(){
+    const kw=$("#ad-f-kw");if(kw)kw.value="";
     const sel=$("#ad-f-closed");if(sel)sel.value="";
     const yr=$("#ad-f-year");if(yr)yr.value="";
     const ss=$("#ad-f-schedstatus");if(ss)ss.value="";
@@ -18835,6 +18881,44 @@ const AuditDash={
     const pt=$("#ad-f-plandate-to");if(pt)pt.value="";
     Object.values(this.ms).forEach(m=>m.clear&&m.clear());
     this.render();
+  },
+  /* ════════ 子頁切換：計畫與進度 ／ 內稽紀錄 ════════ */
+  subTab:"plan",
+  setSubTab(t){
+    this.subTab=t;
+    $("#ad-subtab-plan").style.display=t==="plan"?"":"none";
+    $("#ad-subtab-history").style.display=t==="history"?"":"none";
+    document.querySelectorAll(".ad-subtabbtn").forEach(b=>b.classList.toggle("dark",b.dataset.t===t));
+    if(t==="history")this.renderHistory();
+  },
+  /* ════════ 篩選現況摘要 ════════
+     使用者反映篩選列一字排開不知道該用哪個、篩選完也看不出「現在到底套用了什麼」——
+     這裡在篩選列下方多加一條摘要，只要有任何條件生效就會顯示，白話列出每個條件，
+     並提供整排「清除全部」；沒有條件生效時整條隱藏，不占空間。 */
+  filterSummaryParts(){
+    const parts=[];
+    const kw=$("#ad-f-kw")?$("#ad-f-kw").value.trim():"";
+    if(kw)parts.push(`關鍵字＝「${esc(kw)}」`);
+    const ss=$("#ad-f-schedstatus"),ssMap={scheduled:"🔴已進入排程",unscheduled:"🟡未排程",done_open:"🔵已完成未結案",done_closed:"✅已完成已結案"};
+    if(ss&&ss.value)parts.push(`排程狀態＝${ssMap[ss.value]||ss.value}`);
+    const cf=$("#ad-f-closed");
+    if(cf&&cf.value!=="")parts.push(`結案狀態＝${cf.value==="1"?"已結案":"未結案"}`);
+    const yr=$("#ad-f-year");
+    if(yr&&yr.value)parts.push(`完成年度＝${yr.value}年`);
+    if(this.ms.auditor&&this.ms.auditor.sel&&this.ms.auditor.sel.size)parts.push(`稽核員＝${[...this.ms.auditor.sel].join("、")}`);
+    if(this.ms.schedMonth&&this.ms.schedMonth.sel&&this.ms.schedMonth.sel.size)parts.push(`Sched.Month＝${[...this.ms.schedMonth.sel].join("、")}`);
+    const pf=$("#ad-f-plandate-from")?$("#ad-f-plandate-from").value:"",pt=$("#ad-f-plandate-to")?$("#ad-f-plandate-to").value:"";
+    if(pf||pt)parts.push(`計畫檢查日＝${pf||"最早"}～${pt||"最晚"}`);
+    return parts;
+  },
+  renderFilterSummary(){
+    const box=$("#ad-filter-summary");if(!box)return;
+    const parts=this.filterSummaryParts();
+    if(!parts.length){box.style.display="none";box.innerHTML="";return;}
+    box.style.display="flex";
+    box.innerHTML=`<span style="font-size:15px">🔍</span><span><b>目前篩選中：</b>${parts.join("　")}</span>
+      <span class="spacer" style="flex:1"></span>
+      <button class="btn sm primary" onclick="AuditDash.clearFilters()">✕ 清除全部篩選</button>`;
   },
   enrich(row){
     const s=SHIPINFO.find(x=>x.code===row.ship)||{};
@@ -18854,6 +18938,8 @@ const AuditDash={
   },
   filteredRows(){
     let rows=this.rowsRaw().filter(r=>this.fpmcShips().some(s=>s.code===r.ship)).map(r=>this.enrich(r));
+    const kw=($("#ad-f-kw")?$("#ad-f-kw").value:"").trim().toLowerCase();
+    if(kw)rows=rows.filter(r=>r.ship.toLowerCase().includes(kw)||(r.vesselName||"").toLowerCase().includes(kw));
     const closedF=$("#ad-f-closed")?$("#ad-f-closed").value:"";
     if(closedF!=="")rows=rows.filter(r=>(closedF==="1")===!!r.closedOut);
     const schedF=$("#ad-f-schedstatus")?$("#ad-f-schedstatus").value:"";
@@ -19259,6 +19345,148 @@ const AuditDash={
       </div>
       <p class="hint" style="margin-top:8px">🔓 表示數字為即時計算，資料異動會即時反映；🔒 表示已鎖定為快照，不會再變動（適合月報存證用），點擊可解除。建議每月結算後把該月鎖定，之後回頭做年度對比才有穩定的基準。</p>`;
   },
+  /* ════════ 年度總覽（每艘船一列）════════
+     跟月份卡片同一顆「年度」下拉共用；月份卡片是「以月份為單位看達成情形」，這裡改成
+     「以船舶為單位」——督導在做年度報表比對／跟外部 Excel 對答案時，通常是「一艘船一列」
+     在看，不是照月份切開來看，兩種角度互補。
+     判斷邏輯：一艘船在 AuditDash 可能有好幾輪（列），這裡挑出「屬於這個年度」的那（幾）輪——
+     優先挑實際完成日落在該年度的輪次；若沒有任何一輪完成於該年度，才退而挑目前預計月份
+     落在該年度、但還沒完成的那一輪（表示這艘船這個年度該做但還沒做）；如果連預計都不在這個
+     年度（正常情況：上一輪剛好卡在別的年度），就顯示最近一輪的資料並註記「該年度無排程」，
+     不讓這艘船整列消失、看起來像漏掉了。 */
+  shipYearRows(year){
+    const todayYM=todayStr().slice(0,7);
+    const allRows=this.rowsRaw().filter(r=>this.fpmcShips().some(s=>s.code===r.ship)).map(r=>this.enrich(r));
+    const out=[];
+    this.fpmcShips().forEach(s=>{
+      const rounds=allRows.filter(r=>r.ship===s.code).sort((a,b)=>(a.lastAuditDate||"").localeCompare(b.lastAuditDate||""));
+      const completed=rounds.filter(r=>r.actualAuditDate&&r.actualAuditDate.slice(0,4)===year);
+      const scheduled=rounds.filter(r=>!r.actualAuditDate&&r.schedMonth&&r.schedMonth.slice(0,4)===year);
+      const picked=completed.length?completed:scheduled;
+      if(picked.length){
+        picked.forEach((r,i)=>{
+          out.push({id:r.id,code:s.code,name:r.vesselName,last:r.lastAuditDate,sched:r.schedMonth,
+            actual:r.actualAuditDate||"",enhanced:r.enhanced,
+            status:r.actualAuditDate?"已完成":(r.schedMonth&&r.schedMonth<=todayYM?"逾期尚未完成":"尚未到期"),
+            extra:i>0,port:r.actualAuditDate?this.actualPortFor(r):r.plannedPort,auditor:r.auditor||"",
+            remark:r.remark||"",closedOut:!!r.closedOut,defCount:r.defCount||0});
+        });
+      }else{
+        const nearest=rounds[rounds.length-1]||null;
+        out.push({id:nearest?nearest.id:null,code:s.code,name:(nearest?nearest.vesselName:(s.name||s.code)),
+          last:nearest?nearest.lastAuditDate:"",sched:nearest?nearest.schedMonth:"",actual:"",
+          enhanced:nearest?nearest.enhanced:false,status:"該年度無排程",extra:false,
+          port:"",auditor:"",remark:"",closedOut:false,defCount:0});
+      }
+    });
+    return out;
+  },
+  /* ════════ 📖 內稽紀錄：35艘船 × 雙年度橫向對照 ════════
+     跟「計畫與進度」那份逐輪列表不同角度——那份是「現在有哪些輪次要處理」，這份是
+     「一艘船一列，直接比對兩個年度做了什麼」，適合寫年度報告或跟外部 Excel 對答案時，
+     不用在一長串列表裡逐列翻找同一艘船分散在不同年份的紀錄。 */
+  HIST_YEAR_SELECTS:["ad-h-yearA","ad-h-yearB","ad-h-yearC"],
+  renderHistory(){
+    const box=$("#ad-hist-body");if(!box)return;
+    const sels=this.HIST_YEAR_SELECTS.map(id=>$("#"+id));
+    if(sels[0]&&!sels[0].dataset.inited){
+      const years=this.monthlyYears();
+      const opts=years.map(y=>`<option value="${y}">${y}年</option>`).join("");
+      const curYear=new Date().getFullYear();
+      sels.forEach((sel,i)=>{
+        if(!sel)return;
+        sel.innerHTML=opts;
+        const want=String(curYear-i); // 預設今年／去年／前年三欄
+        sel.value=years.includes(want)?want:(years[i]||years[years.length-1]||"");
+        sel.dataset.inited="1";
+      });
+    }
+    /* 每個年度欄位獨立一個表頭儲存格（不用 rowspan/colspan 兩層表頭）——單層表頭才能沿用
+       表格既有的 sticky 表頭樣式（table.tbl th{position:sticky;top:0}），否則兩層表頭會
+       疊在同一個 top:0，往下捲動時第二層表頭跟著跑掉、對不齊資料列。 */
+    const years=[...new Set(sels.map(s=>s&&s.value).filter(Boolean))];
+    const kw=($("#ad-h-kw")?$("#ad-h-kw").value:"").trim().toLowerCase();
+    const mapByYear=new Map(years.map(y=>[y,(()=>{
+      const map=new Map();
+      this.shipYearRows(y).forEach(r=>{
+        if(!map.has(r.code))map.set(r.code,[]);
+        map.get(r.code).push(r);
+      });
+      return map;
+    })()]));
+    let ships=this.fpmcShips();
+    if(kw)ships=ships.filter(s=>s.code.toLowerCase().includes(kw)||(s.name||"").toLowerCase().includes(kw));
+    const dateCell=(list)=>{
+      if(!list||!list.length)return `<span class="hint">—</span>`;
+      return list.map(r=>{
+        const label=r.actual?r.actual:(r.status==="該年度無排程"?"該年度無排程":`預計 ${r.sched?this.monthDisplay(r.sched):"—"}`);
+        const style=r.actual?"":(r.status==="逾期尚未完成"?"color:var(--bad);font-weight:700":"color:var(--ink-3);font-style:italic");
+        if(r.id==null)return `<span style="${style}">${esc(label)}</span>`;
+        return `<a href="javascript:void(0)" style="${style};text-decoration:underline" onclick="AuditDash.openHistDetail(${r.id})" title="點擊查看詳情">${esc(label)}${r.enhanced?" ⭐":""}</a>`;
+      }).join("<br>");
+    };
+    const sideCell=(list,field)=>{
+      if(!list||!list.length)return "—";
+      return list.map(r=>esc(r[field]||"—")).join("<br>")||"—";
+    };
+    const cntEl=$("#ad-h-count");if(cntEl)cntEl.textContent=`共 ${ships.length} 艘`;
+    box.innerHTML=`
+      <div class="tblwrap" style="max-height:560px">
+        <table class="tbl">
+          <thead>
+            <tr><th>代碼</th><th style="text-align:left">船名</th>
+              ${years.map((y,i)=>`<th${i>0?' style="border-left:2px solid rgba(255,255,255,.35)"':""}>${esc(y)}年<br>執行日</th><th>${esc(y)}年<br>港口</th><th>${esc(y)}年<br>稽核員</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${ships.map(s=>{
+              const cells=years.map((y,i)=>{
+                const list=mapByYear.get(y).get(s.code)||[];
+                const bl=i>0?"border-left:2px solid var(--line-2)":"";
+                return `<td style="${bl}">${dateCell(list)}</td><td style="font-size:11px">${sideCell(list,"port")}</td><td style="font-size:11px">${sideCell(list,"auditor")}</td>`;
+              }).join("");
+              return `<tr>
+                <td style="font-family:var(--mono)">${esc(s.code)}</td>
+                <td style="text-align:left">${esc(s.name||s.zh||s.code)}</td>
+                ${cells}
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+      <p class="hint" style="margin-top:6px">點日期可查看該輪完整詳情（缺失數、備註、結案狀態）；⭐ 表示該輪為加強稽核。「該年度無排程」表示這艘船上一輪剛好落在別的年度，這個年度本來就沒有排到它。</p>`;
+  },
+  openHistDetail(id){
+    const row=this.rowsRaw().find(r=>r.id===id);
+    if(!row){toast("⚠ 找不到這筆紀錄");return;}
+    const r=this.enrich(row);
+    $("#adHistDetailTitle").textContent=`${r.vesselName}　${r.actualAuditDate||this.monthDisplay(r.schedMonth)||""}`;
+    const port=r.actualAuditDate?this.actualPortFor(r):r.plannedPort;
+    const defs=this.defsFor(r.ship,r.actualAuditDate);
+    $("#adHistDetailBody").innerHTML=`
+      <div class="fgrid" style="grid-template-columns:1fr 1fr;gap:10px 16px;margin-bottom:14px">
+        <div><span class="hint">上次稽核日</span><br><b>${esc(r.lastAuditDate)||"—"}</b></div>
+        <div><span class="hint">實際完成日</span><br><b>${esc(r.actualAuditDate)||"（尚未完成，預計 "+esc(this.monthDisplay(r.schedMonth)||"—")+"）"}</b></div>
+        <div><span class="hint">檢查港口</span><br><b>${esc(port)||"—"}</b></div>
+        <div><span class="hint">稽核員</span><br><b>${esc(r.auditor)||"—"}</b></div>
+        <div><span class="hint">加強稽核</span><br><b>${r.enhanced?"⭐ 是（"+esc(r.enhancedReason||"")+"）":"否"}</b></div>
+        <div><span class="hint">結案狀態</span><br><b>${r.closedOut?"✓ 已結案":"✗ 未結案"}</b></div>
+      </div>
+      ${r.remark?`<div style="margin-bottom:14px"><span class="hint">備註</span><div style="white-space:pre-wrap;margin-top:4px">${esc(r.remark)}</div></div>`:""}
+      <div>
+        <span class="hint">缺失內容（共 ${defs.length} 筆，依「缺失紀錄總表」比對該船實際檢查日）</span>
+        ${defs.length?`<div class="tblwrap" style="max-height:280px;margin-top:6px">
+          <table class="tbl"><thead><tr><th>重要程度</th><th>缺失內容</th></tr></thead><tbody>
+            ${defs.map(d=>`<tr><td style="text-align:center">${esc(d.ncImp)||"-"}</td><td style="text-align:left">${esc(d.detail)||""}</td></tr>`).join("")}
+          </tbody></table>
+        </div>`:`<p class="hint" style="margin-top:6px">無對應缺失紀錄。</p>`}
+      </div>
+      <div style="margin-top:14px;text-align:right">
+        <button class="btn sm" onclick="AuditDash.closeHistDetail();AuditDash.setSubTab('plan');AuditDash.jumpToRow(${r.id})">↗ 前往計畫與進度該列</button>
+      </div>`;
+    $("#adHistDetailModal").classList.add("show");
+  },
+  closeHistDetail(){$("#adHistDetailModal").classList.remove("show");},
   render(){
     this.ensureDefaults();
     if(!this._snapPulled){
@@ -19274,6 +19502,8 @@ const AuditDash={
       yearSel.innerHTML=`<option value="">完成年度：全部（含尚未完成）</option>`+years.map(y=>`<option value="${y}"${y===cur?" selected":""}>${y}年已完成</option>`).join("");
     }
     document.querySelectorAll(".ad-viewbtn").forEach(b=>b.classList.toggle("active",b.dataset.v===this.viewMode));
+    document.querySelectorAll(".ad-subtabbtn").forEach(b=>b.classList.toggle("dark",b.dataset.t===this.subTab));
+    this.renderFilterSummary();
     const rows=this.filteredRows();
     const cntEl=$("#ad-result-count");if(cntEl)cntEl.textContent=`篩選結果：${rows.length} 筆`;
     const canEdit=this.canEdit();
@@ -19327,6 +19557,16 @@ const AuditDash={
     const ws2=XLSX.utils.aoa_to_sheet(mAoa);
     ws2["!cols"]=[{wch:8},{wch:12},{wch:12},{wch:36},{wch:36},{wch:20}];
     XLSX.utils.book_append_sheet(wb,ws2,"各月稽核達成情形");
+
+    // 年度總覽（每艘船一列）——跟畫面上的年度總覽同一份資料，方便直接拿去跟外部 Excel 對答案
+    const yRows=this.shipYearRows(mYear);
+    const yHdr=["船舶代碼","船名","上次稽核日","預計稽核月","實際完成日","加強稽核","達成情形"];
+    const yAoa=[[`${mYear}年 內稽年度總覽（每艘船一列）`],[],yHdr,
+      ...yRows.map(r=>[r.code,r.name,r.last,r.sched?this.monthDisplay(r.sched):"",r.actual,r.enhanced?"是":"",r.status+(r.extra?"（第2輪）":"")])
+    ];
+    const ws3=XLSX.utils.aoa_to_sheet(yAoa);
+    ws3["!cols"]=[{wch:10},{wch:20},{wch:12},{wch:12},{wch:12},{wch:8},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,ws3,"年度總覽(每艘船一列)");
 
     XLSX.writeFile(wb,`內稽動態表_${todayStr()}.xlsx`);
     if(typeof Audit!=="undefined")Audit.log("匯出","內稽動態","匯出 Excel");
@@ -20346,10 +20586,13 @@ const Air={
         const full=rm[2];
         const rawFull=rawRecordFulls[recIdx]||"";recIdx++;
         const firstDefIdx=full.search(/===\s*DEFECT\s*\d+\s*===/i);
-        const basicPart=firstDefIdx>=0?full.slice(0,firstDefIdx):full;
-        const defectsPart=firstDefIdx>=0?full.slice(firstDefIdx):"";
+        const posIdx=full.search(/===\s*POSCOMMENTS\s*===/i);
+        const basicPart=firstDefIdx>=0?full.slice(0,firstDefIdx):(posIdx>=0?full.slice(0,posIdx):full);
+        const defectsPart=firstDefIdx>=0?full.slice(firstDefIdx,posIdx>=0?posIdx:undefined):"";
+        const posPart=posIdx>=0?full.slice(posIdx):"";
         const rawFirstDefIdx=rawFull.search(/===\s*DEFECT\s*\d+\s*===/i);
-        const defectsPartRaw=rawFirstDefIdx>=0?rawFull.slice(rawFirstDefIdx):"";
+        const rawPosIdx=rawFull.search(/===\s*POSCOMMENTS\s*===/i);
+        const defectsPartRaw=rawFirstDefIdx>=0?rawFull.slice(rawFirstDefIdx,rawPosIdx>=0?rawPosIdx:undefined):"";
         const ship=grab(basicPart,"船名");
         if(!ship)continue;
         const rawDefBlocks=[];
@@ -20386,13 +20629,26 @@ const Air={
           };
           if(d.detail||d.corrective||d.rootCause||d.preventive||d.code||d.actual||d.ncProb||d.ncMain)defs.push(d);
         }
+        // 正面評論：跟缺失同一套 ===POS N=== 標記＋[FIELD] 抓法，submit-airform 匯出的 Word
+        // 現在會把這段包在 ===POSCOMMENTS=== 之後、===RECORD END=== 之前（見該檔匯出邏輯的註解）。
+        const posComments=[];
+        {
+          const posRe=/===\s*POS\s*\d+\s*===([\s\S]*?)(?====\s*POS\s*\d+\s*===|$)/gi;
+          let pm;
+          while((pm=posRe.exec(posPart))){
+            const pb=pm[1];
+            const code=grab(pb,"CODE"),item=grab(pb,"項目"),comment=grab(pb,"評論內容");
+            const rank=grab(pb,"職稱"),person=grab(pb,"姓名");
+            if(code||item||comment)posComments.push({code,item,comment,rank,person,people:person?[{rank,person}]:[]});
+          }
+        }
         records.push({
           ship,vtype:grab(basicPart,"船型")||(typeof vtypeOfShip==="function"?vtypeOfShip(ship):"")||"tanker",
           itype:grab(basicPart,"檢查來源"),date:grab(basicPart,"檢查日期"),
           place:grab(basicPart,"檢查地點"),oilco:grab(basicPart,"檢查單位/油公司"),
           inspector:grab(basicPart,"檢查員"),
-          ndef:String(defs.length),npos:"0",
-          defects:defs,posComments:[],
+          ndef:String(defs.length),npos:String(posComments.length),
+          defects:defs,posComments,
           usedInsp:false,usedDef:false,usedPos:false,reviewed:false
         });
       }
