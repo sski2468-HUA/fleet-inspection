@@ -1671,6 +1671,11 @@ table.tbl tbody tr.attn-row.sel:hover>td{background:#fbe8d4}
   #printArea table{width:100%;border-collapse:collapse;font-size:10.5px}
   #printArea th,#printArea td{border:1px solid #888;padding:4px 6px;vertical-align:top;text-align:left}
   #printArea th{background:#e8e8e8}
+  /* 內稽動態列印「壓縮版面」選項專用——只縮行距/留白，不把字體縮到看不清楚，
+     只加在這個 class 底下，不影響其他功能既有的列印樣式。 */
+  #printArea table.ad-print-normal{font-size:11px}
+  #printArea table.ad-print-compact{font-size:9.5px}
+  #printArea table.ad-print-compact th,#printArea table.ad-print-compact td{padding:1.5px 4px;line-height:1.25}
   /* 一般表格（內稽動態表、內稽綜合報告的觀察項目表…）分頁時，同一列不能被硬切成兩半
      印在不同頁，否則會出現「上一頁印半列、下一頁又從殘缺處接續」、甚至跟固定頁首/
      頁尾疊在一起的重疊觀感。這裡讓瀏覽器遇到印不下整列時，直接把整列推到下一頁。 */
@@ -3517,11 +3522,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div class="modal" style="max-width:520px">
           <div class="mh"><h3>🖨 列印／PDF － 匯出設定</h3><button class="x" onclick="AuditDash.closePrintModal()">✕</button></div>
           <div class="mb">
-            <p class="hint" style="margin-bottom:10px;line-height:1.6">勾選要包含在這次列印/PDF中的船舶區塊（分區塊各自列印，跟畫面「分區檢視」一致）。例行每兩週呈簽 DPA 時，通常只需前三項（排除已結案，避免報表被已完成的船淹沒）。要縮小範圍可先在上方篩選列設定「計畫檢查日」區間，會一併套用。</p>
+            <p class="hint" style="margin-bottom:10px;line-height:1.6">勾選要包含在這次列印/PDF中的船舶區塊（分區塊各自列印，跟畫面「分區檢視」一致）。例行每兩週呈簽 DPA 時，通常只需前三項（排除已結案，避免報表被已完成的船淹沒）。</p>
             <label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" id="ad-print-scheduled" checked> 🔴 已進入排程（未完成）</label>
             <label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" id="ad-print-unscheduled" checked> 🟡 未排程</label>
             <label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" id="ad-print-doneopen" checked> 🔵 已完成稽核未結案</label>
             <label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" id="ad-print-doneclosed"> ✅ 已完成稽核已結案</label>
+
+            <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
+              <label style="display:block;margin-bottom:6px">只列印指定 Sched. Month（不選＝全部月份都印，勾越少頁數越少）</label>
+              <div class="msel" id="ms-print-schedmonth"></div>
+              <label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input type="checkbox" id="ad-print-compact" checked> 壓縮版面（縮小行距／留白，盡量塞進較少頁數，字體維持可讀大小）</label>
+            </div>
 
             <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
               <label style="display:block;margin-bottom:10px">表頭年份
@@ -19670,9 +19681,18 @@ Principles for assigning ISM auditors are as follows:
       return {ship:s.name||ic.ship,reason:ic.enhancedReason||"",period};
     });
   },
+  msPrint:{},
   openPrintModal(){
     const yEl=$("#ad-print-year");if(yEl)yEl.value=this.loadPrintYear();
     const nEl=$("#ad-print-note");if(nEl)nEl.value=this.loadPrintNote();
+    // 只在第一次打開列印視窗時建立這個月份篩選器（MSel 每次呼叫都會重畫整個按鈕+清空已選，
+    // 若每次開視窗都重建，使用者選好的月份會在視窗關掉重開後被清空，體驗很差）。
+    if(!this.msPrint.schedMonth){
+      this.msPrint.schedMonth=MSel("ms-print-schedmonth","限定月份",()=>{
+        const set=new Set(this.rowsRaw().filter(r=>this.fpmcShips().some(s=>s.code===r.ship)).map(r=>this.monthDisplay(r.schedMonth)).filter(Boolean));
+        return [...set].sort();
+      },()=>{});
+    }
     $("#adPrintModal").classList.add("show");
   },
   closePrintModal(){$("#adPrintModal").classList.remove("show");},
@@ -19686,14 +19706,20 @@ Principles for assigning ISM auditors are as follows:
     const year=($("#ad-print-year").value||"").trim()||String(new Date().getFullYear());
     const note=$("#ad-print-note").value||"";
     const includeSchedMonth=false; // 已固定不列印這欄，直接看 Last Audit 就好，不再開放勾選
+    const compact=$("#ad-print-compact")?$("#ad-print-compact").checked:true;
     this.savePrintYear(year);this.savePrintNote(note);
     this.closePrintModal();
-    this.exportPdf(sel,year,note,includeSchedMonth);
+    this.exportPdf(sel,year,note,includeSchedMonth,compact);
   },
-  exportPdf(sectionSet,year,note,includeSchedMonth){
+  exportPdf(sectionSet,year,note,includeSchedMonth,compact){
     year=year||this.loadPrintYear();
     note=note!=null?note:this.loadPrintNote();
-    const rows=this.filteredRows();
+    let rows=this.filteredRows();
+    // 列印視窗自己的「限定月份」篩選——跟主表篩選列分開，不會互相干擾，
+    // 也不用使用者記得先回主表篩選列設好月份才來列印，一站搞定。
+    if(this.msPrint.schedMonth&&this.msPrint.schedMonth.sel&&this.msPrint.schedMonth.sel.size){
+      rows=rows.filter(r=>this.msPrint.schedMonth.pass(this.monthDisplay(r.schedMonth)));
+    }
     const groups={scheduled:[],unscheduled:[],done_open:[],done_closed:[]};
     rows.forEach(r=>{const k=this.schedStatus(r);if(sectionSet.has(k))groups[k].push(r);});
     const rowHtmlFull=r=>`<tr${r.enhanced?' style="background:#fff3e0"':""}>
@@ -19727,8 +19753,8 @@ Principles for assigning ISM auditors are as follows:
       if(!list.length)return "";
       const brief=(k==="scheduled"||k==="unscheduled");
       const title=PRINT_SECTION_TITLE_EN[k];
-      return `<h2 style="font-size:14px;margin:10px 0 4px;padding:4px 8px;border-radius:3px;background:#f0f0f0">${title} (${list.length})</h2>
-      <table style="width:100%;border-collapse:collapse;font-size:11px">
+      return `<h2 style="font-size:${compact?12:14}px;margin:${compact?"6px 0 3px":"10px 0 4px"};padding:${compact?"2px 6px":"4px 8px"};border-radius:3px;background:#f0f0f0">${title} (${list.length})</h2>
+      <table class="${compact?"ad-print-compact":"ad-print-normal"}" style="width:100%;border-collapse:collapse">
         <thead>${brief?BRIEF_HEAD:FULL_HEAD}</thead>
         <tbody>${list.map(brief?rowHtmlBrief:rowHtmlFull).join("")}</tbody>
       </table>`;
