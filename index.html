@@ -19739,6 +19739,15 @@ Principles for assigning ISM auditors are as follows:
     </tr>`;
     const BRIEF_HEAD=`<tr>${includeSchedMonth?'<th style="text-align:center">Sched. Month</th>':""}<th style="text-align:left">Vessel</th><th style="text-align:center">Last Audit</th><th style="text-align:center">Planned Port</th><th style="text-align:center">Planned Date</th><th style="text-align:center">CSO</th><th style="text-align:center">Auditor</th><th style="text-align:left">Remark</th></tr>`;
     const FULL_HEAD=`<tr>${includeSchedMonth?'<th style="text-align:center">Sched. Month</th>':""}<th style="text-align:left">Vessel</th><th style="text-align:center">Last Audit</th><th style="text-align:center">Planned Port</th><th style="text-align:center">Planned Date</th><th style="text-align:center">Actual Date</th><th style="text-align:center">Def. No.</th><th style="text-align:center">Closed</th><th style="text-align:center">CSO</th><th style="text-align:center">Auditor</th><th style="text-align:left">Remark</th></tr>`;
+    // 每張區塊表格各自是獨立的 <table>，瀏覽器預設會依「這張表自己的內容」各自算欄寬，
+    // 導致 Scheduled／Not Yet Scheduled 兩張表雖然欄位名稱一樣，寬度卻對不齊（使用者反映
+    // 的狀況）。這裡改成明確用 <colgroup> 固定每欄的百分比寬度，同一種表頭（brief／full）
+    // 一律套用同一組寬度，不管這張表實際內容多短，欄寬永遠跟其他同類型的表對齊。
+    const BRIEF_COLS=(includeSchedMonth?['8%']:[]).concat(['15%','10%','13%','10%','9%','9%','34%']);
+    const FULL_COLS=(includeSchedMonth?['7%']:[]).concat(['13%','9%','11%','9%','9%','6%','6%','8%','8%','21%']);
+    const colgroupHtml=widths=>`<colgroup>${widths.map(w=>`<col style="width:${w}">`).join("")}</colgroup>`;
+    const BRIEF_COLGROUP=colgroupHtml(BRIEF_COLS);
+    const FULL_COLGROUP=colgroupHtml(FULL_COLS);
     // 分區塊各自成一張表，跟畫面「分區檢視」一致，而不是全部混在一張大表裡
     // 匯出用的英文區塊標題（跟畫面上「分區檢視」共用的 GROUP_META 分開，
     // 避免改了這裡連畫面上的中文分類名稱也跟著變成英文）。
@@ -19754,7 +19763,8 @@ Principles for assigning ISM auditors are as follows:
       const brief=(k==="scheduled"||k==="unscheduled");
       const title=PRINT_SECTION_TITLE_EN[k];
       return `<h2 style="font-size:${compact?12:14}px;margin:${compact?"6px 0 3px":"10px 0 4px"};padding:${compact?"2px 6px":"4px 8px"};border-radius:3px;background:#f0f0f0">${title} (${list.length})</h2>
-      <table class="${compact?"ad-print-compact":"ad-print-normal"}" style="width:100%;border-collapse:collapse">
+      <table class="${compact?"ad-print-compact":"ad-print-normal"}" style="width:100%;border-collapse:collapse;table-layout:fixed">
+        ${brief?BRIEF_COLGROUP:FULL_COLGROUP}
         <thead>${brief?BRIEF_HEAD:FULL_HEAD}</thead>
         <tbody>${list.map(brief?rowHtmlBrief:rowHtmlFull).join("")}</tbody>
       </table>`;
