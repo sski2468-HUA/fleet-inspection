@@ -18207,16 +18207,28 @@ const AnnualPlan={
     if(typeof Audit!=="undefined")Audit.log("自動建議","年度計畫",`${cfg.label} ${year}年 自動建議 ${added} 筆`);
     toast(`✓ 已自動建議 ${added} 筆排程（僅補空白船舶，不覆蓋既有排程）${skippedNoHistory?`；另有 ${skippedNoHistory} 艘船無歷史紀錄可推算，請手動安排`:""}`);
   },
+  /* ⚠ 防重複：舊版邏輯只靠 actualInspId 判斷「這筆實際紀錄是否已經核對過」，但早期版本
+     建立的 auto-actual 項目沒有存 actualInspId（欄位當時還不存在），導致這種舊項目每次
+     重按「核對完成狀態」都會被誤判成「還沒核對過」，又新增一筆一模一樣的 auto-actual
+     （同船、同月、同 actualDate），使用者按越多次，年度計畫裡的重複項目就越多，連帶讓
+     依此計算的「預計稽核數」等統計數字被灌水到快兩倍。這裡多加一層用 actualDate 比對
+     的保險：已經有一筆同樣實際日期的項目時，優先補上它缺的 actualInspId，不再新增重複項目。 */
   matchActual(){
     if(!this.requireEdit("僅指定編輯者或 Owner 可執行核對"))return;
     const pt=this.curType,year=this.curYear;
-    let matched=0,createdFromActual=0;
+    let matched=0,createdFromActual=0,backfilled=0;
     this.rowsForType(pt).filter(s=>!s.isExtra).forEach(s=>{
       const recs=this.actualRecordsFor(s.code,pt).filter(r=>yearOf(r.date)===String(year));
       const planned=this.entriesFor(year,pt,s.code);
       const used=new Set(planned.filter(e=>e.actualInspId!=null).map(e=>e.actualInspId));
+      const usedDates=new Set(planned.filter(e=>e.actualDate).map(e=>e.actualDate));
       recs.forEach(r=>{
         if(used.has(r.id))return;
+        if(usedDates.has(r.date)){
+          const dup=planned.find(e=>e.actualDate===r.date&&e.actualInspId==null);
+          if(dup){dup.actualInspId=r.id;used.add(r.id);backfilled++;}
+          return; // 已有同一天的項目，不再新增重複的
+        }
         const md=InspCtrl.normDate(r.date);const rm=md?+md.slice(5,7):null;
         let best=null,bestDiff=99;
         planned.forEach(e=>{
@@ -18224,17 +18236,17 @@ const AnnualPlan={
           const diff=Math.abs(e.month-(rm||e.month));
           if(diff<bestDiff){bestDiff=diff;best=e;}
         });
-        if(best){best.actualDate=r.date;best.actualInspId=r.id;used.add(r.id);matched++;}
+        if(best){best.actualDate=r.date;best.actualInspId=r.id;used.add(r.id);usedDates.add(r.date);matched++;}
         else{
           App.annualPlan.push({id:this.nextId(),year,ship:s.code,planType:pt,month:rm||1,actualDate:r.date,actualInspId:r.id,source:"auto-actual",note:""});
-          used.add(r.id);createdFromActual++;
+          used.add(r.id);usedDates.add(r.date);createdFromActual++;
         }
       });
     });
     App.saveAll();
     this.render();
     if(typeof Audit!=="undefined")Audit.log("核對完成","年度計畫",`${this.PLAN_TYPES[pt].label} ${year}年 核對 ${matched} 筆，補上 ${createdFromActual} 筆`);
-    toast(`✓ 核對完成：${matched} 筆計畫已對應到實際紀錄${createdFromActual?`，另有 ${createdFromActual} 筆實際紀錄未列入原計畫，已自動補上顯示`:""}`);
+    toast(`✓ 核對完成：${matched} 筆計畫已對應到實際紀錄${createdFromActual?`，另有 ${createdFromActual} 筆實際紀錄未列入原計畫，已自動補上顯示`:""}${backfilled?`（另修正 ${backfilled} 筆舊資料的識別碼，避免下次誤判重複）`:""}`);
   },
   /* 找出「同船、同年、同檢查類型」出現 2 格以上已完成標記的情況，
      並列出每格對應到哪一筆檢查紀錄（日期／地點），方便判斷是真的兩次稽核還是重複配對殘留 */
@@ -18694,7 +18706,15 @@ const AuditDash={
     const mi=+parts[1]-1;if(mi<0||mi>11)return"";
     return `${names[mi]}-${parts[0]}`;
   },
-  /* Sched. Month 優先抓「年度計畫暨執行情形」內稽分頁當年度已排的月份；該船若還沒排，才退回用「上次稽核日＋週期－2個月」試算 */
+  /* Sched. Month 優先抓「年度計畫暨執行情形」內稽分頁當年度已排的月份；該船若還沒排，才退回用「上次稽核日＋週期－2個月」試算。
+     一艘船同一年可能有好幾列（完成一輪後會自動開下一輪新列），依 id 順序跟年度計畫裡「這艘船當年度」
+     的排程項目依序配對——但年度計畫項目數不一定跟這艘船當年度的列數一樣多：常見情形是年度計畫只排了
+     「這一輪」一個月份，這一輪完成後系統自動開的「下一輪」新列，理論上該退回用自動試算（上次稽核日＋
+     週期），不該有對應的年度計畫項目可配對。
+     ⚠ 之前這裡用 Math.min(idx, sorted.length-1) 做「夾住」，超出項目數的列會被夾回配到「最後一個」
+     項目、重複沿用同一個月份，導致同一艘船同一個月份被算兩次（完成的那一輪 + 新開的下一輪都算同月），
+     讓「各月稽核達成情形」卡片的預計數變成年度計畫實際排定數的將近兩倍。改成超出項目數就直接回傳
+     null，讓那一列改用下面的自動試算，不再誤配到別輪的月份。 */
   schedMonthFromAnnualPlan(row){
     if(typeof AnnualPlan==="undefined")return null;
     const year=new Date().getFullYear();
@@ -18703,8 +18723,8 @@ const AuditDash={
     const sorted=entries.slice().sort((a,b)=>a.month-b.month);
     const siblings=this.rowsRaw().filter(r=>r.ship===row.ship).sort((a,b)=>a.id-b.id);
     const idx=siblings.findIndex(r=>r.id===row.id);
-    const pick=sorted[idx>=0?Math.min(idx,sorted.length-1):0];
-    return pick?`${year}-${String(pick.month).padStart(2,"0")}`:null;
+    if(idx<0||idx>=sorted.length)return null; // 這一列在年度計畫裡沒有對應排程，改用自動試算
+    return `${year}-${String(sorted[idx].month).padStart(2,"0")}`;
   },
   computeSchedMonth(row){
     const fromPlan=this.schedMonthFromAnnualPlan(row);
