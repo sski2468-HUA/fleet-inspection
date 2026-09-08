@@ -5963,16 +5963,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 </div>
 
 <div class="modal-bg" id="defBatchEditModal">
-  <div class="modal" style="max-width:1320px">
+  <div class="modal" style="max-width:97vw;width:1680px">
     <div class="mh"><h3>批量編輯缺失紀錄（已勾選 <span id="defbe-count">0</span> 筆）</h3><button class="x" onclick="Defs.closeBatchEdit()">✕</button></div>
-    <div class="mb" style="max-height:80vh;overflow:auto">
+    <div class="mb" style="max-height:88vh;overflow:auto">
       <p class="hint" style="margin-bottom:8px">下方已列出所有勾選的缺失紀錄，可依每筆實際情形分別修改分類與相關資訊，每列各自獨立，與其他列無關。修改完成後按「套用變更」儲存。此功能僅限維護者使用，常用於填單匯入後統一補上分類資訊。</p>
-      <div class="tblwrap" style="max-height:56vh">
+      <div class="tblwrap" style="max-height:72vh">
         <table class="tbl bt-table"><thead><tr>
           <th style="width:28px">#</th>
           <th style="width:70px">船名</th>
           <th style="width:160px">缺失詳情</th>
           <th style="width:110px">檢查來源</th>
+          <th style="width:130px">PSC Action Taken</th>
           <th style="width:70px">船型</th>
           <th style="width:100px">油公司/單位</th>
           <th style="width:90px">檢查員</th>
@@ -14029,6 +14030,7 @@ const Defs={
                 ${isAdmin?`<button class="dfe-adm-btn" title="新增根因項目" onclick="Defs.editAddRoot(${d.id})">➕新增根因</button>`:""}
               </div>
             </div>
+            ${this.pscEditHtml(d)}
           </div>
           <div class="dfe-foot">
             <span>三要素：${d.ncFactor?esc(d.ncFactor):'<span class="hint">（尚未帶出，請先選根因）</span>'}</span>
@@ -14122,6 +14124,33 @@ const Defs={
       }
       return `<label class="dfe-exlabel">${esc(f.t)}<input type="text" value="${esc(d[f.k]||"")}" onchange="Defs.editSetExtraField(${d.id},'${f.k}',this.value)"></label>`;
     }).join("")}</div>`;
+  },
+  /* PSC Action Taken：只有檢查來源是 PSC 的缺失才有意義，所以不放進上面「可自選要不要
+     多顯示」的一般欄位清單裡（那些欄位任何檢查來源都適用）——只要這筆是 PSC，卡片上
+     直接固定顯示，不需要另外開關；不是 PSC 就完全不佔版面。跟線上填單、批量編輯共用
+     同一份 PSC_ACTION_CODES 代碼表。 */
+  pscEditHtml(d){
+    if(normItype(d.itype)!=="PSC")return "";
+    const sel=new Set(pscArr(d.psc));
+    return `<div class="dfe-cgroup" style="grid-column:1/-1">
+      <label class="hint" style="font-size:11px">🚩 PSC Action Taken（可多選）</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:5px">
+        ${PSC_ACTION_CODES.map(([c,label])=>`<span class="dfe-chip-wrap"><label class="dfe-chip${sel.has(c)?" on":""}" title="${esc(label)}"><input type="checkbox" ${sel.has(c)?"checked":""} onchange="Defs.editTogglePsc(${d.id},'${c}',this.checked)" style="display:none">${esc(c)}</label></span>`).join("")}
+      </div>
+    </div>`;
+  },
+  editTogglePsc(id,code,on){
+    const d=App.defs.find(x=>x.id===id);if(!d)return;
+    const arr=pscArr(d.psc);
+    const has=arr.includes(code);
+    if(on&&!has)arr.push(code);
+    if(!on&&has)arr.splice(arr.indexOf(code),1);
+    const newVal=arr.join(",");
+    this._logClassifyChange(d,{psc:[d.psc,newVal]});
+    d.psc=newVal;
+    App.saveAll();
+    if(typeof Cloud!=="undefined")Cloud.queueAutoPublish&&Cloud.queueAutoPublish("deficiencies");
+    this.renderEditCard(id);
   },
   editSortOf(rows){
     const sortKey=$("#dfedit-sort")?$("#dfedit-sort").value:"default";
@@ -14981,7 +15010,10 @@ const Defs={
         <td>${i+1}</td>
         <td style="font-size:11.5px"><b>${esc(d.ship)}</b><br><span style="color:var(--ink-3)">${esc(d.date||"")}</span></td>
         <td class="col-narrow" style="font-size:11px;max-width:200px">${esc((d.detail||"").slice(0,60))}${(d.detail||"").length>60?"…":""}</td>
-        <td><select class="defbe-itype">${itypes.map(s=>`<option ${s===d.itype?"selected":""}>${esc(s)}</option>`).join("")}</select></td>
+        <td><select class="defbe-itype" onchange="Defs.refreshBatchPscCell(this)">${itypes.map(s=>`<option ${s===d.itype?"selected":""}>${esc(s)}</option>`).join("")}</select></td>
+        <td class="defbe-psc-td" style="display:${normItype(d.itype)==="PSC"?"":"none"}">
+          <div class="defbe-psc-box" style="display:flex;flex-wrap:wrap;gap:4px">${PSC_ACTION_CODES.map(([c,label])=>`<label style="display:flex;align-items:center;gap:2px;font-size:10.5px;font-weight:400;white-space:nowrap" title="${esc(label)}"><input type="checkbox" class="defbe-psc-cb" value="${c}" ${pscArr(d.psc).includes(c)?"checked":""} style="width:12px;height:12px">${c}</label>`).join("")}</div>
+        </td>
         <td><select class="defbe-vtype"><option ${d.vtype==="tanker"?"selected":""}>tanker</option><option ${d.vtype==="bulk"?"selected":""}>bulk</option><option ${d.vtype==="other"?"selected":""}>other</option></select></td>
         <td><input class="defbe-oilco" type="text" value="${esc(d.oilco)}"></td>
         <td><input class="defbe-inspector" type="text" value="${esc(d.inspector)}"></td>
@@ -15008,6 +15040,16 @@ const Defs={
     $("#defBatchEditModal").classList.add("show");
   },
   closeBatchEdit(){$("#defBatchEditModal").classList.remove("show");},
+  /* 批量編輯表格裡每一列的「檢查來源」下拉是可以現改的，所以 PSC Action Taken 那一格
+     要跟著即時顯示/隱藏，不能只看資料庫原本的 itype——不然改成 PSC 之後還是看不到
+     PSC 欄位可以勾，或改離開 PSC 卻還留著舊的勾選狀態。 */
+  refreshBatchPscCell(selEl){
+    const tr=selEl.closest("tr");if(!tr)return;
+    const td=tr.querySelector(".defbe-psc-td");if(!td)return;
+    const on=normItype(selEl.value)==="PSC";
+    td.style.display=on?"":"none";
+    if(!on)td.querySelectorAll(".defbe-psc-cb").forEach(cb=>cb.checked=false);
+  },
   applyBatchEdit(){
     const rows=[...$("#defbe-tbody").children];
     if(!rows.length){toast("⚠ 沒有可套用的紀錄");this.closeBatchEdit();return;}
@@ -15019,6 +15061,7 @@ const Defs={
       const ms=(this.beMs&&this.beMs[id])||{};
       const newVals={
         itype:tr.querySelector(".defbe-itype").value,
+        psc:[...tr.querySelectorAll(".defbe-psc-cb:checked")].map(cb=>cb.value).join(","),
         vtype:tr.querySelector(".defbe-vtype").value,
         oilco:tr.querySelector(".defbe-oilco").value.trim(),
         inspector:tr.querySelector(".defbe-inspector").value.trim(),
