@@ -1479,6 +1479,7 @@ table.tbl tbody tr.attn-row.sel:hover>td{background:#fbe8d4}
 
 .bt-head{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
 .bt-table td{padding:4px}
+.bt-table.defbe-collapsed .defbe-extra{display:none}
 .bt-table textarea,.bt-table input,.bt-table select{width:100%;font-size:12px;padding:5px 6px;border:1px solid var(--line-2);border-radius:4px;font-family:var(--sans);resize:vertical}
 .bt-table textarea{min-height:42px;line-height:1.4}
 .air-ta{width:100%;min-width:90px;max-width:none;font-size:13px;padding:8px 9px;border:1px solid var(--line-2);border-radius:5px;font-family:var(--sans);resize:both;overflow:auto;line-height:1.55;min-height:64px;box-sizing:border-box;display:block}
@@ -5967,17 +5968,20 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="mh"><h3>批量編輯缺失紀錄（已勾選 <span id="defbe-count">0</span> 筆）</h3><button class="x" onclick="Defs.closeBatchEdit()">✕</button></div>
     <div class="mb" style="max-height:88vh;overflow:auto">
       <p class="hint" style="margin-bottom:8px">下方已列出所有勾選的缺失紀錄，可依每筆實際情形分別修改分類與相關資訊，每列各自獨立，與其他列無關。修改完成後按「套用變更」儲存。此功能僅限維護者使用，常用於填單匯入後統一補上分類資訊。</p>
+      <div style="margin-bottom:8px">
+        <button class="btn sm" id="defbe-extra-toggle" onclick="Defs.toggleBatchExtraCols()">👁 顯示更多欄位（油公司/單位、檢查員、CODE、職級-責任人、姓名-責任人）</button>
+      </div>
       <div class="tblwrap" style="max-height:72vh">
-        <table class="tbl bt-table"><thead><tr>
+        <table class="tbl bt-table defbe-collapsed" id="defbe-table"><thead><tr>
           <th style="width:28px">#</th>
           <th style="width:70px">船名</th>
-          <th style="width:80px">CODE</th>
+          <th class="defbe-extra" style="width:80px">CODE</th>
           <th style="width:160px">缺失詳情</th>
           <th style="width:110px">檢查來源</th>
           <th style="width:130px">PSC Action Taken</th>
           <th style="width:70px">船型</th>
-          <th style="width:100px">油公司/單位</th>
-          <th style="width:90px">檢查員</th>
+          <th class="defbe-extra" style="width:100px">油公司/單位</th>
+          <th class="defbe-extra" style="width:90px">檢查員</th>
           <th style="width:120px">問題別</th>
           <th style="width:120px">大類</th>
           <th style="width:120px">具體名稱</th>
@@ -5986,8 +5990,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <th style="width:60px">重點關注</th>
           <th style="width:90px">分類方法</th>
           <th style="width:70px">風險</th>
-          <th style="width:80px">職級-責任人</th>
-          <th style="width:80px">姓名-責任人</th>
+          <th class="defbe-extra" style="width:80px">職級-責任人</th>
+          <th class="defbe-extra" style="width:80px">姓名-責任人</th>
           <th style="width:60px">🆕新缺失須注意</th>
         </tr></thead><tbody id="defbe-tbody"></tbody></table>
       </div>
@@ -15007,6 +15011,8 @@ const Defs={
       targets=App.defs.filter(d=>this.selected.has(String(d.id)));
       $("#defbe-count").textContent=targets.length;
       tb=$("#defbe-tbody");tb.innerHTML="";
+      const table=$("#defbe-table");if(table)table.classList.add("defbe-collapsed");
+      const extraBtn=$("#defbe-extra-toggle");if(extraBtn)extraBtn.textContent="👁 顯示更多欄位（油公司/單位、檢查員、CODE、職級-責任人、姓名-責任人）";
       if(!this.beMs)this.beMs={};else this.beMs={};
       itypes=withItypeExtras(App.defs.map(x=>x.itype).concat(App.insp.map(x=>x.itype)));
     }catch(e){
@@ -15023,15 +15029,15 @@ const Defs={
       tr.innerHTML=`
         <td>${i+1}</td>
         <td style="font-size:11.5px"><b>${esc(d.ship)}</b><br><span style="color:var(--ink-3)">${esc(d.date||"")}</span></td>
-        <td><input class="defbe-code" type="text" value="${esc(d.code||"")}"></td>
+        <td class="defbe-extra"><input class="defbe-code" type="text" value="${esc(d.code||"")}"></td>
         <td class="col-narrow" style="font-size:11px;max-width:200px">${esc((d.detail||"").slice(0,60))}${(d.detail||"").length>60?"…":""}</td>
         <td><select class="defbe-itype" onchange="Defs.refreshBatchPscCell(this)">${itypes.map(s=>`<option ${s===d.itype?"selected":""}>${esc(s)}</option>`).join("")}</select></td>
         <td class="defbe-psc-td" style="display:${normItype(d.itype)==="PSC"?"":"none"}">
           <div class="defbe-psc-box" style="display:flex;flex-wrap:wrap;gap:4px">${PSC_ACTION_CODES.map(([c,label])=>`<label style="display:flex;align-items:center;gap:2px;font-size:10.5px;font-weight:400;white-space:nowrap" title="${esc(label)}"><input type="checkbox" class="defbe-psc-cb" value="${c}" ${pscArr(d.psc).includes(c)?"checked":""} style="width:12px;height:12px">${c}</label>`).join("")}</div>
         </td>
         <td><select class="defbe-vtype"><option ${d.vtype==="tanker"?"selected":""}>tanker</option><option ${d.vtype==="bulk"?"selected":""}>bulk</option><option ${d.vtype==="other"?"selected":""}>other</option></select></td>
-        <td><input class="defbe-oilco" type="text" value="${esc(d.oilco)}"></td>
-        <td><input class="defbe-inspector" type="text" value="${esc(d.inspector)}"></td>
+        <td class="defbe-extra"><input class="defbe-oilco" type="text" value="${esc(d.oilco)}"></td>
+        <td class="defbe-extra"><input class="defbe-inspector" type="text" value="${esc(d.inspector)}"></td>
         <td><div class="msel" id="ms-defbe-prob-${rid}"></div></td>
         <td><div class="msel" id="ms-defbe-main-${rid}"></div></td>
         <td><div class="msel" id="ms-defbe-leaf-${rid}"></div></td>
@@ -15040,8 +15046,8 @@ const Defs={
         <td style="text-align:center"><input type="checkbox" class="defbe-ncfocus" ${d.ncFocus==="是"?"checked":""} style="width:16px;height:16px;accent-color:var(--bad)"></td>
         <td><input class="defbe-ncmethod" type="text" value="${esc(d.ncMethod)}"></td>
         <td><select class="defbe-risk"><option value="" ${!d.risk?"selected":""}></option><option value="1" ${d.risk==="1"?"selected":""}>1低</option><option value="2" ${d.risk==="2"?"selected":""}>2中</option><option value="3" ${d.risk==="3"?"selected":""}>3高</option></select></td>
-        <td><select class="defbe-rank">${rankOptionsHtml(d.rank)}</select></td>
-        <td><input class="defbe-person" type="text" value="${esc(d.person)}"></td>
+        <td class="defbe-extra"><select class="defbe-rank">${rankOptionsHtml(d.rank)}</select></td>
+        <td class="defbe-extra"><input class="defbe-person" type="text" value="${esc(d.person)}"></td>
         <td style="text-align:center"><input type="checkbox" class="defbe-attn" ${d.attn?"checked":""} style="width:16px;height:16px;accent-color:var(--bad)"></td>`;
       tb.appendChild(tr);
       const prob=MSel(`ms-defbe-prob-${rid}`,"問題別",()=>["设备问题","作业问题"],()=>ncPruneCascade(prob,main,leaf));
@@ -15062,6 +15068,14 @@ const Defs={
     if(rowErr)toast("⚠ 部分紀錄載入失敗："+rowErr.message);
   },
   closeBatchEdit(){$("#defBatchEditModal").classList.remove("show");},
+  /* 欄位太多會擠成一團，預設收合較少用到的幾欄（油公司/單位、檢查員、CODE、職級-責任人、
+     姓名-責任人），需要時再一鍵展開；每次重新打開批量編輯視窗都重設回收合狀態。 */
+  toggleBatchExtraCols(){
+    const t=$("#defbe-table");if(!t)return;
+    const collapsed=t.classList.toggle("defbe-collapsed");
+    const btn=$("#defbe-extra-toggle");
+    if(btn)btn.textContent=collapsed?"👁 顯示更多欄位（油公司/單位、檢查員、CODE、職級-責任人、姓名-責任人）":"🙈 收合較少用欄位";
+  },
   /* 批量編輯表格裡每一列的「檢查來源」下拉是可以現改的，所以 PSC Action Taken 那一格
      要跟著即時顯示/隱藏，不能只看資料庫原本的 itype——不然改成 PSC 之後還是看不到
      PSC 欄位可以勾，或改離開 PSC 卻還留著舊的勾選狀態。 */
