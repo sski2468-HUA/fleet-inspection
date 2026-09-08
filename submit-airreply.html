@@ -229,6 +229,19 @@ function trimHistory(hist,cap){
   }
   return hist;
 }
+/* PSC Action Taken 代碼對照表，跟主系統／線上填單同一份，只用來把船上勾的代碼顯示成
+   帶說明的樣子，這裡不需要可編輯（船上填單那邊填的，岸上這裡是參考用）。 */
+const PSC_ACTION_CODES=[
+  ["10","deficiency rectified"],["15","rectify deficiency at next port"],["16","rectify deficiency within 14 days"],
+  ["17","rectify deficiency before departure"],["18","rectify deficiency within 3 months"],["30","detainable deficiency"],
+  ["46","rectify detainable deficiency at agreed repair port"],["48","as in the agreed flag State condition"],
+  ["49","as in the agreed rectification action plan (RAP)"],["99","other"]
+];
+function pscDisplayHtml(s){
+  const codes=(s||"").split(",").map(x=>x.trim()).filter(Boolean);
+  if(!codes.length)return "";
+  return codes.map(c=>{const f=PSC_ACTION_CODES.find(x=>x[0]===c);return `<span class="hint" title="${esc(f?f[1]:"")}" style="display:inline-block;border:1px solid var(--line);border-radius:4px;padding:1px 6px;margin:0 4px 4px 0">${esc(c)}</span>`;}).join("");
+}
 const REPLY_FIELDS=[
   {key:"opComment",labelZh:"Initial Operator Comment",labelEN:"INITIAL OPERATOR COMMENT"},
   {key:"immediateCause",labelZh:"Immediate Cause 直接原因",labelEN:"IMMEDIATE CAUSE"},
@@ -478,6 +491,7 @@ function renderStage(){
       <div class="concept">
         <div class="concept-head"><div class="badge">🚢</div><b>船上填寫版本（可在此微調） <span class="en">Ship-filled version</span></b></div>
         <div class="concept-body">
+          ${dm.psc?`<div style="margin-bottom:14px"><label style="display:block;margin-bottom:4px;font-weight:600">PSC Action Taken</label>${pscDisplayHtml(dm.psc)}</div>`:""}
           ${shipRow("缺失詳情","detail")}
           ${shipRow("實際情況","actual")}
           ${shipRow("矯正措施","corrective")}
