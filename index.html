@@ -14997,12 +14997,21 @@ const Defs={
   async openBatchEdit(){
     if(!await Guard.require())return; // 僅維護者
     if(!this.selected.size){toast("⚠ 請先在清單左側勾選要批量編輯的缺失紀錄");return;}
-    const targets=App.defs.filter(d=>this.selected.has(String(d.id)));
-    $("#defbe-count").textContent=targets.length;
-    const tb=$("#defbe-tbody");tb.innerHTML="";
-    if(!this.beMs)this.beMs={};else this.beMs={};
-    const itypes=withItypeExtras(App.defs.map(x=>x.itype).concat(App.insp.map(x=>x.itype)));
+    let targets,tb,itypes;
+    try{
+      targets=App.defs.filter(d=>this.selected.has(String(d.id)));
+      $("#defbe-count").textContent=targets.length;
+      tb=$("#defbe-tbody");tb.innerHTML="";
+      if(!this.beMs)this.beMs={};else this.beMs={};
+      itypes=withItypeExtras(App.defs.map(x=>x.itype).concat(App.insp.map(x=>x.itype)));
+    }catch(e){
+      console.error("openBatchEdit setup error",e);
+      toast("⚠ 批量編輯視窗開啟失敗："+e.message);
+      return;
+    }
+    let rowErr=null;
     targets.forEach((d,i)=>{
+     try{
       const rid=d.id;
       const tr=document.createElement("tr");
       tr.dataset.id=rid;
@@ -15035,9 +15044,16 @@ const Defs={
       const factor=MSel(`ms-defbe-factor-${rid}`,"三要素",()=>{const v=(typeof TagLists!=="undefined"?TagLists.values("ncFactor"):[]);return v.length?v:["人員因素","設備因素","系統因素"];},()=>{});
       prob.set(ncTags(d.ncProb));main.set(ncTags(d.ncMain));leaf.set(ncTags(d.ncLeaf));factor.set(ncFactorSplit(d.ncFactor));
       this.beMs[rid]={prob,main,leaf,factor};
+     }catch(e){
+       // 單一筆資料若因欄位異常而組不出這一列，不該讓整個批量編輯視窗開不起來——
+       // 記下錯誤訊息、跳過這筆，其餘筆數照常顯示，方便之後回報是哪筆資料有問題。
+       console.error("openBatchEdit row error, id="+d.id,e);
+       rowErr=e;
+     }
     });
-    $("#defbe-rowcount").textContent=targets.length+" 列";
+    $("#defbe-rowcount").textContent=tb.children.length+" 列"+(rowErr?`（${targets.length-tb.children.length} 筆組成失敗，已略過）`:"");
     $("#defBatchEditModal").classList.add("show");
+    if(rowErr)toast("⚠ 部分紀錄載入失敗："+rowErr.message);
   },
   closeBatchEdit(){$("#defBatchEditModal").classList.remove("show");},
   /* 批量編輯表格裡每一列的「檢查來源」下拉是可以現改的，所以 PSC Action Taken 那一格

@@ -754,7 +754,7 @@ function addDefectRow(data){
         <div class="peopleWrap"></div>
         <button type="button" class="btn ghost" data-act="addPerson" style="margin-top:4px">＋ 新增人員</button>
       </label>
-      <label class="full d-psc-wrap" style="display:none">PSC Action Taken（檢查來源為 PSC 時填寫，可多選）
+      <label class="full d-psc-wrap" style="display:none">PSC Action Taken *（檢查來源為 PSC 時必填，可多選）
         <div class="d-psc-box" style="display:flex;flex-wrap:wrap;gap:10px;border:1px solid var(--line);border-radius:6px;padding:8px;background:#fafbfb;margin-top:6px">${pscBoxHtml(data.psc)}</div>
       </label>
       <label class="full">缺失詳情<textarea class="d-detail" placeholder="請詳細描述發現的缺失內容">${esc(data.detail)}</textarea></label>
@@ -766,19 +766,19 @@ function addDefectRow(data){
       <label class="full">預防措施<textarea class="d-preventive">${esc(data.preventive)}</textarea></label>
     </div>
     <div class="subgrid">
-      <label>🔧 設備大類<select class="d-eqMain"></select></label>
+      <label>🔧 設備大類 *<select class="d-eqMain"></select></label>
       <label class="full">設備具體（可多選）<span class="d-eqLeaf-box" style="display:flex;flex-wrap:wrap;gap:8px;padding:6px 0"></span></label>
-      <label>⚙️ 作業大類<select class="d-opMain"></select></label>
+      <label>⚙️ 作業大類 *<select class="d-opMain"></select></label>
       <label class="full">作業具體（可多選）<span class="d-opLeaf-box" style="display:flex;flex-wrap:wrap;gap:8px;padding:6px 0"></span></label>
-      <label class="full">🧩 根因分類（可多選，自動帶出下方三要素）<span class="d-root-box" style="display:flex;flex-wrap:wrap;gap:8px;padding:6px 0"></span></label>
+      <label class="full">🧩 根因分類 *（可多選，自動帶出下方三要素；設備大類／作業大類請至少擇一，根因請至少選一項）<span class="d-root-box" style="display:flex;flex-wrap:wrap;gap:8px;padding:6px 0"></span></label>
       <div class="full" style="font-size:12.5px;color:#667;padding:2px 0">三要素：<span class="d-factor-display">（尚未帶出，請先選根因）</span></div>
-      <label>重要程度<select class="d-ncImp">
+      <label>重要程度 *<select class="d-ncImp">
         <option value="">請選擇</option>
         <option${data.ncImp==="高"?" selected":""}>高</option>
         <option${data.ncImp==="中"?" selected":""}>中</option>
         <option${data.ncImp==="低"?" selected":""}>低</option>
       </select></label>
-      <label>風險<select class="d-risk">
+      <label>風險 *<select class="d-risk">
         <option value="">請選擇</option>
         <option value="1"${data.risk==="1"?" selected":""}>1（低）</option>
         <option value="2"${data.risk==="2"?" selected":""}>2（中）</option>
@@ -1228,9 +1228,16 @@ function validatePayload(p){
   if(!p.basic.place) return "請填寫檢查地點";
   if(typeof isValidPort==="function"&&!isValidPort(p.basic.place)) return "檢查地點請用英文輸入，格式為「Port, Country」（例：Kaohsiung, Taiwan）";
   // 沒有缺失也可以送出（例如這次檢查沒發現任何缺失、或只有正面評論），
-  // 只針對「已經新增的缺失列」檢查是否有把缺失詳情填完整，不要求一定要新增缺失列。
+  // 只針對「已經新增的缺失列」檢查分類欄位是否填完整，不要求一定要新增缺失列。
+  const isPSC = normItype(p.basic.itype)==="PSC";
   for(let i=0;i<p.defects.length;i++){
-    if(!p.defects[i].detail) return `第 ${i+1} 筆缺失請填寫「缺失詳情」`;
+    const d=p.defects[i];
+    if(!d.detail) return `第 ${i+1} 筆缺失請填寫「缺失詳情」`;
+    if(!d.ncMain) return `第 ${i+1} 筆缺失請至少選擇「設備大類」或「作業大類」其中一項`;
+    if(!d.ncRoot) return `第 ${i+1} 筆缺失請至少選擇一項「根因分類」`;
+    if(!d.ncImp) return `第 ${i+1} 筆缺失請選擇「重要程度」`;
+    if(!d.risk) return `第 ${i+1} 筆缺失請選擇「風險」`;
+    if(isPSC && !d.psc) return `第 ${i+1} 筆缺失（檢查來源為 PSC）請至少勾選一項「PSC Action Taken」`;
   }
   return null;
 }
