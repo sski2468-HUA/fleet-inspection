@@ -11933,9 +11933,12 @@ const DEFAULT_ROOTCAUSE=[
   ["執行問題/不到位/不徹底","人員"],
   ["船上主管監督","人員"],
   ["岸基主管監督","人員"],
-  ["公司機能管理(專項/專業)","系統"],
   ["訓練缺失","人員"],
   ["錯誤的裝備操作/保養/設定","人員"],
+  ["英語能力不足","人員"],
+  ["人員考核/評估","人員"],
+  ["設備正常損耗/老化/意外","設備"],
+  ["公司機能管理(專項/專業)","系統"],
   ["錯誤的資格審查作業/認定","系統"],
   ["員工回報和追蹤","系統"],
   ["公司資格程序和表格","系統"],
@@ -11944,10 +11947,7 @@ const DEFAULT_ROOTCAUSE=[
   ["CLASS審批/有相關設計","系統"],
   ["儲件/物料供應","系統"],
   ["PMS管理/物料配備標準","系統"],
-  ["未清單化/或清單未更新","系統"],
-  ["設備正常損耗/老化/意外","設備"],
-  ["英語能力不足","人員"],
-  ["人員考核/評估","人員"]
+  ["未清單化/或清單未更新","系統"]
 ];
 const NCTree={
   /* ════════ 儲存格式說明 ════════
@@ -14029,13 +14029,19 @@ const Defs={
             <div class="dfe-cgroup"><label class="hint" style="font-size:11px">🔧 設備大類</label>${mainSel(eqMainOpts,parts.eqMain,"eq")}${leafChecks(eqLeafOpts,"eq",parts.eqMain)}</div>
             <div class="dfe-cgroup"><label class="hint" style="font-size:11px">⚙️ 作業大類</label>${mainSel(opMainOpts,parts.opMain,"op")}${leafChecks(opLeafOpts,"op",parts.opMain)}</div>
             <div class="dfe-cgroup" style="grid-column:1/-1">
-              <label class="hint" style="font-size:11px">🧩 根因分類（18項，可多選，自動帶出三要素）</label>
-              <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;align-items:center">
-                ${rootItems.length?rootItems.map(([name,elem])=>{const on=rootSel.has(name);
-                  const nj=esc(name).replace(/'/g,"\\'");
-                  const adm=isAdmin?`<button class="dfe-adm-ico" title="改名/改三要素" onclick="Defs.editRenameRoot(${d.id},'${nj}')">✎</button><button class="dfe-adm-ico danger" title="刪除" onclick="Defs.editDeleteRoot(${d.id},'${nj}')">✕</button>`:"";
-                  return `<span class="dfe-chip-wrap"><label class="dfe-chip root${on?" on":""}"><input type="checkbox" ${on?"checked":""} onchange="Defs.editToggleRoot(${d.id},'${nj}')" style="display:none">${esc(name)}（${esc(elem)}）</label>${adm}</span>`;
+              <label class="hint" style="font-size:11px">🧩 根因分類（18項，可多選，自動帶出三要素；依人員／設備／系統分列顯示）</label>
+              <div style="margin-top:5px">
+                ${rootItems.length?["人員","設備","系統"].map(cat=>{
+                  const items=rootItems.filter(([,elem])=>elem===cat);
+                  if(!items.length)return "";
+                  const chips=items.map(([name,elem])=>{const on=rootSel.has(name);
+                    const nj=esc(name).replace(/'/g,"\\'");
+                    const adm=isAdmin?`<button class="dfe-adm-ico" title="改名/改三要素" onclick="Defs.editRenameRoot(${d.id},'${nj}')">✎</button><button class="dfe-adm-ico danger" title="刪除" onclick="Defs.editDeleteRoot(${d.id},'${nj}')">✕</button>`:"";
+                    return `<span class="dfe-chip-wrap"><label class="dfe-chip root${on?" on":""}"><input type="checkbox" ${on?"checked":""} onchange="Defs.editToggleRoot(${d.id},'${nj}')" style="display:none">${esc(name)}</label>${adm}</span>`;
+                  }).join("");
+                  return `<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:4px"><span class="hint" style="font-size:10.5px;min-width:32px;font-weight:700">${esc(cat)}</span>${chips}</div>`;
                 }).join(""):'<span class="hint" style="font-size:11px">尚未設定根因清單</span>'}
+                ${rootItems.length&&rootItems.some(([,elem])=>!["人員","設備","系統"].includes(elem))?`<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:4px"><span class="hint" style="font-size:10.5px;min-width:32px;font-weight:700">其他</span>${rootItems.filter(([,elem])=>!["人員","設備","系統"].includes(elem)).map(([name])=>{const on=rootSel.has(name);const nj=esc(name).replace(/'/g,"\\'");const adm=isAdmin?`<button class="dfe-adm-ico" title="改名/改三要素" onclick="Defs.editRenameRoot(${d.id},'${nj}')">✎</button><button class="dfe-adm-ico danger" title="刪除" onclick="Defs.editDeleteRoot(${d.id},'${nj}')">✕</button>`:"";return `<span class="dfe-chip-wrap"><label class="dfe-chip root${on?" on":""}"><input type="checkbox" ${on?"checked":""} onchange="Defs.editToggleRoot(${d.id},'${nj}')" style="display:none">${esc(name)}</label>${adm}</span>`;}).join("")}</div>`:""}
                 ${isAdmin?`<button class="dfe-adm-btn" title="新增根因項目" onclick="Defs.editAddRoot(${d.id})">➕新增根因</button>`:""}
               </div>
             </div>
