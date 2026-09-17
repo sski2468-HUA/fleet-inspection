@@ -22151,12 +22151,36 @@ const Air={
     $("#airPushDefsMsg").textContent=msg;
     $("#airPushDefsModal").classList.add("show");
   },
-  closePushDefsModal(){$("#airPushDefsModal").classList.remove("show");this._pendingPushRows=null;},
+  closePushDefsModal(){
+    $("#airPushDefsModal").classList.remove("show");this._pendingPushRows=null;
+    // 填單清單批次轉入（pushSelected）借用這個既有的「覆蓋／另外新增」彈窗來問使用者，
+    // 用 Promise resolver 接手：取消時要 resolve(null)，讓等待中的批次流程知道使用者放棄，不能整批卡住。
+    if(this._bulkModeResolveDefs){const r=this._bulkModeResolveDefs;this._bulkModeResolveDefs=null;r(null);}
+  },
   confirmPushDefs(mode){
+    if(this._bulkModeResolveDefs){
+      const resolve=this._bulkModeResolveDefs;this._bulkModeResolveDefs=null;
+      $("#airPushDefsModal").classList.remove("show");
+      resolve(mode);
+      return;
+    }
     const rows=this._pendingPushRows;
     this.closePushDefsModal();
     if(!rows||!rows.length)return;
     this._doPushDefs(rows,mode);
+  },
+  /* 填單清單批次轉入專用：跟單筆填單編輯頁面同一個彈窗，問使用者「覆蓋先前轉入的紀錄」還是
+     「另外新增」，回傳 Promise<'overwrite'|'add'|null>（null＝使用者取消）。target 只支援 defs／sirepos，
+     insp 沿用原本「找得到就更新、找不到就新增」的既有邏輯，不需要另外問。 */
+  openPushModeModal(target,msg){
+    if(target==="defs"){
+      $("#airPushDefsMsg").textContent=msg;
+      $("#airPushDefsModal").classList.add("show");
+      return new Promise(res=>{this._bulkModeResolveDefs=res;});
+    }
+    $("#airPushPosMsg").textContent=msg;
+    $("#airPushPosModal").classList.add("show");
+    return new Promise(res=>{this._bulkModeResolvePos=res;});
   },
   async _doPushDefs(rows,mode){
     const d=App.air.find(x=>x.id===this.editId);if(!d)return;
@@ -22257,8 +22281,17 @@ const Air={
     $("#airPushPosMsg").textContent=msg;
     $("#airPushPosModal").classList.add("show");
   },
-  closePushPosModal(){$("#airPushPosModal").classList.remove("show");this._pendingPushPosRows=null;},
+  closePushPosModal(){
+    $("#airPushPosModal").classList.remove("show");this._pendingPushPosRows=null;
+    if(this._bulkModeResolvePos){const r=this._bulkModeResolvePos;this._bulkModeResolvePos=null;r(null);}
+  },
   confirmPushPos(mode){
+    if(this._bulkModeResolvePos){
+      const resolve=this._bulkModeResolvePos;this._bulkModeResolvePos=null;
+      $("#airPushPosModal").classList.remove("show");
+      resolve(mode);
+      return;
+    }
     const rows=this._pendingPushPosRows;
     this.closePushPosModal();
     if(!rows||!rows.length)return;
@@ -22469,12 +22502,24 @@ const Air={
     const usedKey=target==="insp"?"usedInsp":target==="defs"?"usedDef":"usedPos";
     const dupCount=items.filter(d=>d[usedKey]).length;
     const labelMap={insp:"檢查紀錄",defs:"缺失紀錄總表",sirepos:"正面評價/優秀案例記錄"};
-    const confirmMsg=dupCount
-      ?(target==="insp"
+    // ⚠ 這裡原本不管有沒有轉過，一律無腦新增一筆，只用文字 confirm() 警告「會重複」，
+    // 使用者按確定後還是照樣產生一份重複資料——跟單筆填單頁面「轉入」時會問「覆蓋先前轉入的紀錄」
+    // 還是「另外新增」的體驗完全不一致，也是重複資料真正的來源。改成批次轉入時，只要勾選的項目
+    // 裡有任何一筆先前轉過，就跳出跟單筆頁面同一顆「覆蓋／另外新增」彈窗，選好模式再套用到整批；
+    // insp（檢查紀錄）本來就是「找得到既有紀錄就更新、找不到就新增」，不會產生重複，沿用原邏輯即可。
+    let mode="add";
+    if(target==="insp"){
+      const confirmMsg=dupCount
         ?`⚠ 勾選的項目中有 ${dupCount} 筆先前已轉入過「檢查紀錄」，這些會直接同步更新原本那一筆（含缺失數／正面評論數／FLAG項目等最新內容），其餘 ${items.length-dupCount} 筆會新增，確定要繼續？`
-        :`⚠ 勾選的項目中有 ${dupCount} 筆先前已轉入過「${labelMap[target]}」，再次轉入將會重複新增，確定要繼續？`)
-      :`確定要將勾選的 ${items.length} 筆轉入「${labelMap[target]}」？`;
-    if(!confirm(confirmMsg))return false;
+        :`確定要將勾選的 ${items.length} 筆轉入「檢查紀錄」？`;
+      if(!confirm(confirmMsg))return false;
+    }else if(dupCount){
+      const msg=`勾選的 ${items.length} 筆填單中，有 ${dupCount} 筆先前已轉入過「${labelMap[target]}」。\n\n建議選「覆蓋」：系統會依上次轉入時的對應關係，直接更新原本那幾筆紀錄的內容（找不到對應舊紀錄——例如已被手動刪除——的視為新增一筆）；其餘 ${items.length-dupCount} 筆先前沒轉過的一律新增，不受影響。若您是刻意要另外多留一份，才選「另外新增」，這 ${dupCount} 筆會產生全新的重複紀錄。`;
+      mode=await this.openPushModeModal(target,msg);
+      if(!mode)return false;
+    }else{
+      if(!confirm(`確定要將勾選的 ${items.length} 筆轉入「${labelMap[target]}」？`))return false;
+    }
     let n=0,m=0;
     if(target==="insp"){
       items.forEach(d=>{
@@ -22489,42 +22534,74 @@ const Air={
       if(typeof Ov!=="undefined"){Ov.init();Ov.render();}
       if(typeof InspCtrl!=="undefined")InspCtrl.render();
     }else if(target==="defs"){
+      let updated=0,added=0;
       items.forEach(d=>{
         const defects=d.defects;
         defects.forEach(df=>{
-          App.defs.push({
-            id:App.nextId(),
-            ship:d.ship,vtype:d.vtype,itype:d.itype,date:normDateSlash(d.date),ym:ymOf(normDateSlash(d.date)),place:d.place,oilco:d.oilco,inspector:d.inspector,
+          // 跟單筆填單頁面 _doPushDefs 同一套邏輯：mode="overwrite" 且這筆缺失先前轉入時
+          // 記過對應的缺失紀錄 id（pushedDefId），才去比對既有紀錄更新；否則新增一筆，
+          // 並把新產生的 id 記回 df.pushedDefId，下次批次轉入才找得到對應關係可以覆蓋。
+          const existing=(mode==="overwrite"&&df.pushedDefId!=null)?App.defs.find(x=>String(x.id)===String(df.pushedDefId)):null;
+          const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:normDateSlash(d.date),ym:ymOf(normDateSlash(d.date)),place:d.place,oilco:d.oilco,inspector:d.inspector,
             psc:df.psc||"",code:df.code||"",detail:df.detail||"",actual:df.actual||"",preventive:df.preventive||"",corrective:df.corrective||"",rootCause:df.rootCause||"",
-            attn:false,rank:df.rank||"",person:df.person||"",risk:df.risk||"",
-            ncProb:df.ncProb||"",ncMain:df.ncMain||"",ncLeaf:df.ncLeaf||"",ncFactor:df.ncFactor||"",ncImp:df.ncImp||"",ncFocus:df.ncFocus||"",ncMethod:df.ncMethod||"",ncOpinion:df.ncOpinion||"",
-            photosBefore:Array.isArray(df.photosBefore)?df.photosBefore:[],photosAfter:Array.isArray(df.photosAfter)?df.photosAfter:[]
-          });
+            rank:df.rank||"",person:df.person||"",risk:df.risk||"",
+            ncProb:df.ncProb||"",ncMain:df.ncMain||"",ncLeaf:df.ncLeaf||"",ncRoot:df.ncRoot||"",ncFactor:df.ncFactor||"",ncImp:df.ncImp||"",ncFocus:df.ncFocus||"",ncMethod:df.ncMethod||"",ncOpinion:df.ncOpinion||"",
+            photosBefore:Array.isArray(df.photosBefore)?df.photosBefore:[],photosAfter:Array.isArray(df.photosAfter)?df.photosAfter:[],
+            _impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
+          if(existing){
+            // 分類欄位（問題別/大類/根因…）跟照片一樣，這次轉入沒帶值時不要用空值洗掉
+            // 缺失紀錄總表裡已經做好的分類——邏輯跟單筆頁面 _doPushDefs 一致，避免白工。
+            const CLASSIFY_KEYS=["ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","risk","rank","person"];
+            const safePayload={...payload};
+            CLASSIFY_KEYS.forEach(k=>{if(safePayload[k]==="")delete safePayload[k];});
+            ["photosBefore","photosAfter"].forEach(k=>{if(!safePayload[k]||!safePayload[k].length)delete safePayload[k];});
+            Object.assign(existing,safePayload);
+            updated++;
+          }else{
+            const rec={id:App.nextId(),attn:false,...payload};
+            App.defs.push(rec);
+            df.pushedDefId=rec.id;
+            added++;
+          }
           m++;
         });
         d.usedDef=true;n++;
       });
-      if(typeof Audit!=="undefined")Audit.log("轉入","缺失紀錄總表",`由AIR轉入 ${items.length} 筆AIR資料，共 ${m} 筆缺失明細`);
+      if(typeof Audit!=="undefined")Audit.log("轉入","缺失紀錄總表",`由AIR轉入 ${items.length} 筆AIR資料，共 ${m} 筆缺失明細（模式：${mode==="overwrite"?"覆蓋":"新增"}，更新${updated}／新增${added}）`);
       if(typeof Defs!=="undefined"){Defs.init();Defs.render();}
     }else if(target==="sirepos"){
+      let updated=0,added=0;
       items.forEach(d=>{
         let pushedAny=false;
         d.posComments.forEach(pc=>{
           if(!pc.code&&!pc.item&&!pc.comment&&!(pc.people||[]).some(p=>p.rank||p.person)&&!pc.rank&&!pc.person)return;
           const people=Array.isArray(pc.people)&&pc.people.length?pc.people.filter(p=>p.rank||p.person):(pc.rank||pc.person?[{rank:pc.rank,person:pc.person}]:[]);
           const list=people.length?people:[{rank:"",person:""}];
-          list.forEach(p=>{
-            App.sirePos.push({id:(typeof SirePos!=="undefined"?SirePos.nextId():(App.sirePos.reduce((mm,x)=>Math.max(mm,+x.id||0),0)+1)),
-              ship:d.ship,date:normDateSlash(d.date),ym:ymOf(normDateSlash(d.date)),code:pc.code||"",item:pc.item||"",comment:pc.comment||"",rank:p.rank||"",person:p.person||""});
+          const prevIds=Array.isArray(pc.pushedPosIds)?pc.pushedPosIds:[];
+          const newIds=[];
+          list.forEach((p,i)=>{
+            const payload={ship:d.ship,date:normDateSlash(d.date),ym:ymOf(normDateSlash(d.date)),code:pc.code||"",item:pc.item||"",comment:pc.comment||"",rank:p.rank||"",person:p.person||"",_impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
+            const existing=(mode==="overwrite"&&prevIds[i]!=null)?App.sirePos.find(x=>x.id===prevIds[i]):null;
+            if(existing){
+              Object.assign(existing,payload);
+              newIds.push(existing.id);
+              updated++;
+            }else{
+              const id=(typeof SirePos!=="undefined"?SirePos.nextId():(App.sirePos.reduce((mm,x)=>Math.max(mm,+x.id||0),0)+1));
+              App.sirePos.push({id,...payload});
+              newIds.push(id);
+              added++;
+            }
             m++;pushedAny=true;
           });
+          pc.pushedPosIds=newIds;
         });
         // ⚠ posComments 陣列存在，但裡面每一筆都是空白列時，前面不會真的推進任何一筆到
         // App.sirePos——這種情況不算「已轉入」，usedPos 不該標成 true，否則清單會顯示
         // 「已轉正面評價」但總表其實完全沒有對應資料。
         if(pushedAny){d.usedPos=true;n++;}
       });
-      if(typeof Audit!=="undefined")Audit.log("轉入","正面評價/優秀案例記錄",`由AIR轉入 ${items.length} 筆AIR資料，共 ${m} 筆正面評價`);
+      if(typeof Audit!=="undefined")Audit.log("轉入","正面評價/優秀案例記錄",`由AIR轉入 ${items.length} 筆AIR資料，共 ${m} 筆正面評價（模式：${mode==="overwrite"?"覆蓋":"新增"}，更新${updated}／新增${added}）`);
       if(typeof SirePos!=="undefined")SirePos.init();
     }
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
