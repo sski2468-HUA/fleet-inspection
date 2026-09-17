@@ -28850,22 +28850,45 @@ const Cloud={
   },
   /* NCDB（分類清單：問題別/大類/具體名稱）是寫死在程式碼裡的常數，不像其他資料存在 App.xxx 裡，
      所以沒辦法用一般的 gid/updated 比對機制同步。這裡改成用簡單的內容比對：算一個內容的簡易
-     指紋存在 localStorage，跟雲端現有的比對，不同才推送，避免每次同步都白白寫一次雲端。 */
-  _ncdbFingerprint(){
+     指紋存在 localStorage，跟雲端現有的比對，不同才推送，避免每次同步都白白寫一次雲端。
+     ⚠ 2026-09-17 修正：指紋跟實際推送的內容，原本都是直接讀「NDCB.equip/ops」這兩個全域變數——
+     它們理論上等於 NCTree.list.equip/ops（NCTree.apply() 會把兩者設成同一個陣列參考），但只有
+     在「這個分頁最近確實執行過一次 apply()」的前提下才成立。如果某個分頁開很久沒重新整理，
+     這段期間別人在別的分頁改過分類階層（雲端 nctree_full_v2 已經是新的），這個舊分頁的
+     NCDB.equip/ops 仍停在它自己開啟當下的舊內容；只要這個舊分頁之後觸發任何一次「立即同步」
+     （Cloud.syncNow() 會順手呼叫這裡），就會把它自己記憶體裡的舊分類，當成「有變動」重新推上
+     ncdb 這把給線上填單讀的鍵值，把別人剛改好的名稱悄悄蓋回舊的——完全不會有任何錯誤或警告，
+     跟先前「分類被舊分頁蓋掉」是同一種成因，只是這次受害的是 ncdb 而不是 nctree_full_v2 本身
+     （nctree_full_v2 有 pushCloud() 的時間戳衝突檢查保護，ncdb 這條路徑原本完全沒有）。
+     改法：推送前一律先向雲端要一次 nctree_full_v2 目前最新的內容，永遠以雲端當下最新版本
+     為準來算 equip/ops/rootCause，不再信任這個分頁自己記憶體裡可能過期的 NCDB/NCTree.list，
+     這樣不管是哪個分頁、什麼時候觸發，推上 ncdb 的都保證是當下雲端最新的分類。 */
+  async _fetchAuthoritativeNcdb(){
     try{
-      const s=JSON.stringify({equip:NCDB.equip,ops:NCDB.ops,rootCause:(typeof NCTree!=="undefined"?NCTree.list.rootCause:[])});
+      const rows=await this.api("app_db?select=payload&k=eq."+(typeof NCTree!=="undefined"?NCTree.CLOUD_KEY:"nctree_full_v2"));
+      const payload=rows&&rows[0]&&rows[0].payload;
+      if(payload&&Array.isArray(payload.equip)&&Array.isArray(payload.ops)){
+        return {equip:payload.equip,ops:payload.ops,rootCause:Array.isArray(payload.rootCause)?payload.rootCause:[]};
+      }
+    }catch(e){console.warn("_fetchAuthoritativeNcdb failed",e);}
+    // 雲端抓不到（離線／連線失敗）才退回用這個分頁記憶體裡目前的版本，總比完全不推好。
+    return {equip:NCDB.equip,ops:NCDB.ops,rootCause:(typeof NCTree!=="undefined"?NCTree.list.rootCause:[])};
+  },
+  _ncdbFingerprintOf(data){
+    try{
+      const s=JSON.stringify(data);
       let h=0;for(let i=0;i<s.length;i++){h=((h<<5)-h+s.charCodeAt(i))|0;}
       return String(h)+":"+s.length;
     }catch(e){return "";}
   },
   async pushNcdbIfChanged(){
     if(typeof NCDB==="undefined")return;
-    const fp=this._ncdbFingerprint();
+    const payload=await this._fetchAuthoritativeNcdb();
+    const fp=this._ncdbFingerprintOf(payload);
     if(!fp)return;
     let last="";try{last=localStorage.getItem("vsm_ncdb_fp")||"";}catch(e){}
     if(fp===last)return; // 內容沒變，不用重推
     try{
-      const payload={equip:NCDB.equip,ops:NCDB.ops,rootCause:(typeof NCTree!=="undefined"?NCTree.list.rootCause:[])};
       await this.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(this.hdr(),{"Prefer":"resolution=merge-duplicates,return=minimal"}),
         body:JSON.stringify([{k:"ncdb",updated:Date.now(),by:(function(){try{return localStorage.getItem("vsm_user_v1")||"";}catch(e){return "";}})(),payload}])});
       try{localStorage.setItem("vsm_ncdb_fp",fp);}catch(e){}

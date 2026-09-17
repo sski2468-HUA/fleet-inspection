@@ -44,6 +44,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
 .subgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}
 @media(min-width:560px){.subgrid{grid-template-columns:repeat(4,1fr)}}
 @media(min-width:900px){.subgrid{grid-template-columns:repeat(6,1fr)}}
+/* 分類清單（設備大類/作業大類/根因分類）在跟雲端同步完成前先鎖住，避免船上勾選到還沒同步
+   的舊分類，送出後在系統那邊對不起來（跟系統分類清單改名/更新時很容易踩到，肉眼看不出來）。 */
+.classify-area.locked{opacity:.45;pointer-events:none;filter:grayscale(.3)}
+.d-sync-banner.syncing{background:#eef4fb;color:#2b5f8a;border:1px solid #bcd6ec}
+.d-sync-banner.warn{background:#fff4e0;color:#8a5a10;border:1px solid #eecb8a}
 .flag-row{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);font-weight:500;padding:9px 0}
 .flag-row input[type=checkbox]{width:18px;height:18px}
 .people-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
@@ -109,7 +114,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
     <a class="guideLink" href="https://claude.ai/code/artifact/9fe8ed38-61fc-458a-99e2-2ee53a0cbb3b" target="_blank" rel="noopener">📖 操作說明</a>
   </header>
 
-  <div class="savebar" id="savebar">💾 本機自動暫存中：填到一半離開頁面，重新打開這個網址還會接續之前的內容<span id="draftSavedWrap"></span></div>
+  <div class="savebar" id="savebar">💾 本機自動暫存中：填到一半離開頁面，重新打開這個網址還會接續之前的內容<span id="draftSavedWrap"></span>　<button type="button" id="btnRefreshNcdb" style="border:1px solid #d8c48a;background:#fffdf6;color:#8a5a10;border-radius:12px;padding:2px 10px;font-size:11px;cursor:pointer">🔄 重新整理分類清單</button></div>
   <div class="draftbar">
     <button class="btn ghost" id="btnExportDraft" type="button">💾 匯出草稿存檔（Excel＋Word＋JSON）</button>
     <button class="btn ghost" id="btnImportDraft" type="button">📂 開啟草稿檔案</button>
@@ -650,14 +655,24 @@ async function pushCustomOilco(name){
 /* NCDB_MAIN/NCDB_LEAF 上面已經內嵌一份範例快照當離線備援，但主系統那邊分類清單如果之後調整，
    這份快照不會自動跟著變。改成打開表單時向雲端抓一次最新版本，直接覆蓋這兩個物件的內容
    （用清空後重新賦值的方式，這樣其他地方用同一個物件參照的地方會自動讀到新內容，不用另外重render）。 */
-async function loadNcdbFromCloud(){
+/* manual=true 時是使用者自己按「🔄 重新整理分類清單」觸發，額外跳 toast 告知結果；
+   開表單時的第一次呼叫、以及下面的背景定時同步都不帶這個參數，靜默進行就好，不用一直打擾使用者。
+   ⚠ 這裡不論是第一次載入還是之後重新整理，都共用同一個 ncdbSyncStatus／同一套鎖定邏輯：
+   只有「開表單時第一次同步」會因為 ncdbSyncStatus 初始值是 pending 而鎖住分類欄位；
+   之後不管是背景定時、還是手動按重新整理，狀態已經是 ok／failed，不會再重新鎖住，
+   避免使用者填到一半，分類區塊每隔幾分鐘就反灰閃一下的干擾。 */
+async function loadNcdbFromCloud(manual){
+  // ⚠ fetch 沒有內建逾時，網路訊號差、卡住不動時 await 會一直懸著，分類欄位就會一直鎖住、
+  // 船員完全填不了單。用 Promise.race 頂一個 8 秒逾時，逾時就當作同步失敗處理（解鎖＋警告），
+  // 不讓真的離線／訊號很差的情況把整張表單卡死。
+  const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error("逾時")),ms))]);
   try{
-    const res = await fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=eq.ncdb`,
-      { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } });
-    if(!res.ok)return;
+    const res = await withTimeout(fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=eq.ncdb`,
+      { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } }), 8000);
+    if(!res.ok){ncdbSyncStatus="failed";refreshAllClassifyBlocks();if(manual)notify("⚠ 分類清單同步失敗，請確認網路後再試","err");return;}
     const rows = await res.json();
     const payload = rows && rows[0] && rows[0].payload;
-    if(!payload || !payload.equip || !payload.ops)return;
+    if(!payload || !payload.equip || !payload.ops){ncdbSyncStatus="failed";refreshAllClassifyBlocks();if(manual)notify("⚠ 分類清單同步失敗，請確認網路後再試","err");return;}
     const mainMap={"设备问题":[],"作业问题":[]};
     const leafMap={};
     const seenMain={"设备问题":new Set(),"作业问题":new Set()};
@@ -675,12 +690,25 @@ async function loadNcdbFromCloud(){
     Object.assign(NCDB_LEAF, leafMap);
     if(Array.isArray(payload.rootCause)&&payload.rootCause.length){
       ROOT_CAUSE=payload.rootCause;
-      // 分類清單更新後，已經畫出來的缺失明細列要重新渲染根因清單區塊，才看得到最新項目
-      document.querySelectorAll(".defbox").forEach(div=>{if(div._refreshClassify)div._refreshClassify();});
     }
-  }catch(e){ /* 離線或連線失敗，沿用內嵌的備援快照 */ }
+    ncdbSyncStatus="ok";
+    // 分類清單更新後，已經畫出來的缺失明細列要重新渲染（設備大類/作業大類/根因分類三個區塊都要），
+    // 並解鎖同步鎖，船員才看得到、選得到最新項目。
+    refreshAllClassifyBlocks();
+    if(manual)notify("✓ 分類清單已更新為最新版本","ok2");
+  }catch(e){
+    // 離線、連線失敗、或逾時：解鎖讓船員還能繼續填單（不然真的離線就永遠卡住），
+    // 但持續顯示警告，提醒目前用的是內建快照、可能不是最新分類清單。
+    ncdbSyncStatus="failed";
+    refreshAllClassifyBlocks();
+    if(manual)notify("⚠ 分類清單同步失敗，請確認網路後再試","err");
+  }
 }
 loadNcdbFromCloud();
+// 表單開著的期間，每 10 分鐘背景重新同步一次分類清單，不用等重新整理頁面、也不用等船員
+// 自己想到要按「重新整理分類清單」，減少「表單開很久、清單在這段時間被改過」的落差視窗。
+setInterval(()=>loadNcdbFromCloud(false), 10*60*1000);
+document.getElementById("btnRefreshNcdb").addEventListener("click", ()=>loadNcdbFromCloud(true));
 
 document.getElementById("f-ship").addEventListener("change",function(){
   const s=SHIP_OPTS.find(x=>x.code===this.value);
@@ -740,6 +768,33 @@ function switchTab(tab){
   renderTabs();
 }
 
+/* 分類清單同步狀態（設備大類/作業大類/根因分類）：pending=正在跟雲端同步、還沒同步完成前
+   鎖住分類欄位不給勾選，避免船上憑舊快照勾了送出後跟系統目前正式清單對不上（船上網路慢、
+   或剛開表單手速快，很容易踩到）；ok=已成功同步，正常開放；failed=同步失敗或逾時（例如真的
+   離線），為了不讓船上完全卡住無法填單，改成解鎖但一直顯示警告，讓填單的人自己判斷、事後
+   有問題也知道從哪裡查起，而不是默默用了舊清單卻毫無提示。 */
+let ncdbSyncStatus="pending";
+function applySyncLockToBox(div){
+  const area=div.querySelector(".classify-area");
+  const banner=div.querySelector(".d-sync-banner");
+  if(area)area.classList.toggle("locked",ncdbSyncStatus==="pending");
+  if(!banner)return;
+  if(ncdbSyncStatus==="pending"){
+    banner.style.display="";banner.className="full d-sync-banner syncing";
+    banner.textContent="🔄 分類清單同步中，請稍候…（設備大類／作業大類／根因分類會在同步完成後開放勾選，其他欄位可以先填）";
+  }else if(ncdbSyncStatus==="failed"){
+    banner.style.display="";banner.className="full d-sync-banner warn";
+    banner.textContent="⚠ 未能連上雲端同步最新分類清單，目前暫用內建版本。若分類清單最近有更新，勾選結果可能跟系統目前的清單對不上，建議確認網路後重新整理頁面再填寫。";
+  }else{
+    banner.style.display="none";
+  }
+}
+function refreshAllClassifyBlocks(){
+  document.querySelectorAll(".defbox").forEach(div=>{
+    if(div._refreshClassify)div._refreshClassify();
+    applySyncLockToBox(div);
+  });
+}
 function classifyPartsFromData(data){
   const mains=ncTags(data.ncMain), leafs=ncTags(data.ncLeaf);
   const eqMain=mains.find(m=>(NCDB_MAIN["设备问题"]||[]).includes(m))||"";
@@ -812,6 +867,8 @@ function addDefectRow(data){
       <label class="full">預防措施（中）<textarea class="d-preventive">${esc(data.preventive)}</textarea></label>
     </div>
     <div class="subgrid">
+      <div class="full d-sync-banner" style="display:none;font-size:12px;padding:7px 10px;border-radius:6px;margin-bottom:2px"></div>
+      <div class="full classify-area" style="display:contents">
       <label>🔧 設備大類 *<select class="d-eqMain"></select></label>
       <label class="full">設備具體（可多選）<span class="d-eqLeaf-box" style="display:flex;flex-wrap:wrap;gap:8px;padding:6px 0"></span></label>
       <label>⚙️ 作業大類 *<select class="d-opMain"></select></label>
@@ -819,6 +876,7 @@ function addDefectRow(data){
       <div class="full" style="font-size:11.5px;color:#8195a0;margin-top:-4px">設備大類、作業大類請依缺失內容判斷，可只選一種、也可以兩種都選。</div>
       <label class="full">🧩 根因分類 *（可多選，自動帶出下方三要素；設備大類／作業大類請至少擇一，根因請至少選一項）<span class="d-root-box" style="display:flex;flex-wrap:wrap;gap:8px;padding:6px 0"></span></label>
       <div class="full" style="font-size:12.5px;color:#667;padding:2px 0">三要素：<span class="d-factor-display">（尚未帶出，請先選根因）</span></div>
+      </div>
       <label>重要程度 *<select class="d-ncImp">
         <option value="">請選擇</option>
         <option${data.ncImp==="低"?" selected":""}>低</option>
@@ -864,6 +922,7 @@ function addDefectRow(data){
   div._classify.root=factorSplit(data.ncRoot);
   div._refreshClassify=function(){ renderClassifyBlock(div); };
   renderClassifyBlock(div);
+  applySyncLockToBox(div); // 新增列當下若分類清單還沒同步完成，直接鎖住，不用等下一次同步事件
 
   // 矯正前／矯正後照片：還原草稿或匯入舊檔時，data.photosBefore/photosAfter 會帶回原本存過的照片
   div._photos={ before:(data.photosBefore||[]).slice(), after:(data.photosAfter||[]).slice() };
