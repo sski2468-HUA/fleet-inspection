@@ -667,11 +667,21 @@ async function loadNcdbFromCloud(manual){
   // 不讓真的離線／訊號很差的情況把整張表單卡死。
   const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error("逾時")),ms))]);
   try{
-    const res = await withTimeout(fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=eq.ncdb`,
-      { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } }), 8000);
+    // ⚠ 直接讀主系統「缺失分類階層管理」本尊 nctree_full_v2，不再讀 ncdb 副本：ncdb 是主系統順手
+    // 推上去的精簡副本，只要任何一個還在跑舊版程式的分頁按「立即同步」就會被舊分類蓋回去
+    // （9/17、9/21 都發生過），船上就會拿到已經改名/刪除的舊分類項目，匯入後對不上。
+    // nctree_full_v2 讀不到（不存在／失敗）才退回 ncdb。
+    const getKey=async(k)=>{
+      const r = await withTimeout(fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=eq.${k}`,
+        { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } }), 8000);
+      if(!r.ok)return null;
+      const rs = await r.json();
+      const pl = rs && rs[0] && rs[0].payload;
+      return (pl && pl.equip && pl.ops)?pl:null;
+    };
+    const payload = (await getKey("nctree_full_v2")) || (await getKey("ncdb"));
+    const res = {ok:!!payload};
     if(!res.ok){ncdbSyncStatus="failed";refreshAllClassifyBlocks();if(manual)notify("⚠ 分類清單同步失敗，請確認網路後再試","err");return;}
-    const rows = await res.json();
-    const payload = rows && rows[0] && rows[0].payload;
     if(!payload || !payload.equip || !payload.ops){ncdbSyncStatus="failed";refreshAllClassifyBlocks();if(manual)notify("⚠ 分類清單同步失敗，請確認網路後再試","err");return;}
     const mainMap={"设备问题":[],"作业问题":[]};
     const leafMap={};

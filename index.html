@@ -2232,6 +2232,33 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <table class="tbl"><thead><tr><th>PSC章節</th><th>次數</th><th>佔比</th></tr></thead><tbody id="psc-tbody"></tbody></table>
         </div>
       </div>
+
+      <div class="card">
+        <h3>PSC 檢查熱區分析 <span class="tag">依檢查地點／港口</span></h3>
+        <p class="hint" style="margin-bottom:10px">僅統計「檢查來源＝PSC」之資料，依「檢查地點」分別統計檢查次數與缺失數兩種熱區排行；本卡片篩選器獨立於上方主篩選列。</p>
+        <div class="toolbar" style="margin-bottom:10px">
+          <span class="lbl" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">時間區間</span>
+          <select id="pscz-ymfrom" onchange="PscZone.render()"></select>
+          <span>～</span>
+          <select id="pscz-ymto" onchange="PscZone.render()"></select>
+          <button class="btn sm" onclick="PscZone.clearFilters()">清除篩選</button>
+          <span class="spacer" style="flex:1"></span>
+          <span class="statline" id="pscz-stat"></span>
+        </div>
+        <div class="kpis" id="pscz-kpis" style="margin-bottom:10px"></div>
+        <div class="hint" style="margin-bottom:6px;font-weight:700;color:var(--ink-2)">PSC 檢查次數／缺失數 月趨勢</div>
+        <div class="chartbox" style="margin-bottom:14px"><canvas id="ch-pscz-trend"></canvas></div>
+        <div class="grid2">
+          <div>
+            <div class="hint" style="margin-bottom:6px;font-weight:700;color:var(--ink-2)">檢查次數熱區 <span class="tag">TOP 12</span></div>
+            <div class="chartbox"><canvas id="ch-pscz-loc-insp"></canvas></div>
+          </div>
+          <div>
+            <div class="hint" style="margin-bottom:6px;font-weight:700;color:var(--ink-2)">缺失數熱區 <span class="tag">TOP 12</span></div>
+            <div class="chartbox"><canvas id="ch-pscz-loc-def"></canvas></div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ════════ 0.5 重複性缺失 ════════ -->
@@ -9309,7 +9336,7 @@ const App={
     this.defs.forEach(d=>{if(d.inspector)d.inspector=canonInspector(d.inspector);if(d.oilco)d.oilco=canonUnit(d.oilco);});
     if(typeof Classify!=="undefined")Classify.init();
     if(typeof NCTree!=="undefined")NCTree.init();
-    Dash.init();Ov.init();if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof Trend!=="undefined")Trend.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();if(typeof StorageMonitor!=="undefined")StorageMonitor.init();if(typeof DupFinder!=="undefined")DupFinder.init();// 編輯鎖定功能已停用(全部資料表都已改為逐筆同步,不再需要)：不建立浮動按鈕/面板，EditLock.guard() 保留為恆真空操作。
+    Dash.init();Ov.init();if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof Trend!=="undefined")Trend.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();if(typeof PscZone!=="undefined")PscZone.init();if(typeof StorageMonitor!=="undefined")StorageMonitor.init();if(typeof DupFinder!=="undefined")DupFinder.init();// 編輯鎖定功能已停用(全部資料表都已改為逐筆同步,不再需要)：不建立浮動按鈕/面板，EditLock.guard() 保留為恆真空操作。
     refreshInspectorList();refreshPlaceList();
     this.refreshMeta();
     NavConfig.apply();
@@ -10585,7 +10612,7 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
   $("#pageTitle").textContent=TITLES[n.dataset.tab][0];
   $("#pageSub").textContent=TITLES[n.dataset.tab][1];
   try{localStorage.setItem("vsm_last_tab_v1",n.dataset.tab);}catch(e){}
-  if(n.dataset.tab==="dash"){Dash.render();if(typeof PscChap!=="undefined")PscChap.render();}
+  if(n.dataset.tab==="dash"){Dash.render();if(typeof PscChap!=="undefined")PscChap.render();if(typeof PscZone!=="undefined")PscZone.render();}
   if(n.dataset.tab==="ov")Ov.render();
   if(n.dataset.tab==="data"&&typeof EditorList!=="undefined")EditorList.renderAll();
   if(n.dataset.tab==="guide"&&typeof GuideRole!=="undefined")GuideRole.init();
@@ -11675,6 +11702,93 @@ const PscChap={
     const keys=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]);
     if(!keys.length){tb.innerHTML=`<tr><td colspan="3" style="text-align:center;color:#8195a0">尚無符合條件之PSC缺失資料</td></tr>`;return;}
     tb.innerHTML=keys.map(k=>`<tr><td>${esc(this.chapterLabel(k))}</td><td style="text-align:center">${cnt[k]}</td><td style="text-align:center">${(cnt[k]/total*100).toFixed(1)}%</td></tr>`).join("");
+  }
+};
+
+/* ════════ PSC 檢查熱區分析（依檢查地點／港口）════════
+   跟 PscChap 一樣獨立於 Dash 主篩選列，只有自己的時間區間篩選（年月起訖）。
+   ⚠ App.insp（檢查紀錄，一次檢查一筆）的地點欄位叫 loc；App.defs（缺失明細，一筆缺失一筆）
+   的地點欄位叫 place——兩邊欄位名稱不同、也沒有互相 join，但存的字串應該一致（都經過
+   isValidPort()/bindPortInput() 正規化），所以「檢查次數熱區」用 insp.loc 統計、
+   「缺失數熱區」用 defs.place 統計，各自獨立分組，不要誤以為兩者是同一份資料。 */
+const PscZone={
+  trendChart:null,locInspChart:null,locDefChart:null,
+  basePSCInsp(){return App.insp.filter(i=>(i.itype||"").toUpperCase()==="PSC");},
+  basePSCDefs(){return App.defs.filter(d=>(d.itype||"").toUpperCase()==="PSC");},
+  init(){this.populateYm();this.render();},
+  populateYm(){
+    const s1=$("#pscz-ymfrom"),s2=$("#pscz-ymto");if(!s1)return;
+    const yms=[...new Set([...this.basePSCInsp().map(i=>ymOf(i.date)),...this.basePSCDefs().map(d=>d.ym||ymOf(d.date))])].filter(Boolean).sort();
+    const opts="<option value=''>不限</option>"+yms.map(m=>`<option value="${m}">${m}</option>`).join("");
+    const vf=s1.value,vt=s2.value;
+    s1.innerHTML=opts;s2.innerHTML=opts;
+    if(yms.includes(vf))s1.value=vf;
+    if(yms.includes(vt))s2.value=vt;
+  },
+  clearFilters(){
+    if($("#pscz-ymfrom"))$("#pscz-ymfrom").value="";
+    if($("#pscz-ymto"))$("#pscz-ymto").value="";
+    this.render();
+  },
+  _inRange(ym,f,t){if(!ym)return false;if(f&&ym<f)return false;if(t&&ym>t)return false;return true;},
+  filteredInsp(){
+    const f=$("#pscz-ymfrom")?$("#pscz-ymfrom").value:"",t=$("#pscz-ymto")?$("#pscz-ymto").value:"";
+    return this.basePSCInsp().filter(i=>this._inRange(ymOf(i.date),f,t));
+  },
+  filteredDefs(){
+    const f=$("#pscz-ymfrom")?$("#pscz-ymfrom").value:"",t=$("#pscz-ymto")?$("#pscz-ymto").value:"";
+    return this.basePSCDefs().filter(d=>this._inRange(d.ym||ymOf(d.date),f,t));
+  },
+  render(){
+    if(!$("#pscz-stat"))return;
+    this.populateYm();
+    const insp=this.filteredInsp(),defs=this.filteredDefs();
+    const nIns=insp.length,nDef=defs.length;
+    const nLoc=new Set(insp.map(i=>(i.loc||"").trim()).filter(Boolean)).size;
+    $("#pscz-stat").textContent=`共 ${nIns} 筆PSC檢查、${nDef} 筆PSC缺失（全庫PSC檢查 ${this.basePSCInsp().length} 筆、缺失 ${this.basePSCDefs().length} 筆）`;
+    $("#pscz-kpis").innerHTML=`
+      <div class="kpi"><div class="v">${nIns}</div><div class="l">PSC檢查次數</div></div>
+      <div class="kpi orange"><div class="v">${nDef}</div><div class="l">PSC缺失總數</div></div>
+      <div class="kpi"><div class="v">${nIns?(nDef/nIns).toFixed(2):"0"}</div><div class="l">平均缺失／次</div></div>
+      <div class="kpi"><div class="v">${nLoc}</div><div class="l">涵蓋檢查地點數</div></div>`;
+    this.renderTrend(insp,defs);
+    this.renderLocRank(insp,defs);
+  },
+  renderTrend(insp,defs){
+    const byM={};insp.forEach(i=>{const m=ymOf(i.date);if(m)byM[m]=(byM[m]||0)+1;});
+    const byMD={};defs.forEach(d=>{const m=d.ym||ymOf(d.date);if(m)byMD[m]=(byMD[m]||0)+1;});
+    const months=[...new Set([...Object.keys(byM),...Object.keys(byMD)])].sort();
+    const el=$("#ch-pscz-trend");
+    if(!el||typeof Chart==="undefined")return;
+    if(this.trendChart)this.trendChart.destroy();
+    this.trendChart=new Chart(el,{type:"bar",
+      data:{labels:months,datasets:[
+        {label:"PSC檢查次數",data:months.map(m=>byM[m]||0),backgroundColor:"#234a72cc",yAxisID:"y",order:2},
+        {type:"line",label:"PSC缺失數",data:months.map(m=>byMD[m]||0),borderColor:"#e8842c",backgroundColor:"#e8842c",yAxisID:"y1",tension:.3,pointRadius:2,order:1}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11}}}},
+        scales:{y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:"檢查次數",font:{size:10}}},
+          y1:{beginAtZero:true,ticks:{precision:0},position:"right",grid:{drawOnChartArea:false},title:{display:true,text:"缺失數",font:{size:10}}}}}});
+  },
+  renderLocRank(insp,defs){
+    const opt=()=>({responsive:true,maintainAspectRatio:false,indexAxis:"y",
+      plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>items.length?String(items[0].label):""}}},
+      scales:{x:{beginAtZero:true,ticks:{precision:0}},
+        y:{ticks:{autoSkip:false,font:{size:10.5},callback:function(v){const l=String(this.getLabelForValue(v));return l.length>26?l.slice(0,25)+"…":l;}}}}});
+    const lcI={};insp.forEach(i=>{const l=(i.loc||"").trim();if(l)lcI[l]=(lcI[l]||0)+1;});
+    const lkI=Object.keys(lcI).sort((a,b)=>lcI[b]-lcI[a]).slice(0,12);
+    const elI=$("#ch-pscz-loc-insp");
+    if(elI&&typeof Chart!=="undefined"){
+      if(this.locInspChart)this.locInspChart.destroy();
+      this.locInspChart=new Chart(elI,{type:"bar",data:{labels:lkI,datasets:[{label:"檢查次數",data:lkI.map(k=>lcI[k]),backgroundColor:"#234a72"}]},options:opt()});
+    }
+    const lcD={};defs.forEach(d=>{const l=(d.place||"").trim();if(l)lcD[l]=(lcD[l]||0)+1;});
+    const lkD=Object.keys(lcD).sort((a,b)=>lcD[b]-lcD[a]).slice(0,12);
+    const elD=$("#ch-pscz-loc-def");
+    if(elD&&typeof Chart!=="undefined"){
+      if(this.locDefChart)this.locDefChart.destroy();
+      this.locDefChart=new Chart(elD,{type:"bar",data:{labels:lkD,datasets:[{label:"缺失數",data:lkD.map(k=>lcD[k]),backgroundColor:"#e8842c"}]},options:opt()});
+    }
   }
 };
 
@@ -22537,13 +22651,19 @@ const Air={
       let updated=0,added=0;
       items.forEach(d=>{
         const defects=d.defects;
-        defects.forEach(df=>{
+        defects.forEach((df,di)=>{
           // 跟單筆填單頁面 _doPushDefs 同一套邏輯：mode="overwrite" 且這筆缺失先前轉入時
           // 記過對應的缺失紀錄 id（pushedDefId），才去比對既有紀錄更新；否則新增一筆，
           // 並把新產生的 id 記回 df.pushedDefId，下次批次轉入才找得到對應關係可以覆蓋。
           const existing=(mode==="overwrite"&&df.pushedDefId!=null)?App.defs.find(x=>String(x.id)===String(df.pushedDefId)):null;
+          // 對外回覆審閱版（中文欄位）：跟單筆頁面一致，來自 d.reply.items[缺失序號]，
+          // 之前批次轉入完全沒帶這幾欄，轉進缺失紀錄總表後對外回覆內容是空的。
+          const rp=(d.reply&&d.reply.items&&d.reply.items[di])||{};
           const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:normDateSlash(d.date),ym:ymOf(normDateSlash(d.date)),place:d.place,oilco:d.oilco,inspector:d.inspector,
             psc:df.psc||"",code:df.code||"",detail:df.detail||"",actual:df.actual||"",preventive:df.preventive||"",corrective:df.corrective||"",rootCause:df.rootCause||"",
+            opComment:df.opComment||"",immediateCause:df.immediateCause||"",
+            opCommentReply:rp.opCommentCn||"",immediateCauseReply:rp.immediateCauseCn||"",correctiveReply:rp.correctiveCn||"",rootCauseReply:rp.rootCauseCn||"",preventiveReply:rp.preventiveCn||"",
+            needControl:!!df.needControl,internalControl:!!(df.internalControl||df.needControl),
             rank:df.rank||"",person:df.person||"",risk:df.risk||"",
             ncProb:df.ncProb||"",ncMain:df.ncMain||"",ncLeaf:df.ncLeaf||"",ncRoot:df.ncRoot||"",ncFactor:df.ncFactor||"",ncImp:df.ncImp||"",ncFocus:df.ncFocus||"",ncMethod:df.ncMethod||"",ncOpinion:df.ncOpinion||"",
             photosBefore:Array.isArray(df.photosBefore)?df.photosBefore:[],photosAfter:Array.isArray(df.photosAfter)?df.photosAfter:[],
@@ -24069,11 +24189,13 @@ const AirQueue={
       id:Air.nextId(),ship:b.ship,vtype:b.vtype||"",itype:b.itype||"",date:normDateSlash(b.date),
       place:b.place||"",oilco:b.oilco||"",inspector:b.inspector||"",
       ndef:(p.defects||[]).length,npos:(p.posComments||[]).length,flagType:b.flagType||"",
-      defects:(p.defects||[]).map(d=>({psc:"",code:d.code||"",actual:d.actual||"",detail:d.detail||"",
+      defects:(p.defects||[]).map(d=>({psc:d.psc||"",code:d.code||"",actual:d.actual||"",detail:d.detail||"",
         opComment:d.opComment||"",immediateCause:d.immediateCause||"",
         corrective:d.corrective||"",rootCause:d.rootCause||"",preventive:d.preventive||"",
         rank:d.rank||"",person:d.person||"",people:Array.isArray(d.people)?d.people.filter(x=>x.rank||x.person):[],
-        ncProb:d.ncProb||"",ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",ncFactor:d.ncFactor||"",
+        // ⚠ 這裡原本漏掉 ncRoot（根因分類）跟 psc（PSC Action Taken）：船上送出的填單明明都有勾，
+        // 匯入審核佇列時卻沒有搬進來，海技端看到根因分類全空，轉入缺失總表也被必填欄位擋下。
+        ncProb:d.ncProb||"",ncMain:d.ncMain||"",ncLeaf:d.ncLeaf||"",ncRoot:d.ncRoot||"",ncFactor:d.ncFactor||"",
         ncImp:d.ncImp||"",ncFocus:d.ncFocus||"",ncMethod:"",ncOpinion:d.ncOpinion||"",risk:d.risk||"",
         internalControl:!!d.internalControl,needControl:!!d.internalControl,
         photosBefore:Array.isArray(d.photosBefore)?d.photosBefore:[],photosAfter:Array.isArray(d.photosAfter)?d.photosAfter:[],
