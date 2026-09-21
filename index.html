@@ -26366,6 +26366,20 @@ const DM={
     $("#lsBreakdownModal").classList.add("show");
   },
   async exportAllJson(){
+    // ⚠ 這份備份的內容是從「這個瀏覽器分頁記憶體」讀出來的，不是直接讀雲端。分頁開得久、或別人
+    // 剛改過資料時，備份就會是舊的。所以匯出前一律先把本機待同步的變更推上雲端、再從雲端載入
+    // 最新版本，載入失敗（斷線、雲端無回應）就明確警告，由使用者決定要不要退回用本機資料備份。
+    if(typeof Cloud!=="undefined"&&Cloud.enabled()){
+      toast("⏳ 先同步並載入雲端最新資料，確保備份是雲端最新版…");
+      let cloudOk=true;
+      try{
+        if(typeof RecordSync!=="undefined")RecordSync._pullFailed.clear();
+        await Cloud.syncNow(true);
+        await Cloud.loadDB(true);
+        if(typeof RecordSync!=="undefined"&&RecordSync._pullFailed.size)cloudOk=false;
+      }catch(e){cloudOk=false;}
+      if(!cloudOk&&!confirm("⚠ 無法從雲端載入最新資料，目前的備份會是「這台電腦本機」的資料，可能不是雲端最新版。\n\n確定仍要用本機資料備份嗎？（建議先按「取消」，檢查網路後再試一次）"))return;
+    }else if(!confirm("⚠ 目前沒有連上雲端，備份會是「這台電腦本機」的資料，不是雲端資料。\n\n確定仍要用本機資料備份嗎？"))return;
     toast("⏳ 同步對外回覆最新內容中…");
     await Air.syncAllReplyDrafts().catch(()=>{});
     const bundle={
