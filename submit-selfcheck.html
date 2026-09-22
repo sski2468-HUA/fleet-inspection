@@ -185,6 +185,29 @@ async function api(path,opts){
 const TID=new URLSearchParams(location.search).get("tid");
 let draft=null;
 let autoSaveTimer=null;
+let retryTimer=null;
+
+/* ══════════ 離線保護：船上網路常常斷斷續續，原本「改一個字→等0.9秒→直接打去雲端」
+   完全沒有本機備份，這段網路請求沒送成功，剛填的內容就直接不見了，船員自己也很難發現
+   （只有頁尾一行小字）。改成「每次改動先同步存一份到本機瀏覽器，雲端同步失敗或斷線都不怕，
+   恢復連線後自動補送」——本機快取只是安全網，雲端 selfcheck_drafts 才是真正的資料來源，
+   同步成功後就清掉本機快取，避免舊快取跟雲端內容長期不一致造成混淆。══════════ */
+const LOCAL_KEY="vsm_selfcheck_local_"+TID;
+let dirty=false; // true＝這台裝置有還沒成功同步到雲端的變更（含答案內容／送出動作）
+function saveLocalCache(pendingSubmit){
+  try{localStorage.setItem(LOCAL_KEY,JSON.stringify({items:draft.items,dirty:true,pendingSubmit:!!pendingSubmit,savedAt:Date.now()}));}catch(e){}
+}
+function loadLocalCache(){
+  try{const s=localStorage.getItem(LOCAL_KEY);return s?JSON.parse(s):null;}catch(e){return null;}
+}
+function clearLocalCache(){
+  try{localStorage.removeItem(LOCAL_KEY);}catch(e){}
+}
+window.addEventListener("online",()=>{
+  if(!dirty)return;
+  const cached=loadLocalCache();
+  if(cached&&cached.pendingSubmit)submitAll();else flushAutoSave();
+});
 
 /* ══════════ 填寫人姓名：存在本機瀏覽器，同一台裝置下次打開會記得，
    每次作答（setStatus/文字欄位變動）都會蓋入 it.checkedBy，讓公司端知道是誰填的。══════════ */
@@ -228,6 +251,16 @@ async function init(){
     showError("讀取失敗："+e.message);
     return;
   }
+  // 本機若留有上次沒能成功同步到雲端的內容（例如填到一半斷線、或關掉分頁前最後一次
+  // 自動儲存還沒送出去），優先採用本機版本蓋過剛拉回來的雲端版本，避免辛苦填的內容
+  // 被舊的雲端資料蓋掉；同時立刻嘗試補送一次，恢復連線的話馬上就同步掉，不用等使用者再動一下。
+  const cached=loadLocalCache();
+  let restoredFromLocal=false;
+  if(cached&&cached.dirty&&Array.isArray(cached.items)){
+    draft.items=cached.items;
+    dirty=true;
+    restoredFromLocal=true;
+  }
   document.getElementById("body").style.display="";
   document.getElementById("taskTitle").textContent=draft.title||"";
   document.getElementById("taskMeta").textContent=`船舶：${draft.ship||""}　已送出 ${draft.submit_count||0} 次${draft.submitted_at?"　最後送出："+new Date(draft.submitted_at).toLocaleString("zh-TW",{hour12:false}):""}`;
@@ -235,6 +268,10 @@ async function init(){
   if(cn)cn.value=getCheckerName();
   renderItems();
   guideJumpUnanswered(true);
+  if(restoredFromLocal){
+    notify("⚠ 偵測到上次有內容還沒成功同步到雲端，已從本機還原，正在自動補送…","err");
+    if(cached.pendingSubmit)submitAll();else flushAutoSave();
+  }
 }
 function showError(msg){
   document.getElementById("hdr-note").textContent="無法開啟";
@@ -519,22 +556,33 @@ function onClosedChange(i,checked){
 }
 
 function scheduleAutoSave(){
+  // 先同步寫一份到本機，這一步是同步、立即完成的，不受網路影響——內容此時已經安全，
+  // 不會因為接下來的雲端同步失敗或斷線而消失。雲端同步本身維持原本 0.9 秒防抖，
+  // 避免每打一個字就打一次 API。
+  dirty=true;
+  saveLocalCache();
   const note=document.getElementById("saveNote");
-  if(note)note.textContent="● 有未儲存的變更…";
+  if(note)note.textContent="● 已存在本機，同步雲端中…";
   clearTimeout(autoSaveTimer);
   autoSaveTimer=setTimeout(flushAutoSave,900);
 }
 async function flushAutoSave(){
   clearTimeout(autoSaveTimer);
+  clearTimeout(retryTimer);
   if(!draft)return;
   try{
     await api(`${TABLE}?id=eq.${draft.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},
       body:JSON.stringify({items:draft.items})});
+    dirty=false;
+    clearLocalCache();
     const note=document.getElementById("saveNote");
     if(note)note.textContent="✓ 已自動儲存　"+new Date().toLocaleTimeString("zh-TW",{hour12:false});
   }catch(e){
+    // 失敗不清本機快取（內容已經安全存在本機），排一次重試；連線恢復時的 online 事件
+    // 也會觸發重試，兩邊互為保險，不會因為錯過某一次時機就一直卡住。
     const note=document.getElementById("saveNote");
-    if(note)note.textContent="⚠ 自動儲存失敗："+e.message;
+    if(note)note.textContent="⚠ 連不上雲端，內容已安全存在本機，恢復連線後會自動補送";
+    retryTimer=setTimeout(()=>{ if(dirty)flushAutoSave(); },15000);
   }
 }
 window.addEventListener("beforeunload",()=>{ if(autoSaveTimer)flushAutoSave(); });
@@ -546,6 +594,10 @@ async function submitAll(){
   }
   const btn=document.getElementById("submitBtn");
   btn.disabled=true;
+  // 送出前先確保這台裝置知道「使用者按了送出」這件事本身也要保護：萬一等下那個
+  // PATCH 剛好在斷線那一刻送出失敗，本機快取記得 pendingSubmit=true，下次打開頁面
+  // （或恢復連線）會自動重新補送出，不用船員自己發現「按了送出但其實沒送成功」再手動重按。
+  saveLocalCache(true);
   await flushAutoSave();
   const now=new Date().toISOString();
   const hist=Array.isArray(draft.history)?draft.history.slice():[];
@@ -553,12 +605,15 @@ async function submitAll(){
   try{
     await api(`${TABLE}?id=eq.${draft.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},
       body:JSON.stringify({items:draft.items,submitted_at:now,submit_count:(draft.submit_count||0)+1,history:hist,imported:false})});
+    dirty=false;
+    clearLocalCache();
     draft.submitted_at=now; draft.submit_count=(draft.submit_count||0)+1;
     document.getElementById("taskMeta").textContent=`船舶：${draft.ship||""}　已送出 ${draft.submit_count} 次　最後送出：${new Date(now).toLocaleString("zh-TW",{hour12:false})}`;
     notify("✓ 已送出，公司端可以查看到這次結果了，即將自動返回系統…","ok2");
     if(window.opener&&!window.opener.closed)setTimeout(backToSystem,1500);
   }catch(e){
-    notify("送出失敗："+e.message,"err");
+    notify("送出失敗，內容已安全存在本機，恢復連線後重新打開此頁會自動重送："+e.message,"err");
+    retryTimer=setTimeout(()=>{ if(dirty)submitAll(); },15000);
   }
   btn.disabled=false;
 }
