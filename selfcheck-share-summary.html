@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分享自查彙整清單 — FPMC</title>
+<style>
+:root{
+  --navy:#1c3a5e; --navy-2:#234a72; --navy-3:#2f6690;
+  --paper:#f5f7f8; --card:#ffffff; --line:#dde4e8; --line-2:#c3ced5;
+  --ink:#15262f; --ink-2:#52656f; --ink-3:#8195a0;
+  --signal:#e8842c; --teal:#1e7f8c;
+  --ok:#2e8b57; --bad:#c0392b; --warn:#c99a1f;
+  --sans:"Segoe UI","Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);font-family:var(--sans);color:var(--ink)}
+.wrap{max-width:1100px;margin:0 auto;padding:0 0 60px}
+header{background:var(--navy);color:#fff;padding:20px 18px}
+header h1{margin:0;font-size:18px}
+header p{margin:6px 0 0;font-size:12.5px;color:#b9c8d6;line-height:1.6}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:14px;padding:16px}
+.hint{color:var(--ink-3);font-size:12px;line-height:1.7}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-2);background:#fff;color:var(--ink);padding:9px 14px;border-radius:8px;font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:600;text-decoration:none}
+.btn.primary{background:var(--signal);border-color:var(--signal);color:#fff}
+.btn.sm{padding:5px 10px;font-size:12px}
+input[type=text],input[type=password],select{padding:9px 10px;border:1px solid var(--line-2);border-radius:8px;font-size:14px;font-family:var(--sans);width:100%}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);display:none;z-index:99;max-width:90vw;text-align:center}
+#toast.err{background:var(--bad)}
+#toast.ok2{background:var(--ok)}
+.gatewrap{min-height:70vh;display:flex;align-items:center;justify-content:center}
+.gatebox{max-width:340px;width:92vw;background:#fff;border:1px solid var(--line);border-radius:12px;padding:26px 22px;text-align:center}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2);position:sticky;top:0}
+tr.track td{background:#fff4e8}
+tr.done td{background:#eaf5ee}
+.pill{display:inline-block;border-radius:20px;padding:1px 9px;font-size:11px;font-weight:700}
+.pill.ok{background:#eaf5ee;color:var(--ok)}
+.pill.warn{background:#fff4e8;color:#a05a10}
+.pill.bad{background:#fbe9e5;color:var(--bad)}
+.pill.na{background:#eef0f4;color:var(--ink-2)}
+.detailrow{display:none}
+.detailrow.show{display:table-row}
+.itemline{border-bottom:1px dashed var(--line);padding:6px 0}
+.itemline:last-child{border-bottom:none}
+.stbadge{font-size:10.5px;font-weight:700;border-radius:20px;padding:1px 7px;margin-left:6px}
+.stbadge.ok{background:#eaf5ee;color:var(--ok)}
+.stbadge.similar{background:#fff4e8;color:#a05a10}
+.stbadge.na{background:#eef0f4;color:var(--ink-2)}
+.stbadge.pending{background:#f0f3f5;color:var(--ink-3)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.kpi .v{font-size:20px;font-weight:700;color:var(--navy)}
+.kpi .l{font-size:11px;color:var(--ink-3)}
+</style>
+</head>
+<body>
+
+<div class="gatewrap" id="gateWrap">
+  <div class="gatebox">
+    <div style="font-size:17px;font-weight:700;margin-bottom:6px">🔒 分享自查彙整清單</div>
+    <p class="hint" style="margin-bottom:14px">請輸入共用密碼進入。此頁供督導／管理者查看各船分享自查進度，本船人員也可查自己船的填答狀況。</p>
+    <input type="password" id="gatePass" placeholder="密碼" onkeydown="if(event.key==='Enter')gateSubmit()">
+    <button class="btn primary" style="width:100%;margin-top:10px" onclick="gateSubmit()">進入</button>
+  </div>
+</div>
+
+<div class="wrap" id="mainWrap" style="display:none">
+  <header>
+    <h1>📊 分享自查彙整清單</h1>
+    <p>查看船隊「分享缺失做自查」各活動的填答進度與內容；點船名列可展開查看每一項的作答細節。</p>
+  </header>
+
+  <div class="card">
+    <div class="toolbar">
+      <span class="hint" style="font-weight:700;color:var(--ink-3)">選擇活動</span>
+      <select id="campaignSel" onchange="loadCampaign(this.value)" style="max-width:420px"></select>
+      <button class="btn sm" onclick="refreshAll()">🔄 重新整理</button>
+      <span style="flex:1"></span>
+      <button class="btn sm" onclick="changePass()">🔑 變更共用密碼</button>
+    </div>
+    <div id="campaignDesc" class="hint"></div>
+  </div>
+
+  <div class="card" id="statsCard" style="display:none">
+    <div class="kpis" id="kpis"></div>
+    <div class="toolbar">
+      <span class="hint" style="font-weight:700;color:var(--ink-3)">篩選</span>
+      <select id="filterSel" onchange="renderTable()">
+        <option value="all">全部船舶</option>
+        <option value="track">⚠ 有需追蹤項目（未結案）</option>
+        <option value="unsubmitted">未送出</option>
+        <option value="submitted">已送出</option>
+      </select>
+      <input type="text" id="shipSearch" placeholder="輸入船名快速查找…" style="max-width:200px" oninput="renderTable()">
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th style="width:90px">船舶</th><th style="width:100px">填寫人</th><th style="width:110px">進度</th><th style="width:130px">需追蹤</th><th style="width:70px">送出次數</th><th>最後送出</th><th style="width:120px">操作</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const CLOUD = {
+  url: "https://iqmbircjokdzdssouwkr.supabase.co",
+  key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY"
+};
+const CAMPAIGN_TABLE = "selfcheck_share_campaigns";
+const RESPONSE_TABLE = "selfcheck_share_responses";
+// 這個共用密碼跟主系統的進站密碼是各自獨立的兩把鑰匙（分開存在 app_db 不同的 key 下）：
+// 這裡外流不影響主系統，主系統密碼外流也不影響這裡，職責分開，互不牽連。
+const PASS_CLOUD_KEY="selfcheck_share_summary_pass";
+const PASS_DEFAULT="fpmc2026";
+const OK_KEY="vsm_scshare_summary_ok_v1";
+const OK_TTL=8*3600*1000;
+
+const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let toastTimer;
+function notify(msg,tone){
+  const el=document.getElementById("toast");
+  el.textContent=msg; el.className=tone==="err"?"err":(tone==="ok2"?"ok2":"");
+  el.style.display="block"; clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.style.display="none",4200);
+}
+async function api(path,opts){
+  const res=await fetch(`${CLOUD.url}/rest/v1/${path}`,Object.assign({headers:{
+    "apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json"
+  }},opts||{}));
+  if(!res.ok){ const t=await res.text().catch(()=>""); throw new Error("HTTP "+res.status+" "+t.slice(0,150)); }
+  const ct=res.headers.get("content-type")||"";
+  return ct.includes("json")?res.json():null;
+}
+async function sha256hex(s){
+  const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+/* ══════════ 密碼閘門：跟主系統「進站密碼」同一套雜湊比對邏輯，但存在獨立的 app_db key，
+   兩邊密碼互不影響。通過後本機記住 8 小時，不用每次重開頁面都重輸入。══════════ */
+async function getPassHash(){
+  try{
+    const rows=await api("app_db?select=payload&k=eq."+PASS_CLOUD_KEY);
+    const p=rows&&rows[0]&&rows[0].payload;
+    if(p&&p.hash)return p.hash;
+  }catch(e){ /* 離線或讀取失敗，退回預設密碼比對 */ }
+  return await sha256hex(PASS_DEFAULT);
+}
+function gateOk(){
+  try{
+    const s=JSON.parse(localStorage.getItem(OK_KEY));
+    if(s&&s.exp>Date.now())return true;
+    if(s)localStorage.removeItem(OK_KEY);
+  }catch(e){}
+  return false;
+}
+function markGateOk(){ try{localStorage.setItem(OK_KEY,JSON.stringify({exp:Date.now()+OK_TTL}));}catch(e){} }
+async function gateSubmit(){
+  const v=(document.getElementById("gatePass").value||"").trim();
+  if(!v){notify("⚠ 請輸入密碼","err");return;}
+  const hash=await getPassHash();
+  if((await sha256hex(v))!==hash){notify("⚠ 密碼錯誤","err");return;}
+  markGateOk();
+  enterMain();
+}
+async function changePass(){
+  const cur=(prompt("請先輸入目前的共用密碼以確認身份：")||"").trim();
+  if(!cur)return;
+  const hash=await getPassHash();
+  if((await sha256hex(cur))!==hash){notify("⚠ 目前密碼輸入錯誤，未變更","err");return;}
+  const nw=(prompt("請輸入新的共用密碼（設定後，還沒切到新密碼的其他人下次進入時要改用新密碼）：")||"").trim();
+  if(!nw){notify("⚠ 未輸入新密碼，已取消","err");return;}
+  try{
+    const h=await sha256hex(nw);
+    await api("app_db?on_conflict=k",{method:"POST",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"},
+      body:JSON.stringify([{k:PASS_CLOUD_KEY,updated:Date.now(),by:"",payload:{hash:h}}])});
+    notify("✓ 已更新共用密碼","ok2");
+  }catch(e){notify("⚠ 更新失敗："+e.message,"err");}
+}
+
+function enterMain(){
+  document.getElementById("gateWrap").style.display="none";
+  document.getElementById("mainWrap").style.display="";
+  loadCampaignList();
+}
+
+/* ══════════ 活動清單／篩選狀態 ══════════ */
+let campaigns=[], curCampaign=null, responses=[], shipOpts=[];
+async function loadShipOpts(){
+  try{
+    const rows=await api("app_db?select=payload&k=eq.ships");
+    const list=rows&&rows[0]&&Array.isArray(rows[0].payload)?rows[0].payload:[];
+    shipOpts=list.map(s=>({code:s.code,name:s.zh||s.name||s.code}));
+  }catch(e){}
+}
+async function loadCampaignList(){
+  await loadShipOpts();
+  try{
+    campaigns=await api(`${CAMPAIGN_TABLE}?order=created_at.desc&limit=200`);
+  }catch(e){
+    notify("⚠ 活動清單讀取失敗："+e.message,"err");
+    return;
+  }
+  const sel=document.getElementById("campaignSel");
+  if(!campaigns.length){
+    sel.innerHTML="<option value=''>（目前沒有任何分享自查活動）</option>";
+    document.getElementById("statsCard").style.display="none";
+    return;
+  }
+  sel.innerHTML=campaigns.map(c=>`<option value="${c.id}">${esc(c.title||("活動 #"+c.id))}${c.active===false?"（已結束）":""}</option>`).join("");
+  loadCampaign(sel.value);
+}
+async function refreshAll(){ await loadCampaignList(); }
+
+async function loadCampaign(id){
+  curCampaign=campaigns.find(c=>String(c.id)===String(id));
+  if(!curCampaign)return;
+  document.getElementById("campaignDesc").textContent=`共 ${(curCampaign.items||[]).length} 項查核項目　建立於 ${curCampaign.created_at?new Date(curCampaign.created_at).toLocaleString("zh-TW",{hour12:false}):""}${curCampaign.created_by?"　建立者："+curCampaign.created_by:""}${curCampaign.active===false?"　⛔ 已結束，不再開放填答":""}`;
+  try{
+    responses=await api(`${RESPONSE_TABLE}?campaign_id=eq.${curCampaign.id}&limit=1000`);
+  }catch(e){
+    notify("⚠ 填答資料讀取失敗："+e.message,"err");
+    return;
+  }
+  document.getElementById("statsCard").style.display="";
+  renderTable();
+}
+
+/* 這個活動的「應填船舶清單」：有限定就用限定清單，沒限定就用全船舶清單
+   （沒填答的船仍要列出來，才看得出「還有誰沒填」，不能只顯示已經有回應的船）。 */
+function targetShips(){
+  const scope=(curCampaign.ship_scope&&curCampaign.ship_scope.length)?curCampaign.ship_scope:null;
+  if(scope)return scope.map(code=>{const hit=shipOpts.find(s=>s.code===code);return {code,name:hit?hit.name:code};});
+  return shipOpts.length?shipOpts:responses.map(r=>({code:r.ship,name:r.ship}));
+}
+
+function rowStat(resp){
+  if(!resp)return {done:0,total:(curCampaign.items||[]).length,openTrack:0,closedTrack:0};
+  const items=resp.items||[];
+  const done=items.filter(it=>it.status&&it.status!=="pending").length;
+  const openTrack=items.filter(it=>it.status==="similar"&&!it.closed).length;
+  const closedTrack=items.filter(it=>it.status==="similar"&&it.closed).length;
+  return {done,total:items.length,openTrack,closedTrack};
+}
+
+function renderTable(){
+  const tbody=document.getElementById("tbody");
+  const filter=document.getElementById("filterSel").value;
+  const kw=(document.getElementById("shipSearch").value||"").trim().toLowerCase();
+  const byShip=new Map(responses.map(r=>[r.ship,r]));
+  let ships=targetShips();
+  if(kw)ships=ships.filter(s=>s.code.toLowerCase().includes(kw)||(s.name||"").toLowerCase().includes(kw));
+  const rowsHtml=[];
+  let nSubmitted=0,nTrackOpen=0,nDone=0;
+  ships.forEach(s=>{
+    const resp=byShip.get(s.code);
+    const st=rowStat(resp);
+    const submitted=!!(resp&&resp.submitted_at);
+    if(submitted)nSubmitted++;
+    if(st.openTrack)nTrackOpen++;
+    if(resp&&st.total&&st.done===st.total)nDone++;
+    if(filter==="track"&&!st.openTrack)return;
+    if(filter==="unsubmitted"&&submitted)return;
+    if(filter==="submitted"&&!submitted)return;
+    const pct=st.total?Math.round(st.done/st.total*100):0;
+    const trackPill=st.openTrack?`<span class="pill bad">⚠ ${st.openTrack} 項未結案</span>`:(st.closedTrack?`<span class="pill ok">✓ ${st.closedTrack} 項已結案</span>`:`<span class="pill na">—</span>`);
+    const editUrl=`submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(s.code)}`;
+    rowsHtml.push(`
+      <tr class="${st.openTrack?'track':(submitted&&st.total&&st.done===st.total?'done':'')}" data-ship="${esc(s.code)}">
+        <td><b>${esc(s.code)}</b><div class="hint">${esc(s.name||"")}</div></td>
+        <td>${resp?esc(resp.checker_name||"—"):"<span class='hint'>尚未開始</span>"}</td>
+        <td>${resp?`${st.done} / ${st.total}（${pct}%）`:"<span class='hint'>0 / "+(curCampaign.items||[]).length+"</span>"}</td>
+        <td>${trackPill}</td>
+        <td>${resp?(resp.submit_count||0):0}</td>
+        <td>${resp&&resp.submitted_at?esc(new Date(resp.submitted_at).toLocaleString("zh-TW",{hour12:false})):"<span class='hint'>未送出</span>"}</td>
+        <td>
+          ${resp?`<button class="btn sm" onclick="toggleDetail('${esc(s.code)}')">📄 明細</button>`:""}
+          <a class="btn sm" href="${editUrl}" target="_blank" rel="noopener">✎ 前往填答</a>
+        </td>
+      </tr>
+      <tr class="detailrow" id="detail-${esc(s.code)}"><td colspan="7"></td></tr>
+    `);
+  });
+  tbody.innerHTML=rowsHtml.join("")||`<tr><td colspan="7" class="hint" style="text-align:center;padding:20px">找不到符合條件的船舶</td></tr>`;
+  document.getElementById("kpis").innerHTML=`
+    <div class="kpi"><div class="v">${responses.length} / ${targetShips().length}</div><div class="l">已開始填答／應填船數</div></div>
+    <div class="kpi"><div class="v">${nSubmitted}</div><div class="l">已送出</div></div>
+    <div class="kpi"><div class="v">${nDone}</div><div class="l">全部題目已作答</div></div>
+    <div class="kpi" style="${nTrackOpen?'border-color:var(--bad)':''}"><div class="v" style="${nTrackOpen?'color:var(--bad)':''}">${nTrackOpen}</div><div class="l">艘船有未結案追蹤項目</div></div>
+  `;
+}
+
+const ST_LABEL={ok:"✅ 沒有",similar:"⚠️ 有，需處理",na:"➖ 不適用",pending:"（未作答）"};
+function toggleDetail(ship){
+  const row=document.getElementById("detail-"+ship);
+  if(!row)return;
+  const open=!row.classList.contains("show");
+  // 收起其他已展開的列，畫面比較不會一次塞太多內容
+  document.querySelectorAll(".detailrow.show").forEach(r=>r.classList.remove("show"));
+  if(!open)return;
+  const resp=responses.find(r=>r.ship===ship);
+  if(!resp)return;
+  const items=resp.items||[];
+  row.querySelector("td").innerHTML=`
+    <div style="padding:6px 4px">
+      ${items.map((it,i)=>`
+        <div class="itemline">
+          <b>#${i+1}</b> ${esc(it.code?("CODE "+it.code):"")} <span class="stbadge ${it.status||'pending'}">${ST_LABEL[it.status||"pending"]}</span>${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'):""}
+          <div class="hint">${esc(it.detail||"")}</div>
+          ${it.note?`<div style="margin-top:2px"><b>本船實際狀況：</b>${esc(it.note)}</div>`:""}
+          ${it.actual?`<div><b>打算怎麼處理：</b>${esc(it.actual)}</div>`:""}
+          ${it.checkedBy?`<div class="hint">最後回答：${esc(it.checkedBy)}　${esc(it.checkedAt||"")}</div>`:""}
+        </div>
+      `).join("")}
+    </div>
+  `;
+  row.classList.add("show");
+}
+
+(async function boot(){
+  if(gateOk()){ enterMain(); return; }
+})();
+</script>
+</body>
+</html>
