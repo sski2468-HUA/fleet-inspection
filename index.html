@@ -3063,6 +3063,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <button class="btn" onclick="Air.pushPosRowsToSire()">➜ 只轉入正面評價/優秀案例記錄</button>
           </div>
         </div>
+        <div class="card">
+          <h3>📤 分享缺失做船隊自查</h3>
+          <p class="hint" style="margin-bottom:10px">把這次檢查的缺失做成自查 Checklist，發送給其他船隊自我核對「本船有沒有同樣或類似的問題」。<b>已勾選列時僅分享已勾選的列；未勾選則分享全部已填寫列。</b>建立後可在「船舶缺失自查」頁面比照一般自查任務，用既有的「AI 彙整」把內容濃縮成查核要點再發布。</p>
+          <button class="btn primary" onclick="Air.openShareCheckWizard()">📤 建立分享自查任務</button>
+        </div>
         </div>
 
         <div class="toolbar" style="justify-content:flex-end;gap:8px">
@@ -5781,6 +5786,23 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <span style="flex:1"></span>
       <button class="btn" onclick="DefsProj.closeCreate()">取消</button>
       <button class="btn primary" onclick="DefsProj.createProject()">✓ 建立專案（鎖定這批紀錄）</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="airShareCheckModal">
+  <div class="modal" style="max-width:480px">
+    <div class="mh"><h3>📤 建立分享自查任務</h3><button class="x" onclick="Air.closeShareCheckWizard()">✕</button></div>
+    <div class="mb">
+      <p class="hint" style="margin-bottom:10px">將本筆填單的缺失（<span id="air-sw-count"></span> 項）建立成自查任務，發送給選定的船舶；每艘船各自建立一份獨立任務，不影響本筆填單原本的內容或轉入狀態。</p>
+      <div class="msel" id="ms-air-sw-ship"></div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer"><input type="checkbox" id="air-sw-all"> 全船隊（不分船型，全部 FPMC 自營船）</label>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:6px;cursor:pointer" title="勾選後，發送對象不含本次填單原本的船，避免自己發給自己"><input type="checkbox" id="air-sw-exclude-self" checked> 排除本船（<span id="air-sw-selfship"></span>）</label>
+    </div>
+    <div class="mf">
+      <span style="flex:1"></span>
+      <button class="btn" onclick="Air.closeShareCheckWizard()">取消</button>
+      <button class="btn primary" onclick="Air.createShareCheckTasks()">✓ 建立任務</button>
     </div>
   </div>
 </div>
@@ -22467,6 +22489,56 @@ const Air={
     const msg=mode==="overwrite"?`✓ 已覆蓋更新 ${updated} 筆、新增 ${added} 筆缺失紀錄${skipped?`、跳過 ${skipped} 筆`:""}`:`✓ 已新增 ${added} 筆缺失紀錄`;
     if(typeof Audit!=="undefined")Audit.log("轉入","缺失紀錄總表",`由AIR#${d.id}${mode==="overwrite"?"覆蓋轉入":"轉入"} ${rows.length} 筆（更新${updated}／新增${added}${skipped?`／跳過${skipped}`:""}）`);
     toast(msg);
+  },
+  /* ══════════ 分享缺失做船隊自查（比照 DefsProj.openTaskWizard／createSelfCheckTasks 的做法：
+     從本筆填單的缺失明細直接建立自查任務，每艘船各自一份獨立任務，不影響本筆填單原本的內容
+     或轉入狀態）。任務建立後就是一般自查任務，海技人員可在「船舶缺失自查」頁面用既有的
+     「AI 彙整」複製提示詞→貼外部AI→貼回系統這套流程，把內容濃縮成查核要點，不用另外接 AI。══════════ */
+  openShareCheckWizard(){
+    if(this.editId==null){toast("⚠ 請先儲存基本資料");return;}
+    const d=App.air.find(x=>x.id===this.editId);if(!d)return;
+    let rows=this.defRows.filter(r=>r.detail||r.actual);
+    const selScope=this.defSel.size>0;
+    if(selScope)rows=rows.filter(r=>this.defSel.has(r.id));
+    if(!rows.length){toast(selScope?"⚠ 已勾選的列中沒有可分享的缺失明細":"⚠ 沒有可分享的缺失明細（至少需要缺失詳情或實際情況）");return;}
+    this._pendingShareRows=rows;
+    this.ms.swShip=MSel("ms-air-sw-ship","船舶",()=>SHIPINFO.filter(s=>s.operator==="FPMC").map(s=>s.code).sort(),()=>{});
+    this.ms.swShip.clear&&this.ms.swShip.clear();
+    $("#air-sw-all").checked=false;
+    const exEl=$("#air-sw-exclude-self");if(exEl)exEl.checked=true;
+    $("#air-sw-selfship").textContent=d.ship||"—";
+    $("#air-sw-count").textContent=rows.length;
+    $("#airShareCheckModal").classList.add("show");
+  },
+  closeShareCheckWizard(){$("#airShareCheckModal").classList.remove("show");},
+  async createShareCheckTasks(){
+    if(!await Guard.require())return;
+    if(typeof Role!=="undefined"&&!Role.isAdmin()&&!(Role.cur&&Role.cur.tier==="op1")){toast("⚠ 建立分享自查任務僅限 Owner／管理員／督導");return;}
+    const d=App.air.find(x=>x.id===this.editId);if(!d)return;
+    const rows=this._pendingShareRows;
+    if(!rows||!rows.length){toast("⚠ 找不到要分享的缺失，請重新開啟");return;}
+    const allChecked=$("#air-sw-all").checked;
+    let ships=allChecked?SHIPINFO.filter(s=>s.operator==="FPMC").map(s=>s.code):[...this.ms.swShip.sel];
+    if($("#air-sw-exclude-self").checked)ships=ships.filter(s=>s!==d.ship);
+    if(!ships.length){toast("⚠ 請至少選擇一艘船，或勾選全船隊");return;}
+    const created=[];
+    ships.forEach(s=>{
+      const items=rows.map((r,i)=>({
+        defId:-(Math.abs(+d.id||0)*1000+i+1), // 負數合成ID,避免跟真實缺失ID衝突(比照DefsProj做法)
+        ship:s,itype:`分享自查－${d.ship} ${d.date}`,date:todayStr(),place:d.place||"",code:r.code||"",
+        ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",risk:"",attn:false,
+        detail:[r.detail,r.actual?("實際情況："+r.actual):""].filter(Boolean).join("\n"),actual:"",status:"pending",note:"",closed:false
+      }));
+      const t={id:nextScTaskId(),ship:s,date:todayStr(),title:`分享自查：${d.ship} ${d.itype||""} ${d.date} 缺失重點`,
+        inspector:(typeof Audit!=="undefined")?Audit.user():"",created:todayStr(),items,sharedFromAirId:d.id};
+      App.tasks.unshift(t);created.push(t);
+    });
+    d.sharedCheckTaskIds=[...(d.sharedCheckTaskIds||[]),...created.map(t=>t.id)];
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
+    if(typeof Audit!=="undefined")Audit.log("新增","船舶缺失自查",`由AIR#${d.id}（${d.ship} ${d.date}）分享 ${rows.length} 項缺失，建立自查任務 ${created.length} 份`);
+    this.closeShareCheckWizard();
+    toast(`✓ 已為 ${created.length} 艘船建立分享自查任務，共 ${rows.length} 項/船，可到「船舶缺失自查」頁面查看與追蹤進度`);
+    this._pendingShareRows=null;
   },
   async pushPosRowsToSire(){
     if(!await Guard.require())return;
