@@ -2113,7 +2113,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="nav-group" data-group="forms">
       <div class="nav-group-label">填單</div>
       <div class="nav-item" data-tab="air"><span class="num">📝</span>填單紀錄</div>
-      <div class="nav-item" data-tab="self"><span class="num">4</span>船舶缺失自查</div>
+      <div class="nav-item" data-tab="self"><span class="num">4</span>專案自查</div>
+      <div class="nav-item" data-external="__selfcheck_share_summary__"><span class="num">🔗</span>分享自查彙整清單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
       <div class="nav-item" data-external="__air_intake__"><span class="num">🔗</span>前往線上填單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
     </div>
     <div class="nav-group" data-group="tools">
@@ -10654,10 +10655,14 @@ const NavConfig={
 };
 
 /* ───── 導航 ───── */
-const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["船舶缺失自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["填單紀錄","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"]};
+const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["專案自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["填單紀錄","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"]};
 $$(".nav-item").forEach(n=>n.onclick=()=>{
   if(n.dataset.external){
     if(n.dataset.external==="__air_intake__"){if(typeof Air!=="undefined")Air.openIntakeSite();}
+    else if(n.dataset.external==="__selfcheck_share_summary__"){
+      const folder=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
+      window.open(folder+"selfcheck-share-summary.html","_blank");
+    }
     else window.open(n.dataset.external,"_blank");
     if(typeof closeSidebar==="function")closeSidebar();return;
   }
@@ -22545,9 +22550,13 @@ const Air={
     const limited=$("#air-sw-limit").checked;
     const shipScope=limited?[...this.ms.swShip.sel]:null;
     if(limited&&(!shipScope||!shipScope.length)){toast("⚠ 已勾選「限定只開放特定船舶」，請至少選擇一艘船");return;}
+    // ⚠ detail／actual2 務必分開存成兩個欄位，不要先拼成一段文字：填答頁 renderRef() 是
+    // 用「缺失詳情」「實際情況」各自一個 <div> 分行顯示，欄位名故意叫 actual2 而不是 actual，
+    // 是因為 actual 這個名字在填答頁本來就用來存「船上打算怎麼處理」（船員自己的作答），
+    // 兩個是完全不同的東西，撞名會被船員填的內容蓋掉，所以來源的「實際情況」另外取名。
     const items=rows.map(r=>({
       code:r.code||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",
-      detail:[r.detail,r.actual?("實際情況："+r.actual):""].filter(Boolean).join("\n")
+      detail:r.detail||"",actual2:r.actual||""
     }));
     const campaignId=Date.now();
     const campaign={id:campaignId,title:`分享自查：${d.ship} ${d.itype||""} ${d.date} 缺失重點`,items,ship_scope:shipScope,
