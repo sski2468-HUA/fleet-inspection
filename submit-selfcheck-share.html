@@ -44,7 +44,7 @@ textarea,input[type=text],select{padding:9px 10px;border:1px solid var(--line-2)
 .detailwrap.show{display:block}
 label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px 0 4px}
 .closedrow{display:flex;align-items:center;gap:8px;margin-top:10px;background:#fdf2e0;border:1px solid #f0dba9;border-radius:8px;padding:10px 12px}
-.modebar{display:flex;gap:8px}
+.modebar{display:flex;gap:8px;flex-wrap:wrap}
 .modebtn{border:1.5px solid var(--line-2);background:#fff;color:var(--ink-2);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans)}
 .modebtn.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .itemcard.gh{display:none}
@@ -65,7 +65,22 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
 .wstatus.closed{background:#e5f3ec;color:var(--ok)}
 @keyframes itemFlash{0%{box-shadow:0 0 0 3px rgba(28,58,94,.55)}100%{box-shadow:0 0 0 3px transparent}}
 .itemcard.jump-flash{animation:itemFlash 1.1s ease-out}
+#printArea{display:none}
+@media print{
+  body *{visibility:hidden}
+  #printArea,#printArea *{visibility:visible}
+  #printArea{display:block!important;position:absolute;left:0;top:0;width:100%;font-size:11px;line-height:1.5}
+  #printArea h2{font-size:14px;margin:0 0 4px}
+  #printArea .pmeta{font-size:10.5px;color:#555;margin-bottom:10px}
+  #printArea table{width:100%;border-collapse:collapse}
+  #printArea td,#printArea th{border:1px solid #999;padding:4px 6px;vertical-align:top;font-size:10px}
+  #printArea th{background:#eee;text-align:left}
+  #printArea .pnum{width:22px;text-align:center}
+  #printArea .pst{width:70px}
+  #printArea .pdet{font-size:10px;margin-top:2px;line-height:1.4}
+}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -86,10 +101,23 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
     <p class="hint" id="gateDesc" style="margin-bottom:12px"></p>
     <label>本船船名</label>
     <select id="gateShip"></select>
-    <label style="margin-top:10px">填寫人姓名</label>
-    <input type="text" id="gateChecker" placeholder="輸入您的姓名">
-    <button class="btn primary" style="margin-top:14px;width:100%" onclick="enterAsShip()">▶ 開始／繼續填答</button>
+    <label style="margin-top:10px">填寫人姓名 *</label>
+    <input type="text" id="gateChecker" placeholder="輸入您的姓名" oninput="onCheckerNameInput(this.value)">
+    <label style="margin-top:10px">填寫人職稱 *</label>
+    <input type="text" id="gateCheckerTitle" placeholder="例：大副、輪機長、船長" oninput="onCheckerTitleInput(this.value)">
+    <button class="btn primary" style="margin-top:14px;width:100%" id="gateBtn" onclick="enterAsShip()">▶ 開始／繼續填答</button>
     <p class="hint" style="margin-top:10px">選過一次之後，這台裝置下次打開同一條連結會記得您上次選的船名，直接帶入不用重選（仍可自行更換）。</p>
+  </div>
+
+  <!-- 本船所有分享自查記錄：沒帶 ?cid=... 打開這個頁面時顯示，讓船上不用另外記每一條活動連結，
+       選一次船名就能看到自己船曾經/正在填答的全部活動與各自進度，點進去直接開始/繼續填答。 -->
+  <div class="card" id="myList" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div style="font-weight:700;font-size:15px">📋 本船分享自查記錄</div>
+      <button class="btn sm" style="margin-left:auto" onclick="switchShip()">🔁 換一艘船</button>
+    </div>
+    <p class="hint" style="margin-bottom:10px">點任一活動即可直接開始或繼續填答。</p>
+    <div id="myListBody"></div>
   </div>
 
   <div id="body" style="display:none">
@@ -99,13 +127,20 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
           <div style="font-weight:700;font-size:15px" id="taskTitle"></div>
           <div class="hint" id="taskMeta"></div>
         </div>
-        <button class="btn sm" onclick="switchShip()" style="margin-left:auto">🔁 換一艘船</button>
+        <a class="btn sm" href="submit-selfcheck-share.html" style="margin-left:auto">📋 我的自查記錄</a>
+        <button class="btn sm" onclick="switchShip()">🔁 換一艘船</button>
         <button class="btn primary" id="submitBtn" onclick="submitAll()">✓ 送出</button>
       </div>
-      <p class="hint warn" style="margin-top:10px">內容會自動即時儲存，不用自己按存檔。答「有，需處理」的項目，等船上處理完成後記得回來勾選「已完成改善（結案）」，再按一次「送出」才算完整。送出後仍可以回來調整、再送出一次覆蓋更新。</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <div style="flex:1;min-width:140px"><label style="margin:0 0 4px">填寫人姓名 *</label><input type="text" id="bodyChecker" placeholder="輸入您的姓名" oninput="onCheckerNameInput(this.value)"></div>
+        <div style="flex:1;min-width:140px"><label style="margin:0 0 4px">填寫人職稱 *</label><input type="text" id="bodyCheckerTitle" placeholder="例：大副、輪機長、船長" oninput="onCheckerTitleInput(this.value)"></div>
+      </div>
+      <p class="hint warn" style="margin-top:10px">內容會自動即時儲存，不用自己按存檔。答「有，需處理」的項目，等船上處理完成後記得回來勾選「已完成改善（結案）」，再按一次「送出」才算完整。送出後仍可以回來調整、再送出一次覆蓋更新。<b>姓名與職稱為必填，未填寫無法送出。</b></p>
       <div class="modebar" style="margin-top:12px">
         <button type="button" class="modebtn on" id="modeBtnGuide" onclick="setViewMode('guide')">▶ 引導作答</button>
         <button type="button" class="modebtn" id="modeBtnList" onclick="setViewMode('list')">☰ 清單模式</button>
+        <button type="button" class="btn sm" style="margin-left:auto" onclick="exportExcel()">⬇ 下載 Excel</button>
+        <button type="button" class="btn sm" onclick="preparePrint()">⬇ 下載 PDF</button>
       </div>
     </div>
     <div id="guideNav" class="card" style="display:none;text-align:center">
@@ -122,6 +157,7 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
 </div>
 
 <div id="saveNote"></div>
+<div id="printArea"></div>
 <div id="toast"></div>
 
 <script>
@@ -178,9 +214,23 @@ window.addEventListener("online",()=>{
 /* 上次選過的船名／填寫人姓名：存在本機瀏覽器，同一台裝置下次打開同一條連結會記得，
    不用每次都重選重打——跟 submit-selfcheck.html 的「填寫人姓名」記憶是同一個概念。 */
 const LASTSHIP_KEY="vsm_scshare_lastship_"+CID;
+// 跟 LASTSHIP_KEY 不同：這把不分活動，記的是「這台裝置通常是哪艘船在用」，給沒帶
+// ?cid=... 的「本船分享自查記錄」入口，以及各活動連結找不到自己的上次選擇時當退路。
+const GLOBAL_SHIP_KEY="vsm_scshare_myship";
 const CHECKER_KEY="vsm_selfcheck_checker_name";
+const CHECKER_TITLE_KEY="vsm_scshare_checker_title";
 function getCheckerName(){ try{return localStorage.getItem(CHECKER_KEY)||"";}catch(e){return "";} }
-function onCheckerNameInput(v){ try{localStorage.setItem(CHECKER_KEY,v||"");}catch(e){} }
+function getCheckerTitle(){ try{return localStorage.getItem(CHECKER_TITLE_KEY)||"";}catch(e){return "";} }
+/* 姓名／職稱輸入框在「進場選船」跟「答題畫面」各有一組（同一份資料），兩邊互相同步，
+   不管在哪一邊改，另一邊下次顯示都是最新值，也都會存進本機記住。 */
+function onCheckerNameInput(v){
+  try{localStorage.setItem(CHECKER_KEY,v||"");}catch(e){}
+  [ "gateChecker","bodyChecker" ].forEach(id=>{const el=document.getElementById(id);if(el&&el.value!==v)el.value=v;});
+}
+function onCheckerTitleInput(v){
+  try{localStorage.setItem(CHECKER_TITLE_KEY,v||"");}catch(e){}
+  [ "gateCheckerTitle","bodyCheckerTitle" ].forEach(id=>{const el=document.getElementById(id);if(el&&el.value!==v)el.value=v;});
+}
 
 let SHIP_OPTS=[];
 async function loadShipOpts(){
@@ -205,7 +255,24 @@ function fillShipSelect(){
 
 async function init(){
   if(!CID){
-    showError("網址缺少活動代碼（?cid=...），請確認連結是否正確。");
+    // 沒帶 ?cid=... 打開這個頁面：不是連結壞了，是船上想看「本船所有分享自查記錄」——
+    // 這條路徑不綁定特定活動，選過船名後查全部活動裡跟這艘船有關的紀錄（見 enterMyList()）。
+    document.getElementById("hdr-note").textContent="讀取中…";
+    await loadShipOpts();
+    document.getElementById("gateTitle").textContent="📋 本船分享自查記錄";
+    document.getElementById("gateDesc").textContent="請選擇本船船名，查看本船曾經／正在填答的所有分享自查活動。";
+    fillShipSelect();
+    const cn0=document.getElementById("gateChecker");if(cn0)cn0.value=getCheckerName();
+    const ct0=document.getElementById("gateCheckerTitle");if(ct0)ct0.value=getCheckerTitle();
+    document.getElementById("gateBtn").textContent="▶ 查看本船記錄";
+    document.getElementById("gateBtn").onclick=enterMyList;
+    document.getElementById("gate").style.display="";
+    document.getElementById("hdr-note").textContent="船隊分享自查";
+    const last=(function(){try{return localStorage.getItem(GLOBAL_SHIP_KEY)||"";}catch(e){return "";}})();
+    if(last&&(!SHIP_OPTS.length||SHIP_OPTS.some(s=>s.code===last))){
+      document.getElementById("gateShip").value=last;
+      enterMyList();
+    }
     return;
   }
   document.getElementById("hdr-note").textContent="讀取中…";
@@ -231,6 +298,8 @@ async function init(){
   fillShipSelect();
   const cn=document.getElementById("gateChecker");
   if(cn)cn.value=getCheckerName();
+  const ct=document.getElementById("gateCheckerTitle");
+  if(ct)ct.value=getCheckerTitle();
   document.getElementById("gate").style.display="";
   // 深連結：?ship=B105 直接指定船名並自動進入（給「彙整清單」頁面的「✎ 前往編輯」用，
   // 一鍵直接打開那艘船的填答，不用再手動選一次船名）；沒帶 ship 參數則沿用「上次選過的船」
@@ -252,8 +321,10 @@ async function enterAsShip(){
   const ship=document.getElementById("gateShip").value;
   if(!ship){notify("⚠ 請先選擇本船船名","err");return;}
   const checker=(document.getElementById("gateChecker").value||"").trim();
+  const checkerTitle=(document.getElementById("gateCheckerTitle").value||"").trim();
   onCheckerNameInput(checker);
-  try{localStorage.setItem(LASTSHIP_KEY,ship);}catch(e){}
+  onCheckerTitleInput(checkerTitle);
+  try{localStorage.setItem(LASTSHIP_KEY,ship);localStorage.setItem(GLOBAL_SHIP_KEY,ship);}catch(e){}
   document.getElementById("hdr-note").textContent="讀取中…";
   try{
     draft=await loadOrCreateResponse(ship);
@@ -270,10 +341,13 @@ async function enterAsShip(){
     restoredFromLocal=true;
   }
   document.getElementById("gate").style.display="none";
+  document.getElementById("myList").style.display="none";
   document.getElementById("body").style.display="";
   document.getElementById("gateProgressWrap").style.display="";
   document.getElementById("taskTitle").textContent=campaign.title||"";
   document.getElementById("taskMeta").textContent=`船舶：${draft.ship||""}　已送出 ${draft.submit_count||0} 次${draft.submitted_at?"　最後送出："+new Date(draft.submitted_at).toLocaleString("zh-TW",{hour12:false}):""}`;
+  const bc=document.getElementById("bodyChecker");if(bc)bc.value=getCheckerName();
+  const bt=document.getElementById("bodyCheckerTitle");if(bt)bt.value=draft.checker_title||getCheckerTitle();
   renderItems();
   guideJumpUnanswered(true);
   if(restoredFromLocal){
@@ -281,10 +355,58 @@ async function enterAsShip(){
     if(cached.pendingSubmit)submitAll();else flushAutoSave();
   }
 }
+/* 本船分享自查記錄：不綁定特定活動，選了船名後把「所有跟這艘船有關的活動」都列出來——
+   有限定船舶清單的活動，只有本船在清單裡才會出現；沒限定的活動一律都算「本船可以填」。
+   每個活動旁邊直接顯示這艘船目前的進度／有沒有送出，點下去等同直接打開
+   ?cid=活動id&ship=本船，沿用單一活動那套既有的填答／離線保護邏輯，不重複寫一份。 */
+async function enterMyList(){
+  const ship=document.getElementById("gateShip").value;
+  if(!ship){notify("⚠ 請先選擇本船船名","err");return;}
+  const checker=(document.getElementById("gateChecker").value||"").trim();
+  const checkerTitle=(document.getElementById("gateCheckerTitle").value||"").trim();
+  onCheckerNameInput(checker);
+  onCheckerTitleInput(checkerTitle);
+  try{localStorage.setItem(GLOBAL_SHIP_KEY,ship);}catch(e){}
+  document.getElementById("hdr-note").textContent="讀取中…";
+  let allCampaigns=[],myResponses=[];
+  try{
+    allCampaigns=await api(`${CAMPAIGN_TABLE}?order=created_at.desc&limit=200`);
+    myResponses=await api(`${RESPONSE_TABLE}?ship=eq.${encodeURIComponent(ship)}&select=id,campaign_id,items,submitted_at,submit_count`);
+  }catch(e){
+    notify("讀取失敗："+e.message,"err");
+    return;
+  }
+  const visible=allCampaigns.filter(c=>!(c.ship_scope&&c.ship_scope.length)||c.ship_scope.includes(ship));
+  document.getElementById("hdr-note").textContent=`${ship}　本船分享自查記錄`;
+  document.getElementById("gate").style.display="none";
+  const box=document.getElementById("myListBody");
+  if(!visible.length){
+    box.innerHTML=`<p class="hint" style="text-align:center;padding:16px">目前沒有開放給本船的分享自查活動。</p>`;
+  }else{
+    box.innerHTML=visible.map(c=>{
+      const r=myResponses.find(x=>String(x.campaign_id)===String(c.id));
+      const total=(c.items||[]).length;
+      const done=r?(r.items||[]).filter(it=>it.status&&it.status!=="pending").length:0;
+      const track=r?(r.items||[]).filter(it=>it.status==="similar"&&!it.closed).length:0;
+      const ended=c.active===false;
+      const submitted=!!(r&&r.submitted_at);
+      const statusLine=r
+        ?`進度 ${done} / ${total}　${submitted?`✓ 已送出 ${r.submit_count||0} 次`:"尚未送出"}${track?`　⚠ ${track} 項未結案`:""}`
+        :`<span class="hint">尚未開始填答　共 ${total} 項</span>`;
+      return `<div class="itemcard" style="cursor:pointer" onclick="location.href='submit-selfcheck-share.html?cid=${c.id}&ship=${encodeURIComponent(ship)}'">
+        <div style="font-weight:700">${esc(c.title||("活動 #"+c.id))}${ended?'　<span class="hint">（已結束，無法再填答）</span>':""}</div>
+        <div class="hint">建立於 ${c.created_at?new Date(c.created_at).toLocaleString("zh-TW",{hour12:false}):""}</div>
+        <div style="margin-top:6px">${statusLine}</div>
+      </div>`;
+    }).join("");
+  }
+  document.getElementById("myList").style.display="";
+}
 function switchShip(){
   if(dirty&&!confirm("目前還有內容尚未同步完成，切換船舶前建議先等自動儲存完成。確定要切換嗎？"))return;
   draft=null;
   document.getElementById("body").style.display="none";
+  document.getElementById("myList").style.display="none";
   document.getElementById("gateProgressWrap").style.display="none";
   document.getElementById("gate").style.display="";
 }
@@ -295,7 +417,7 @@ async function loadOrCreateResponse(ship){
   const rows=await api(`${RESPONSE_TABLE}?campaign_id=eq.${encodeURIComponent(CID)}&ship=eq.${encodeURIComponent(ship)}&limit=1`);
   if(rows&&rows.length)return rows[0];
   const items=(campaign.items||[]).map(it=>({...it,status:"pending",note:"",actual:"",closed:false,checkedAt:"",checkedBy:""}));
-  const body=[{id:Date.now()+Math.floor(Math.random()*1000),campaign_id:+CID,ship,checker_name:getCheckerName(),items,submit_count:0,history:[],updated_at:Date.now()}];
+  const body=[{id:Date.now()+Math.floor(Math.random()*1000),campaign_id:+CID,ship,checker_name:getCheckerName(),checker_title:getCheckerTitle(),items,submit_count:0,history:[],updated_at:Date.now()}];
   const created=await api(RESPONSE_TABLE,{method:"POST",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(body)});
   return created[0];
 }
@@ -306,6 +428,81 @@ function updateProgress(){
   const pct=items.length?Math.round(done/items.length*100):0;
   document.getElementById("progressFill").style.width=pct+"%";
   document.getElementById("hdr-note").textContent=`${draft.ship}　已作答 ${done} / ${items.length} 題（${pct}%）`;
+}
+
+const ST_LABEL_DL={ok:"沒有",similar:"有，需處理",na:"不適用本船",pending:"未作答"};
+/* 下載 Excel／PDF 用的共用資料組裝：基本資料＋逐題明細，兩邊都要用同一份，
+   避免各自兜一次資料、以後改欄位要改兩個地方又漏掉一個。 */
+function collectExportData(){
+  const items=draft.items||[];
+  const nameNow=(document.getElementById("bodyChecker")&&document.getElementById("bodyChecker").value)||draft.checker_name||"";
+  const titleNow=(document.getElementById("bodyCheckerTitle")&&document.getElementById("bodyCheckerTitle").value)||draft.checker_title||"";
+  const needN=items.filter(it=>it.status==="similar").length;
+  return {
+    title:campaign?campaign.title||"":"",
+    ship:draft.ship||"",
+    checker:nameNow,checkerTitle:titleNow,
+    total:items.length,needN,
+    submitCount:draft.submit_count||0,
+    submittedAt:draft.submitted_at?new Date(draft.submitted_at).toLocaleString("zh-TW",{hour12:false}):"尚未送出",
+    exportedAt:new Date().toLocaleString("zh-TW",{hour12:false}),
+    items
+  };
+}
+async function exportExcel(){
+  if(!draft){notify("⚠ 資料還沒載入完成","err");return;}
+  if(typeof XLSX==="undefined"){notify("⚠ Excel 功能載入失敗，請確認網路後重新整理頁面","err");return;}
+  const d=collectExportData();
+  const wb=XLSX.utils.book_new();
+  const wsBase=XLSX.utils.aoa_to_sheet([
+    ["分享自查基本資料"],
+    ["活動主題",d.title],
+    ["船舶",d.ship],
+    ["填寫人姓名",d.checker],
+    ["填寫人職稱",d.checkerTitle],
+    ["查核項目數（缺失數）",d.total],
+    ["其中本船「有，需處理」項目數",d.needN],
+    ["已送出次數",d.submitCount],
+    ["最後送出時間",d.submittedAt],
+    ["匯出時間",d.exportedAt]
+  ]);
+  wsBase["!cols"]=[{wch:22},{wch:50}];
+  XLSX.utils.book_append_sheet(wb,wsBase,"基本資料");
+  const rows=[["編號","CODE","缺失內容","實際情況（來源）","本船查核結果","本船實際狀況","打算怎麼處理","是否結案","回答人","回答日期"]];
+  d.items.forEach((it,i)=>{
+    rows.push([i+1,it.code||"",it.detail||"",it.actual2||"",ST_LABEL_DL[it.status||"pending"],it.note||"",it.actual||"",it.status==="similar"?(it.closed?"已結案":"未結案"):"",it.checkedBy||"",it.checkedAt||""]);
+  });
+  const wsDef=XLSX.utils.aoa_to_sheet(rows);
+  wsDef["!cols"]=[{wch:6},{wch:12},{wch:40},{wch:40},{wch:14},{wch:30},{wch:30},{wch:10},{wch:10},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,wsDef,"缺失明細");
+  const fname=`分享自查_${d.ship}_${(d.title||"").replace(/[\\/:*?"<>|]/g,"_")}_${todayStr()}.xlsx`;
+  XLSX.writeFile(wb,fname);
+  notify("✓ 已下載 "+fname,"ok2");
+}
+function todayStr(){
+  const n=new Date();
+  return `${n.getFullYear()}${String(n.getMonth()+1).padStart(2,"0")}${String(n.getDate()).padStart(2,"0")}`;
+}
+function preparePrint(){
+  if(!draft){notify("⚠ 資料還沒載入完成","err");return;}
+  const d=collectExportData();
+  const rowHtml=(it,i)=>`<tr>
+    <td class="pnum">${i+1}</td>
+    <td>
+      <b>${it.code?"CODE "+esc(it.code):""}</b>
+      <div class="pdet">${esc(it.detail||"")}</div>
+      ${it.actual2?`<div class="pdet" style="color:#555">實際情況：${esc(it.actual2)}</div>`:""}
+    </td>
+    <td class="pst">${ST_LABEL_DL[it.status||"pending"]}${it.status==="similar"?(it.closed?"（已結案）":"（未結案）"):""}</td>
+    <td>${esc(it.note||"")}</td>
+    <td>${esc(it.actual||"")}</td>
+  </tr>`;
+  document.getElementById("printArea").innerHTML=`
+    <h2>船隊分享自查　${esc(d.title)}</h2>
+    <div class="pmeta">船舶：${esc(d.ship)}　填寫人：${esc(d.checker)}（${esc(d.checkerTitle)}）　查核項目數：${d.total}　其中需處理：${d.needN}　已送出 ${d.submitCount} 次　最後送出：${esc(d.submittedAt)}　匯出時間：${esc(d.exportedAt)}</div>
+    <table><thead><tr><th class="pnum">#</th><th>查核項目（缺失內容／實際情況）</th><th class="pst">本船查核結果</th><th>本船實際狀況</th><th>打算怎麼處理</th></tr></thead>
+    <tbody>${d.items.map(rowHtml).join("")}</tbody></table>`;
+  setTimeout(()=>window.print(),50);
 }
 
 function renderRef(it){
@@ -474,7 +671,7 @@ async function flushAutoSave(){
   if(!draft)return;
   try{
     await api(`${RESPONSE_TABLE}?id=eq.${draft.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},
-      body:JSON.stringify({items:draft.items,checker_name:getCheckerName(),updated_at:Date.now()})});
+      body:JSON.stringify({items:draft.items,checker_name:getCheckerName(),checker_title:getCheckerTitle(),updated_at:Date.now()})});
     dirty=false;
     clearLocalCache();
     const note=document.getElementById("saveNote");
@@ -488,9 +685,18 @@ async function flushAutoSave(){
 window.addEventListener("beforeunload",()=>{ if(autoSaveTimer)flushAutoSave(); });
 
 async function submitAll(){
-  if(!getCheckerName()&&!confirm("尚未填寫「填寫人姓名」，公司端會看不出這次是誰填的。確定要送出嗎？")){
+  // 姓名／職稱為必填才可送出（不是提醒，是硬性擋下）：讀 body 畫面上目前的值，
+  // 而不是只信任本機記住的舊值——萬一這次換了填寫人，畫面上輸入框才是當下真正的來源。
+  const nameNow=(document.getElementById("bodyChecker")&&document.getElementById("bodyChecker").value||"").trim();
+  const titleNow=(document.getElementById("bodyCheckerTitle")&&document.getElementById("bodyCheckerTitle").value||"").trim();
+  if(!nameNow||!titleNow){
+    notify("⚠ 請先填寫「填寫人姓名」與「填寫人職稱」才能送出","err");
+    if(!nameNow&&document.getElementById("bodyChecker"))document.getElementById("bodyChecker").focus();
+    else if(document.getElementById("bodyCheckerTitle"))document.getElementById("bodyCheckerTitle").focus();
     return;
   }
+  onCheckerNameInput(nameNow);
+  onCheckerTitleInput(titleNow);
   const btn=document.getElementById("submitBtn");
   btn.disabled=true;
   saveLocalCache(true);
@@ -500,7 +706,7 @@ async function submitAll(){
   hist.push({at:now});
   try{
     await api(`${RESPONSE_TABLE}?id=eq.${draft.id}`,{method:"PATCH",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=minimal"},
-      body:JSON.stringify({items:draft.items,submitted_at:now,submit_count:(draft.submit_count||0)+1,history:hist,updated_at:Date.now()})});
+      body:JSON.stringify({items:draft.items,checker_name:nameNow,checker_title:titleNow,submitted_at:now,submit_count:(draft.submit_count||0)+1,history:hist,updated_at:Date.now()})});
     dirty=false;
     clearLocalCache();
     draft.submitted_at=now; draft.submit_count=(draft.submit_count||0)+1;
