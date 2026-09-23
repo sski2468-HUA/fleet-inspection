@@ -24874,6 +24874,15 @@ const Recur={
 /* ════════ 5. 分類彙總分析 ════════ */
 const Ref={
   q:"", sel:null, selLeaf:new Set(), barSel:{prob:new Set(),main:new Set()},
+  // ⚠ selLeaf 有兩種來源：①②（問題別/大類）點擊時會透過 syncSelLeafFromBarSel() 把「該類別底下全部
+  // 具體名稱」整批塞進 selLeaf（方便只點①②也能讓匯出/跳轉功能生效，不用另外再點③④）；
+  // ③④／下方勾選清單則是使用者「一個一個親自挑」的。這兩種來源混在同一個 Set 裡，
+  // 之前會導致：先點②大類（整批塞進 74 項），接著使用者以為畫面是「乾淨的」去點③其中一項，
+  // 結果那一項其實早就在那 74 項裡面，單純 toggle 只會把它「移除」，使用者看到的就是「點了却被取消」。
+  // 用這個旗標分辨目前 selLeaf 是不是使用者自己親手挑過：一旦使用者親自點過③④或勾選清單，
+  // 之後同一批的點擊才是真正的「累加/移除」；只要 selLeaf 還停留在①②整批帶入、使用者還沒親自挑過，
+  // 第一次點③④就視為「我只要這一項」，直接把 selLeaf 換成只有這一項，不是跟那 74 項做 toggle。
+  _leafExplicit:false,
   /* 隱藏項目：大類（跟具體項目）數量一多，長條圖會塞不下、也不好一眼看重點，
      這裡讓使用者自己勾選要在圖表上顯示哪些，記在本機瀏覽器（不影響其他人），
      隱藏只影響「這四張長條圖要不要畫出來」，不影響篩選/百分比計算，也不影響下方分類清單。 */
@@ -24925,7 +24934,7 @@ const Ref={
     if(this.ms)Object.values(this.ms).forEach(m=>m.clear());
     if($("#ref-ymfrom"))$("#ref-ymfrom").value="";
     if($("#ref-ymto"))$("#ref-ymto").value="";
-    this.selLeaf.clear();this.q="";if($("#ref-q"))$("#ref-q").value="";
+    this.selLeaf.clear();this._leafExplicit=false;this.q="";if($("#ref-q"))$("#ref-q").value="";
     this.barSel={prob:new Set(),main:new Set()};
     this.rootBarSel={elem:new Set(),root:new Set()};
     this.render();
@@ -24999,8 +25008,8 @@ const Ref={
   },
   label(p){return p==="设备问题"?"🔧 設備問題":"⚙️ 作業問題";},
   pick(prob,main){this.sel={prob,main};this.render();},
-  toggleLeaf(name,on){on?this.selLeaf.add(name):this.selLeaf.delete(name);this.updateSelStat();this.renderFactor();this.renderTrend();this.updateBreadcrumb();},
-  toggleAllVisible(names,on){names.forEach(n=>on?this.selLeaf.add(n):this.selLeaf.delete(n));this.render();},
+  toggleLeaf(name,on){this._leafExplicit=true;on?this.selLeaf.add(name):this.selLeaf.delete(name);this.updateSelStat();this.renderFactor();this.renderTrend();this.updateBreadcrumb();},
+  toggleAllVisible(names,on){this._leafExplicit=true;names.forEach(n=>on?this.selLeaf.add(n):this.selLeaf.delete(n));this.render();},
   updateSelStat(){const el=$("#ref-sel-stat");if(el)el.textContent=this.selLeaf.size?`已勾選 ${this.selLeaf.size} 項分類`:"未勾選（將使用目前篩選範圍）";},
   updateBreadcrumb(){
     const el=$("#ref-breadcrumb");if(!el)return;
@@ -25334,6 +25343,7 @@ const Ref={
     const leaves=new Set();
     scope.forEach(d=>{const t=ncTags(d.ncLeaf);(t.length?t:["(未分類)"]).forEach(l=>leaves.add(l));});
     this.selLeaf=leaves;
+    this._leafExplicit=false; // 這是①②整批帶入的，不是使用者自己挑的；讓下一次③④單點視為「只要這一項」
   },
   barToggleMain(m){
     if(this.barSel.main.has(m))this.barSel.main.delete(m);else this.barSel.main.add(m);
@@ -25350,7 +25360,15 @@ const Ref={
      資料範圍維持不變，點哪個就穩定亮哪個；①②的連動反白改用下面既有的
      impliedProbMain()（只提示、不過濾），效果一樣能看出這個具體項目屬於哪個問題別／大類。 */
   barLeafToggle(l){
-    this.selLeaf.has(l)?this.selLeaf.delete(l):this.selLeaf.add(l);
+    if(!this._leafExplicit){
+      // selLeaf 目前若不是空的，代表是①②整批帶入的殘留（例如剛點過②大類，
+      // 底下 74 項全被自動勾選）——使用者這時親自點某一項，意思是「我只要這一項」，
+      // 不是要跟那 74 項做加減，所以直接整個換成只有這一項，不是 toggle。
+      this.selLeaf=new Set([l]);
+      this._leafExplicit=true;
+    }else{
+      this.selLeaf.has(l)?this.selLeaf.delete(l):this.selLeaf.add(l);
+    }
     this.render();
   },
   /* 隱藏項目管理：不用另外開 modal，直接在按鈕旁邊彈一個小框，
