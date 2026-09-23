@@ -25206,29 +25206,47 @@ const Ref={
     if(typeof Chart==="undefined")return;
     const el=$("#"+canvasId);if(!el)return;
     if(!this._barCharts)this._barCharts={};
-    if(this._barCharts[canvasId])this._barCharts[canvasId].destroy();
-    this._barCharts[canvasId]=new Chart(el,{type:"bar",
-      data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:3}]},
-      options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{callbacks:{
-          title:(items)=>items&&items.length?String(labels[items[0].dataIndex]):"",
-          label:(ctx)=>{
-            const v=ctx.parsed.x;const pct=scopeTotal?Math.round(v/scopeTotal*100):0;return `${v} 筆（${pct}%）`;
-          }
-        }}},
-        scales:{x:{beginAtZero:true,ticks:{precision:0}},y:{ticks:{autoSkip:false,font:{size:11},
-          /* ⚠ 具體名稱常常很長（中文＋括號附註），Chart.js 算 Y 軸要留多少空間給文字標籤時，
-             遇到這種長標籤偶爾會算不準，導致文字反而被畫布邊界切掉一截、開頭幾個字不見。
-             這裡先把顯示用的標籤截短＋加刪節號，Chart.js 就是照這個短字串去算版面，不會再算錯；
-             完整名稱還是看得到，只是要移到長條上面看 tooltip（上面 title 已經改成顯示完整名稱)。 */
-          callback:function(val){
-            const lbl=String(this.getLabelForValue(val)||"");
-            return lbl.length>15?lbl.slice(0,15)+"…":lbl;
-          }
-        }}},
-        onClick:(evt,elements)=>{if(elements&&elements.length)onClickIdx(elements[0].index);}
-      }
-    });
+    // ⚠ 之前這裡每次重繪都先 destroy() 舊圖表、再 new Chart() 建一個新的。
+    // 問題在於：這個 destroy+new 是在「點擊長條圖」這個 onClick callback 本身裡面同步執行的
+    // （click → onClickIdx → barLeafToggle → this.render() → mkBar → destroy 舊圖、綁新圖的 onClick）。
+    // 實測發現這樣會讓同一次點擊被「多算一次」：選取一勾馬上又被取消、跟沒點一樣。
+    // 改成同一個 canvas 只建立一次 Chart 實例，之後每次只用 chart.update() 更新資料／顏色／
+    // onClick callback 本身（用一個穩定的「轉發函式」包住，永遠指向「目前」的 onClickIdx，
+    // 不用每次都重新綁定監聽器），徹底避開在點擊事件處理中重建圖表、重新掛監聽器的問題。
+    let chart=this._barCharts[canvasId];
+    if(!chart){
+      const dispatch={fn:onClickIdx};
+      chart=new Chart(el,{type:"bar",
+        data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:3}]},
+        options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{callbacks:{
+            title:(items)=>items&&items.length?String(chart.data.labels[items[0].dataIndex]):"",
+            label:(ctx)=>{
+              const v=ctx.parsed.x;const st=chart._scopeTotal;const pct=st?Math.round(v/st*100):0;return `${v} 筆（${pct}%）`;
+            }
+          }}},
+          scales:{x:{beginAtZero:true,ticks:{precision:0}},y:{ticks:{autoSkip:false,font:{size:11},
+            /* ⚠ 具體名稱常常很長（中文＋括號附註），Chart.js 算 Y 軸要留多少空間給文字標籤時，
+               遇到這種長標籤偶爾會算不準，導致文字反而被畫布邊界切掉一截、開頭幾個字不見。
+               這裡先把顯示用的標籤截短＋加刪節號，Chart.js 就是照這個短字串去算版面，不會再算錯；
+               完整名稱還是看得到，只是要移到長條上面看 tooltip（上面 title 已經改成顯示完整名稱)。 */
+            callback:function(val){
+              const lbl=String(this.getLabelForValue(val)||"");
+              return lbl.length>15?lbl.slice(0,15)+"…":lbl;
+            }
+          }}},
+          onClick:(evt,elements)=>{if(elements&&elements.length)dispatch.fn(elements[0].index);}
+        }
+      });
+      chart._dispatch=dispatch;
+      this._barCharts[canvasId]=chart;
+    }
+    chart._dispatch.fn=onClickIdx;
+    chart._scopeTotal=scopeTotal;
+    chart.data.labels=labels;
+    chart.data.datasets[0].data=data;
+    chart.data.datasets[0].backgroundColor=colors;
+    chart.update();
   },
   /* 反查：目前 selLeaf 裡已勾選的具體名稱，分別屬於哪些問題別／大類。
      直接重用現成的 ncFindProbMainByLeaf()（本來就是為了「先選具體名稱，問題別／大類自動帶出來」
