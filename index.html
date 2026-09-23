@@ -13112,7 +13112,12 @@ function ncAllLeaves(){return [...new Set([...NCDB.equip,...NCDB.ops].map(x=>x[1
 function ncMainsOfProb(prob){
   if(prob==="设备问题")return [...new Set(NCDB.equip.map(x=>x[0]))];
   if(prob==="作业问题")return [...new Set(NCDB.ops.map(x=>x[0]))];
-  return [];
+  // ⚠ 之前遇到 prob 是「(未分類)」（或其他不是「设备问题」/「作业问题」的值）時直接回傳空陣列，
+  // 這會讓 ncMainsForProbs()／ncLeavesForProbsMains() 算出「合法大類/具體名稱＝空集合」，
+  // 連帶讓 ncPruneCascade() 把當下所有已勾選的大類／具體名稱全部當成不合法而清空——
+  // 篩選器等於整個失效、變成顯示全部資料，卻看不出原因。改成回傳全部大類，維持「未分類」
+  // 這種特殊值至少不會把其餘正常勾選的項目也一併誤殺。
+  return ncAllMains();
 }
 function ncMainsForProbs(probSel){
   if(!probSel||!probSel.size)return ncAllMains();
@@ -25043,7 +25048,17 @@ const Ref={
       Defs.ms.ym.set(yms);
     }
     Defs.page=1;Defs.render();
-    toast(leaves?`已帶入 ${leaves.length} 個勾選分類，跳至缺失總表`:"已套用篩選條件，跳至缺失總表");
+    // ⚠ 之前這裡的提示訊息只是照抄 leaves.length（勾選當下的個數），
+    // 沒有檢查 Defs.render() 內部 ncPruneCascade() 實際套用後 Defs.ms.ncleaf.sel 剩下幾個——
+    // 如果勾選的具體名稱跟「目前」分類樹（NCDB）對不上（常見於分類樹改過名字，
+    // 但這幾個名稱是舊版本的），會被 ncPruneCascade 悄悄清空，篩選等於沒套用、
+    // 變成看到全部缺失，使用者卻還是看到「已帶入 61 個」這種誤導的成功訊息。
+    // 改成用套用後實際剩下的數量來決定要顯示成功還是警告。
+    const appliedN=leaves&&Defs.ms.ncleaf?Defs.ms.ncleaf.sel.size:0;
+    if(!leaves){toast("已套用篩選條件，跳至缺失總表");}
+    else if(appliedN===leaves.length){toast(`已帶入 ${appliedN} 個勾選分類，跳至缺失總表`);}
+    else if(appliedN===0){toast(`⚠ 勾選的 ${leaves.length} 個分類名稱與目前分類樹對不上，篩選未套用，目前顯示的是全部缺失，請改用單項「查看缺失」或重新整理分類清單後再試`);}
+    else{toast(`⚠ 勾選了 ${leaves.length} 個分類，但只有 ${appliedN} 個與目前分類樹相符，其餘已被忽略`);}
   },
   render(){
     if(!this.ms)this.init();
@@ -25310,21 +25325,14 @@ const Ref={
     this.syncSelLeafFromBarSel();
     this.render();
   },
-  /* ⚠ 之前這裡只有在①②都沒有明確點選時才會顯示連動高亮（看 impliedProbMain），
-     但實際上使用者往往先點了①②再來點③④（就像圖中先點了「作業問題」），這時 barSel.prob 已經有值，
-     impliedProbMain 的條件判斷永遠不會成立，變成點了③④也不會跡動①②。改成不再只是「附帶高亮」，
-     而是直接「跳轉」：點選（勾選開）一個具體項目時，把①②的選取直接换成這個項目實際登記的問題別／大類，
-     不管之前①②選了什麼。取消勾選（關揉）則不動①②，避免取消兩个項目中的其中一個時把畫面跓到另一個去。 */
+  /* ⚠ 之前這裡點選一個具體項目時，會把①②的 barSel.prob/main 直接收窄成這個項目
+     實際登記的問題別／大類，結果同一次重繪裡 barData() 就會用收窄後的範圍重新計算
+     ③④長條圖的排序與 Top N 截斷，剛點的那一條經常因此換位置甚至被擠出清單，
+     使用者感覺像是「點了又立刻被取消」。改成單純只切換 selLeaf、不去動 barSel，
+     資料範圍維持不變，點哪個就穩定亮哪個；①②的連動反白改用下面既有的
+     impliedProbMain()（只提示、不過濾），效果一樣能看出這個具體項目屬於哪個問題別／大類。 */
   barLeafToggle(l){
-    const on=!this.selLeaf.has(l);
-    on?this.selLeaf.add(l):this.selLeaf.delete(l);
-    if(on){
-      const hits=ncFindProbMainByLeaf(l);
-      if(hits.length){
-        this.barSel.prob=new Set([hits[0][0]]);
-        this.barSel.main=new Set([hits[0][1]]);
-      }
-    }
+    this.selLeaf.has(l)?this.selLeaf.delete(l):this.selLeaf.add(l);
     this.render();
   },
   /* 隱藏項目管理：不用另外開 modal，直接在按鈕旁邊彈一個小框，
