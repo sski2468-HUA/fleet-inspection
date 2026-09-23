@@ -28,8 +28,6 @@ input[type=text],input[type=password],select{padding:9px 10px;border:1px solid v
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);display:none;z-index:99;max-width:90vw;text-align:center}
 #toast.err{background:var(--bad)}
 #toast.ok2{background:var(--ok)}
-.gatewrap{min-height:70vh;display:flex;align-items:center;justify-content:center}
-.gatebox{max-width:340px;width:92vw;background:#fff;border:1px solid var(--line);border-radius:12px;padding:26px 22px;text-align:center}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
 th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2);position:sticky;top:0}
@@ -58,50 +56,55 @@ tr.done td{background:#eaf5ee}
 </head>
 <body>
 
-<div class="gatewrap" id="gateWrap">
-  <div class="gatebox">
-    <div style="font-size:17px;font-weight:700;margin-bottom:6px">🔒 分享自查彙整清單</div>
-    <p class="hint" style="margin-bottom:14px">請輸入共用密碼進入。此頁供督導／管理者查看各船分享自查進度，本船人員也可查自己船的填答狀況。</p>
-    <input type="password" id="gatePass" placeholder="密碼" onkeydown="if(event.key==='Enter')gateSubmit()">
-    <button class="btn primary" style="width:100%;margin-top:10px" onclick="gateSubmit()">進入</button>
-  </div>
-</div>
-
-<div class="wrap" id="mainWrap" style="display:none">
+<div class="wrap" id="mainWrap">
   <header>
     <h1>📊 分享自查彙整清單</h1>
     <p>查看船隊「分享缺失做自查」各活動的填答進度與內容；點船名列可展開查看每一項的作答細節。</p>
   </header>
 
-  <div class="card">
-    <div class="toolbar">
-      <span class="hint" style="font-weight:700;color:var(--ink-3)">選擇活動</span>
-      <select id="campaignSel" onchange="loadCampaign(this.value)" style="max-width:420px"></select>
-      <button class="btn sm" onclick="refreshAll()">🔄 重新整理</button>
-      <button class="btn sm" onclick="copyFillLink()">📋 複製本活動填答連結</button>
-      <span style="flex:1"></span>
-      <button class="btn sm" onclick="changePass()">🔑 變更共用密碼</button>
+  <!-- 活動列表：多個活動會持續累積，這裡是進入後的預設畫面，列出全部活動＋各自統計，
+       點「查看進度」才切進單一活動的詳細畫面（下面的 detailView）。 -->
+  <div id="listView">
+    <div class="card">
+      <div class="toolbar">
+        <span style="font-weight:700;color:var(--ink-3);font-size:12px">共 <span id="campaignCount">0</span> 個活動</span>
+        <button class="btn sm" onclick="loadCampaignList()">🔄 重新整理</button>
+      </div>
+      <div style="overflow-x:auto" id="campaignList"></div>
     </div>
-    <div id="campaignDesc" class="hint"></div>
   </div>
 
-  <div class="card" id="statsCard" style="display:none">
-    <div class="kpis" id="kpis"></div>
-    <div class="toolbar">
-      <span class="hint" style="font-weight:700;color:var(--ink-3)">篩選</span>
-      <select id="filterSel" onchange="renderTable()">
-        <option value="all">全部船舶</option>
-        <option value="track">⚠ 有需追蹤項目（未結案）</option>
-        <option value="unsubmitted">未送出</option>
-        <option value="submitted">已送出</option>
-      </select>
-      <input type="text" id="shipSearch" placeholder="輸入船名快速查找…" style="max-width:200px" oninput="renderTable()">
+  <!-- 單一活動詳情：各船進度、篩選、明細展開、刪除。 -->
+  <div id="detailView" style="display:none">
+    <div class="card">
+      <div class="toolbar">
+        <button class="btn sm" onclick="showListView()">← 返回活動列表</button>
+        <span style="font-weight:700;font-size:14px" id="detailTitle"></span>
+        <span style="flex:1"></span>
+        <button class="btn sm" onclick="copyFillLink()">📋 複製本活動填答連結</button>
+        <button class="btn sm" onclick="loadCampaign(curCampaign&&curCampaign.id)">🔄 重新整理</button>
+      </div>
+      <div id="campaignDesc" class="hint"></div>
     </div>
-    <div style="overflow-x:auto">
-      <table>
-        <thead><tr><th style="width:90px">船舶</th><th style="width:100px">填寫人</th><th style="width:110px">進度</th><th style="width:130px">需追蹤</th><th style="width:70px">送出次數</th><th>最後送出</th><th style="width:120px">操作</th></tr></thead>
-        <tbody id="tbody"></tbody>
-      </table>
+
+    <div class="card" id="statsCard" style="display:none">
+      <div class="kpis" id="kpis"></div>
+      <div class="toolbar">
+        <span class="hint" style="font-weight:700;color:var(--ink-3)">篩選</span>
+        <select id="filterSel" onchange="renderTable()">
+          <option value="all">全部船舶</option>
+          <option value="track">⚠ 有需追蹤項目（未結案）</option>
+          <option value="unsubmitted">未送出</option>
+          <option value="submitted">已送出</option>
+        </select>
+        <input type="text" id="shipSearch" placeholder="輸入船名快速查找…" style="max-width:200px" oninput="renderTable()">
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th style="width:90px">船舶</th><th style="width:100px">填寫人</th><th style="width:110px">進度</th><th style="width:130px">需追蹤</th><th style="width:70px">送出次數</th><th>最後送出</th><th style="width:160px">操作</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -115,12 +118,6 @@ const CLOUD = {
 };
 const CAMPAIGN_TABLE = "selfcheck_share_campaigns";
 const RESPONSE_TABLE = "selfcheck_share_responses";
-// 這個共用密碼跟主系統的進站密碼是各自獨立的兩把鑰匙（分開存在 app_db 不同的 key 下）：
-// 這裡外流不影響主系統，主系統密碼外流也不影響這裡，職責分開，互不牽連。
-const PASS_CLOUD_KEY="selfcheck_share_summary_pass";
-const PASS_DEFAULT="fpmc2026";
-const OK_KEY="vsm_scshare_summary_ok_v1";
-const OK_TTL=8*3600*1000;
 
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function safeCopyText(text,okMsg){
@@ -143,9 +140,10 @@ function fallbackCopyText(text,okMsg){
    之前只能回去問海技人員或重新建一個活動——這裡讓填答連結可以隨時從這個
    彙整清單頁面依「目前選的活動」重新算出來、重新複製，活動 id 就是連結參數本身，
    只要活動還在（沒被刪除），永遠可以在這裡找回同一條連結。 */
-function copyFillLink(){
-  if(!curCampaign){notify("⚠ 請先選擇活動","err");return;}
-  const link=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${curCampaign.id}`;
+function copyFillLink(id){
+  const cid=id!=null?id:(curCampaign&&curCampaign.id);
+  if(cid==null){notify("⚠ 請先選擇活動","err");return;}
+  const link=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${cid}`;
   safeCopyText(link,"✓ 已複製本活動的填答連結");
 }
 let toastTimer;
@@ -155,69 +153,20 @@ function notify(msg,tone){
   el.style.display="block"; clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>el.style.display="none",4200);
 }
+// ⚠ opts.headers（若有帶）會整個取代預設 headers，不是逐欄位合併——呼叫端只要自己帶了
+// headers，就一定要自己把 apikey／Authorization 也一起帶齊，否則會漏掉驗證資訊被拒絕。
+// authHeaders() 統一提供這組基本 header，呼叫端只需要在後面疊加自己這次需要的 Prefer 等欄位。
+function authHeaders(extra){ return Object.assign({"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json"},extra||{}); }
 async function api(path,opts){
-  const res=await fetch(`${CLOUD.url}/rest/v1/${path}`,Object.assign({headers:{
-    "apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json"
-  }},opts||{}));
+  const res=await fetch(`${CLOUD.url}/rest/v1/${path}`,Object.assign({headers:authHeaders()},opts||{}));
   if(!res.ok){ const t=await res.text().catch(()=>""); throw new Error("HTTP "+res.status+" "+t.slice(0,150)); }
   const ct=res.headers.get("content-type")||"";
   return ct.includes("json")?res.json():null;
 }
-async function sha256hex(s){
-  const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));
-  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-
-/* ══════════ 密碼閘門：跟主系統「進站密碼」同一套雜湊比對邏輯，但存在獨立的 app_db key，
-   兩邊密碼互不影響。通過後本機記住 8 小時，不用每次重開頁面都重輸入。══════════ */
-async function getPassHash(){
-  try{
-    const rows=await api("app_db?select=payload&k=eq."+PASS_CLOUD_KEY);
-    const p=rows&&rows[0]&&rows[0].payload;
-    if(p&&p.hash)return p.hash;
-  }catch(e){ /* 離線或讀取失敗，退回預設密碼比對 */ }
-  return await sha256hex(PASS_DEFAULT);
-}
-function gateOk(){
-  try{
-    const s=JSON.parse(localStorage.getItem(OK_KEY));
-    if(s&&s.exp>Date.now())return true;
-    if(s)localStorage.removeItem(OK_KEY);
-  }catch(e){}
-  return false;
-}
-function markGateOk(){ try{localStorage.setItem(OK_KEY,JSON.stringify({exp:Date.now()+OK_TTL}));}catch(e){} }
-async function gateSubmit(){
-  const v=(document.getElementById("gatePass").value||"").trim();
-  if(!v){notify("⚠ 請輸入密碼","err");return;}
-  const hash=await getPassHash();
-  if((await sha256hex(v))!==hash){notify("⚠ 密碼錯誤","err");return;}
-  markGateOk();
-  enterMain();
-}
-async function changePass(){
-  const cur=(prompt("請先輸入目前的共用密碼以確認身份：")||"").trim();
-  if(!cur)return;
-  const hash=await getPassHash();
-  if((await sha256hex(cur))!==hash){notify("⚠ 目前密碼輸入錯誤，未變更","err");return;}
-  const nw=(prompt("請輸入新的共用密碼（設定後，還沒切到新密碼的其他人下次進入時要改用新密碼）：")||"").trim();
-  if(!nw){notify("⚠ 未輸入新密碼，已取消","err");return;}
-  try{
-    const h=await sha256hex(nw);
-    await api("app_db?on_conflict=k",{method:"POST",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"},
-      body:JSON.stringify([{k:PASS_CLOUD_KEY,updated:Date.now(),by:"",payload:{hash:h}}])});
-    notify("✓ 已更新共用密碼","ok2");
-  }catch(e){notify("⚠ 更新失敗："+e.message,"err");}
-}
-
-function enterMain(){
-  document.getElementById("gateWrap").style.display="none";
-  document.getElementById("mainWrap").style.display="";
-  loadCampaignList();
-}
-
-/* ══════════ 活動清單／篩選狀態 ══════════ */
-let campaigns=[], curCampaign=null, responses=[], shipOpts=[];
+/* ══════════ 活動清單／篩選狀態 ══════════
+   allResponses：全部活動、全部船舶的填答一次抓回來，列表頁靠這份現算每個活動的統計，
+   不用「列出N個活動就查N次」，活動數量變多也不會變慢。 */
+let campaigns=[], curCampaign=null, responses=[], shipOpts=[], allResponses=[];
 async function loadShipOpts(){
   try{
     const rows=await api("app_db?select=payload&k=eq.ships");
@@ -229,24 +178,84 @@ async function loadCampaignList(){
   await loadShipOpts();
   try{
     campaigns=await api(`${CAMPAIGN_TABLE}?order=created_at.desc&limit=200`);
+    allResponses=await api(`${RESPONSE_TABLE}?select=id,campaign_id,ship,items,submitted_at&limit=5000`);
   }catch(e){
     notify("⚠ 活動清單讀取失敗："+e.message,"err");
     return;
   }
-  const sel=document.getElementById("campaignSel");
-  if(!campaigns.length){
-    sel.innerHTML="<option value=''>（目前沒有任何分享自查活動）</option>";
-    document.getElementById("statsCard").style.display="none";
-    return;
-  }
-  sel.innerHTML=campaigns.map(c=>`<option value="${c.id}">${esc(c.title||("活動 #"+c.id))}${c.active===false?"（已結束）":""}</option>`).join("");
-  loadCampaign(sel.value);
+  showListView();
 }
-async function refreshAll(){ await loadCampaignList(); }
+function campaignStats(c){
+  const resp=allResponses.filter(r=>String(r.campaign_id)===String(c.id));
+  const total=(c.ship_scope&&c.ship_scope.length)?c.ship_scope.length:(shipOpts.length||resp.length);
+  const submitted=resp.filter(r=>r.submitted_at).length;
+  let track=0;
+  resp.forEach(r=>{ track+=(r.items||[]).filter(it=>it.status==="similar"&&!it.closed).length; });
+  return {started:resp.length,total,submitted,track};
+}
+function showListView(){
+  document.getElementById("listView").style.display="";
+  document.getElementById("detailView").style.display="none";
+  renderListView();
+}
+function renderListView(){
+  document.getElementById("campaignCount").textContent=campaigns.length;
+  const box=document.getElementById("campaignList");
+  if(!campaigns.length){ box.innerHTML=`<p class="hint" style="text-align:center;padding:20px">目前沒有任何分享自查活動，請在填單審核頁按「📤 建立分享自查連結」建立一個。</p>`; return; }
+  box.innerHTML=`<table><thead><tr><th>活動</th><th style="width:150px">建立</th><th style="width:74px">狀態</th><th style="width:100px">已開始/應填</th><th style="width:64px">已送出</th><th style="width:110px">需追蹤</th><th style="width:290px">操作</th></tr></thead><tbody>
+    ${campaigns.map(c=>{
+      const st=campaignStats(c);
+      const ended=c.active===false;
+      return `<tr class="${st.track?'track':''}">
+        <td><b>${esc(c.title||("活動 #"+c.id))}</b><div class="hint">共 ${(c.items||[]).length} 項查核項目</div></td>
+        <td class="hint">${c.created_at?esc(new Date(c.created_at).toLocaleString("zh-TW",{hour12:false})):""}${c.created_by?"<br>"+esc(c.created_by):""}</td>
+        <td>${ended?'<span class="pill na">已結束</span>':'<span class="pill ok">進行中</span>'}</td>
+        <td>${st.started} / ${st.total}</td>
+        <td>${st.submitted}</td>
+        <td>${st.track?`<span class="pill bad">⚠ ${st.track} 項</span>`:'<span class="pill na">—</span>'}</td>
+        <td style="white-space:nowrap">
+          <button class="btn sm" onclick="openDetail(${c.id})">📊 進度</button>
+          <button class="btn sm" onclick="copyFillLink(${c.id})">📋 連結</button>
+          <button class="btn sm" onclick="toggleActive(${c.id})">${ended?"▶ 重啟":"⏸ 結束"}</button>
+          <button class="btn sm" style="color:var(--bad);border-color:var(--bad)" onclick="deleteCampaign(${c.id})">🗑 刪除</button>
+        </td>
+      </tr>`;
+    }).join("")}
+  </tbody></table>`;
+}
+async function toggleActive(id){
+  const c=campaigns.find(x=>String(x.id)===String(id));if(!c)return;
+  const next=c.active===false;
+  try{
+    await api(`${CAMPAIGN_TABLE}?id=eq.${id}`,{method:"PATCH",headers:authHeaders({"Prefer":"return=minimal"}),body:JSON.stringify({active:next})});
+    c.active=next;
+    notify(next?"✓ 已重新啟用，船上又可以打開連結繼續填答":"✓ 已結束活動（資料仍保留，船上打開連結會看到已結束提示，不能再填答）","ok2");
+    renderListView();
+    if(curCampaign&&String(curCampaign.id)===String(id))curCampaign.active=next;
+  }catch(e){notify("⚠ 更新失敗："+e.message,"err");}
+}
+async function deleteCampaign(id){
+  const c=campaigns.find(x=>String(x.id)===String(id));if(!c)return;
+  const st=campaignStats(c);
+  const v=prompt(`確定要刪除活動「${c.title}」？\n\n這會一併永久刪除已收到的 ${st.started} 艘船填答內容，動作無法復原。\n\n請輸入「確定刪除」以繼續：`);
+  if(v!=="確定刪除"){if(v!==null)notify("⚠ 輸入不符，已取消","err");return;}
+  try{
+    await api(`${RESPONSE_TABLE}?campaign_id=eq.${id}`,{method:"DELETE",headers:authHeaders()});
+    await api(`${CAMPAIGN_TABLE}?id=eq.${id}`,{method:"DELETE",headers:authHeaders()});
+    notify("✓ 已刪除活動","ok2");
+    await loadCampaignList();
+  }catch(e){notify("⚠ 刪除失敗："+e.message,"err");}
+}
 
+function openDetail(id){
+  document.getElementById("listView").style.display="none";
+  document.getElementById("detailView").style.display="";
+  loadCampaign(id);
+}
 async function loadCampaign(id){
   curCampaign=campaigns.find(c=>String(c.id)===String(id));
   if(!curCampaign)return;
+  document.getElementById("detailTitle").textContent=curCampaign.title||("活動 #"+curCampaign.id);
   document.getElementById("campaignDesc").textContent=`共 ${(curCampaign.items||[]).length} 項查核項目　建立於 ${curCampaign.created_at?new Date(curCampaign.created_at).toLocaleString("zh-TW",{hour12:false}):""}${curCampaign.created_by?"　建立者："+curCampaign.created_by:""}${curCampaign.active===false?"　⛔ 已結束，不再開放填答":""}`;
   try{
     responses=await api(`${RESPONSE_TABLE}?campaign_id=eq.${curCampaign.id}&limit=1000`);
@@ -300,14 +309,15 @@ function renderTable(){
     rowsHtml.push(`
       <tr class="${st.openTrack?'track':(submitted&&st.total&&st.done===st.total?'done':'')}" data-ship="${esc(s.code)}">
         <td><b>${esc(s.code)}</b><div class="hint">${esc(s.name||"")}</div></td>
-        <td>${resp?esc(resp.checker_name||"—"):"<span class='hint'>尚未開始</span>"}</td>
+        <td>${resp?esc(resp.checker_name||"—")+(resp.checker_title?`<div class="hint">${esc(resp.checker_title)}</div>`:""):"<span class='hint'>尚未開始</span>"}</td>
         <td>${resp?`${st.done} / ${st.total}（${pct}%）`:"<span class='hint'>0 / "+(curCampaign.items||[]).length+"</span>"}</td>
         <td>${trackPill}</td>
         <td>${resp?(resp.submit_count||0):0}</td>
         <td>${resp&&resp.submitted_at?esc(new Date(resp.submitted_at).toLocaleString("zh-TW",{hour12:false})):"<span class='hint'>未送出</span>"}</td>
-        <td>
+        <td style="white-space:nowrap">
           ${resp?`<button class="btn sm" onclick="toggleDetail('${esc(s.code)}')">📄 明細</button>`:""}
-          <a class="btn sm" href="${editUrl}" target="_blank" rel="noopener">✎ 前往填答</a>
+          <a class="btn sm" href="${editUrl}" target="_blank" rel="noopener">✎ 填答</a>
+          ${resp?`<button class="btn sm" style="color:var(--bad);border-color:var(--bad)" onclick="deleteResponse('${esc(s.code)}')" title="刪除這艘船在本活動的填答內容">🗑</button>`:""}
         </td>
       </tr>
       <tr class="detailrow" id="detail-${esc(s.code)}"><td colspan="7"></td></tr>
@@ -320,6 +330,18 @@ function renderTable(){
     <div class="kpi"><div class="v">${nDone}</div><div class="l">全部題目已作答</div></div>
     <div class="kpi" style="${nTrackOpen?'border-color:var(--bad)':''}"><div class="v" style="${nTrackOpen?'color:var(--bad)':''}">${nTrackOpen}</div><div class="l">艘船有未結案追蹤項目</div></div>
   `;
+}
+
+async function deleteResponse(ship){
+  const resp=responses.find(r=>r.ship===ship);if(!resp)return;
+  if(!confirm(`確定要刪除「${ship}」這艘船在本活動的填答內容？此動作無法復原，該船之後重新打開連結會視為第一次填答。`))return;
+  try{
+    await api(`${RESPONSE_TABLE}?id=eq.${resp.id}`,{method:"DELETE",headers:authHeaders()});
+    responses=responses.filter(r=>r.id!==resp.id);
+    allResponses=allResponses.filter(r=>r.id!==resp.id);
+    notify("✓ 已刪除該船填答","ok2");
+    renderTable();
+  }catch(e){notify("⚠ 刪除失敗："+e.message,"err");}
 }
 
 const ST_LABEL={ok:"✅ 沒有",similar:"⚠️ 有，需處理",na:"➖ 不適用",pending:"（未作答）"};
@@ -339,6 +361,7 @@ function toggleDetail(ship){
         <div class="itemline">
           <b>#${i+1}</b> ${esc(it.code?("CODE "+it.code):"")} <span class="stbadge ${it.status||'pending'}">${ST_LABEL[it.status||"pending"]}</span>${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'):""}
           <div class="hint">${esc(it.detail||"")}</div>
+          ${it.actual2?`<div class="hint">實際情況：${esc(it.actual2)}</div>`:""}
           ${it.note?`<div style="margin-top:2px"><b>本船實際狀況：</b>${esc(it.note)}</div>`:""}
           ${it.actual?`<div><b>打算怎麼處理：</b>${esc(it.actual)}</div>`:""}
           ${it.checkedBy?`<div class="hint">最後回答：${esc(it.checkedBy)}　${esc(it.checkedAt||"")}</div>`:""}
@@ -349,9 +372,7 @@ function toggleDetail(ship){
   row.classList.add("show");
 }
 
-(async function boot(){
-  if(gateOk()){ enterMain(); return; }
-})();
+loadCampaignList();
 </script>
 </body>
 </html>
