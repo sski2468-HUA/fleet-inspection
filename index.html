@@ -2113,6 +2113,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="nav-group" data-group="forms">
       <div class="nav-group-label">填單</div>
       <div class="nav-item" data-tab="air"><span class="num">📝</span>填單紀錄</div>
+      <div class="nav-item" data-tab="intaudit"><span class="num">🛠</span>內部檢查缺失登錄</div>
       <div class="nav-item" data-tab="self"><span class="num">4</span>專案自查</div>
       <div class="nav-item" data-external="__selfcheck_share_summary__"><span class="num">🔗</span>分享自查彙整清單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
       <div class="nav-item" data-external="__air_intake__"><span class="num">🔗</span>前往線上填單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
@@ -2853,6 +2854,143 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <!-- 操演計畫表（操演紀錄）已拆分為獨立頁面 drill-plan.html，批量新增等功能於該頁面內提供 -->
 
     <!-- ════════ 填單 ════════ -->
+    <!-- ════════ 內部檢查缺失登錄（督導／內部稽核員上船檢查發現的缺失建檔；本階段為前端版面，資料僅存在目前頁面記憶體，尚未串接雲端） ════════ -->
+    <section id="tab-intaudit" class="tabpage">
+      <style>
+        #tab-intaudit .ia-counts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+        #tab-intaudit .ia-cchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);border-radius:6px;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+        #tab-intaudit .ia-cchip b{font-family:var(--mono);font-size:17px;color:var(--navy)}
+        #tab-intaudit .ia-cchip.flow{border-left:4px solid #8195a0}
+        #tab-intaudit .ia-cchip.ic{border-left:4px solid var(--signal)}
+        #tab-intaudit .ia-cchip.sys{border-left:4px solid var(--teal)}
+        #tab-intaudit .ia-cchip.none{border-left:4px dashed var(--line-2)}
+        #tab-intaudit .ia-item{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line-2);border-radius:6px;padding:14px 16px;margin-bottom:12px}
+        #tab-intaudit .ia-item.m-flow{border-left-color:#8195a0}
+        #tab-intaudit .ia-item.m-ic{border-left-color:var(--signal)}
+        #tab-intaudit .ia-item.m-sys{border-left-color:var(--teal)}
+        #tab-intaudit .ia-item .ia-ih{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:700;color:var(--navy);font-size:13px}
+        #tab-intaudit .ia-item .ia-ih .sp{flex:1}
+        #tab-intaudit .ia-radios{display:flex;flex-wrap:wrap;gap:8px}
+        #tab-intaudit .ia-radios label{flex-direction:row;align-items:center;gap:6px;border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer;background:#fafbfb;font-weight:600}
+        #tab-intaudit .ia-radios label:has(input:checked){border-color:var(--teal);background:var(--teal-l);color:var(--teal)}
+        #tab-intaudit .ia-phs{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+        #tab-intaudit .ia-ph{position:relative;width:84px;height:84px}
+        #tab-intaudit .ia-ph img{width:84px;height:84px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);cursor:pointer}
+        #tab-intaudit .ia-ph button{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--bad);color:#fff;font-size:13px;line-height:20px;cursor:pointer;padding:0}
+        #tab-intaudit .ia-phadd{display:flex!important;flex-direction:row!important;align-items:center;justify-content:center;width:84px;height:84px;border:2px dashed var(--line-2);border-radius:6px;color:var(--ink-3);font-size:12px;cursor:pointer;background:#fafbfb}
+        #tab-intaudit .ia-errors{background:#fdf0ee;border:1px solid #efc3bb;border-left:4px solid var(--bad);border-radius:6px;padding:12px 16px;margin-bottom:14px;font-size:12.5px;color:#8a2c1f;line-height:1.8}
+        #tab-intaudit .ia-errors b{color:var(--bad)}
+        #tab-intaudit .ia-bad{outline:2px solid var(--bad);outline-offset:1px;border-radius:4px}
+        #tab-intaudit .ia-rec{background:#eef3f6;font-weight:700;color:var(--navy)}
+        #tab-intaudit .ia-rec td{padding:8px 10px}
+        #tab-intaudit .ia-mode{display:inline-block;font-size:11px;font-weight:700;border-radius:3px;padding:1px 7px}
+        #tab-intaudit .ia-mode.flow{background:#eceff1;color:#52656f}
+        #tab-intaudit .ia-mode.ic{background:#fdeedf;color:#b5610f}
+        #tab-intaudit .ia-mode.sys{background:var(--teal-l);color:var(--teal)}
+        #tab-intaudit .ia-stat{display:inline-block;font-size:11px;font-weight:700;border-radius:10px;padding:1px 9px}
+        #tab-intaudit .ia-stat.s-flow{background:#eceff1;color:#52656f}
+        #tab-intaudit .ia-stat.s-wait{background:#fff3cd;color:#7a5a10}
+        #tab-intaudit .ia-stat.s-rep{background:#e3ecf1;color:var(--navy)}
+        #tab-intaudit .ia-stat.s-done{background:#e2f3e8;color:#2e8b57}
+        #tab-intaudit .ia-sticky{position:sticky;top:0;z-index:20;background:var(--paper);padding:8px 0 4px}
+        @media(max-width:900px){#tab-intaudit .fgrid{grid-template-columns:1fr 1fr}}
+      </style>
+      <div class="banner">辦公室<b>督導／內部稽核員</b>上船檢查發現的缺失，在這裡建檔。每筆缺失必須選<b>結案方式</b>：<b>FLOW 系統（DMP-FM01）</b>僅在本系統留紀錄、不發改善單；<b>內控</b>與<b>系統內結案</b>會發改善單給船上，船上回報後進入「填單紀錄」的審核佇列，由管理者審核匯入結案。<span style="color:var(--bad);font-weight:700"> ※ 目前為版面示意階段，資料只存在此頁面記憶體（重新整理會回到範例資料），尚未寫入雲端。</span></div>
+      <div class="toolbar">
+        <button class="btn primary" id="ia-btn-list" onclick="IntAudit.showList()">📋 登錄紀錄</button>
+        <button class="btn" id="ia-btn-new" onclick="IntAudit.newForm()">＋ 新增登錄</button>
+      </div>
+
+      <div id="ia-list-page">
+        <div class="ia-counts" id="ia-list-counts"></div>
+        <div class="toolbar">
+          <span class="lbl" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">篩選</span>
+          <div class="msel" id="ms-ia-ship"></div>
+          <div class="msel" id="ms-ia-mode"></div>
+          <div class="msel" id="ms-ia-status"></div>
+          <input type="text" id="ia-q" class="kw" placeholder="🔍 搜尋船名／檢查人員／分類／缺失描述…" oninput="IntAudit.renderList()" style="min-width:260px;flex:1;max-width:420px">
+          <button class="btn sm" onclick="IntAudit.clearFilters()">清除篩選</button>
+          <span class="spacer" style="flex:1"></span>
+          <span class="statline" id="ia-stat"></span>
+        </div>
+        <div class="card">
+          <h3>內部檢查缺失登錄紀錄 <span class="hint" style="font-weight:400">依登錄單分組，篩選條件套用在各筆缺失上</span></h3>
+          <div class="tblwrap" style="max-height:none">
+            <table class="tbl"><thead><tr>
+              <th style="width:44px">No.</th><th style="width:150px">分類</th><th>待改善描述</th><th style="width:60px">風險</th><th style="width:130px">結案方式</th><th style="width:110px">狀態</th><th style="width:170px">改善單／回報</th>
+            </tr></thead><tbody id="ia-tbody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div id="ia-form-page" style="display:none">
+        <div class="ia-sticky">
+          <div class="ia-counts">
+            <span class="hint" style="font-weight:700;color:var(--ink-3)">結案方式統計</span>
+            <span class="ia-cchip flow">FLOW 系統（DMP-FM01）<b id="ia-c-flow">0</b> 筆</span>
+            <span class="ia-cchip ic">內控<b id="ia-c-ic">0</b> 筆</span>
+            <span class="ia-cchip sys">系統內結案<b id="ia-c-sys">0</b> 筆</span>
+            <span class="ia-cchip none">尚未選擇<b id="ia-c-none">0</b> 筆</span>
+            <span style="flex:1"></span>
+            <button class="btn sm" onclick="IntAudit.cancelForm()">取消</button>
+            <button class="btn sm" onclick="IntAudit.saveDraft()">💾 儲存草稿（示意）</button>
+            <button class="btn sm primary" onclick="IntAudit.submit()">✓ 檢查並送出</button>
+          </div>
+        </div>
+        <div id="ia-errors" class="ia-errors" style="display:none"></div>
+
+        <div class="card">
+          <h3>① 檢查基本資料 <span class="hint" style="font-weight:400">檢查缺失具體項目記錄表 Audit N/C / Deficiency Items Details Records</span></h3>
+          <div class="fgrid">
+            <label>訪問船舶 Ship Visited *<select id="ia-ship"></select></label>
+            <label>日期 Date *<input type="text" id="ia-date" placeholder="例：2026/09/17～09/19"></label>
+            <label>檢查人 Auditor *<input type="text" id="ia-inspector" list="dl-supervisor-names" placeholder="督導／稽核員姓名"></label>
+            <label>地點 Ship's PSN *<input type="text" id="ia-psn" list="dl-places" placeholder="Port, Country"></label>
+            <label>檢查種類 Audit Type *<select id="ia-atype"><option value="">— 請選擇 —</option><option>訪船 Superintendent Visit</option><option>內稽 Internal Audit</option><option>隨船 On-Voyage Audit</option><option>交叉訪船 Cross Visit</option><option>主題檢查 Topic Audit</option></select></label>
+            <label>船長 Captain<input type="text" id="ia-master"></label>
+            <label>大副 C/O<input type="text" id="ia-co"></label>
+            <label>輪機長 C/E<input type="text" id="ia-ce"></label>
+            <label>大管輪 2/E<input type="text" id="ia-2e"></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>② 總體評價 <span class="hint" style="font-weight:400">Overall Assessment：船上總體氣氛、TOP4 配合程度、管理效果、船副管輪表現、乙級船員表現、船舶保養與機器狀況等</span></h3>
+          <div class="fgrid"><label class="fw">總體評價（中英文皆可）<textarea id="ia-overall" style="min-height:130px"></textarea></label></div>
+          <div class="fgrid" style="margin-top:10px">
+            <div class="fld fw">TOP 4 合照 <span class="hint" style="font-weight:400">可上傳多張</span><div id="ia-top4-ph"></div></div>
+            <label class="fw">照片說明（例：左後：船長 ○○ ／ 右後：大管輪 ○○ ／ 左前：大副 ○○ ／ 右前：輪機長 ○○）<input type="text" id="ia-top4-cap"></label>
+            <label class="fw">表現亮眼船員姓名和簡述 Good Performance Crew &amp; Brief<textarea id="ia-good-crew"></textarea></label>
+            <label class="fw">表現較差船員姓名和簡述 Poor Performance Crew &amp; Brief<textarea id="ia-poor-crew" placeholder="無則填 N/A"></textarea></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>③ 優良案例 Best Practice
+            <span style="margin-left:auto"><button class="btn sm" onclick="IntAudit.addBest()">＋ 新增一筆優良案例</button></span></h3>
+          <div id="ia-best-list"></div>
+        </div>
+
+        <div class="card">
+          <h3>④ 缺失明細 <span class="hint" style="font-weight:400">每筆必填「結案方式」（單選）；可新增／刪除多筆，每筆可上傳多張照片</span>
+            <span style="margin-left:auto"><button class="btn sm primary" onclick="IntAudit.addDef()">＋ 新增一筆缺失</button></span></h3>
+          <div id="ia-def-list"></div>
+        </div>
+
+        <div class="card">
+          <h3>⑤ 船舶訴求／建議 Ship's Demand / Suggestion
+            <span style="margin-left:auto"><button class="btn sm" onclick="IntAudit.addSugg()">＋ 新增一筆</button></span></h3>
+          <div id="ia-sugg-list"></div>
+        </div>
+
+        <div class="toolbar" style="justify-content:flex-end">
+          <button class="btn" onclick="IntAudit.cancelForm()">取消</button>
+          <button class="btn" onclick="IntAudit.saveDraft()">💾 儲存草稿（示意）</button>
+          <button class="btn primary" onclick="IntAudit.submit()">✓ 檢查並送出</button>
+        </div>
+      </div>
+    </section>
+
     <section id="tab-air" class="tabpage">
       <div class="banner">船上填妥 Excel 範本後，請交由<b>維護者匯入</b>系統；<b>新建</b>與<b>匯入 Excel</b>僅限<b>維護者</b>操作，其他角色可查看與<b>匯出 Excel</b>。維護者審核後可勾選將資料分別轉入「檢查紀錄」與「缺失紀錄總表」。</div>
       <div class="toolbar" id="air-toptabs">
@@ -10662,7 +10800,7 @@ const NavConfig={
 };
 
 /* ───── 導航 ───── */
-const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["專案自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["填單紀錄","船上填報 → 維護者審核轉入"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"]};
+const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["專案自查","Fleet Self-Check"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["填單紀錄","船上填報 → 維護者審核轉入"],intaudit:["內部檢查缺失登錄","Internal Audit Deficiency Log"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"]};
 $$(".nav-item").forEach(n=>n.onclick=()=>{
   if(n.dataset.external){
     if(n.dataset.external==="__air_intake__"){if(typeof Air!=="undefined")Air.openIntakeSite();}
@@ -10690,6 +10828,7 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
   if(n.dataset.tab==="self"){SelfCheck.render();SelfCheck.autoSync();}
   if(n.dataset.tab==="data"){App.refreshMeta();if(typeof AnnualPlan!=="undefined")AnnualPlan.refreshEditorUI();if(typeof DefsProj!=="undefined")DefsProj.refreshMembersUI();}
   if(n.dataset.tab==="sirepos")SirePos.render();
+  if(n.dataset.tab==="intaudit")IntAudit.render();
   if(n.dataset.tab==="air")Air.showList();
   if(n.dataset.tab==="inspctrl"&&typeof InspGroup!=="undefined")InspGroup.init();
   if(n.dataset.tab==="refdocs"&&typeof RefDocs!=="undefined")RefDocs.render();
@@ -24530,6 +24669,315 @@ window.addEventListener("beforeunload",e=>{
   }
 });
 
+
+/* ════════ 內部檢查缺失登錄（督導／內部稽核員） ════════
+   本階段只做前端版面：資料存在 IntAudit.rows（頁面記憶體），重新整理會回到範例資料。
+   尚待串接：雲端資料表／存檔、改善單發送給船上、船上回報進填單佇列、Word 套版匯出、權限。 */
+const IntAudit={
+  MODES:[{k:"FLOW",label:"FLOW 系統（DMP-FM01）",cls:"flow"},{k:"內控",label:"內控",cls:"ic"},{k:"系統內結案",label:"系統內結案",cls:"sys"}],
+  STATUSES:["FLOW 結案","待船上改善","船上已回報","已結案"],
+  SECTIONS:["訪船缺失","內稽缺失","內稽缺失 - MLC","內稽缺失 - ISPS","主題檢查缺失","其它／較小問題"],
+  RISKS:["高","中","低"],
+  rows:[],cur:null,curId:null,ms:{},_inited:false,_seq:100,
+  modeOf(k){return this.MODES.find(m=>m.k===k);},
+  statCls(s){return s==="FLOW 結案"?"s-flow":s==="待船上改善"?"s-wait":s==="船上已回報"?"s-rep":"s-done";},
+  _sample(){
+    return [
+      {id:1,ship:"F32",date:"2026/09/17～09/19",inspector:"朱世毅",psn:"Dortyol, Turkey",atype:"訪船 Superintendent Visit",master:"柳廣興",co:"趙子魁",ce:"宋宇",e2:"徐進超",
+       overall:"（範例）船上總體氣氛良好，Top 4 關係融洽，船舶總體保養情況較好。",top4:{photos:[],cap:""},goodCrew:"",poorCrew:"N/A",best:[],sugg:[],createdBy:"（範例）",createdAt:"2026/09/20",
+       defs:[
+        {section:"訪船缺失",category:"IMO標誌",reported:"2026/09/19",corrected:"",risk:"中",finding:"（範例）船上大量 IMO 標誌不帶編號，不符合最新 IMO 標誌要求，可能被 PSC 挑戰。",action:"",evidence:"",photosBefore:[],photosAfter:[],closeMode:"FLOW",status:"FLOW 結案"},
+        {section:"訪船缺失",category:"防火門",reported:"2026/09/19",corrected:"",risk:"中",finding:"（範例）多處 A-15 自閉式防火門被繩子固定在開啟狀態。",action:"",evidence:"",photosBefore:[],photosAfter:[],closeMode:"內控",status:"待船上改善"},
+        {section:"其它／較小問題",category:"安全網",reported:"2026/09/19",corrected:"2026/09/22",risk:"低",finding:"（範例）安全網船端拉開形態不正確，一側未保持張力。",action:"（範例）已重新拉開並固定。",evidence:"",photosBefore:[],photosAfter:[],closeMode:"系統內結案",status:"船上已回報"}
+       ]},
+      {id:2,ship:"F27",date:"2026/09/10",inspector:"陳思樺",psn:"Ningbo, China",atype:"內稽 Internal Audit",master:"",co:"",ce:"",e2:"",
+       overall:"（範例）",top4:{photos:[],cap:""},goodCrew:"",poorCrew:"",best:[],sugg:[],createdBy:"（範例）",createdAt:"2026/09/11",
+       defs:[
+        {section:"內稽缺失",category:"救生設備",reported:"2026/09/10",corrected:"2026/09/15",risk:"高",finding:"（範例）救生艇釋放裝置保養記錄不完整。",action:"（範例）已補齊保養並拍照。",evidence:"",photosBefore:[],photosAfter:[],closeMode:"內控",status:"已結案"}
+       ]}
+    ];
+  },
+  _blankDef(){return {section:"訪船缺失",category:"",reported:"",corrected:"",risk:"",finding:"",action:"",evidence:"",photosBefore:[],photosAfter:[],closeMode:"",status:""};},
+  _blank(){
+    return {id:null,ship:"",date:"",inspector:"",psn:"",atype:"",master:"",co:"",ce:"",e2:"",overall:"",top4:{photos:[],cap:""},goodCrew:"",poorCrew:"",
+      best:[],defs:[this._blankDef()],sugg:[]};
+  },
+  render(){
+    if(!this._inited){
+      this._inited=true;
+      this.rows=this._sample();
+      this.ms.ship=MSel("ms-ia-ship","船名",()=>[...new Set(this.rows.map(r=>r.ship))].sort(),()=>this.renderList());
+      this.ms.mode=MSel("ms-ia-mode","結案方式",()=>this.MODES.map(m=>m.k),()=>this.renderList());
+      this.ms.status=MSel("ms-ia-status","狀態",()=>this.STATUSES.slice(),()=>this.renderList());
+    }
+    this.showList();
+  },
+  showList(){
+    $("#ia-list-page").style.display="";$("#ia-form-page").style.display="none";
+    $("#ia-btn-list").classList.add("primary");$("#ia-btn-new").classList.remove("primary");
+    this.renderList();
+  },
+  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());$("#ia-q").value="";this.renderList();},
+  renderList(){
+    const allDefs=[];this.rows.forEach(r=>r.defs.forEach(d=>allDefs.push(d)));
+    const cnt=k=>allDefs.filter(d=>d.closeMode===k).length;
+    $("#ia-list-counts").innerHTML=`<span class="hint" style="font-weight:700;color:var(--ink-3)">全部缺失結案方式</span>
+      <span class="ia-cchip flow">FLOW 系統（DMP-FM01）<b>${cnt("FLOW")}</b> 筆</span>
+      <span class="ia-cchip ic">內控<b>${cnt("內控")}</b> 筆</span>
+      <span class="ia-cchip sys">系統內結案<b>${cnt("系統內結案")}</b> 筆</span>
+      <span class="hint">共 ${this.rows.length} 張登錄單、${allDefs.length} 筆缺失</span>`;
+    const q=($("#ia-q").value||"").trim().toLowerCase();
+    let nDef=0,html="";
+    this.rows.forEach(r=>{
+      const ds=r.defs.filter(d=>
+        this.ms.mode.pass(d.closeMode)&&this.ms.status.pass(d.status)&&
+        (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,d.action].join(" ").toLowerCase().includes(q)));
+      if(!this.ms.ship.pass(r.ship))return;
+      if(!ds.length&&(this.ms.mode.sel.size||this.ms.status.sel.size||q))return;
+      nDef+=ds.length;
+      const hasIC=r.defs.some(d=>d.closeMode==="內控");
+      html+=`<tr class="ia-rec"><td colspan="7">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:14px">${esc(r.ship)}</span><span>${esc(r.date)}</span><span class="hint">${esc(r.atype)}</span>
+          <span class="hint">檢查人：${esc(r.inspector)}　地點：${esc(r.psn)}</span>
+          <span class="hint">缺失 ${r.defs.length} 筆　登錄：${esc(r.createdBy||"")} ${esc(r.createdAt||"")}</span>
+          <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn sm" onclick="IntAudit.edit(${r.id})">✎ 編輯</button>
+            <button class="btn sm" onclick="IntAudit.exportWord(${r.id})" title="以原記錄表為範本套版輸出 .docx（尚待串接）">⬇ Word</button>
+            <button class="btn sm" onclick="IntAudit.exportJson(${r.id})">⬇ JSON</button>
+            <button class="btn sm" ${hasIC?"":"disabled"} onclick="IntAudit.exportIcJson(${r.id})" title="只含結案方式為「內控」的缺失，供匯入船舶動態系統">⬇ 內控 JSON</button>
+            <button class="btn sm danger" onclick="IntAudit.del(${r.id})">🗑</button>
+          </span>
+        </div></td></tr>`;
+      html+=ds.map(d=>{
+        const i=r.defs.indexOf(d);const m=this.modeOf(d.closeMode);
+        let act="";
+        if(d.closeMode==="FLOW")act=`<span class="hint">船上自行至 FLOW 系統填單</span>`;
+        else if(d.status==="待船上改善")act=`<button class="btn sm" onclick="IntAudit.advance(${r.id},${i})" title="示意：模擬船上填完改善說明並回報">▶ 模擬船上回報</button>`;
+        else if(d.status==="船上已回報")act=`<span class="hint">在填單佇列待審核</span> <button class="btn sm" onclick="IntAudit.advance(${r.id},${i})" title="示意：模擬管理者審核匯入結案">▶ 模擬審核結案</button>`;
+        else act=`<span class="hint">已完成</span>`;
+        return `<tr>
+          <td style="text-align:center">${i+1}</td>
+          <td><b>${esc(d.category||"—")}</b><div class="hint">${esc(d.section||"")}</div></td>
+          <td style="white-space:pre-line;max-width:520px">${esc(d.finding||"")}</td>
+          <td>${d.risk?`<span class="st ${d.risk==="高"?"st-hi":d.risk==="中"?"st-md":"st-lo"}">${esc(d.risk)}</span>`:""}</td>
+          <td>${m?`<span class="ia-mode ${m.cls}">${esc(m.label)}</span>`:'<span class="hint">未選</span>'}</td>
+          <td><span class="ia-stat ${this.statCls(d.status)}">${esc(d.status||"—")}</span></td>
+          <td>${act}</td></tr>`;
+      }).join("");
+    });
+    $("#ia-tbody").innerHTML=html||`<tr><td colspan="7" style="text-align:center;color:#8195a0;padding:20px">沒有符合條件的紀錄</td></tr>`;
+    $("#ia-stat").textContent=`顯示 ${nDef} 筆缺失`;
+  },
+  advance(rid,i){
+    const d=(this.rows.find(x=>x.id===rid)||{defs:[]}).defs[i];if(!d)return;
+    d.status=d.status==="待船上改善"?"船上已回報":"已結案";
+    this.renderList();toast("（示意）狀態已更新為："+d.status);
+  },
+  del(id){
+    if(!confirm("確定刪除這張登錄單？（示意階段，僅刪除頁面記憶體中的資料）"))return;
+    this.rows=this.rows.filter(r=>r.id!==id);this.renderList();
+  },
+  /* ── 新增／編輯表單 ── */
+  newForm(){this.cur=this._blank();this.curId=null;this._openForm();},
+  edit(id){
+    const r=this.rows.find(x=>x.id===id);if(!r)return;
+    this.cur=JSON.parse(JSON.stringify(r));this.curId=id;this._openForm();
+  },
+  _openForm(){
+    $("#ia-list-page").style.display="none";$("#ia-form-page").style.display="";
+    $("#ia-btn-list").classList.remove("primary");$("#ia-btn-new").classList.add("primary");
+    $("#ia-errors").style.display="none";
+    const c=this.cur;
+    $("#ia-ship").innerHTML=shipOptionsHtml(c.ship);
+    const set=(id,v)=>{$(id).value=v||"";};
+    set("#ia-date",c.date);set("#ia-inspector",c.inspector);set("#ia-psn",c.psn);set("#ia-atype",c.atype);
+    set("#ia-master",c.master);set("#ia-co",c.co);set("#ia-ce",c.ce);set("#ia-2e",c.e2);
+    set("#ia-overall",c.overall);set("#ia-top4-cap",c.top4.cap);set("#ia-good-crew",c.goodCrew);set("#ia-poor-crew",c.poorCrew);
+    this.renderTop4();this.renderBest();this.renderDefs();this.renderSugg();this.updateCounts();
+    window.scrollTo({top:0});
+  },
+  cancelForm(){
+    if(!confirm("放棄目前填寫的內容並回到登錄紀錄？"))return;
+    this.showList();
+  },
+  _collect(){
+    const c=this.cur;const g=id=>$(id).value.trim();
+    c.ship=$("#ia-ship").value;c.date=g("#ia-date");c.inspector=g("#ia-inspector");c.psn=g("#ia-psn");c.atype=$("#ia-atype").value;
+    c.master=g("#ia-master");c.co=g("#ia-co");c.ce=g("#ia-ce");c.e2=g("#ia-2e");
+    c.overall=g("#ia-overall");c.top4.cap=g("#ia-top4-cap");c.goodCrew=g("#ia-good-crew");c.poorCrew=g("#ia-poor-crew");
+    return c;
+  },
+  updateCounts(){
+    const ds=this.cur.defs;const n=k=>ds.filter(d=>d.closeMode===k).length;
+    $("#ia-c-flow").textContent=n("FLOW");$("#ia-c-ic").textContent=n("內控");$("#ia-c-sys").textContent=n("系統內結案");
+    $("#ia-c-none").textContent=ds.filter(d=>!d.closeMode).length;
+  },
+  /* ── 照片：讀檔、縮圖（長邊 1280px）、預覽、刪除 ── */
+  _list(scope,i,key){
+    if(scope==="top4")return this.cur.top4.photos;
+    if(scope==="best")return this.cur.best[i].photos;
+    return this.cur.defs[i][key];
+  },
+  _phHtml(scope,i,key){
+    const list=this._list(scope,i,key);
+    return `<div class="ia-phs">${list.map((p,k)=>`<div class="ia-ph"><img src="${p.dataUrl}" title="${esc(p.name)}" onclick="Photobox.open(IntAudit._list('${scope}',${i},'${key}')[${k}].dataUrl,'${esc(p.name)}')"><button type="button" title="刪除這張照片" onclick="IntAudit.delPhoto('${scope}',${i},'${key}',${k})">×</button></div>`).join("")}
+      <label class="ia-phadd">＋ 上傳照片<input type="file" accept="image/*" multiple style="display:none" onchange="IntAudit.addPhotos('${scope}',${i},'${key}',this)"></label></div>`;
+  },
+  _readImg(file){
+    return new Promise(res=>{
+      const fr=new FileReader();
+      fr.onload=()=>{
+        const img=new Image();
+        img.onload=()=>{
+          const M=1280,s=Math.min(1,M/Math.max(img.width,img.height));
+          const cv=document.createElement("canvas");cv.width=Math.round(img.width*s);cv.height=Math.round(img.height*s);
+          cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+          res({name:file.name,dataUrl:cv.toDataURL("image/jpeg",0.8)});
+        };
+        img.onerror=()=>res(null);img.src=fr.result;
+      };
+      fr.onerror=()=>res(null);fr.readAsDataURL(file);
+    });
+  },
+  async addPhotos(scope,i,key,input){
+    const files=[...input.files];input.value="";
+    if(!files.length)return;
+    const list=this._list(scope,i,key);
+    for(const f of files){const p=await this._readImg(f);if(p)list.push(p);}
+    this._collect();
+    if(scope==="top4")this.renderTop4();else if(scope==="best")this.renderBest();else this.renderDefs();
+  },
+  delPhoto(scope,i,key,k){
+    this._list(scope,i,key).splice(k,1);this._collect();
+    if(scope==="top4")this.renderTop4();else if(scope==="best")this.renderBest();else this.renderDefs();
+  },
+  renderTop4(){$("#ia-top4-ph").innerHTML=this._phHtml("top4",0,"photos");},
+  /* ── 優良案例 ── */
+  addBest(){this._collect();this.cur.best.push({category:"",people:"",role:"",brief:"",photos:[]});this.renderBest();},
+  delBest(i){if(!confirm("刪除這筆優良案例？"))return;this._collect();this.cur.best.splice(i,1);this.renderBest();},
+  setB(i,f,v){this.cur.best[i][f]=v;},
+  renderBest(){
+    const b=this.cur.best;
+    $("#ia-best-list").innerHTML=b.length?b.map((x,i)=>`<div class="ia-item">
+      <div class="ia-ih">優良案例 No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="IntAudit.delBest(${i})">🗑 刪除</button></div>
+      <div class="fgrid">
+        <label>分類 Category<input type="text" value="${esc(x.category)}" placeholder="例：作業記錄、壓載水記錄" oninput="IntAudit.setB(${i},'category',this.value)"></label>
+        <label>涉及人員姓名<input type="text" value="${esc(x.people)}" oninput="IntAudit.setB(${i},'people',this.value)"></label>
+        <label>職務<input type="text" value="${esc(x.role)}" oninput="IntAudit.setB(${i},'role',this.value)"></label>
+        <label class="fw">描述 Brief<textarea oninput="IntAudit.setB(${i},'brief',this.value)">${esc(x.brief)}</textarea></label>
+        <div class="fld fw">案例照片 Photos${this._phHtml("best",i,"photos")}</div>
+      </div></div>`).join(""):`<p class="hint">尚無優良案例，可按右上「＋ 新增一筆優良案例」。</p>`;
+  },
+  /* ── 缺失明細 ── */
+  addDef(){this._collect();this.cur.defs.push(this._blankDef());this.renderDefs();this.updateCounts();
+    setTimeout(()=>{const el=$("#ia-def-"+(this.cur.defs.length-1));if(el)el.scrollIntoView({behavior:"smooth",block:"center"});},50);},
+  delDef(i){
+    if(this.cur.defs.length<=1){toast("⚠ 至少要保留一筆缺失明細");return;}
+    if(!confirm(`刪除第 ${i+1} 筆缺失？`))return;
+    this._collect();this.cur.defs.splice(i,1);this.renderDefs();this.updateCounts();
+  },
+  setD(i,f,v){this.cur.defs[i][f]=v;},
+  setMode(i,k){
+    this.cur.defs[i].closeMode=k;
+    const el=$("#ia-def-"+i);
+    if(el){el.classList.remove("m-flow","m-ic","m-sys");const m=this.modeOf(k);if(m)el.classList.add("m-"+m.cls);
+      const rw=el.querySelector(".ia-radios");if(rw)rw.classList.remove("ia-bad");}
+    this.updateCounts();
+  },
+  renderDefs(){
+    const d=this.cur.defs;
+    $("#ia-def-list").innerHTML=d.map((x,i)=>{
+      const m=this.modeOf(x.closeMode);
+      return `<div class="ia-item ${m?"m-"+m.cls:""}" id="ia-def-${i}">
+      <div class="ia-ih">缺失 No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="IntAudit.delDef(${i})">🗑 刪除</button></div>
+      <div class="fgrid">
+        <label>缺失類別（記錄表區段）<select data-f="section" onchange="IntAudit.setD(${i},'section',this.value)">${this.SECTIONS.map(s=>`<option ${x.section===s?"selected":""}>${esc(s)}</option>`).join("")}</select></label>
+        <label>分類 Category *<input type="text" data-f="category" value="${esc(x.category)}" placeholder="例：防火門、IMO標誌" oninput="IntAudit.setD(${i},'category',this.value)"></label>
+        <label>風險等級 Risk Level *<select data-f="risk" onchange="IntAudit.setD(${i},'risk',this.value)"><option value="">— 請選擇 —</option>${this.RISKS.map(s=>`<option ${x.risk===s?"selected":""}>${s}</option>`).join("")}</select></label>
+        <label>Reported @（發現日期）*<input type="text" data-f="reported" value="${esc(x.reported)}" placeholder="2026/09/19" oninput="IntAudit.setD(${i},'reported',this.value)"></label>
+        <label>Corrected @（改善完成日期）<input type="text" data-f="corrected" value="${esc(x.corrected)}" placeholder="改善後填寫" oninput="IntAudit.setD(${i},'corrected',this.value)"></label>
+        <div></div>
+        <label class="fw">待改善描述 Finding Brief *<textarea data-f="finding" oninput="IntAudit.setD(${i},'finding',this.value)">${esc(x.finding)}</textarea></label>
+        <label class="fw">改善措施簡述 Action Brief<textarea data-f="action" oninput="IntAudit.setD(${i},'action',this.value)">${esc(x.action)}</textarea></label>
+        <label class="fw">改善完成證據／備註 Corrected Evidence / Remark<textarea data-f="evidence" style="min-height:52px" oninput="IntAudit.setD(${i},'evidence',this.value)">${esc(x.evidence)}</textarea></label>
+        <div class="fld">待改善項目照片 Items to be corrected${this._phHtml("def",i,"photosBefore")}</div>
+        <div class="fld" style="grid-column:span 2">改善完成證據照片${this._phHtml("def",i,"photosAfter")}</div>
+        <div class="fld fw">結案方式 *（單選）
+          <div class="ia-radios" data-f="closeMode">${this.MODES.map(mm=>`<label><input type="radio" name="ia-cm-${i}" ${x.closeMode===mm.k?"checked":""} onchange="IntAudit.setMode(${i},'${mm.k}')"> ${esc(mm.label)}</label>`).join("")}</div>
+          <span class="hint" style="font-weight:400">FLOW：僅留紀錄、不發改善單，由船上至 FLOW 系統填單　｜　內控：發改善單並匯出內控 JSON　｜　系統內結案：發改善單，於本系統結案</span>
+        </div>
+      </div></div>`;}).join("");
+  },
+  /* ── 船舶訴求／建議 ── */
+  addSugg(){this._collect();this.cur.sugg.push({situation:"",suggestion:""});this.renderSugg();},
+  delSugg(i){this._collect();this.cur.sugg.splice(i,1);this.renderSugg();},
+  setS(i,f,v){this.cur.sugg[i][f]=v;},
+  renderSugg(){
+    const s=this.cur.sugg;
+    $("#ia-sugg-list").innerHTML=s.length?s.map((x,i)=>`<div class="ia-item">
+      <div class="ia-ih">No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="IntAudit.delSugg(${i})">🗑 刪除</button></div>
+      <div class="fgrid"><label style="grid-column:span 2">現狀 Situation<textarea oninput="IntAudit.setS(${i},'situation',this.value)">${esc(x.situation)}</textarea></label>
+      <label>建議 Suggestion<textarea oninput="IntAudit.setS(${i},'suggestion',this.value)">${esc(x.suggestion)}</textarea></label></div></div>`).join(""):`<p class="hint">尚無船舶訴求／建議。</p>`;
+  },
+  /* ── 送出前檢查：明確指出第幾筆的哪個欄位 ── */
+  validate(){
+    const c=this._collect(),errs=[];
+    [["ship","訪問船舶"],["date","日期"],["inspector","檢查人"],["psn","地點 Ship's PSN"],["atype","檢查種類"]].forEach(([f,l])=>{
+      if(!c[f])errs.push({msg:`表頭：「${l}」未填`,sel:{ship:"#ia-ship",date:"#ia-date",inspector:"#ia-inspector",psn:"#ia-psn",atype:"#ia-atype"}[f]});
+    });
+    if(!c.defs.length)errs.push({msg:"缺失明細：至少需要一筆缺失",sel:"#ia-def-list"});
+    c.defs.forEach((d,i)=>{
+      const n=`第 ${i+1} 筆缺失`;
+      [["category","分類 Category"],["risk","風險等級"],["reported","Reported @（發現日期）"],["finding","待改善描述"]].forEach(([f,l])=>{
+        if(!String(d[f]||"").trim())errs.push({msg:`${n}：「${l}」未填`,sel:`#ia-def-${i} [data-f="${f}"]`});
+      });
+      if(!d.closeMode)errs.push({msg:`${n}：「結案方式」未選擇（FLOW／內控／系統內結案，須擇一）`,sel:`#ia-def-${i} [data-f="closeMode"]`});
+    });
+    return errs;
+  },
+  _showErrors(errs){
+    document.querySelectorAll("#tab-intaudit .ia-bad").forEach(e=>e.classList.remove("ia-bad"));
+    const box=$("#ia-errors");
+    if(!errs.length){box.style.display="none";return;}
+    box.innerHTML=`<b>送出前檢查：共 ${errs.length} 個項目需要補齊</b><br>${errs.map(e=>"・"+esc(e.msg)).join("<br>")}`;
+    box.style.display="";
+    errs.forEach(e=>{const el=e.sel&&document.querySelector(e.sel);if(el)el.classList.add("ia-bad");});
+    const first=errs[0].sel&&document.querySelector(errs[0].sel);
+    (first||box).scrollIntoView({behavior:"smooth",block:"center"});
+  },
+  saveDraft(){this._collect();toast("💾（示意）草稿功能尚待串接，目前不會儲存到雲端");},
+  submit(){
+    const errs=this.validate();this._showErrors(errs);
+    if(errs.length){toast(`⚠ 尚有 ${errs.length} 個必填項目未完成，請見頁面上方紅色提示`);return;}
+    const c=JSON.parse(JSON.stringify(this.cur));
+    c.defs.forEach(d=>{
+      // 狀態依結案方式決定；編輯已存在的缺失時，保留原本較後面的狀態（例如已回報／已結案）
+      if(d.closeMode==="FLOW")d.status="FLOW 結案";
+      else if(!d.status||d.status==="FLOW 結案")d.status="待船上改善";
+    });
+    c.createdBy=c.createdBy||((typeof Audit!=="undefined"&&Audit.user)?Audit.user():"");c.createdAt=c.createdAt||todayStr().replace(/-/g,"/");
+    if(this.curId==null){c.id=++this._seq;this.rows.unshift(c);}
+    else{c.id=this.curId;const ix=this.rows.findIndex(r=>r.id===this.curId);if(ix>=0)this.rows[ix]=c;}
+    const nIssue=c.defs.filter(d=>d.closeMode!=="FLOW").length;
+    toast(`✓（示意）已送出登錄單：共 ${c.defs.length} 筆缺失，其中 ${nIssue} 筆需發改善單給船上（發送功能尚待串接）`);
+    this.showList();
+  },
+  /* ── 匯出 ── */
+  _fname(r,ext){return `${r.ship||"船名"}_${(r.date||"檢查日期").replace(/[\\/:*?"<>|～]/g,"-")}_檢查缺失具體項目記錄表${ext}`;},
+  exportWord(){toast("📄 Word 匯出（以原記錄表為範本套版、附照片）尚待串接，本階段為版面示意");},
+  exportJson(id){
+    const r=this.rows.find(x=>x.id===id);if(!r)return;
+    dl(new Blob([JSON.stringify(r,null,1)],{type:"application/json"}),this._fname(r,".json"));
+  },
+  exportIcJson(id){
+    const r=this.rows.find(x=>x.id===id);if(!r)return;
+    const ic=r.defs.filter(d=>d.closeMode==="內控");
+    if(!ic.length){toast("⚠ 這張登錄單沒有結案方式為「內控」的缺失");return;}
+    const out={ship:r.ship,date:r.date,inspector:r.inspector,psn:r.psn,atype:r.atype,defs:ic};
+    dl(new Blob([JSON.stringify(out,null,1)],{type:"application/json"}),`${r.ship}_${(r.date||"").replace(/[\\/:*?"<>|～]/g,"-")}_內控缺失.json`);
+  }
+};
 
 /* ════════ 0.5 重複性缺失分析 ════════ */
 
