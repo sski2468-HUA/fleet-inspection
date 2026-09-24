@@ -11,8 +11,8 @@ const TYPE_DEFS=[
 ];
 /* 主題顯示文字：選「其他」時附上使用者輸入的說明 */
 const topicText=d=>d.topic==="其他"&&d.topicOther?"其他："+d.topicOther:(d.topic||"");
-/* 匯出檔名（Word／JSON／內控檔共用）：船名-檢查日期-Audit N_C _ Deficiency Items Details Records（檔名不能含斜線，改用底線） */
-const exportBaseName=r=>`${r.ship||"船名"}-${(dateText(r)||"檢查日期").replace(/\//g,"-").replace(/～/g,"~")}-Audit N_C _ Deficiency Items Details Records`;
+/* 匯出檔名（Word／JSON／內控檔共用）：船名-檢查日期-Audit NC Deficiency Items Details Records（檔名不能含斜線，N/C 寫成 NC） */
+const exportBaseName=r=>`${r.ship||"船名"}-${(dateText(r)||"檢查日期").replace(/\//g,"-").replace(/～/g,"~")}-Audit NC Deficiency Items Details Records`;
 const typeDef=k=>TYPE_DEFS.find(t=>t.k===k);
 const MODES=[{k:"FLOW",label:"FLOW 系統（DMP-FM01）",cls:"flow"},{k:"內控",label:"內控",cls:"ic"},{k:"系統內結案",label:"系統內結案",cls:"sys"}];
 const modeOf=k=>MODES.find(m=>m.k===k);
