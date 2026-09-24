@@ -472,12 +472,12 @@ async function exportExcel(){
   ]);
   wsBase["!cols"]=[{wch:22},{wch:50}];
   XLSX.utils.book_append_sheet(wb,wsBase,"基本資料");
-  const rows=[["編號","CODE","缺失內容","實際情況（來源）","本船查核結果","本船實際狀況","打算怎麼處理","是否結案","回答人","回答日期"]];
+  const rows=[["編號","CODE","來源檢查","缺失內容","實際情況（來源）","本船查核結果","本船實際狀況","打算怎麼處理","是否結案","回答人","回答日期"]];
   d.items.forEach((it,i)=>{
-    rows.push([i+1,it.code||"",it.detail||"",it.actual2||"",ST_LABEL_DL[it.status||"pending"],it.note||"",it.actual||"",it.status==="similar"?(it.closed?"已結案":"未結案"):"",it.checkedBy||"",it.checkedAt||""]);
+    rows.push([i+1,it.code||"",fmtSrc(it.src),it.detail||"",it.actual2||"",ST_LABEL_DL[it.status||"pending"],it.note||"",it.actual||"",it.status==="similar"?(it.closed?"已結案":"未結案"):"",it.checkedBy||"",it.checkedAt||""]);
   });
   const wsDef=XLSX.utils.aoa_to_sheet(rows);
-  wsDef["!cols"]=[{wch:6},{wch:12},{wch:40},{wch:40},{wch:14},{wch:30},{wch:30},{wch:10},{wch:10},{wch:12}];
+  wsDef["!cols"]=[{wch:6},{wch:12},{wch:22},{wch:40},{wch:40},{wch:14},{wch:30},{wch:30},{wch:10},{wch:10},{wch:12}];
   XLSX.utils.book_append_sheet(wb,wsDef,"缺失明細");
   const fname=`分享自查_${d.ship}_${(d.title||"").replace(/[\\/:*?"<>|]/g,"_")}_${todayStr()}.xlsx`;
   XLSX.writeFile(wb,fname);
@@ -493,7 +493,7 @@ function preparePrint(){
   const rowHtml=(it,i)=>`<tr>
     <td class="pnum">${i+1}</td>
     <td>
-      <b>${it.code?"CODE "+esc(it.code):""}</b>
+      <b>${it.code?"CODE "+esc(it.code):""}</b>${it.src?"　"+esc(fmtSrc(it.src)):""}
       <div class="pdet">${esc(it.detail||"")}</div>
       ${it.actual2?`<div class="pdet" style="color:#555">實際情況：${esc(it.actual2)}</div>`:""}
     </td>
@@ -509,6 +509,9 @@ function preparePrint(){
   setTimeout(()=>window.print(),50);
 }
 
+/* 來源檢查（船名 檢查來源 日期）：標在 CODE 後面，讓填答的人知道這項缺失是哪條船、哪次檢查發現的 */
+function fmtSrc(s){const p=String(s||"").trim().split(/\s+/);return p.length>=3?`${p[0]}・${p.slice(1,-1).join(" ")}・${p[p.length-1]}`:String(s||"");}
+const srcTag=it=>it.src?`<span style="margin-left:8px;font-size:12px;font-weight:700;color:#1e7f8c;background:#e4f1f2;border-radius:10px;padding:1px 10px;white-space:nowrap">${esc(fmtSrc(it.src))}</span>`:"";
 function renderRef(it){
   return `<div class="refbox">
     <div><b>缺失詳情：</b>${esc(it.detail||"")}</div>
@@ -519,7 +522,7 @@ function renderRef(it){
 function itemCardHtml(it,i){
   return `
     <div class="itemcard gh" data-idx="${i}" id="item-${i}">
-      <div><span class="num">#${i+1}</span><b>${esc(it.code?("CODE "+it.code):"")}</b></div>
+      <div><span class="num">#${i+1}</span><b>${esc(it.code?("CODE "+it.code):"")}</b>${srcTag(it)}</div>
       ${renderRef(it)}
       <p style="font-weight:700;margin:10px 0 4px">❓ 本船目前有同樣或類似的情形嗎？</p>
       <div class="statusrow">

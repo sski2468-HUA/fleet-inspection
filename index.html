@@ -22565,7 +22565,7 @@ const Air={
     const selScope=!fromList&&this.defSel.size>0;
     if(selScope)rows=rows.filter(r=>this.defSel.has(r.id));
     if(!rows.length){toast(selScope?"⚠ 已勾選的列中沒有可分享的缺失明細":"⚠ 沒有可分享的缺失明細（至少需要缺失詳情或實際情況）");return;}
-    if((d.sharedCheckCampaignIds||[]).length&&!confirm("已建立過分享自查，確定要再建立？"))return;
+    if(this._shareCount(d)>0&&!confirm("已建立過分享自查，確定要再建立？"))return;
     this._showShareWizard(rows);
   },
   /* 合併分享：先在填單清單勾選 2 筆以上（例如剛好同時做完檢查的幾艘），把它們的缺失合併成「一個」活動、一條連結，
@@ -22576,7 +22576,7 @@ const Air={
     const rows=[];
     recs.forEach(d=>(d.defects||[]).filter(r=>r.detail||r.actual).forEach(r=>rows.push(Object.assign({},r,{_src:`${d.ship} ${d.itype||""} ${d.date}`.replace(/\s+/g," ").trim()}))));
     if(!rows.length){toast("⚠ 勾選的填單裡沒有可分享的缺失明細");return;}
-    if(recs.some(d=>(d.sharedCheckCampaignIds||[]).length)&&!confirm("勾選的填單中有已建立過分享自查的，確定要再建立？"))return;
+    if(recs.some(d=>this._shareCount(d)>0)&&!confirm("勾選的填單中有已建立過分享自查的，確定要再建立？"))return;
     this._shareAirIds=recs.map(d=>d.id);
     this._showShareWizard(rows);
   },
@@ -22610,7 +22610,7 @@ const Air={
     // 兩個是完全不同的東西，撞名會被船員填的內容蓋掉，所以來源的「實際情況」另外取名。
     const items=rows.map(r=>({
       code:r.code||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",
-      detail:r.detail||"",actual2:r.actual||"",src:r._src||""
+      detail:r.detail||"",actual2:r.actual||"",src:r._src||(recs.length===1?`${d.ship} ${d.itype||""} ${d.date}`.replace(/\s+/g," ").trim():"")
     }));
     const campaignId=Date.now();
     const campaign={id:campaignId,title:`缺失分享自查：${recs.map(x=>`${x.ship} ${x.itype||""} ${x.date}`.replace(/\s+/g," ").trim()).join("、")}  ${rows.length}項查缺失`,items,ship_scope:shipScope,
@@ -22750,7 +22750,33 @@ const Air={
       if(!old||old.size!==s.size)this.renderList();
     }).catch(()=>{});
   },
+  /* 「已分享自查」標記只算「雲端上還存在」的分享活動：活動被刪除後，填單裡記的活動 id 就是孤兒，
+     不該再顯示。載入時（至多每 60 秒）比對一次雲端現有活動；管理者開啟時順便把已不存在的 id 從填單紀錄裡清掉。 */
+  _shareCount(d){
+    const a=Array.isArray(d.sharedCheckCampaignIds)?d.sharedCheckCampaignIds:[];
+    return this._shareIds?a.filter(id=>this._shareIds.has(String(id))).length:a.length;
+  },
+  _loadShareIds(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    if(Date.now()-(this._shareAt||0)<60000)return;
+    this._shareAt=Date.now();
+    Cloud.api("selfcheck_share_campaigns?select=id").then(rows=>{
+      if(!Array.isArray(rows))return;
+      this._shareIds=new Set(rows.map(r=>String(r.id)));
+      let pruned=0;
+      if(typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin()){
+        (App.air||[]).forEach(d=>{
+          const a=d.sharedCheckCampaignIds;if(!Array.isArray(a)||!a.length)return;
+          const keep=a.filter(id=>this._shareIds.has(String(id)));
+          if(keep.length!==a.length){pruned+=a.length-keep.length;if(keep.length)d.sharedCheckCampaignIds=keep;else delete d.sharedCheckCampaignIds;}
+        });
+        if(pruned){App.saveAll();if(typeof Audit!=="undefined")Audit.log("整理","分享自查標記",`清除 ${pruned} 個已不存在的分享活動紀錄`);}
+      }
+      this.renderList();
+    }).catch(()=>{});
+  },
   renderList(){
+    this._loadShareIds();
     this._loadExtReplyIds();
     const rows=this.filtered();
     this._lastCount=rows.length;
@@ -22778,7 +22804,7 @@ const Air={
           ${(canPush&&d.defects&&d.defects.length)?`<button class="btn sm" style="background:#e4f1f2;border-color:#8cc3ca;color:#16606b;font-weight:700" onclick="Air.openShareCheckWizard(${d.id})" title="建立缺失分享：把這筆的缺失做成一條連結，分享給船隊自查">分</button>`:""}
           ${canPush?`<button class="btn sm dark" onclick="Air.openPushModal(${d.id})" title="轉入檢查紀錄／缺失紀錄總表／正面評價，可複選">轉</button>`:""}
         </td>
-        <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${(d.sharedCheckCampaignIds&&d.sharedCheckCampaignIds.length)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${d.sharedCheckCampaignIds.length>1?" ×"+d.sharedCheckCampaignIds.length:""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span></div>`:""}</td>
+        <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${(this._shareCount(d)>0)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${this._shareCount(d)>1?" ×"+this._shareCount(d):""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span></div>`:""}</td>
         <td>${d.reviewed?'<span style="font-size:11.5px;font-weight:700;color:var(--ok)">✅ 已確認</span>':'<span style="font-size:11.5px;color:var(--ink-3)">⬜ 尚未確認</span>'}</td>
         <td><b>${esc(d.ship)}</b></td>
         <td style="font-family:var(--mono);white-space:nowrap">${esc(normDateSlash(d.date))}</td>
