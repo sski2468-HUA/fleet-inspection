@@ -231,13 +231,21 @@ const modeOf=k=>MODES.find(m=>m.k===k);
 const RISKS=["高","中","低"];
 const RANK_OPTIONS=["Master船長","C/O大副","2/O二副","3/O三副","C/E輪機長","2/E大管","3/E二管","4/E三管","BSN水手長","AB幹練水手","OS普通水手","COOK廚師","FTR銅匠","OLR加油匠","PM泵匠","A.Capt.見習船長","A.C/O見習大副","A.2/O見習二副","A.3/O見習三副","A.C/E見習輪機長","A.2/E見習大管","A.3/E見習二管","A.4/E見習三管","其他(請聯繫海技新增)"];
 const MAX_DEF_PHOTOS=3;
+/* ── 內控異常（船舶動態與早會待辦系統）欄位選項：對照該系統「批量新增內控異常」畫面 ── */
+const IC_LEVELS=["急","高","中","低"];
+const IC_CATEGORIES=["換員操作","加油加水","物料配件","維修","Survey","稽核檢查","PSC窗口","船舶證書/資質/保險","缺失驗證","vetting","货量货质","港口安排","事故","设备故障","人员问题","船舶綜合管理","货舱结构","洗舱验舱","設備故障"];
+const IC_EQUIP=["机舱设备","救生、消防、应急及安全设备","驾驶台设备","系泊和锚泊设备","动力与推进","防污染设备","货物操作设备","甲板机械","船体/结构","生活区/MLC设备","保安/保全设备","个人防护/作业安全设备","医疗/急救设备","测试/测量/校验工具","电子管理平台/数据系统"];
+const IC_DEPTS=["管理層","管理組","資材組","營業處","船工處","安衛處","航運處","督導","船員組","航運組","海技組"];
+const isEquipFault=c=>c==="设备故障"||c==="設備故障";
+/* 報告來源：訪船／交叉訪船→訪船、隨船→隨船；內稽、主題檢查暫不定義（動態系統之後會新增），匯出時留空 */
+const icSource=t=>({"onboard visit":"訪船","Cross ship visit":"訪船","ACCOMPANYING SHIP":"隨船"})[t]||"";
 const PORTS=["Aarhus, Denmark", "Abbot Point, Australia", "Abidjan, Ivory Coast", "Abu Dhabi, UAE", "Adelaide, Australia", "Alexandria, Egypt", "Algeciras, Spain", "Algiers, Algeria", "Aliaga, Turkey", "Altamira, Mexico", "Ambarli, Turkey", "Amsterdam, Netherlands", "Anping, Taiwan", "Antofagasta, Chile", "Antwerp, Belgium", "Aqaba, Jordan", "Arzew, Algeria", "Ashdod, Israel", "Auckland, New Zealand", "Augusta, Italy", "Bahia Blanca, Argentina", "Bahrain, Bahrain", "Balboa, Panama", "Balikpapan, Indonesia", "Baltimore, USA", "Bandar Abbas, Iran", "Bandar Imam Khomeini, Iran", "Bangkok, Thailand", "Banjarmasin, Indonesia", "Barcelona, Spain", "Barranquilla, Colombia", "Basrah, Iraq", "Batangas, Philippines", "Baton Rouge, USA", "Beaumont, USA", "Beihai, China", "Beira, Mozambique", "Beirut, Lebanon", "Belawan, Indonesia", "Bergen, Norway", "Bilbao, Spain", "Bintulu, Malaysia", "Bluff, New Zealand", "Bontang, Indonesia", "Bordeaux, France", "Boston, USA", "Bremen, Germany", "Bremerhaven, Germany", "Brisbane, Australia", "Bristol, UK", "Brunsbuttel, Germany", "Brunswick, USA", "Buenaventura, Colombia", "Buenos Aires, Argentina", "Burgas, Bulgaria", "Busan, South Korea", "Cagayan de Oro, Philippines", "Cai Mep, Vietnam", "Callao, Peru", "Cam Pha, Vietnam", "Caofeidian, China", "Cape Town, South Africa", "Cartagena, Colombia", "Cartagena, Spain", "Casablanca, Morocco", "Cebu, Philippines", "Changshu, China", "Changzhou, China", "Charleston, USA", "Chattogram, Bangladesh", "Chennai, India", "Chiba, Japan", "Chittagong, Bangladesh", "Cigading, Indonesia", "Cilegon, Indonesia", "Coatzacoalcos, Mexico", "Cochin, India", "Colombo, Sri Lanka", "Colon, Panama", "Come By Chance, Canada", "Conakry, Guinea", "Constanta, Romania", "Copenhagen, Denmark", "Corpus Christi, USA", "Cristobal, Panama", "Da Nang, Vietnam", "Daesan, Korea", "Daesan, South Korea", "Dahej, India", "Dakar, Senegal", "Dalian, China", "Dalrymple Bay, Australia", "Damietta, Egypt", "Dammam, Saudi Arabia", "Dampier, Australia", "Dar es Salaam, Tanzania", "Davao, Philippines", "Djeno, Congo", "Djibouti, Djibouti", "Doha, Qatar", "Dong Nai, Vietnam", "Douala, Cameroon", "Dumai, Indonesia", "Dung Quat, Vietnam", "Dunkirk, France", "Duqm, Oman", "Durban, South Africa", "Ennore, India", "Esperance, Australia", "Fangcheng, China", "Fazendinha, Brazil", "Felixstowe, UK", "Ferrol, Spain", "Fos, France", "Freeport, Bahamas", "Freeport, USA", "Freetown, Sierra Leone", "Fremantle, Australia", "Fujairah, UAE", "Fuzhou, China", "Galveston, USA", "Gangavaram, India", "Gdansk, Poland", "Gdynia, Poland", "Genoa, Italy", "Geraldton, Australia", "Ghent, Belgium", "Gijon, Spain", "Gioia Tauro, Italy", "Gladstone, Australia", "Gore Bay, Australia", "Gothenburg, Sweden", "Gove, Australia", "Gresik, Indonesia", "Grimsby, UK", "Guangzhou, China", "Guayaquil, Ecuador", "Guaymas, Mexico", "Gwadar, Pakistan", "Gwangyang, South Korea", "Hai Phong, Vietnam", "Haifa, Israel", "Halifax, Canada", "Halul, Qatar", "Hamburg, Germany", "Hamilton, Canada", "Hamriyah, UAE", "Hay Point, Australia", "Hazira, India", "Helsingborg, Sweden", "Helsinki, Finland", "Ho Chi Minh City, Vietnam", "Hon Gai, Vietnam", "Hong Kong, Hong Kong", "Houston, USA", "Hualien, Taiwan", "Huanghua, China", "Huasco, Chile", "Huelva, Spain", "Hull, UK", "Immingham, UK", "Incheon, South Korea", "Isabel, Philippines", "Iskenderun, Turkey", "Istanbul, Turkey", "Itaguai, Brazil", "Itaqui, Brazil", "Izmir, Turkey", "Jaigarh, India", "Jakarta, Indonesia", "Jebel Ali, UAE", "Jeddah, Saudi Arabia", "Jiangyin, China", "Jiaxing, China", "Jieyang, China", "Jingtang, China", "Jorf Lasfar, Morocco", "Jubail, Saudi Arabia", "Jurong, Singapore", "Kamsar, Guinea", "Kandla, India", "Kaohsiung, Taiwan", "Karachi, Pakistan", "Kashima, Japan", "Kawasaki, Japan", "Keelung, Taiwan", "Kemaman, Malaysia", "Khalifa Port, UAE", "King Abdullah Port, Saudi Arabia", "Kinmen, Taiwan", "Kitakyushu, Japan", "Klaipeda, Lithuania", "Kobe, Japan", "Kolkata, India", "Kotka, Finland", "Krishnapatnam, India", "Kuantan, Malaysia", "Kuwait City, Kuwait", "Kwangyang, Korea", "Kwinana, Australia", "La Plata, Argentina", "Labuan, Malaysia", "Laem Chabang, Thailand", "Lagos (Apapa), Nigeria", "Lagos, Nigeria", "Lake Charles, USA", "Latakia, Syria", "Lazaro Cardenas, Mexico", "Le Havre, France", "Leixoes, Portugal", "Lianyungang, China", "Libreville, Gabon", "Lisbon, Portugal", "Liverpool, UK", "Livorno, Italy", "Lobito, Angola", "London, UK", "Long Beach, USA", "Longview, USA", "Los Angeles, USA", "Luanda, Angola", "Lyttelton, New Zealand", "Macau, China", "Mailiao, Taiwan", "Makassar, Indonesia", "Manaus, Brazil", "Mangalore, India", "Manila, Philippines", "Manzanillo, Mexico", "Map Ta Phut, Thailand", "Maputo, Mozambique", "Marseille, France", "Masan, South Korea", "Matarani, Peru", "Mawan, China", "Mejillones, Chile", "Melbourne, Australia", "Mersin, Turkey", "Mesaieed, Qatar", "Milford Haven, UK", "Mina Al Ahmadi, Kuwait", "Mina Zayed, UAE", "Misurata, Libya", "Mizushima, Japan", "Mobile, USA", "Mombasa, Kenya", "Mongla, Bangladesh", "Monrovia, Liberia", "Montevideo, Uruguay", "Montreal, Canada", "Mormugao, India", "Mumbai, India", "Mundra, India", "Murmansk, Russia", "Muscat, Oman", "Nacala, Mozambique", "Nagoya, Japan", "Nakhodka, Russia", "Nanjing, China", "Nansha, China", "Nantes, France", "Nantong, China", "Napier, New Zealand", "Naples, Italy", "New Orleans, USA", "New York, USA", "Newcastle, Australia", "Nghi Son, Vietnam", "Nhava Sheva, India", "Ningbo, China", "Norco, USA", "Norfolk, USA", "Noumea, New Caledonia", "Novorossiysk, Russia", "Nueva Palmira, Uruguay", "Oakland, USA", "Odessa, Ukraine", "Oita, Japan", "Onne, Nigeria", "Onsan, South Korea", "Osaka, Japan", "Oslo, Norway", "Panama, Panama", "Paradip, India", "Paranagua, Brazil", "Pascagoula, USA", "Pasir Gudang, Malaysia", "Paulsboro, USA", "Penang, Malaysia", "Philadelphia, USA", "Piraeus, Greece", "Pivdennyi, Ukraine", "Pohang, Korea", "Pohang, South Korea", "Pointe-Noire, Congo", "Ponta da Madeira, Brazil", "Port Arthur, USA", "Port Boffa, Guinea", "Port Elizabeth, South Africa", "Port Harcourt, Nigeria", "Port Hedland, Australia", "Port Kamsar, Guinea", "Port Klang, Malaysia", "Port Marsden, New Zealand", "Port Moresby, Papua New Guinea", "Port Qasim, Pakistan", "Port Reading, USA", "Port Said, Egypt", "Port Sudan, Sudan", "Port Walcott, Australia", "Portland, Australia", "Portland, USA", "Primorsk, Russia", "Prince Rupert, Canada", "Puerto Cabello, Venezuela", "Puerto Cortes, Honduras", "Puerto Quetzal, Guatemala", "Pyeongtaek, Korea", "Pyeongtaek, South Korea", "Qingdao, China", "Quanzhou, China", "Quebec, Canada", "Quy Nhon, Vietnam", "Rabigh, Saudi Arabia", "Ras Laffan, Qatar", "Ras Tanura, Saudi Arabia", "Ravenna, Italy", "Rayong, Thailand", "Richards Bay, South Africa", "Riga, Latvia", "Rio Grande, Brazil", "Rio de Janeiro, Brazil", "Rizhao, China", "Rosario, Argentina", "Rotterdam, Netherlands", "Rouen, France", "Ruwais, UAE", "Sakai, Japan", "Sakaide, Japan", "Salalah, Oman", "Saldanha Bay, South Africa", "Samarinda, Indonesia", "San Antonio, Chile", "San Francisco, USA", "San Lorenzo, Argentina", "San Nicolas, Argentina", "San Vicente, Chile", "Santa Marta, Colombia", "Santos, Brazil", "Sao Luis, Brazil", "Sariaya, Philippines", "Savannah, USA", "Seattle, USA", "Semarang, Indonesia", "Sept-Iles, Canada", "Shanghai, China", "Shantou, China", "Sharjah, UAE", "Shekou, China", "Shenzhen, China", "Shuaiba, Kuwait", "Shuwaikh, Kuwait", "Sihanoukville, Cambodia", "Sikka, India", "Sines, Portugal", "Singapore (Anchorage), Singapore", "Singapore, Singapore", "Sitra, Bahrain", "Sohar, Oman", "Sokhna, Egypt", "Son Duong, Vietnam", "Songkhla, Thailand", "Southampton, UK", "Sriracha, Thailand", "St Croix, USA", "St Petersburg, Russia", "St. Croix, USA", "St. Eustatius, Caribbean Netherlands", "Suao, Taiwan", "Suape, Brazil", "Subic Bay, Philippines", "Suez, Egypt", "Surabaya, Indonesia", "Sydney, Australia", "Szczecin, Poland", "Taboneo, Indonesia", "Tacoma, USA", "Taicang, China", "Taichung, Taiwan", "Taipei, Taiwan", "Taizhou, China", "Takoradi, Ghana", "Tallinn, Estonia", "Tampa, USA", "Tampico, Mexico", "Tanga, Tanzania", "Tangier, Morocco", "Tangshan (Jingtang Port), China", "Tanjung Pelepas, Malaysia", "Tanjung Perak, Indonesia", "Tanjung Priok, Indonesia", "Tarahan, Indonesia", "Taranto, Italy", "Tarragona, Spain", "Tauranga, New Zealand", "Teesport, UK", "Tema, Ghana", "Texas City, USA", "Thames, UK", "Thamesport, UK", "Thessaloniki, Greece", "Thilawa, Myanmar", "Thunder Bay, Canada", "Tianjin, China", "Tilbury, UK", "Tokyo, Japan", "Tomakomai, Japan", "Townsville, Australia", "Trieste, Italy", "Tripoli, Libya", "Trois-Rivieres, Canada", "Tubarao, Brazil", "Tunis, Tunisia", "Tuticorin, India", "Ube, Japan", "Ulsan, Korea", "Ulsan, South Korea", "Umm Qasr, Iraq", "Ust-Luga, Russia", "Vadinar, India", "Valencia, Spain", "Valparaiso, Chile", "Vancouver, Canada", "Varna, Bulgaria", "Venice, Italy", "Veracruz, Mexico", "Visakhapatnam, India", "Vitoria, Brazil", "Vladivostok, Russia", "Vostochny, Russia", "Vung Ang, Vietnam", "Vung Tau, Vietnam", "Wakayama, Japan", "Walvis Bay, Namibia", "Wenzhou, China", "Whyalla, Australia", "Wilhelmshaven, Germany", "Xiamen, China", "Yanbu, Saudi Arabia", "Yangon, Myanmar", "Yangpu, China", "Yantai, China", "Yeosu, South Korea", "Yingkou, China", "Yokohama, Japan", "Yuzhny, Ukraine", "Zeebrugge, Belgium", "Zhangjiagang, China", "Zhanjiang, China", "Zhapu, China", "Zhenjiang, China", "Zhoushan, China"];
 
 /* ══════ 雲端清單：船舶／督導名冊（讀不到時提示，不擋填單） ══════ */
 let SHIPS=[],SUPERVISORS=[];
 async function getKey(k){const r=await withTimeout(api(`app_db?select=payload&k=eq.${encodeURIComponent(k)}`),8000);return r&&r[0]?r[0].payload:null;}
 async function loadLists(){
-  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code}));}catch(e){}
+  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,type1:s.type1||""}));}catch(e){}
   try{const p=await getKey("roster");if(Array.isArray(p))SUPERVISORS=[...new Set(p.filter(r=>r.dept==="督導").map(r=>r.name))].filter(Boolean).sort();}catch(e){}
   $("#dlPorts").innerHTML=PORTS.concat(["At Sea"]).map(p=>`<option value="${esc(p)}">`).join("");
   if(!SHIPS.length)toast("⚠ 船舶清單讀取失敗，請確認網路後重新整理頁面",true);
@@ -333,7 +341,8 @@ function renderList(){
         <button class="btn sm" onclick="editRec(${r.id})">✎ 編輯</button>
         <button class="btn sm" onclick="exportWord(${r.id})" title="以原記錄表的頁首／頁尾為範本，輸出 .docx（含照片）">⬇ Word</button>
         <button class="btn sm" onclick="exportJson(${r.id})">⬇ JSON</button>
-        <button class="btn sm" ${hasIC?"":"disabled"} onclick="exportIcJson(${r.id})" title="只含結案方式為「內控」的缺失">⬇ 內控 JSON</button>
+        <button class="btn sm" ${hasIC?"":"disabled"} onclick="exportIcXls(${r.id})" title="只含結案方式為「內控」的缺失；欄位格式同船舶動態系統的內控異常清單（動態系統目前沒有匯入功能，可依此表逐筆新增）">⬇ 內控 Excel</button>
+        <button class="btn sm" ${hasIC?"":"disabled"} onclick="exportIcJson(${r.id})" title="只含結案方式為「內控」的缺失（含船上回報內容，供日後匯入用）">⬇ 內控 JSON</button>
         <button class="btn sm" ${(r.draft||!(r.defs||[]).some(d=>d.closeMode!=="FLOW"))?"disabled":""} onclick="issueOrder(${r.id})" title="把「內控／系統內結案」的缺失做成改善單，給船上填改善回報">📨 發改善單${r.issuedAt?"（已發）":""}</button>
         <button class="btn sm dark" onclick="importPreview(${r.id})" title="預覽匯入主系統時會建立哪些紀錄">➜ 匯入主系統</button>
         <button class="btn sm danger" onclick="delRec(${r.id})">🗑</button></span></div></td></tr>`;
@@ -365,6 +374,23 @@ async function issueOrder(id){
   (r.defs||[]).forEach(d=>{if(!d.uid)d.uid=newUid();}); // 舊登錄單的缺失補上固定 id，船上回報才對得回這一筆
   r.issuedAt=Date.now();await Store.save(r);renderList();
   alert("已複製下列內容，可貼入郵件發給船上：\n\n"+text+"\n\n船上打開連結後，會看到這張單的待改善缺失，填寫改善說明、完成日期並上傳改善後照片回報。");
+}
+/* 內控 Excel：欄位、順序與船舶動態與早會待辦系統「內控異常清單」匯出檔一致（16 欄，HTML 格式 .xls，Excel 可直接開） */
+function exportIcXls(id){
+  const r=Store.rows.find(x=>x.id===id);if(!r)return;
+  const ic=(r.defs||[]).filter(d=>d.closeMode==="內控");
+  if(!ic.length){toast("⚠ 這張登錄單沒有結案方式為「內控」的缺失",true);return;}
+  const sh=SHIPS.find(s=>s.code===r.ship)||{},fmtT=t=>{if(!t)return "";const x=new Date(t);return x.getFullYear()+"/"+String(x.getMonth()+1).padStart(2,"0")+"/"+String(x.getDate()).padStart(2,"0")+" "+String(x.getHours()).padStart(2,"0")+":"+String(x.getMinutes()).padStart(2,"0");};
+  const nowT=new Date();
+  const head=["序號","船舶","船型","報告日期","報告來源","關注程度","分類","設備故障細項","知曉事項","事項內容","解決計劃／最新狀態","涉及部門","同步到要事","案件狀態","結案日期","最後更新"];
+  const rows=ic.map((d,i)=>{
+    const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null,p=(rp&&rp.payload)||{},closed=effStatus(r,d)==="已結案";
+    return [i+1,sh.en||r.ship,sh.type1||"",slash(d.reported||r.dateFrom).replace(/\//g,"-"),icSource(d.type),d.icLevel||"",d.icCategory||"",d.icEquip||"",d.icAware?"是":"否",
+      d.finding||"",p.action||"待船上改善",(d.icDepts||[]).join("、"),d.icKey?"是":"否",closed?"已結案":"未完",closed?(p.corrected||"").replace(/\//g,"-"):"",fmtT(rp&&rp.updated_at||r.updatedAt)];
+  });
+  const td=v=>`<td>${esc(String(v??"")).replace(/\n/g,"<br>")}</td>`;
+  const html=`<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #b9c6d8;padding:7px 9px;vertical-align:top}.title{background:#173f63;color:#fff;font-size:20px;font-weight:700;text-align:left;padding:14px}.meta{background:#eaf2f8;color:#36536e;text-align:left}.header th{background:#2d6d8f;color:#fff;font-weight:700;white-space:nowrap}</style></head><body><table><thead><tr><th class="title" colspan="16">內控異常清單</th></tr><tr><th class="meta" colspan="16">來源：內部檢查缺失登錄（${esc(r.ship)} ${esc(dateText(r))}）｜共 ${rows.length} 件｜匯出時間 ${fmtT(nowT.getTime())}</th></tr><tr class="header">${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(x=>`<tr>${x.map(td).join("")}</tr>`).join("")}</tbody></table></body></html>`;
+  download(new Blob(["\ufeff",html],{type:"application/vnd.ms-excel"}),`內控異常_${r.ship}_${(dateText(r)||"").replace(/[\\/:*?"<>|～]/g,"-")}.xls`);
 }
 function exportIcJson(id){
   const r=Store.rows.find(x=>x.id===id);if(!r)return;
@@ -507,7 +533,7 @@ function importPreview(id){
 let cur=null,activeTab=null;
 const newUid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const blankDef=type=>({uid:newUid(),type,topic:"",category:"",risk:"",reported:cur&&cur.dateTo?cur.dateTo:(cur&&cur.dateFrom)||todayIso(),finding:"",photos:[],
-  closeMode:"",status:""});
+  closeMode:"",status:"",icLevel:"",icCategory:"",icEquip:"",icDepts:[],icDue:"",icAware:false,icKey:false});
 const blank=()=>({id:null,ship:"",dateFrom:todayIso(),dateTo:"",inspector:"",psn:"",types:[],master:"",co:"",ce:"",e2:"",overall:"",
   top4:{photos:[],cap:""},goodCrew:[],poorCrew:[],best:[],defs:[],sugg:[],draft:true});
 function newForm(){cur=blank();activeTab=null;openForm();}
@@ -618,8 +644,16 @@ function addDef(){
 }
 function delDef(i){if(!confirm("刪除這筆缺失？"))return;collect();cur.defs.splice(i,1);renderDefs();updateCounts();}
 function setD(i,f,v){cur.defs[i][f]=v;if(f==="topic")updateCounts();}
+function setIcCat(i,v){const d=cur.defs[i];d.icCategory=v;if(!isEquipFault(v))d.icEquip="";collect();renderDefs();}
+function toggleDept(i,name,on){const a=cur.defs[i].icDepts,ix=a.indexOf(name);if(on&&ix<0)a.push(name);if(!on&&ix>=0)a.splice(ix,1);const box=document.querySelector(`#def-${i} [data-f="icDepts"]`);if(box)box.classList.remove("bad");}
 function setMode(i,k){
-  cur.defs[i].closeMode=k;const el=$("#def-"+i);
+  const was=cur.defs[i].closeMode;
+  cur.defs[i].closeMode=k;
+  if(k==="內控"||was==="內控"){ // 內控才有「內控異常登錄資料」區塊，切換時重畫；關注程度預設帶入風險等級
+    if(k==="內控"&&!cur.defs[i].icLevel)cur.defs[i].icLevel=cur.defs[i].risk||"";
+    collect();renderDefs();updateCounts();return;
+  }
+  const el=$("#def-"+i);
   if(el){el.classList.remove("m-flow","m-ic","m-sys");const m=modeOf(k);if(m)el.classList.add("m-"+m.cls);const rw=el.querySelector('[data-f="closeMode"]');if(rw)rw.classList.remove("bad");}
   updateCounts();
 }
@@ -644,7 +678,16 @@ function renderDefs(){
         <div class="fld fw">待改善項目照片 Items to be corrected <span class="hint" style="font-weight:400">最多 ${MAX_DEF_PHOTOS} 張（改善完成的照片由船上在改善單填寫，這裡不用放）</span>${phHtml("def",i,MAX_DEF_PHOTOS)}</div>
         <div class="fld fw">結案方式 <span class="req">*</span>（單選）
           <div class="radios" data-f="closeMode">${MODES.map(mm=>`<label><input type="radio" name="cm-${i}" ${d.closeMode===mm.k?"checked":""} onchange="setMode(${i},'${mm.k}')"> ${esc(mm.label)}</label>`).join("")}</div>
-          <span class="hint" style="font-weight:400">FLOW：僅留紀錄、不發改善單，由船上至 FLOW 系統填單　｜　內控：發改善單並匯出內控 JSON　｜　系統內結案：發改善單，於系統內結案</span></div>
+          <span class="hint" style="font-weight:400">FLOW：僅留紀錄、不發改善單，由船上至 FLOW 系統填單　｜　內控：發改善單，並提供「內控 Excel」匯出（格式同船舶動態系統的內控異常清單）　｜　系統內結案：發改善單，於系統內結案</span></div>
+        ${d.closeMode==="內控"?`<div class="fld fw" style="border:1px dashed var(--signal);border-radius:8px;padding:12px;background:#fffaf5"><b style="color:var(--navy)">內控異常登錄資料（船舶動態與早會待辦系統的欄位）</b>
+          <div class="fgrid" style="margin-top:8px">
+            <label>關注程度 <span class="req">*</span><select data-f="icLevel" onchange="setD(${i},'icLevel',this.value)"><option value="">— 請選擇 —</option>${IC_LEVELS.map(s=>`<option ${d.icLevel===s?"selected":""}>${s}</option>`).join("")}</select></label>
+            <label>事件分類 <span class="req">*</span><select data-f="icCategory" onchange="setIcCat(${i},this.value)"><option value="">— 請選擇 —</option>${IC_CATEGORIES.map(s=>`<option ${d.icCategory===s?"selected":""}>${esc(s)}</option>`).join("")}</select></label>
+            <label>設備故障細項<select data-f="icEquip" ${isEquipFault(d.icCategory)?"":"disabled"} onchange="setD(${i},'icEquip',this.value)"><option value="">${isEquipFault(d.icCategory)?"請選擇":"不適用"}</option>${IC_EQUIP.map(s=>`<option ${d.icEquip===s?"selected":""}>${esc(s)}</option>`).join("")}</select></label>
+            <label>期望完成日期／DL（選填）<input type="date" value="${esc(d.icDue)}" onchange="setD(${i},'icDue',this.value)"></label>
+            <div class="checks" style="align-self:end;margin-bottom:6px"><label><input type="checkbox" ${d.icAware?"checked":""} onchange="setD(${i},'icAware',this.checked)"> 標記為知曉事項</label><label><input type="checkbox" ${d.icKey?"checked":""} onchange="setD(${i},'icKey',this.checked)"> 同步到要事</label></div>
+            <div class="fld fw">涉及部門 <span class="req">*</span><div class="checks" data-f="icDepts">${IC_DEPTS.map(n=>`<label><input type="checkbox" ${(d.icDepts||[]).includes(n)?"checked":""} onchange="toggleDept(${i},'${n}',this.checked)"> ${n}</label>`).join("")}</div></div>
+          </div></div>`:""}
       </div></div>`;}).join(""):(activeTab?`<p class="hint">這個分頁還沒有缺失，請按右上「＋ 新增一筆缺失」。</p>`:"");
 }
 /* 船舶訴求／建議 */
@@ -668,6 +711,11 @@ function validate(){
       const d=cur.defs[i],n=`【${(typeDef(k)||{label:k}).label}】第 ${seq+1} 筆缺失`,q=f=>`#def-${i} [data-f="${f}"]`;
       [["category","分類 Category"],["risk","風險等級"],["reported","Reported @（發現日期）"],["finding","待改善描述"]].forEach(([f,l])=>{if(!String(d[f]||"").trim())errs.push({msg:`${n}：「${l}」未填`,sel:q(f),tab:k});});
       if(!d.closeMode)errs.push({msg:`${n}：「結案方式」未選擇（FLOW／內控／系統內結案，須擇一）`,sel:q("closeMode"),tab:k});
+      if(d.closeMode==="內控"){
+        if(!d.icLevel)errs.push({msg:`${n}：內控「關注程度」未選`,sel:q("icLevel"),tab:k});
+        if(!d.icCategory)errs.push({msg:`${n}：內控「事件分類」未選`,sel:q("icCategory"),tab:k});
+        if(!(d.icDepts||[]).length)errs.push({msg:`${n}：內控「涉及部門」至少勾選一個`,sel:q("icDepts"),tab:k});
+      }
     });
   });
   return errs;
