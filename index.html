@@ -2861,6 +2861,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <button class="btn" id="air-tab-followup-btn" onclick="Air.showFollowUpList()">🔖 Follow Up</button>
         <button class="btn dark" id="air-tab-cloudqueue-btn" onclick="AirQueue.open()">☁ 線上填單審核佇列<span id="air-cq-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:5px"></span></button>
         <button class="btn" onclick="Air.openIntakeSite()">🔗 前往線上填單網站</button>
+        <button class="btn dark" id="air-tab-intaudit-btn" onclick="IntAuditQueue.open()">🛠 內部檢查登錄匯入<span id="air-ia-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:5px"></span></button>
         <button class="btn" id="air-tab-new-btn" onclick="Air.newForm()" style="display:none">＋ 新增填單</button>
       </div>
 
@@ -2889,6 +2890,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         </div>
       </div>
 
+      <div id="air-intaudit-page" style="display:none">
+        <div class="card">
+          <h3>🛠 內部檢查登錄匯入
+            <span class="hint" style="font-weight:400;margin-left:8px">督導／內部稽核員在「內部檢查缺失登錄」網頁送出的登錄單</span>
+            <span style="margin-left:auto;display:flex;gap:6px">
+              <button class="btn sm" id="air-ia-tab-pending" onclick="IntAuditQueue.setView('pending')">待匯入</button>
+              <button class="btn sm" id="air-ia-tab-imported" onclick="IntAuditQueue.setView('imported')">已匯入</button>
+              <button class="btn sm" id="air-ia-tab-draft" onclick="IntAuditQueue.setView('draft')">草稿</button>
+              <button class="btn sm" onclick="IntAuditQueue.refresh()">🔄 重新整理</button>
+            </span>
+          </h3>
+          <p class="hint" style="line-height:1.7">按「✓ 匯入」會一次建立：<b>每個檢查種類一筆檢查紀錄</b>（訪船、內稽、隨船…各一筆）、<b>每筆缺失一筆缺失紀錄</b>（檢查來源＝該缺失所屬的檢查種類；FLOW／內控／系統內結案的缺失都會留紀錄）、<b>每筆優良案例一筆正面評價</b>。「🔁 重新匯入」會更新原本那幾筆，不會重複新增。缺失分類（問題別／大類／具體名稱）登錄單裡沒有，匯入後請到缺失紀錄總表補。</p>
+          <div id="air-ia-list"></div>
+        </div>
+      </div>
       <div id="air-list-page">
         <div class="toolbar">
           <span class="lbl" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">篩選</span>
@@ -21229,7 +21245,7 @@ const Air={
     // 整排欄位就會錯位一格（「操作」表頭底下顯示的其實是原本「狀態」的內容，依此類推）。
     // 改成清空表頭文字內容、但保留這個 <th> 本身，維持欄位數量兩邊一致。
     const selallTh=$("#air-selall-th");if(selallTh)selallTh.innerHTML=ok?'<input type="checkbox" id="air-selall" onchange="Air.toggleAll(this.checked)">':"";
-    ["air-tab-cloudqueue-btn","air-replyedit-btn","air-replylist-btn","air-replyurl-btn","air-adddef-btn","air-addpos-btn",
+    ["air-tab-cloudqueue-btn","air-tab-intaudit-btn","air-replyedit-btn","air-replylist-btn","air-replyurl-btn","air-adddef-btn","air-addpos-btn",
      "air-newimport-btn","air-clearsel-btn","air-pushmodal-btn","air-sel-count"]
       .forEach(id=>{const el=$(id.startsWith("#")?id:"#"+id);if(el)el.style.display=ok?"":"none";});
     // 勾選狀態本身也一併清掉，避免「權限被拿掉前已經勾好的幾筆」殘留在背景、
@@ -21331,7 +21347,7 @@ const Air={
     $("#air-list-page").style.display="";
     $("#air-form-page").style.display="none";
     if($("#air-followup-page"))$("#air-followup-page").style.display="none";
-    if($("#air-cloudqueue-page"))$("#air-cloudqueue-page").style.display="none";
+    if($("#air-cloudqueue-page"))$("#air-cloudqueue-page").style.display="none";if($("#air-intaudit-page"))$("#air-intaudit-page").style.display="none";
     $("#air-tab-list-btn").className="btn primary";
     $("#air-tab-new-btn").className="btn";
     if($("#air-tab-followup-btn"))$("#air-tab-followup-btn").className="btn";
@@ -21342,7 +21358,7 @@ const Air={
     $("#air-list-page").style.display="none";
     $("#air-form-page").style.display="none";
     $("#air-followup-page").style.display="";
-    if($("#air-cloudqueue-page"))$("#air-cloudqueue-page").style.display="none";
+    if($("#air-cloudqueue-page"))$("#air-cloudqueue-page").style.display="none";if($("#air-intaudit-page"))$("#air-intaudit-page").style.display="none";
     $("#air-tab-list-btn").className="btn";
     $("#air-tab-new-btn").className="btn";
     $("#air-tab-followup-btn").className="btn primary";
@@ -21425,7 +21441,7 @@ const Air={
     const d=id==null?{}:App.air.find(x=>x.id===id)||{};
     $("#air-list-page").style.display="none";
     $("#air-form-page").style.display="";
-    if($("#air-cloudqueue-page"))$("#air-cloudqueue-page").style.display="none";
+    if($("#air-cloudqueue-page"))$("#air-cloudqueue-page").style.display="none";if($("#air-intaudit-page"))$("#air-intaudit-page").style.display="none";
     $("#air-tab-list-btn").className="btn";
     $("#air-tab-new-btn").className="btn primary";
     const fa=$("#air-form-actions");
@@ -24375,6 +24391,7 @@ const AirQueue={
     $("#air-list-page").style.display="none";
     $("#air-form-page").style.display="none";
     $("#air-followup-page").style.display="none";
+    if($("#air-intaudit-page"))$("#air-intaudit-page").style.display="none";
     $("#air-cloudqueue-page").style.display="";
     $("#air-tab-list-btn").className="btn";
     $("#air-tab-new-btn").className="btn";
@@ -24535,6 +24552,146 @@ window.addEventListener("beforeunload",e=>{
   }
 });
 
+
+/* ════════ 內部檢查登錄匯入 ════════
+   督導／稽核員在獨立網頁 intaudit.html 送出的登錄單（雲端資料表 intaudit_records），
+   由維護者在這裡匯入主系統：每個檢查種類一筆「檢查紀錄」、每筆缺失一筆「缺失紀錄總表」、
+   每筆優良案例一筆「正面評價/優秀案例」。外部頁面本身不碰主系統資料，避免同步衝突。
+   重新匯入會依上次記下的對應關係更新原本那幾筆，不會產生重複。 */
+const IntAuditQueue={
+  TABLE:"intaudit_records",rows:[],view:"pending",expandedId:null,
+  TYPE_LABEL:{"onboard visit":"訪船","Internal audit":"內稽","ACCOMPANYING SHIP":"隨船","Cross ship visit":"交叉訪船","主題檢查":"主題檢查","其他":"其他事項"},
+  RISK:{"高":"3","中":"2","低":"1"},
+  tl(k){return this.TYPE_LABEL[k]||k;},
+  setView(v){this.view=v;this.refresh();},
+  open(){
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／維護者可使用內部檢查登錄匯入");return;}
+    ["air-list-page","air-form-page","air-followup-page","air-cloudqueue-page"].forEach(id=>{const e=$("#"+id);if(e)e.style.display="none";});
+    $("#air-intaudit-page").style.display="";
+    ["air-tab-list-btn","air-tab-new-btn","air-tab-followup-btn"].forEach(id=>{const e=$("#"+id);if(e)e.className="btn";});
+    this.refresh();
+  },
+  async refresh(){
+    const box=$("#air-ia-list");if(!box)return;
+    box.innerHTML=`<p class="hint">讀取中…</p>`;
+    [["pending","待匯入"],["imported","已匯入"],["draft","草稿"]].forEach(([v])=>{const b=$("#air-ia-tab-"+v);if(b)b.className=this.view===v?"btn sm primary":"btn sm";});
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){box.innerHTML=`<p class="hint">⚠ 雲端未連線，無法讀取登錄單</p>`;return;}
+    try{
+      const rows=await Cloud.api(`${this.TABLE}?select=id,payload&order=id.desc&limit=500`)||[];
+      this.all=rows.map(r=>Object.assign({},r.payload,{id:r.id}));
+    }catch(e){
+      box.innerHTML=`<p class="hint">⚠ 讀取失敗：${esc(e.message)}（若是資料表不存在，請先在 Supabase SQL Editor 執行 intaudit_setup.sql）</p>`;return;
+    }
+    const pend=this.all.filter(r=>!r.draft&&!r.imported).length;
+    const bd=$("#air-ia-badge");if(bd){if(pend){bd.textContent=pend;bd.style.display="";}else bd.style.display="none";}
+    this.rows=this.all.filter(r=>this.view==="draft"?!!r.draft:this.view==="imported"?(!r.draft&&!!r.imported):(!r.draft&&!r.imported));
+    this.render();
+  },
+  counts(r){
+    const ds=r.defs||[];
+    return (r.types||[]).map(k=>`${this.tl(k)}缺失 ${ds.filter(d=>d.type===k).length} 項`).join("、")+`、優良案例 ${(r.best||[]).length} 項`;
+  },
+  render(){
+    const box=$("#air-ia-list");if(!box)return;
+    if(!this.rows.length){box.innerHTML=`<p class="hint">${this.view==="imported"?"目前沒有已匯入的登錄單。":this.view==="draft"?"目前沒有草稿。":"目前沒有待匯入的登錄單。"}</p>`;return;}
+    box.innerHTML=this.rows.map(r=>{
+      const open=this.expandedId===r.id;
+      const btns=r.draft?`<span class="hint">草稿，填寫人尚未送出</span>`
+        :r.imported?`<button class="btn sm" onclick="IntAuditQueue.toggle(${r.id})">${open?"收合":"👀 預覽"}</button><button class="btn sm dark" onclick="IntAuditQueue.importRow(${r.id})">🔁 重新匯入（更新）</button>`
+        :`<button class="btn sm" onclick="IntAuditQueue.toggle(${r.id})">${open?"收合":"👀 預覽"}</button><button class="btn sm dark" onclick="IntAuditQueue.importRow(${r.id})">✓ 匯入</button>`;
+      return `<div class="card" style="margin-bottom:10px;background:#fafbfc">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <b>${esc(r.ship||"（未填船名）")}</b>
+          <span class="hint">${esc(r.dateFrom||"")}${r.dateTo&&r.dateTo!==r.dateFrom?"～"+esc(r.dateTo):""} ・ ${esc(r.psn||"")} ・ 檢查人 ${esc(r.inspector||"")}</span>
+          <span class="hint">${esc(this.counts(r))}</span>
+          ${r.imported?`<span class="hint" style="color:var(--ok);font-weight:700">✓ 已匯入 ${esc(new Date(r.imported.at).toLocaleString("zh-TW",{hour12:false}))} ${esc(r.imported.by||"")}</span>`:""}
+          <span style="margin-left:auto;display:flex;gap:6px">${btns}</span>
+        </div>${open?this.preview(r):""}</div>`;
+    }).join("");
+  },
+  toggle(id){this.expandedId=this.expandedId===id?null:id;this.render();},
+  preview(r){
+    const ds=r.defs||[];
+    const lines=(r.types||[]).map(k=>{
+      const n=ds.filter(d=>d.type===k).length;
+      return `<li>檢查紀錄 1 筆：<b>${esc(this.tl(k))}</b>（檢查來源 <code>${esc(k)}</code>）　→　缺失紀錄 ${n} 筆</li>`;
+    }).join("");
+    return `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;font-size:12.5px">
+      <p><b>匯入後會建立：</b></p><ul style="margin:4px 0 8px 18px;line-height:1.9">${lines}<li>正面評價／優秀案例 ${(r.best||[]).length} 筆</li></ul>
+      <p class="hint">缺失的「分類 Category」會放進缺失紀錄的 CODE 欄；缺失分類（問題別／大類／具體名稱）不在登錄單裡，匯入後請在缺失紀錄總表補分類。結案方式為「內控」的缺失會勾選「內控」。船舶訴求／建議與 TOP4 照片、優良案例照片不會匯入。</p>
+      ${ds.map((d,i)=>`<div style="margin-bottom:6px;padding:6px 8px;background:#fff;border:1px solid var(--line);border-radius:6px">
+        <b>${esc(this.tl(d.type))}缺失 #${i+1}</b>　${esc(d.category||"")}${d.topic?`　<span class="hint">${esc(d.topic)}</span>`:""}　風險 ${esc(d.risk||"")}　<span class="hint">結案方式：${esc(d.closeMode||"")}</span><br>${esc(d.finding||"")}${(d.photos||[]).length?`<div class="hint">📷 ${d.photos.length} 張照片</div>`:""}</div>`).join("")}
+    </div>`;
+  },
+  async importRow(id){
+    if(!await Guard.require()){toast("⚠ 匯入僅限維護者操作");return;}
+    const r=this.rows.find(x=>x.id===id);if(!r||r.draft)return;
+    const again=!!r.imported;
+    const nDef=(r.defs||[]).length,nBest=(r.best||[]).length;
+    if(!confirm(again
+      ?`這張登錄單先前已匯入過。\n\n重新匯入會依上次的對應關係「更新」原本那幾筆紀錄（找不到的視為新增），不會產生重複。\n要繼續嗎？`
+      :`確定匯入「${r.ship} ${r.dateFrom}」？\n\n將建立：檢查紀錄 ${(r.types||[]).length} 筆、缺失紀錄 ${nDef} 筆、正面評價 ${nBest} 筆。`))return;
+    const by=(typeof Audit!=="undefined")?Audit.user():"",now=Date.now();
+    const date=normDateSlash(r.dateFrom),ym=ymOf(date);
+    const vt=((typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(s=>s.code===r.ship)||{}).vtype||"";
+    const meta={_impAt:now,_impBy:by,intAuditId:r.id};
+    // 檢查紀錄：每個檢查種類一筆；找得到同船同檢查來源同日期的既有紀錄就更新，不重複新增
+    const inspIds=Object.assign({},(r.imported||{}).inspIds||{});
+    (r.types||[]).forEach((k,ti)=>{
+      const payload=Object.assign({ship:r.ship,vtype:vt,itype:k,date,loc:r.psn||"",inspector:r.inspector||"",unit:"",
+        ndef:(r.defs||[]).filter(d=>d.type===k).length,npos:ti===0?nBest:0,flagType:""},meta);
+      let ex=inspIds[k]!=null?App.insp.find(x=>x.id===inspIds[k]):null;
+      if(!ex)ex=App.insp.find(x=>x.ship===r.ship&&x.itype===k&&x.date===date)||null;
+      if(ex){Object.assign(ex,payload);inspIds[k]=ex.id;}
+      else{const nid=App.nextInspId();App.insp.push(Object.assign({id:nid},payload,{detain:""}));inspIds[k]=nid;}
+    });
+    // 缺失紀錄：每筆缺失一筆，檢查來源＝該缺失所屬的檢查種類；FLOW／內控／系統內結案的缺失都要留紀錄
+    let dAdd=0,dUpd=0;
+    (r.defs||[]).forEach(d=>{
+      const ic=d.closeMode==="內控";
+      const payload=Object.assign({ship:r.ship,vtype:vt,itype:d.type,date,ym,place:r.psn||"",oilco:"",inspector:r.inspector||"",psc:"",
+        code:d.category||"",detail:d.finding||"",actual:"",preventive:"",corrective:"",rootCause:"",opComment:"",immediateCause:"",
+        needControl:ic,internalControl:ic,rank:"",person:"",risk:this.RISK[d.risk]||"",
+        ncProb:"",ncMain:"",ncLeaf:"",ncRoot:"",ncFactor:"",ncImp:"",ncFocus:"",ncMethod:"",ncOpinion:"",
+        photosBefore:Array.isArray(d.photos)?d.photos:[],photosAfter:[],
+        intAuditTopic:d.topic||"",intAuditCloseMode:d.closeMode||""},meta);
+      const ex=d.importedDefId!=null?App.defs.find(x=>String(x.id)===String(d.importedDefId)):null;
+      if(ex){
+        const safe=Object.assign({},payload);
+        ["ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","rank","person"].forEach(k=>delete safe[k]); // 重新匯入不要洗掉海技已經補好的分類
+        if(!safe.photosBefore.length)delete safe.photosBefore;
+        Object.assign(ex,safe);dUpd++;
+      }else{
+        const rec=Object.assign({id:App.nextId(),attn:false},payload);
+        App.defs.push(rec);d.importedDefId=rec.id;dAdd++;
+      }
+    });
+    // 正面評價：每筆優良案例一筆
+    let pAdd=0,pUpd=0;
+    (r.best||[]).forEach(b=>{
+      if(!b.category&&!b.brief&&!b.people)return;
+      const payload=Object.assign({ship:r.ship,date,ym,code:"",item:b.category||"",comment:b.brief||"",rank:b.rank||"",person:b.people||""},meta);
+      const ex=b.importedPosId!=null?App.sirePos.find(x=>String(x.id)===String(b.importedPosId)):null;
+      if(ex){Object.assign(ex,payload);pUpd++;}
+      else{const pid=(typeof SirePos!=="undefined")?SirePos.nextId():(App.sirePos.reduce((m,x)=>Math.max(m,+x.id||0),0)+1);
+        App.sirePos.push(Object.assign({id:pid},payload));b.importedPosId=pid;pAdd++;}
+    });
+    if(typeof Audit!=="undefined")Audit.log(again?"重新匯入":"匯入","內部檢查登錄",`${r.ship} ${r.dateFrom}：檢查紀錄 ${(r.types||[]).length} 筆、缺失 新增${dAdd}／更新${dUpd}、正面評價 新增${pAdd}／更新${pUpd}`);
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
+    try{if(typeof Ov!=="undefined"){Ov.init();Ov.render();}if(typeof InspCtrl!=="undefined")InspCtrl.render();
+      if(typeof Defs!=="undefined"){Defs.init();Defs.render();}if(typeof SirePos!=="undefined")SirePos.init();}catch(e){}
+    // 把對應關係記回登錄單，之後重新匯入才能更新而不是重複新增
+    r.imported={at:now,by,inspIds};
+    try{
+      await Cloud.api(`${this.TABLE}?id=eq.${r.id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),body:JSON.stringify({payload:r,updated_at:now})});
+    }catch(e){
+      alert("⚠ 已匯入主系統，但「已匯入」標記寫回雲端登錄單失敗："+e.message+"\n\n請不要重複按匯入（會多出重複紀錄），請聯絡維護者。");
+      return;
+    }
+    toast(`✓ 已匯入：檢查紀錄 ${(r.types||[]).length} 筆、缺失 ${dAdd+dUpd} 筆、正面評價 ${pAdd+pUpd} 筆`);
+    this.refresh();
+  }
+};
 
 /* ════════ 0.5 重複性缺失分析 ════════ */
 
