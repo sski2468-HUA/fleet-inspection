@@ -94,9 +94,15 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
 .qnav{display:flex;flex-wrap:wrap;gap:5px;margin-left:8px}
 .qnav a{cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--navy);background:#eef3f6;border:1px solid var(--line-2);border-radius:5px;padding:2px 8px;text-decoration:none}
 .qnav a:hover{background:var(--navy);color:#fff}
+.qnav a.m-flow{border-color:#8195a0;background:#eceff1}.qnav a.m-ic{border-color:var(--signal);background:#fdeedf}.qnav a.m-sys{border-color:var(--teal);background:var(--teal-l)}.qnav a.m-none{border-style:dashed;background:#fff;color:var(--ink-3)}
+.fchip{border:1px solid var(--line-2);background:#fff;border-radius:999px;padding:5px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans);color:var(--ink-2)}
+.fchip b{font-family:var(--mono);margin-left:6px;color:var(--navy)}
+.fchip.flow{border-left:4px solid #8195a0}.fchip.ic{border-left:4px solid var(--signal)}.fchip.sys{border-left:4px solid var(--teal)}.fchip.none{border-left:4px dashed var(--line-2)}
+.fchip.on{background:var(--navy);border-color:var(--navy);color:#fff}.fchip.on b{color:#fff}
 .modal{position:fixed;inset:0;background:rgba(15,30,45,.5);display:none;align-items:flex-start;justify-content:center;z-index:100;overflow:auto;padding:24px 10px}
 .modal .box{background:#fff;border-radius:10px;width:min(1440px,98vw);padding:18px 20px 22px;font-size:15px}
-.bt{table-layout:fixed;min-width:1080px}
+.bt{table-layout:fixed;min-width:1280px}
+.ph.s,.ph.s img{width:48px;height:48px}.phadd.s{width:48px;height:48px;font-size:22px}
 .bt th{font-size:13px;padding:8px 8px;position:sticky;top:0}
 .bt td{padding:6px 6px;border-bottom:1px solid var(--line)}
 .bt input,.bt select,.bt textarea{font-size:15px;padding:9px 10px}
@@ -153,6 +159,7 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
         <span class="cchip sys">系統內結案<b id="cSys">0</b> 筆</span>
         <span class="cchip none">尚未選擇<b id="cNone">0</b> 筆</span>
         <span style="flex:1"></span>
+        <span class="hint" id="autoState" style="font-weight:600"></span>
         <button class="btn sm" onclick="cancelForm()">取消</button>
         <button class="btn sm" onclick="saveDraft()">💾 儲存草稿</button>
         <button class="btn sm primary" onclick="submitForm()">✓ 檢查並送出</button>
@@ -168,7 +175,7 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
         <label>訪問船舶 Ship Visited <span class="req">*</span><select id="fShipSel"></select></label>
         <label>檢查日期（起）<span class="req">*</span><input type="date" id="fDateFrom" onchange="onDateChange()"></label>
         <label>檢查日期（迄）<span class="hint" style="font-weight:400">單日檢查可不填</span><input type="date" id="fDateTo"></label>
-        <label>檢查人 Auditor <span class="req">*</span><select id="fInspector"></select><span class="hint" style="font-weight:400">名單來自系統名冊的督導；找不到請洽海技新增</span></label>
+        <label>檢查人 Auditor <span class="req">*</span><select id="fInspector"></select><span class="hint" style="font-weight:400">名單來自系統名冊的督導與海技人員；找不到請洽海技新增</span></label>
         <label>地點 Ship's PSN <span class="req">*</span><input type="text" id="fPsn" list="dlPorts" placeholder="請用英文打幾個字選港口，例：Kaohsiung" autocomplete="off"><datalist id="dlPorts"></datalist></label>
         <div></div>
         <div class="fld fw">檢查種類 Audit Type <span class="req">*</span>（可複選；缺失明細會依所選種類分頁）
@@ -204,6 +211,7 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
       <h3>④ 缺失明細 <span class="hint" style="font-weight:400">先在基本資料勾選檢查種類，再點下方分頁登錄該種類的缺失；每筆必填「結案方式」（單選）</span></h3>
       <div class="subtabs" id="defTabs"></div>
       <div id="defTabHead" class="toolbar" style="margin:0 0 10px"></div>
+      <div id="defNav" style="margin:0 0 12px"></div>
       <div id="defList"></div>
     </div>
 
@@ -219,11 +227,18 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
     </div>
   </div>
 </div>
+<!-- 匯出 -->
+<div class="modal" id="exportModal"><div class="box" style="width:min(640px,96vw)">
+  <h3 style="margin:0 0 4px;font-size:18px;color:var(--navy)">⬇ 匯出</h3>
+  <div class="hint" id="exportSub" style="margin-bottom:10px"></div>
+  <div id="exportRows"></div>
+  <div class="toolbar" style="justify-content:flex-end;margin:12px 0 0"><button class="btn" onclick="closeExport()">關閉</button></div>
+</div></div>
 <!-- 批量新增缺失 -->
 <div class="modal" id="batchModal"><div class="box">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
     <h3 style="margin:0;font-size:18px;color:var(--navy)" id="batchTitle">批量新增缺失</h3>
-    <span class="hint" style="font-size:13px">一列一筆缺失；空白列不會加入。照片請加入後，再到各筆缺失補上（每筆最多 3 張）。</span>
+    <span class="hint" style="font-size:13px">一列一筆缺失；空白列不會加入。每筆可直接上傳最多 3 張照片。</span>
   </div>
   <div class="toolbar" style="margin:0 0 10px;font-size:13.5px">
     <b>套用到「尚未填」的列：</b>
@@ -234,7 +249,7 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
   </div>
   <div style="overflow:auto;border:1px solid var(--line);border-radius:8px;max-height:64vh">
     <table class="bt"><thead><tr>
-      <th style="width:40px">#</th><th style="width:210px" id="bThTopic">主題</th><th style="width:150px">分類 Category *</th><th style="width:100px">風險 *</th><th style="width:150px">發現日期 *</th><th>待改善描述 Finding Brief *</th><th style="width:170px">結案方式 *</th><th style="width:46px"></th>
+      <th style="width:40px">#</th><th style="width:210px" id="bThTopic">主題</th><th style="width:150px">分類 Category *</th><th style="width:100px">風險 *</th><th style="width:150px">發現日期 *</th><th>待改善描述 Finding Brief *</th><th style="width:170px">結案方式 *</th><th style="width:176px">照片（選填，最多 3 張）</th><th style="width:46px"></th>
     </tr></thead><tbody id="batchBody"></tbody></table>
   </div>
   <div class="toolbar" style="justify-content:flex-end;margin:14px 0 0">
@@ -282,10 +297,10 @@ let SHIPS=[],SUPERVISORS=[];
 async function getKey(k){const r=await withTimeout(api(`app_db?select=payload&k=eq.${encodeURIComponent(k)}`),8000);return r&&r[0]?r[0].payload:null;}
 async function loadLists(){
   try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,type1:s.type1||""}));}catch(e){}
-  try{const p=await getKey("roster");if(Array.isArray(p))SUPERVISORS=[...new Set(p.filter(r=>r.dept==="督導").map(r=>r.name))].filter(Boolean).sort();}catch(e){}
+  try{const p=await getKey("roster");if(Array.isArray(p))SUPERVISORS=[...new Set(p.filter(r=>r.dept==="督導"||r.dept==="海技組").map(r=>r.name))].filter(Boolean).sort();}catch(e){}
   $("#dlPorts").innerHTML=PORTS.concat(["At Sea"]).map(p=>`<option value="${esc(p)}">`).join("");
   if(!SHIPS.length)toast("⚠ 船舶清單讀取失敗，請確認網路後重新整理頁面",true);
-  if(!SUPERVISORS.length)toast("⚠ 督導名單讀取失敗，請確認網路後重新整理頁面",true);
+  if(!SUPERVISORS.length)toast("⚠ 檢查人名單讀取失敗，請確認網路後重新整理頁面",true);
   $("#fShip").innerHTML='<option value="">全部船舶</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}">${esc(s.code)} ${esc(s.name)}</option>`).join("");
 }
 
@@ -346,6 +361,7 @@ function download(blob,name){const a=document.createElement("a");a.href=URL.crea
 
 /* ══════ 登錄紀錄（清單） ══════ */
 function showList(){
+  stopAutoSave();
   $("#listPage").style.display="";$("#formPage").style.display="none";
   $("#btnList").classList.add("primary");$("#btnNew").classList.remove("primary");
   renderList();
@@ -380,7 +396,7 @@ function renderList(){
   rows.forEach(r=>{
     if(fs&&r.ship!==fs)return;
     const ds=(r.defs||[]).filter(d=>(!fm||d.closeMode===fm)&&(!fst||effStatus(r,d)===fst)&&
-      (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,d.topic].join(" ").toLowerCase().includes(q)));
+      (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,topicText(d)].join(" ").toLowerCase().includes(q)));
     if(!ds.length&&(fm||fst||q))return;
     n+=ds.length;
     const types=(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、");
@@ -393,10 +409,7 @@ function renderList(){
       <span class="hint" style="flex-basis:100%;font-weight:400">${esc(summaryText(r))}</span>
       <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn sm" onclick="editRec(${r.id})">✎ 編輯</button>
-        <button class="btn sm" onclick="exportWord(${r.id})" title="以原記錄表的頁首／頁尾為範本，輸出 .docx（含照片）">⬇ Word</button>
-        <button class="btn sm" onclick="exportJson(${r.id})">⬇ JSON</button>
-        <button class="btn sm" ${hasIC?"":"disabled"} onclick="exportIcXls(${r.id})" title="只含結案方式為「內控」的缺失；欄位格式同船舶動態系統的內控異常清單（動態系統目前沒有匯入功能，可依此表逐筆新增）">⬇ 內控 Excel</button>
-        <button class="btn sm" ${hasIC?"":"disabled"} onclick="exportIcJson(${r.id})" title="只含結案方式為「內控」的缺失（含船上回報內容，供日後匯入用）">⬇ 內控 JSON</button>
+        <button class="btn sm" onclick="openExport(${r.id})" title="Word／JSON／內控 Excel／內控 JSON">⬇ 匯出</button>
         <button class="btn sm" ${(r.draft||!(r.defs||[]).some(d=>d.closeMode!=="FLOW"))?"disabled":""} onclick="issueOrder(${r.id})" title="把「內控／系統內結案」的缺失做成改善單，給船上填改善回報">📨 發改善單${r.issuedAt?"（已發）":""}</button>
         <button class="btn sm dark" onclick="importPreview(${r.id})" title="預覽匯入主系統時會建立哪些紀錄">➜ 匯入主系統</button>
         <button class="btn sm danger" onclick="delRec(${r.id})">🗑</button></span></div></td></tr>`;
@@ -405,7 +418,7 @@ function renderList(){
       const es=effStatus(r,d);
       const nxt=d.closeMode==="FLOW"?`<span class="hint">船上自行至 FLOW 系統填單</span>`:es==="待船上改善"?`<span class="hint">${r.issuedAt?"已發改善單，等船上回報":"尚未發改善單"}</span>`:es==="船上已回報"?`<span class="hint">船上已回報，待海技審核</span>`:`<span class="hint">已結案</span>`;
       return `<tr><td style="text-align:center">${i+1}</td>
-        <td><b>${esc(d.category||"—")}</b><div class="hint">${esc(td?td.label:d.type)}${d.topic?"・"+esc(d.topic):""}</div></td>
+        <td><b>${esc(d.category||"—")}</b><div class="hint">${esc(td?td.label:d.type)}${topicText(d)?"・"+esc(topicText(d)):""}</div></td>
         <td style="white-space:pre-line;max-width:520px">${esc(d.finding||"")}${(d.photos||[]).length?`<div class="hint">📷 ${d.photos.length} 張照片</div>`:""}</td>
         <td>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">${esc(d.risk)}</span>`:""}</td>
         <td>${m?`<span class="mode ${m.cls}">${esc(m.label)}</span>`:'<span class="hint">未選</span>'}</td>
@@ -416,6 +429,20 @@ function renderList(){
   $("#listStat").textContent=`顯示 ${n} 筆缺失`;
 }
 async function delRec(id){if(!confirm("確定刪除這張登錄單？此動作無法復原。"))return;await Store.remove(id);renderList();}
+/* 匯出：一個按鈕，跳出視窗列出可下載的項目 */
+function openExport(id){
+  const r=Store.rows.find(x=>x.id===id);if(!r)return;
+  const nIc=(r.defs||[]).filter(d=>d.closeMode==="內控").length;
+  $("#exportSub").innerHTML=`${esc(r.ship)}　${esc(dateText(r))}　檔名：<span style="font-family:var(--mono)">${esc(exportBaseName(r))}</span>`;
+  const row=(fn,label,desc,dis)=>`<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)"><button class="btn primary" style="min-width:150px" ${dis?"disabled":""} onclick="${fn}(${id})">${label}</button><div class="hint" style="font-size:12.5px">${desc}</div></div>`;
+  $("#exportRows").innerHTML=
+    row("exportWord","⬇ Word（.docx）","檢查缺失具體項目記錄表：含照片，若船上已回報，改善措施／完成日期／證據照片也會一併帶入；每條缺失獨立一頁",false)+
+    row("exportJson","⬇ JSON","這張登錄單的完整資料（含照片），可備份或日後匯入",false)+
+    row("exportIcXls","⬇ 內控 Excel（.xls）",nIc?`只含結案方式為「內控」的 ${nIc} 筆缺失；欄位同船舶動態系統的內控異常清單（16 欄）`:"這張登錄單沒有結案方式為「內控」的缺失",!nIc)+
+    row("exportIcJson","⬇ 內控 JSON",nIc?"只含「內控」缺失，含船上回報內容，供日後匯入用":"這張登錄單沒有結案方式為「內控」的缺失",!nIc);
+  $("#exportModal").style.display="flex";
+}
+function closeExport(){$("#exportModal").style.display="none";}
 function exportJson(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;download(new Blob([JSON.stringify(r,null,1)],{type:"application/json"}),fname(r,".json"));}
 /* 發改善單：內控／系統內結案的缺失才需要船上改善。複製「單名＋連結」貼進郵件發給船上，並記下已發單。 */
 async function issueOrder(id){
@@ -447,7 +474,7 @@ function exportIcXls(id){
   });
   const td=v=>`<td>${esc(String(v??"")).replace(/\n/g,"<br>")}</td>`;
   const html=`<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #b9c6d8;padding:7px 9px;vertical-align:top}.title{background:#173f63;color:#fff;font-size:20px;font-weight:700;text-align:left;padding:14px}.meta{background:#eaf2f8;color:#36536e;text-align:left}.header th{background:#2d6d8f;color:#fff;font-weight:700;white-space:nowrap}</style></head><body><table><thead><tr><th class="title" colspan="16">內控異常清單</th></tr><tr><th class="meta" colspan="16">來源：內部檢查缺失登錄（${esc(r.ship)} ${esc(dateText(r))}）｜共 ${rows.length} 件｜匯出時間 ${fmtT(nowT.getTime())}</th></tr><tr class="header">${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(x=>`<tr>${x.map(td).join("")}</tr>`).join("")}</tbody></table></body></html>`;
-  download(new Blob(["\ufeff",html],{type:"application/vnd.ms-excel"}),`內控異常_${r.ship}_${(dateText(r)||"").replace(/[\\/:*?"<>|～]/g,"-")}.xls`);
+  download(new Blob(["\ufeff",html],{type:"application/vnd.ms-excel"}),fname(r,".xls","_內控異常清單"));
 }
 function exportIcJson(id){
   const r=Store.rows.find(x=>x.id===id);if(!r)return;
@@ -455,9 +482,9 @@ function exportIcJson(id){
   if(!ic.length){toast("⚠ 這張登錄單沒有結案方式為「內控」的缺失",true);return;}
   // 帶上目前實際狀態與船上回報內容（結案後再匯出一次，就能更新船舶動態系統裡的狀態）
   const defs=ic.map(d=>{const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;return Object.assign({},d,{currentStatus:effStatus(r,d),reply:rp?Object.assign({status:rp.status},rp.payload):null});});
-  download(new Blob([JSON.stringify({ship:r.ship,date:dateText(r),inspector:r.inspector,psn:r.psn,types:r.types,defs},null,1)],{type:"application/json"}),`${r.ship}_${dateText(r).replace(/[\\/:*?"<>|～]/g,"-")}_內控缺失.json`);
+  download(new Blob([JSON.stringify({ship:r.ship,date:dateText(r),inspector:r.inspector,psn:r.psn,types:r.types,defs},null,1)],{type:"application/json"}),fname(r,".json","_內控缺失"));
 }
-const fname=(r,ext)=>`${r.ship||"船名"}_${(dateText(r)||"檢查日期").replace(/[\\/:*?"<>|～]/g,"-")}_檢查缺失具體項目記錄表${ext}`;
+const fname=(r,ext,suffix)=>exportBaseName(r)+(suffix||"")+ext;
 /* Word 匯出：內容含船上回報（若有）——改善措施、完成日期、證據備註與改善後照片，寫在各缺失表格對應欄位 */
 async function exportWord(id){
   const r=Store.rows.find(x=>x.id===id);if(!r)return;
@@ -495,19 +522,40 @@ function renderSecTabs(){
 }
 function setSec(k){if(cur)collect();secTab=k;renderSecTabs();}
 function openForm(sec){
-  secTab=sec||"basic";
+  secTab=sec||"basic";defFilter="";
   $("#listPage").style.display="none";$("#formPage").style.display="";
   $("#btnList").classList.remove("primary");$("#btnNew").classList.add("primary");$("#errBox").style.display="none";
   $("#fShipSel").innerHTML='<option value="">— 請選擇船舶 —</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}" ${cur.ship===s.code?"selected":""}>${esc(s.code)} ${esc(s.name)}</option>`).join("");
   const insp=SUPERVISORS.slice();if(cur.inspector&&!insp.includes(cur.inspector))insp.unshift(cur.inspector);
-  $("#fInspector").innerHTML='<option value="">— 請選擇督導 —</option>'+insp.map(n=>`<option ${cur.inspector===n?"selected":""}>${esc(n)}</option>`).join("");
+  $("#fInspector").innerHTML='<option value="">— 請選擇檢查人 —</option>'+insp.map(n=>`<option ${cur.inspector===n?"selected":""}>${esc(n)}</option>`).join("");
   $("#fDateFrom").value=cur.dateFrom||"";$("#fDateTo").value=cur.dateTo||"";$("#fPsn").value=cur.psn||"";
   $("#fMaster").value=cur.master||"";$("#fCo").value=cur.co||"";$("#fCe").value=cur.ce||"";$("#f2e").value=cur.e2||"";
   $("#fOverall").value=cur.overall||"";$("#fTop4Cap").value=cur.top4.cap||"";
   renderTypes();renderTop4();renderCrew("good");renderCrew("poor");renderBest();renderDefs();renderSugg();updateCounts();
-  window.scrollTo({top:0});
+  window.scrollTo({top:0});startAutoSave();
 }
-function cancelForm(){if(!confirm("放棄目前填寫的內容並回到登錄紀錄？"))return;showList();}
+function cancelForm(){if(!confirm("放棄目前填寫的內容並回到登錄紀錄？\n（已自動儲存過的草稿會保留在登錄紀錄中）"))return;showList();}
+/* 自動儲存：每 20 秒檢查一次，內容有變動就把草稿存到雲端（新登錄單與草稿適用）。
+   已送出的登錄單不自動覆蓋（避免半途的修改被船上看到），請按「檢查並送出」儲存。 */
+let autoTimer=null,lastSnap="",autoBusy=false;
+const snapNow=()=>{try{collect();return JSON.stringify(cur);}catch(e){return "";}};
+function setAutoState(msg,warn){const el=$("#autoState");if(!el)return;el.textContent=msg;el.style.color=warn?"#b5610f":"#2e8b57";}
+function startAutoSave(){
+  stopAutoSave();lastSnap=snapNow();
+  setAutoState(cur.draft===false?"編輯已送出的登錄單：完成後請按「檢查並送出」儲存":"",cur.draft===false);
+  autoTimer=setInterval(autoSave,20000);
+}
+function stopAutoSave(){if(autoTimer){clearInterval(autoTimer);autoTimer=null;}}
+async function autoSave(){
+  if(!cur||autoBusy||$("#formPage").style.display==="none"||cur.draft===false)return;
+  const s=snapNow();if(!s||s===lastSnap)return;
+  if(!cur.ship&&!cur.inspector&&!cur.overall&&!cur.defs.length&&!cur.best.length&&!cur.sugg.length)return;
+  autoBusy=true;
+  const ok=await persist(true);
+  autoBusy=false;
+  if(ok){lastSnap=snapNow();const d=new Date();setAutoState(`✓ 資料已自動儲存（${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}）`);}
+  else setAutoState("⚠ 自動儲存失敗，請按「儲存草稿」",true);
+}
 function collect(){
   const g=id=>$(id).value.trim();
   cur.ship=$("#fShipSel").value;cur.dateFrom=$("#fDateFrom").value;cur.dateTo=$("#fDateTo").value;cur.inspector=$("#fInspector").value;cur.psn=g("#fPsn");
@@ -529,7 +577,7 @@ function toggleType(k,on){
   renderTypes();renderDefs();updateCounts();
 }
 /* 照片：讀檔、縮圖（長邊 1280px）、預覽、刪除 */
-function listOf(scope,i,j){return scope==="top4"?cur.top4.photos:scope==="best"?cur.best[i].photos:cur.defs[i].photos;}
+function listOf(scope,i,j){return scope==="top4"?cur.top4.photos:scope==="best"?cur.best[i].photos:scope==="sugg"?(cur.sugg[i].photos=cur.sugg[i].photos||[]):cur.defs[i].photos;}
 function phHtml(scope,i,max){
   const list=listOf(scope,i),full=max&&list.length>=max;
   return `<div class="phs">${list.map((p,k)=>`<div class="ph"><img src="${p.dataUrl}" title="${esc(p.name)}" onclick="openLightbox(listOf('${scope}',${i})[${k}].dataUrl)"><button type="button" title="刪除這張照片" onclick="delPhoto('${scope}',${i},${k})">×</button></div>`).join("")}
@@ -544,7 +592,7 @@ async function addPhotos(scope,i,input,max){
   collect();refreshPh(scope);
 }
 function delPhoto(scope,i,k){listOf(scope,i).splice(k,1);collect();refreshPh(scope);}
-function refreshPh(scope){if(scope==="top4")renderTop4();else if(scope==="best")renderBest();else renderDefs();}
+function refreshPh(scope){if(scope==="top4")renderTop4();else if(scope==="best")renderBest();else if(scope==="sugg")renderSugg();else renderDefs();}
 function renderTop4(){$("#top4Ph").innerHTML=phHtml("top4",0,0);}
 /* 表現亮眼／較差船員：姓名／職級（系統職務別）／簡述 */
 function crewArr(w){return w==="good"?cur.goodCrew:cur.poorCrew;}
@@ -560,15 +608,22 @@ function renderCrew(w){
     <button class="btn sm danger" type="button" onclick="delCrew('${w}',${i})">🗑</button></div>`).join(""):`<span class="hint" style="font-weight:400">${w==="good"?"尚未新增":"無則不必填（N/A）"}</span>`;
 }
 /* 優良案例 */
-function addBest(){collect();cur.best.push({category:"",people:"",rank:"",brief:"",photos:[]});renderBest();updateCounts();}
+function addBest(){collect();cur.best.push({category:"",persons:[{name:"",rank:""}],people:"",rank:"",brief:"",photos:[]});renderBest();updateCounts();}
+/* 涉及人員：可有多位（姓名＋職務）；people／rank 兩個字串欄位由 persons 自動彙整，匯入主系統與舊資料沿用 */
+function bestPersons(x){if(!x.persons)x.persons=(x.people||x.rank)?[{name:x.people||"",rank:x.rank||""}]:[{name:"",rank:""}];return x.persons;}
+function syncBest(i){const x=cur.best[i],ps=bestPersons(x);x.people=ps.map(p=>p.name.trim()).filter(Boolean).join("、");x.rank=[...new Set(ps.map(p=>p.rank).filter(Boolean))].join("、");}
+function setBP(i,j,f,v){bestPersons(cur.best[i])[j][f]=v;syncBest(i);}
+function addBP(i){collect();bestPersons(cur.best[i]).push({name:"",rank:""});syncBest(i);renderBest();}
+function delBP(i,j){collect();const ps=bestPersons(cur.best[i]);ps.splice(j,1);if(!ps.length)ps.push({name:"",rank:""});syncBest(i);renderBest();}
 function delBest(i){if(!confirm("刪除這筆優良案例？"))return;collect();cur.best.splice(i,1);renderBest();updateCounts();}
 function setB(i,f,v){cur.best[i][f]=v;}
 function renderBest(){
   $("#bestNav").innerHTML=cur.best.map((x,i)=>`<a onclick="jumpTo('best-${i}')" title="${esc(x.category||"")}">#${i+1}</a>`).join("");
   $("#bestList").innerHTML=cur.best.length?cur.best.map((x,i)=>`<div class="item" id="best-${i}"><div class="ih">優良案例 No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
     <div class="fgrid"><label>分類 Category<input type="text" value="${esc(x.category)}" placeholder="例：作業記錄、壓載水記錄" oninput="setB(${i},'category',this.value)"></label>
-    <label>涉及人員姓名<input type="text" value="${esc(x.people)}" oninput="setB(${i},'people',this.value)"></label>
-    <label>職務${rankSelect(x.rank,`setB(${i},'rank',this.value)`)}</label>
+    <div class="fld" style="grid-column:span 2">涉及人員（姓名／職務）
+      ${bestPersons(x).map((p,j)=>`<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:6px"><input type="text" value="${esc(p.name)}" placeholder="姓名" oninput="setBP(${i},${j},'name',this.value)">${rankSelect(p.rank,`setBP(${i},${j},'rank',this.value)`)}<button class="btn sm danger" type="button" title="移除這位人員" onclick="delBP(${i},${j})">×</button></div>`).join("")}
+      <div><button class="btn sm" type="button" onclick="addBP(${i})">＋ 新增人員</button></div></div>
     <label class="fw">描述 Brief<textarea oninput="setB(${i},'brief',this.value)">${esc(x.brief)}</textarea></label>
     <div class="fld fw">案例照片 Photos${phHtml("best",i,0)}</div></div></div>`).join(""):`<p class="hint">尚無優良案例；這些會匯入系統的「正面評價／優秀案例」。</p>`;
 }
@@ -602,10 +657,12 @@ function addDef(){
   setTimeout(()=>{const el=$("#def-"+(cur.defs.length-1));if(el)el.scrollIntoView({behavior:"smooth",block:"center"});},50);
 }
 function delDef(i){if(!confirm("刪除這筆缺失？"))return;collect();cur.defs.splice(i,1);renderDefs();updateCounts();}
+function setTopic(i,v){collect();cur.defs[i].topic=v;if(v!=="其他")cur.defs[i].topicOther="";renderDefs();updateCounts();}
 function setD(i,f,v){cur.defs[i][f]=v;if(f==="topic")updateCounts();}
 function setIcCat(i,v){const d=cur.defs[i];d.icCategory=v;if(!isEquipFault(v))d.icEquip="";collect();renderDefs();}
 function toggleDept(i,name,on){const a=cur.defs[i].icDepts,ix=a.indexOf(name);if(on&&ix<0)a.push(name);if(!on&&ix>=0)a.splice(ix,1);const box=document.querySelector(`#def-${i} [data-f="icDepts"]`);if(box)box.classList.remove("bad");}
 function setMode(i,k){
+  setTimeout(renderDefNav,0);
   const was=cur.defs[i].closeMode;
   cur.defs[i].closeMode=k;
   if(k==="內控"||was==="內控"){ // 內控才有「內控異常登錄資料」區塊，切換時重畫；關注程度預設帶入風險等級
@@ -616,15 +673,33 @@ function setMode(i,k){
   if(el){el.classList.remove("m-flow","m-ic","m-sys");const m=modeOf(k);if(m)el.classList.add("m-"+m.cls);const rw=el.querySelector('[data-f="closeMode"]');if(rw)rw.classList.remove("bad");}
   updateCounts();
 }
+/* 缺失明細上方：結案方式快捷篩選（哪些進 FLOW／內控／系統內結案）＋缺失號碼跳轉標籤 */
+let defFilter="";
+function setDefFilter(k){collect();defFilter=(defFilter===k?"":k);renderDefs();}
+function renderDefNav(){
+  const box=$("#defNav");if(!box)return;
+  if(!activeTab){box.innerHTML="";return;}
+  const idxs=cur.defs.map((d,i)=>i).filter(i=>cur.defs[i].type===activeTab);
+  if(!idxs.length){box.innerHTML="";return;}
+  const n=k=>idxs.filter(i=>k==="none"?!cur.defs[i].closeMode:cur.defs[i].closeMode===k).length;
+  const chip=(k,l,c)=>`<button type="button" class="fchip ${c} ${defFilter===k?"on":""}" onclick="setDefFilter('${k}')">${l}<b>${n(k)}</b></button>`;
+  const shown=idxs.filter(i=>!defFilter||(defFilter==="none"?!cur.defs[i].closeMode:cur.defs[i].closeMode===defFilter));
+  box.innerHTML=`<div class="cchips" style="margin-bottom:8px"><span class="hint" style="font-weight:700">結案方式篩選</span>
+    <button type="button" class="fchip ${defFilter===""?"on":""}" onclick="setDefFilter('')">全部<b>${idxs.length}</b></button>
+    ${chip("FLOW","FLOW 系統","flow")}${chip("內控","內控","ic")}${chip("系統內結案","系統內結案","sys")}${chip("none","尚未選擇","none")}</div>
+    <div class="qnav" style="margin:0">${shown.map(i=>{const d=cur.defs[i],m=modeOf(d.closeMode);return `<a class="${m?"m-"+m.cls:"m-none"}" title="${esc((d.category||"")+" "+(m?m.label:"尚未選結案方式"))}" onclick="jumpTo('def-${i}')">#${idxs.indexOf(i)+1}</a>`;}).join("")}</div>`;
+}
 function renderDefs(){
   const tabs=cur.types;
   $("#defTabs").innerHTML=tabs.length?tabs.map(k=>{const t=typeDef(k)||{label:k};const n=cur.defs.filter(d=>d.type===k).length;return `<button type="button" class="${k===activeTab?"on":""}" onclick="setTab('${k}')">${esc(t.label)}缺失<span class="n">${n}</span></button>`;}).join(""):`<span class="hint">請先在「① 檢查基本資料」勾選檢查種類（可複選）。</span>`;
   const td=typeDef(activeTab);
   $("#defTabHead").innerHTML=activeTab?`<span class="hint">目前分頁：<b>${esc(td?td.label:activeTab)}</b>（${esc(td?td.section:"")}）——缺失會匯入系統，檢查來源＝<b>${esc(activeTab)}</b></span><span style="flex:1"></span><button class="btn primary" onclick="openBatch()" title="一次輸入多筆缺失：大表格逐列填寫">▦ 批量新增${esc(td?td.label:"")}缺失</button><button class="btn sm" onclick="addDef()">＋ 新增一筆</button>`:"";
-  const idxs=cur.defs.map((d,i)=>i).filter(i=>cur.defs[i].type===activeTab);
-  $("#defList").innerHTML=idxs.length?idxs.map((i,seq)=>{
+  const allIdxs=cur.defs.map((d,i)=>i).filter(i=>cur.defs[i].type===activeTab);
+  const idxs=allIdxs.filter(i=>!defFilter||(defFilter==="none"?!cur.defs[i].closeMode:cur.defs[i].closeMode===defFilter));
+  renderDefNav();
+  $("#defList").innerHTML=idxs.length?idxs.map(i=>{const seq=allIdxs.indexOf(i);
     const d=cur.defs[i],m=modeOf(d.closeMode);
-    const topicCtl=td&&td.topics?`<label>${esc(td.topicLabel)}（選填）<select data-f="topic" onchange="setD(${i},'topic',this.value)"><option value="">（不特別標註）</option>${td.topics.map(t=>`<option ${d.topic===t?"selected":""}>${esc(t)}</option>`).join("")}</select></label>`
+    const topicCtl=td&&td.topics?`<label>${esc(td.topicLabel)}（選填）<select data-f="topic" onchange="setTopic(${i},this.value)"><option value="">（不特別標註）</option>${td.topics.map(t=>`<option ${d.topic===t?"selected":""}>${esc(t)}</option>`).join("")}</select>${d.topic==="其他"?`<input type="text" data-f="topicOther" value="${esc(d.topicOther||"")}" placeholder="請說明是哪一類" oninput="setD(${i},'topicOther',this.value)">`:""}</label>`
       :`<label>主題（選填）<input type="text" data-f="topic" value="${esc(d.topic)}" placeholder="例：靜態航行評估" oninput="setD(${i},'topic',this.value)"></label>`;
     return `<div class="item ${m?"m-"+m.cls:""}" id="def-${i}">
       <div class="ih">${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
@@ -658,7 +733,7 @@ function renderDefs(){
 }
 /* ══════ 批量新增缺失：大表格一列一筆，填完一次加入目前分頁的檢查種類 ══════ */
 let batch=null;
-const blankBatchRow=()=>({topic:"",category:"",risk:"",reported:batch.date,finding:"",closeMode:""});
+const blankBatchRow=()=>({topic:"",topicOther:"",category:"",risk:"",reported:batch.date,finding:"",closeMode:"",photos:[]});
 function openBatch(){
   if(!activeTab){toast("⚠ 請先在「① 檢查基本資料」勾選檢查種類",true);return;}
   collect();
@@ -671,6 +746,13 @@ function openBatch(){
   $("#bDefMode").innerHTML='<option value="">結案方式…</option>'+MODES.map(m=>`<option value="${m.k}">${esc(m.label)}</option>`).join("");
   renderBatch();$("#batchModal").style.display="flex";
 }
+function setBTopic(i,v){batch.rows[i].topic=v;if(v!=="其他")batch.rows[i].topicOther="";renderBatch();}
+async function addBatchPhotos(i,input){
+  const files=[...input.files];input.value="";const list=batch.rows[i].photos;let skip=0;
+  for(const f of files){if(list.length>=MAX_DEF_PHOTOS){skip++;continue;}const p=await readImg(f);if(p)list.push(p);}
+  if(skip)toast(`⚠ 每筆缺失最多 ${MAX_DEF_PHOTOS} 張照片，已略過 ${skip} 張`,true);
+  renderBatch();
+}
 function closeBatch(){$("#batchModal").style.display="none";batch=null;}
 function setBR(i,f,v){batch.rows[i][f]=v;updateBatchCount();}
 function addBatchRows(n){batch.rows.push(...Array.from({length:n},blankBatchRow));renderBatch();}
@@ -682,13 +764,14 @@ function renderBatch(){
   const td=typeDef(batch.type);
   $("#batchBody").innerHTML=batch.rows.map((r,i)=>`<tr>
     <td style="text-align:center;font-weight:700;color:var(--ink-2)">${i+1}</td>
-    <td>${td&&td.topics?`<select onchange="setBR(${i},'topic',this.value)"><option value="">（不特別標註）</option>${td.topics.map(t=>`<option ${r.topic===t?"selected":""}>${esc(t)}</option>`).join("")}</select>`
+    <td>${td&&td.topics?`<select onchange="setBTopic(${i},this.value)"><option value="">（不特別標註）</option>${td.topics.map(t=>`<option ${r.topic===t?"selected":""}>${esc(t)}</option>`).join("")}</select>${r.topic==="其他"?`<input type="text" style="margin-top:6px" value="${esc(r.topicOther)}" placeholder="請說明是哪一類" oninput="setBR(${i},'topicOther',this.value)">`:""}`
       :`<input type="text" value="${esc(r.topic)}" placeholder="例：靜態航行評估" oninput="setBR(${i},'topic',this.value)">`}</td>
     <td><input type="text" value="${esc(r.category)}" placeholder="例：防火門" oninput="setBR(${i},'category',this.value)"></td>
     <td><select onchange="setBR(${i},'risk',this.value)"><option value="">—</option>${RISKS.map(s=>`<option ${r.risk===s?"selected":""}>${s}</option>`).join("")}</select></td>
     <td><input type="date" value="${esc(r.reported)}" onchange="setBR(${i},'reported',this.value)"></td>
     <td><textarea placeholder="待改善描述（中英文皆可）" oninput="setBR(${i},'finding',this.value)">${esc(r.finding)}</textarea></td>
     <td><select onchange="setBR(${i},'closeMode',this.value)"><option value="">— 請選擇 —</option>${MODES.map(m=>`<option value="${m.k}" ${r.closeMode===m.k?"selected":""}>${esc(m.label)}</option>`).join("")}</select></td>
+    <td><div class="phs">${r.photos.map((p,k)=>`<div class="ph s"><img src="${p.dataUrl}" onclick="openLightbox(batch.rows[${i}].photos[${k}].dataUrl)"><button type="button" title="刪除這張照片" onclick="batch.rows[${i}].photos.splice(${k},1);renderBatch()">×</button></div>`).join("")}${r.photos.length<MAX_DEF_PHOTOS?`<label class="phadd s">＋<input type="file" accept="image/*" multiple style="display:none" onchange="addBatchPhotos(${i},this)"></label>`:""}</div></td>
     <td><button class="btn sm danger" type="button" title="刪除這一列" onclick="delBatchRow(${i})">×</button></td></tr>`).join("");
   updateBatchCount();
 }
@@ -698,7 +781,7 @@ function confirmBatch(){
   const type=batch.type;let missing=0;
   rows.forEach(r=>{
     if(!r.category||!r.risk||!r.reported||!r.finding||!r.closeMode)missing++;
-    const d=blankDef(type);d.topic=r.topic;d.category=r.category.trim();d.risk=r.risk;d.reported=r.reported;d.finding=r.finding.trim();d.closeMode=r.closeMode;
+    const d=blankDef(type);d.topic=r.topic;d.topicOther=r.topicOther||"";d.photos=r.photos||[];d.category=r.category.trim();d.risk=r.risk;d.reported=r.reported;d.finding=r.finding.trim();d.closeMode=r.closeMode;
     if(r.closeMode==="內控")d.icLevel=r.risk||"";
     cur.defs.push(d);
   });
@@ -707,14 +790,15 @@ function confirmBatch(){
   toast(`✓ 已加入 ${rows.length} 筆缺失`+(missing?`；其中 ${missing} 筆還有必填欄位沒填，送出前會提醒`:"")+(nIc?`；${nIc} 筆「內控」記得補內控欄位`:""));
 }
 /* 船舶訴求／建議 */
-function addSugg(){collect();cur.sugg.push({situation:"",suggestion:""});renderSugg();updateCounts();}
+function addSugg(){collect();cur.sugg.push({situation:"",suggestion:"",photos:[]});renderSugg();updateCounts();}
 function delSugg(i){collect();cur.sugg.splice(i,1);renderSugg();updateCounts();}
 function setS(i,f,v){cur.sugg[i][f]=v;}
 function renderSugg(){
   $("#suggNav").innerHTML=cur.sugg.map((x,i)=>`<a onclick="jumpTo('sugg-${i}')">#${i+1}</a>`).join("");
   $("#suggList").innerHTML=cur.sugg.length?cur.sugg.map((x,i)=>`<div class="item" id="sugg-${i}"><div class="ih">No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delSugg(${i})">🗑 刪除</button></div>
     <div class="fgrid"><label style="grid-column:span 2">現狀 Situation<textarea oninput="setS(${i},'situation',this.value)">${esc(x.situation)}</textarea></label>
-    <label>建議 Suggestion<textarea oninput="setS(${i},'suggestion',this.value)">${esc(x.suggestion)}</textarea></label></div></div>`).join(""):`<p class="hint">尚無船舶訴求／建議。</p>`;
+    <label>建議 Suggestion<textarea oninput="setS(${i},'suggestion',this.value)">${esc(x.suggestion)}</textarea></label>
+    <div class="fld fw">照片 Photos（選填）${phHtml("sugg",i,0)}</div></div></div>`).join(""):`<p class="hint">尚無船舶訴求／建議。</p>`;
 }
 /* ══════ 送出前檢查：明確指出第幾筆的哪個欄位 ══════ */
 function validate(){
@@ -761,7 +845,7 @@ async function persist(draft){
   c.createdBy=c.createdBy||c.inspector||"";c.createdAt=c.createdAt||todayIso().replace(/-/g,"/");c.updatedAt=Date.now();
   const ok=await Store.save(c);if(ok)cur.id=c.id;return ok;
 }
-async function saveDraft(){collect();if(!cur.ship&&!cur.inspector&&!cur.defs.length){toast("⚠ 還沒有填寫任何內容",true);return;}if(await persist(true))toast("💾 已儲存草稿"+(Store.mode==="local"?"（暫存於本機瀏覽器）":""));}
+async function saveDraft(){collect();if(!cur.ship&&!cur.inspector&&!cur.defs.length){toast("⚠ 還沒有填寫任何內容",true);return;}if(await persist(true)){lastSnap=snapNow();toast("💾 已儲存草稿"+(Store.mode==="local"?"（暫存於本機瀏覽器）":""));}}
 async function submitForm(){
   const errs=validate();showErrors(errs);
   if(errs.length){toast(`⚠ 尚有 ${errs.length} 個必填項目未完成，請見頁面上方紅色提示`,true);return;}

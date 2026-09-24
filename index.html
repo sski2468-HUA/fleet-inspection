@@ -22613,7 +22613,11 @@ const Air={
       detail:r.detail||"",actual2:r.actual||"",src:r._src||(recs.length===1?`${d.ship} ${d.itype||""} ${d.date}`.replace(/\s+/g," ").trim():"")
     }));
     const campaignId=Date.now();
-    const campaign={id:campaignId,title:`缺失分享自查：${recs.map(x=>`${x.ship} ${x.itype||""} ${x.date}`.replace(/\s+/g," ").trim()).join("、")}  ${rows.length}項查缺失`,items,ship_scope:shipScope,
+    // 活動名稱：缺失自查：PSC-B108(2026/9/15)、BI(2026/9/15)，SIRE-SS(2026/9/20)（依檢查來源分組，日期不補零）
+    const fmtD=s=>{const m=String(s||"").match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);return m?`${m[1]}/${+m[2]}/${+m[3]}`:String(s||"");};
+    const grp=new Map();recs.forEach(x=>{const k=(x.itype||"").trim()||"檢查";if(!grp.has(k))grp.set(k,[]);grp.get(k).push(`${x.ship}(${fmtD(x.date)})`);});
+    const shareTitle="缺失自查："+[...grp.entries()].map(([k,v])=>`${k}-${v.join("、")}`).join("，");
+    const campaign={id:campaignId,title:shareTitle,items,ship_scope:shipScope,
       source_air_id:(+d.id||null),created_at:Date.now(),created_by:(typeof Audit!=="undefined"?Audit.user():""),active:true};
     try{
       await Cloud.api("selfcheck_share_campaigns",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),body:JSON.stringify([campaign])});
@@ -22630,11 +22634,12 @@ const Air={
     $("#air-sw-summary-link").value=`${folder}selfcheck-share-summary.html`;
     this.closeShareCheckWizard();
     this._pendingShareRows=null;
-    const copyText=`${campaign.title} 連結:${fillLink}`;
+    const copyText=`${campaign.title}\n${fillLink}`;
     safeCopyText(copyText,"✓ 已複製活動名稱＋填答連結");
-    alert(`✓ 已建立分享自查活動（共 ${rows.length} 項查核項目）。\n\n活動名稱＋填答連結已自動複製，請貼給船隊進行填單：\n${copyText}\n\n按「確定」後將跳轉到「分享自查彙整清單」。`);
+    alert(`✓ 已建立分享自查活動（共 ${rows.length} 項查核項目）。\n\n活動名稱＋填答連結已自動複製，請貼給船隊進行填單：\n${copyText}\n\n按「確定」後將另開分頁顯示「分享自查彙整清單」。`);
     this._formDirty=false;
-    location.href=`${folder}selfcheck-share-summary.html`;
+    const w=window.open(`${folder}selfcheck-share-summary.html`,"_blank");
+    if(!w)location.href=`${folder}selfcheck-share-summary.html`; // 瀏覽器擋掉新分頁時，退回原分頁開啟
   },
   copyShareLink(){ safeCopyText($("#air-sw-link").value,"✓ 已複製分享連結"); }, // 舊的連結視窗已不再使用，建立後改為直接複製「活動名稱＋連結」並跳轉
   copySummaryLink(){ safeCopyText($("#air-sw-summary-link").value,"✓ 已複製彙整清單連結"); },
@@ -25994,10 +25999,6 @@ const Ref={
    ③ 關鍵數據速覽表格。
 4. 禁止行為：不要開頭客套話、不要解釋分析邏輯、不要補充表格以外多餘數據備註、不得逐條單獨總結每一行缺失、不得寫成連續段落。
 5. 表格規範：維度精簡，只保留核心統計項，格式整齊易讀。
-6. 交付格式：如果你（AI 工具）具備產生檔案並提供下載的能力，請把以上①②③的完整內容整理成一份**格式工整的 Word 文件（.docx）**
-   （標題用 Word 標題樣式、粗體字用 Word 粗體、條列用 Word 項目符號、表格用 Word 表格，不要保留星號或 Markdown 符號），
-   檔名為「分類彙總分析_YYYYMMDD」，並直接給我下載連結／檔案；同時仍要在對話裡原樣顯示①②③的文字內容，不要只給檔案、不給文字。
-   如果你沒有產生檔案下載的能力，就只需要照上面規則輸出文字內容即可，不用勉強，也不用特別說明自己做不到。
 ### 固定輸出排版範式（嚴格遵守，不增減標題；範例文字僅示意條列長度與粗體用法，內容要換成真實分析結果）
 ## 30 秒重點
 - **應急發電機**多次啟動失敗，**3 艘船**共同出現，需立即排查

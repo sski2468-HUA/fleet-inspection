@@ -2,13 +2,17 @@
    依賴頁面全域：JSZip、SHIPS（船舶清單，可為空）、toast；需與 intaudit-template.docx 放在同一資料夾。 */
 const TYPE_DEFS=[
   {k:"onboard visit",label:"訪船",en:"Superintendent Visit",section:"訪船缺失",topicLabel:"訪船主題評估表",
-   topics:["SAR-FM20 靜態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表"]},
-  {k:"Internal audit",label:"內稽",en:"Internal Audit",section:"內稽缺失",topicLabel:"內稽區域／類別",topics:["甲板","機艙","ISM","MLC","ISPS"]},
+   topics:["SAR-FM20 靜態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表","其他"]},
+  {k:"Internal audit",label:"內稽",en:"Internal Audit",section:"內稽缺失",topicLabel:"內稽區域／類別",topics:["甲板","機艙","ISM","MLC","ISPS","其他"]},
   {k:"ACCOMPANYING SHIP",label:"隨船",en:"On-Voyage Audit",section:"隨船缺失",topicLabel:"隨船主題評估表",
-   topics:["SAR-FM21 動態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表"]},
+   topics:["SAR-FM21 動態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表","其他"]},
   {k:"Cross ship visit",label:"交叉訪船",en:"Cross Visit",section:"交叉訪船缺失",topicLabel:"",topics:null},
   {k:"主題檢查",label:"主題檢查",en:"Topic Audit",section:"主題檢查缺失",topicLabel:"",topics:null}
 ];
+/* 主題顯示文字：選「其他」時附上使用者輸入的說明 */
+const topicText=d=>d.topic==="其他"&&d.topicOther?"其他："+d.topicOther:(d.topic||"");
+/* 匯出檔名（Word／JSON／內控檔共用）：船名-檢查日期-Audit N_C _ Deficiency Items Details Records（檔名不能含斜線，改用底線） */
+const exportBaseName=r=>`${r.ship||"船名"}-${(dateText(r)||"檢查日期").replace(/\//g,"-").replace(/～/g,"~")}-Audit N_C _ Deficiency Items Details Records`;
 const typeDef=k=>TYPE_DEFS.find(t=>t.k===k);
 const MODES=[{k:"FLOW",label:"FLOW 系統（DMP-FM01）",cls:"flow"},{k:"內控",label:"內控",cls:"ic"},{k:"系統內結案",label:"系統內結案",cls:"sys"}];
 const modeOf=k=>MODES.find(m=>m.k===k);
@@ -75,8 +79,8 @@ async function buildDocBody(r,ctx,replyOf){
       b+=wTbl([2400,12278],[
         lblCell(2400,"No.")+txtCell(12278,String(i+1)),
         lblCell(2400,"分類 Category")+txtCell(12278,x.category),
-        lblCell(2400,"涉及人員姓名")+txtCell(12278,x.people),
-        lblCell(2400,"職務")+txtCell(12278,x.rank),
+        lblCell(2400,"涉及人員姓名")+txtCell(12278,(x.persons&&x.persons.length)?x.persons.map(q=>q.name||"").join("\n"):x.people),
+        lblCell(2400,"職務")+txtCell(12278,(x.persons&&x.persons.length)?x.persons.map(q=>q.rank||"").join("\n"):x.rank),
         lblCell(2400,"描述 Brief")+txtCell(12278,x.brief),
         lblCell(2400,"案例照片 Photos")+wCell(12278,await P(x.photos,5))
       ])+wPara("",{after:60});
@@ -100,7 +104,7 @@ async function buildDocBody(r,ctx,replyOf){
       defN++;
       b+=wTbl(cols,[
         wCell(900,wPara(wRun("No.",{b:true,sz:18}),{after:0,pb:i>0}),{shd:LBL})+lblCell(2200,"分類 Category")+lblCell(4400,"待改善項目 Items to be corrected")+lblCell(3600,"改善完成證據/備註 Corrected Evidence / Remark")+lblCell(1800,"Reported @")+lblCell(1778,"Corrected @"),
-        txtCell(900,String(i+1))+wCell(2200,wPara(wRun(d.category||"",{b:true,sz:19}),{after:0})+(d.topic?wPara(wRun(d.topic,{sz:16,color:"666666"}),{after:0}):""))+wCell(4400,await P(d.photos,2.4))+wCell(3600,wPara(wRun(rp?rp.evidence||"":"",{sz:19}),{after:0})+(rp&&(rp.photos||[]).length?await P(rp.photos,2.4):""))+txtCell(1800,slash(d.reported))+txtCell(1778,rp?slash(rp.corrected):""),
+        txtCell(900,String(i+1))+wCell(2200,wPara(wRun(d.category||"",{b:true,sz:19}),{after:0})+(topicText(d)?wPara(wRun(topicText(d),{sz:16,color:"666666"}),{after:0}):""))+wCell(4400,await P(d.photos,2.4))+wCell(3600,wPara(wRun(rp?rp.evidence||"":"",{sz:19}),{after:0})+(rp&&(rp.photos||[]).length?await P(rp.photos,2.4):""))+txtCell(1800,slash(d.reported))+txtCell(1778,rp?slash(rp.corrected):""),
         lblCell(3100,"Risk Level",{span:2})+txtCell(8000,d.risk||"",{span:2})+lblCell(1800,"結案方式")+txtCell(1778,mm?mm.label:""),
         lblCell(3100,"待改善描述 Finding Brief",{span:2})+txtCell(11578,d.finding||"",{span:4}),
         lblCell(3100,"改善措施簡述 Action Brief",{span:2})+txtCell(11578,rp?rp.action||"":"",{span:4})
@@ -109,8 +113,9 @@ async function buildDocBody(r,ctx,replyOf){
   }
   if((r.sugg||[]).length){
     b+=heading("● 船舶訴求/建議 Ship's Demand / Suggestion");
-    b+=wTbl([900,6889,6889],[lblCell(900,"No.")+lblCell(6889,"現狀 Situation")+lblCell(6889,"建議 Suggestion")].concat(
-      r.sugg.map((s,i)=>txtCell(900,String(i+1))+txtCell(6889,s.situation)+txtCell(6889,s.suggestion))));
+    const sRows=[lblCell(900,"No.")+lblCell(5200,"現狀 Situation")+lblCell(5200,"建議 Suggestion")+lblCell(3378,"照片 Photos")];
+    for(let i=0;i<r.sugg.length;i++){const s=r.sugg[i];sRows.push(txtCell(900,String(i+1))+txtCell(5200,s.situation)+txtCell(5200,s.suggestion)+wCell(3378,await P(s.photos,3.2)));}
+    b+=wTbl([900,5200,5200,3378],sRows);
   }
   return b;
 }

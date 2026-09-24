@@ -96,7 +96,9 @@ tr.done td{background:#eaf5ee}
         <span style="flex:1"></span>
         <button class="btn sm" onclick="exportExcel()" title="船隊完成狀況＋需處理項目（實際情況／處理情況／結案狀態）">⬇ 下載 Excel</button>
         <button class="btn sm" onclick="exportPdf()" title="開啟列印，選「另存為 PDF」">⬇ 下載 PDF</button>
-        <button class="btn sm" onclick="copyFillLink()">📋 複製本活動填答連結</button>
+        <button class="btn sm" onclick="copyMailText()" title="複製「自查項目＋連結」（上下兩行），貼入郵件發給船隊">✉ MAIL船（複製）</button>
+        <button class="btn sm" onclick="openMailDraft()" title="用預設郵件軟體（Outlook）開新郵件，內文已擬好，收件人自行加入">✉ 開新郵件</button>
+        <button class="btn sm" onclick="copyFillLink()">📋 複製連結</button>
         <button class="btn sm" onclick="loadCampaign(curCampaign&&curCampaign.id)">🔄 重新整理</button>
       </div>
       <div id="campaignDesc" class="hint"></div>
@@ -160,10 +162,31 @@ function copyFillLink(id){
   const cid=id!=null?id:(curCampaign&&curCampaign.id);
   if(cid==null){notify("⚠ 請先選擇活動","err");return;}
   const url=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${cid}`;
-  const c=campaigns.find(x=>String(x.id)===String(cid));
-  const link=`${c&&c.title?c.title+" ":""}連結:${url}`;
-  safeCopyText(link,"✓ 已複製活動名稱＋填答連結");
+  safeCopyText(url,"✓ 已複製填答連結");
 }
+/* MAIL船：複製「活動名稱＋連結」，可直接貼進郵件發給船隊 */
+function copyMailText(id){
+  const cid=id!=null?id:(curCampaign&&curCampaign.id);
+  if(cid==null){notify("⚠ 請先選擇活動","err");return;}
+  const c=campaigns.find(x=>String(x.id)===String(cid));
+  const url=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${cid}`;
+  const text=`${c&&c.title?c.title+"\n":""}${url}`; // 上面自查項目、下面連結
+  safeCopyText(text,"✓ 已複製");
+  alert("已複製下列內容，可貼入郵件發給船隊：\n\n"+text);
+}
+/* 開新郵件：用 mailto: 交給預設郵件軟體（Outlook），主旨與內文已擬好，收件人由使用者自行加入 */
+function openMailDraft(id){
+  const cid=id!=null?id:(curCampaign&&curCampaign.id);
+  if(cid==null){notify("⚠ 請先選擇活動","err");return;}
+  const c=campaigns.find(x=>String(x.id)===String(cid));
+  const url=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${cid}`;
+  const title=(c&&c.title)||"缺失自查";
+  const body=`船長您好\r\n\r\n本月船舶缺失自查，請點選連結完成自查。\r\n\r\n自查項目：${title}\r\n連結：${url}\r\n`;
+  location.href=`mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+}
+/* 受檢船・檢查來源・日期（來源字串格式「船名 檢查來源 日期」），跟船上填單頁的顯示一致 */
+function fmtSrc(s){const p=String(s||"").trim().split(/\s+/);return p.length>=3?`${p[0]}・${p.slice(1,-1).join(" ")}・${p[p.length-1]}`:String(s||"");}
+const srcTag=it=>it.src?`<span style="margin-left:8px;font-size:12px;font-weight:700;color:#1e7f8c;background:#e4f1f2;border-radius:10px;padding:1px 10px;white-space:nowrap">${esc(fmtSrc(it.src))}</span>`:"";
 let toastTimer;
 function notify(msg,tone){
   const el=document.getElementById("toast");
@@ -221,7 +244,7 @@ function renderListView(){
   document.getElementById("campaignCount").textContent=campaigns.length;
   const box=document.getElementById("campaignList");
   if(!campaigns.length){ box.innerHTML=`<p class="hint" style="text-align:center;padding:20px">目前沒有任何分享自查活動，請在填單審核頁按「📤 建立分享自查連結」建立一個。</p>`; return; }
-  box.innerHTML=`<table><thead><tr><th>活動</th><th style="width:150px">建立</th><th style="width:74px">狀態</th><th style="width:100px">已開始/應填</th><th style="width:64px">已送出</th><th style="width:110px">需追蹤</th><th style="width:290px">操作</th></tr></thead><tbody>
+  box.innerHTML=`<table><thead><tr><th>活動</th><th style="width:150px">建立</th><th style="width:74px">狀態</th><th style="width:100px">已開始/應填</th><th style="width:64px">已送出</th><th style="width:110px">需追蹤</th><th style="width:380px">操作</th></tr></thead><tbody>
     ${campaigns.map(c=>{
       const st=campaignStats(c);
       const ended=c.active===false;
@@ -234,6 +257,8 @@ function renderListView(){
         <td>${st.track?`<span class="pill bad">⚠ ${st.track} 項</span>`:'<span class="pill na">—</span>'}</td>
         <td style="white-space:nowrap">
           <button class="btn sm" onclick="openDetail(${c.id})">📊 進度</button>
+          <button class="btn sm" onclick="copyMailText(${c.id})" title="複製「自查項目＋連結」（上下兩行），貼入郵件發給船隊">✉ MAIL船</button>
+          <button class="btn sm" onclick="openMailDraft(${c.id})" title="用預設郵件軟體開新郵件，內文已擬好">✉ 開新郵件</button>
           <button class="btn sm" onclick="copyFillLink(${c.id})">📋 連結</button>
           <button class="btn sm" onclick="toggleActive(${c.id})">${ended?"▶ 重啟":"⏸ 結束"}</button>
           <button class="btn sm" style="color:var(--bad);border-color:var(--bad)" onclick="deleteCampaign(${c.id})">🗑 刪除</button>
@@ -377,7 +402,7 @@ function collectReport(){
       submitCount:resp?(resp.submit_count||0):0,submittedAt:resp?fmt(resp.submitted_at):"",
       needN:similar.length,openN:similar.filter(it=>!it.closed).length});
     similar.forEach(it=>issues.push({code:s.code,name:s.name||"",checker:resp.checker_name||"",title:resp.checker_title||"",
-      itemCode:it.code||"",detail:it.detail||"",src:it.actual2||"",note:it.note||"",handle:it.actual||"",
+      itemCode:it.code||"",src:it.src||"",detail:it.detail||"",actual2:it.actual2||"",note:it.note||"",handle:it.actual||"",
       closed:it.closed?"已結案":"未結案"}));
   });
   return {status,issues};
@@ -390,8 +415,8 @@ function exportExcel(){
   const ws1=XLSX.utils.json_to_sheet(status.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"填答進度":r.progress,"狀態":r.state,"送出次數":r.submitCount,"最後送出":r.submittedAt,"需處理項數":r.needN,"未結案數":r.openN})));
   ws1["!cols"]=[8,14,12,12,10,9,8,20,10,9].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws1,"船隊完成狀況");
-  const ws2=XLSX.utils.json_to_sheet(issues.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"CODE":r.itemCode,"缺失內容":r.detail,"來源實際情況":r.src,"本船實際狀況":r.note,"處理情況":r.handle,"結案狀態":r.closed})));
-  ws2["!cols"]=[8,14,12,12,10,40,36,36,36,9].map(w=>({wch:w}));
+  const ws2=XLSX.utils.json_to_sheet(issues.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"CODE":r.itemCode,"來源檢查":fmtSrc(r.src),"缺失內容":r.detail,"來源實際情況":r.actual2,"本船實際狀況":r.note,"處理情況":r.handle,"結案狀態":r.closed})));
+  ws2["!cols"]=[8,14,12,12,10,20,40,36,36,36,9].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws2,"需處理項目");
   XLSX.writeFile(wb,`分享自查彙整_${(curCampaign.title||curCampaign.id).replace(/[\\/:*?"<>|]/g,"_")}_${new Date().toISOString().slice(0,10)}.xlsx`);
   notify(`✓ 已下載 Excel（${status.length} 艘船、${issues.length} 項需處理）`,"ok2");
@@ -408,7 +433,7 @@ function exportPdf(){
     ${status.map(r=>`<tr><td>${c(r.code)} ${c(r.name)}</td><td>${c(r.checker)}${r.title?"（"+c(r.title)+"）":""}</td><td>${c(r.progress)}</td><td>${r.state}</td><td>${c(r.submittedAt)}</td><td>${r.needN}</td><td>${r.openN}</td></tr>`).join("")}</tbody></table>
     <h2>二、有類似情形、需處理項目（${issues.length} 項）</h2>
     ${issues.length?`<table><thead><tr><th style="width:11%">船舶</th><th style="width:26%">缺失內容</th><th style="width:20%">本船實際狀況</th><th style="width:29%">處理情況</th><th style="width:8%">結案</th></tr></thead><tbody>
-    ${issues.map(r=>`<tr><td>${c(r.code)}<br>${c(r.name)}</td><td>${c(r.detail)}${r.src?"<br><i>實際情況："+c(r.src)+"</i>":""}</td><td>${c(r.note)}</td><td>${c(r.handle)}</td><td>${r.closed}</td></tr>`).join("")}</tbody></table>`:"<div>目前沒有需處理項目。</div>"}`;
+    ${issues.map(r=>`<tr><td>${c(r.code)}<br>${c(r.name)}</td><td>${c(r.detail)}${r.actual2?"<br><i>實際情況："+c(r.actual2)+"</i>":""}</td><td>${c(r.note)}</td><td>${c(r.handle)}</td><td>${r.closed}</td></tr>`).join("")}</tbody></table>`:"<div>目前沒有需處理項目。</div>"}`;
   window.print();
 }
 
@@ -427,7 +452,7 @@ function toggleDetail(ship){
     <div style="padding:6px 4px">
       ${items.map((it,i)=>`
         <div class="itemline">
-          <b>#${i+1}</b> ${esc(it.code?("CODE "+it.code):"")} <span class="stbadge ${it.status||'pending'}">${ST_LABEL[it.status||"pending"]}</span>${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'):""}
+          <b>#${i+1}</b> ${esc(it.code?("CODE "+it.code):"")}${srcTag(it)} <span class="stbadge ${it.status||'pending'}">${ST_LABEL[it.status||"pending"]}</span>${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'):""}
           <div class="hint">${esc(it.detail||"")}</div>
           ${it.actual2?`<div class="hint">實際情況：${esc(it.actual2)}</div>`:""}
           ${it.note?`<div style="margin-top:2px"><b>本船實際狀況：</b>${esc(it.note)}</div>`:""}
