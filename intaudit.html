@@ -248,7 +248,12 @@ async function loadLists(){
 /* ══════ 資料存取：優先寫雲端資料表 intaudit_records；資料表還沒建立時退回本機瀏覽器暫存並提示 ══════ */
 const LOCAL_KEY="vsm_intaudit_local_v1";
 const Store={
-  mode:"cloud",rows:[],
+  mode:"cloud",rows:[],replies:{},
+  async loadReplies(){
+    this.replies={};
+    if(this.mode!=="cloud")return;
+    try{const rows=await api("intaudit_replies?select=id,record_id,def_uid,status,payload,updated_at&limit=5000");(rows||[]).forEach(x=>{this.replies[x.id]=x;});}catch(e){}
+  },
   async load(){
     try{
       const rows=await api(`${TABLE}?select=id,payload&order=id.desc&limit=1000`);
@@ -283,6 +288,15 @@ const Store={
 const todayIso=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
 const slash=s=>String(s||"").replace(/-/g,"/");
 const dateText=r=>r.dateFrom?(slash(r.dateFrom)+(r.dateTo&&r.dateTo!==r.dateFrom?"～"+slash(r.dateTo):"")):"";
+/* 缺失目前的實際狀態：FLOW 固定「FLOW 結案」；有船上回報時依回報／審核結果，其餘用登錄單記錄的狀態 */
+function effStatus(r,d){
+  if(d.closeMode==="FLOW")return "FLOW 結案";
+  const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;
+  if(rp&&rp.status==="reviewed")return "已結案";
+  if(rp&&rp.status==="submitted")return "船上已回報";
+  return d.status||"待船上改善";
+}
+const replyUrl=r=>`${location.href.replace(/[^/]*$/,"")}intaudit-reply.html?rid=${r.id}`;
 const statCls=s=>s==="FLOW 結案"?"s-flow":s==="待船上改善"?"s-wait":s==="船上已回報"?"s-rep":"s-done";
 const rankSelect=(cur,onchange,extra)=>`<select ${extra||""} onchange="${onchange}"><option value="">— 職級 —</option>${RANK_OPTIONS.map(r=>`<option ${cur===r?"selected":""}>${esc(r)}</option>`).join("")}${cur&&!RANK_OPTIONS.includes(cur)?`<option selected>${esc(cur)}</option>`:""}</select>`;
 function openLightbox(url){$("#lightboxImg").src=url;$("#lightbox").style.display="flex";}
@@ -305,7 +319,7 @@ function renderList(){
   let html="",n=0;
   rows.forEach(r=>{
     if(fs&&r.ship!==fs)return;
-    const ds=(r.defs||[]).filter(d=>(!fm||d.closeMode===fm)&&(!fst||d.status===fst)&&
+    const ds=(r.defs||[]).filter(d=>(!fm||d.closeMode===fm)&&(!fst||effStatus(r,d)===fst)&&
       (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,d.topic].join(" ").toLowerCase().includes(q)));
     if(!ds.length&&(fm||fst||q))return;
     n+=ds.length;
@@ -320,28 +334,45 @@ function renderList(){
         <button class="btn sm" onclick="exportWord(${r.id})" title="以原記錄表的頁首／頁尾為範本，輸出 .docx（含照片）">⬇ Word</button>
         <button class="btn sm" onclick="exportJson(${r.id})">⬇ JSON</button>
         <button class="btn sm" ${hasIC?"":"disabled"} onclick="exportIcJson(${r.id})" title="只含結案方式為「內控」的缺失">⬇ 內控 JSON</button>
+        <button class="btn sm" ${(r.draft||!(r.defs||[]).some(d=>d.closeMode!=="FLOW"))?"disabled":""} onclick="issueOrder(${r.id})" title="把「內控／系統內結案」的缺失做成改善單，給船上填改善回報">📨 發改善單${r.issuedAt?"（已發）":""}</button>
         <button class="btn sm dark" onclick="importPreview(${r.id})" title="預覽匯入主系統時會建立哪些紀錄">➜ 匯入主系統</button>
         <button class="btn sm danger" onclick="delRec(${r.id})">🗑</button></span></div></td></tr>`;
     html+=ds.map(d=>{
       const i=r.defs.indexOf(d),m=modeOf(d.closeMode),td=typeDef(d.type);
-      const nxt=d.closeMode==="FLOW"?`<span class="hint">船上自行至 FLOW 系統填單</span>`:d.status==="待船上改善"?`<span class="hint">待發改善單給船上</span>`:d.status==="船上已回報"?`<span class="hint">在填單佇列待審核</span>`:`<span class="hint">已完成</span>`;
+      const es=effStatus(r,d);
+      const nxt=d.closeMode==="FLOW"?`<span class="hint">船上自行至 FLOW 系統填單</span>`:es==="待船上改善"?`<span class="hint">${r.issuedAt?"已發改善單，等船上回報":"尚未發改善單"}</span>`:es==="船上已回報"?`<span class="hint">船上已回報，待海技審核</span>`:`<span class="hint">已結案</span>`;
       return `<tr><td style="text-align:center">${i+1}</td>
         <td><b>${esc(d.category||"—")}</b><div class="hint">${esc(td?td.label:d.type)}${d.topic?"・"+esc(d.topic):""}</div></td>
         <td style="white-space:pre-line;max-width:520px">${esc(d.finding||"")}${(d.photos||[]).length?`<div class="hint">📷 ${d.photos.length} 張照片</div>`:""}</td>
         <td>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">${esc(d.risk)}</span>`:""}</td>
         <td>${m?`<span class="mode ${m.cls}">${esc(m.label)}</span>`:'<span class="hint">未選</span>'}</td>
-        <td><span class="stat ${statCls(d.status)}">${esc(d.status||"—")}</span></td><td>${nxt}</td></tr>`;}).join("");
+        <td><span class="stat ${statCls(es)}">${esc(es||"—")}</span></td><td>${nxt}</td></tr>`;}).join("");
   });
   $("#listBody").innerHTML=html||`<tr><td colspan="7" style="text-align:center;color:#8195a0;padding:24px">目前沒有登錄紀錄，請按上方「＋ 新增登錄」。</td></tr>`;
   $("#listStat").textContent=`顯示 ${n} 筆缺失`;
 }
 async function delRec(id){if(!confirm("確定刪除這張登錄單？此動作無法復原。"))return;await Store.remove(id);renderList();}
 function exportJson(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;download(new Blob([JSON.stringify(r,null,1)],{type:"application/json"}),fname(r,".json"));}
+/* 發改善單：內控／系統內結案的缺失才需要船上改善。複製「單名＋連結」貼進郵件發給船上，並記下已發單。 */
+async function issueOrder(id){
+  const r=Store.rows.find(x=>x.id===id);if(!r||r.draft)return;
+  const n=(r.defs||[]).filter(d=>d.closeMode!=="FLOW").length;
+  if(!n){toast("⚠ 這張登錄單沒有需要船上改善的缺失（都是 FLOW）",true);return;}
+  if(Store.mode!=="cloud"){alert("⚠ 雲端資料表尚未建立（請先執行 intaudit_setup.sql），改善單連結目前無法給船上使用。");return;}
+  const text=`內部檢查改善單：${r.ship} ${dateText(r)} ${(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、")}，共 ${n} 項待改善 連結:${replyUrl(r)}`;
+  if(r.issuedAt&&!confirm("這張登錄單已發過改善單，要再複製一次連結嗎？（連結不變，船上先前的回報不會消失）"))return;
+  try{await navigator.clipboard.writeText(text);}catch(e){}
+  (r.defs||[]).forEach(d=>{if(!d.uid)d.uid=newUid();}); // 舊登錄單的缺失補上固定 id，船上回報才對得回這一筆
+  r.issuedAt=Date.now();await Store.save(r);renderList();
+  alert("已複製下列內容，可貼入郵件發給船上：\n\n"+text+"\n\n船上打開連結後，會看到這張單的待改善缺失，填寫改善說明、完成日期並上傳改善後照片回報。");
+}
 function exportIcJson(id){
   const r=Store.rows.find(x=>x.id===id);if(!r)return;
   const ic=(r.defs||[]).filter(d=>d.closeMode==="內控");
   if(!ic.length){toast("⚠ 這張登錄單沒有結案方式為「內控」的缺失",true);return;}
-  download(new Blob([JSON.stringify({ship:r.ship,date:dateText(r),inspector:r.inspector,psn:r.psn,types:r.types,defs:ic},null,1)],{type:"application/json"}),`${r.ship}_${dateText(r).replace(/[\\/:*?"<>|～]/g,"-")}_內控缺失.json`);
+  // 帶上目前實際狀態與船上回報內容（結案後再匯出一次，就能更新船舶動態系統裡的狀態）
+  const defs=ic.map(d=>{const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;return Object.assign({},d,{currentStatus:effStatus(r,d),reply:rp?Object.assign({status:rp.status},rp.payload):null});});
+  download(new Blob([JSON.stringify({ship:r.ship,date:dateText(r),inspector:r.inspector,psn:r.psn,types:r.types,defs},null,1)],{type:"application/json"}),`${r.ship}_${dateText(r).replace(/[\\/:*?"<>|～]/g,"-")}_內控缺失.json`);
 }
 const fname=(r,ext)=>`${r.ship||"船名"}_${(dateText(r)||"檢查日期").replace(/[\\/:*?"<>|～]/g,"-")}_檢查缺失具體項目記錄表${ext}`;
 /* ══════ Word 匯出：以原「檢查缺失具體項目記錄表」的頁首／頁尾／版面設定為範本（intaudit-template.docx，
@@ -474,7 +505,8 @@ function importPreview(id){
 
 /* ══════ 表單 ══════ */
 let cur=null,activeTab=null;
-const blankDef=type=>({type,topic:"",category:"",risk:"",reported:cur&&cur.dateTo?cur.dateTo:(cur&&cur.dateFrom)||todayIso(),finding:"",photos:[],
+const newUid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const blankDef=type=>({uid:newUid(),type,topic:"",category:"",risk:"",reported:cur&&cur.dateTo?cur.dateTo:(cur&&cur.dateFrom)||todayIso(),finding:"",photos:[],
   closeMode:"",status:""});
 const blank=()=>({id:null,ship:"",dateFrom:todayIso(),dateTo:"",inspector:"",psn:"",types:[],master:"",co:"",ce:"",e2:"",overall:"",
   top4:{photos:[],cap:""},goodCrew:[],poorCrew:[],best:[],defs:[],sugg:[],draft:true});
@@ -651,6 +683,7 @@ function showErrors(errs){
   const el=first.sel&&document.querySelector(first.sel);(el||box).scrollIntoView({behavior:"smooth",block:"center"});
 }
 async function persist(draft){
+  cur.defs.forEach(d=>{if(!d.uid)d.uid=newUid();}); // 每筆缺失要有固定 id，船上回報才對得回這一筆
   const c=JSON.parse(JSON.stringify(cur));
   c.draft=draft;
   c.defs.forEach(d=>{
@@ -673,7 +706,7 @@ async function submitForm(){
 }
 
 (async function init(){
-  await loadLists();await Store.load();showList();
+  await loadLists();await Store.load();await Store.loadReplies();showList();
 })();
 </script>
 </body>

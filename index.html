@@ -2898,6 +2898,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <button class="btn sm" id="air-ia-tab-pending" onclick="IntAuditQueue.setView('pending')">待匯入</button>
               <button class="btn sm" id="air-ia-tab-imported" onclick="IntAuditQueue.setView('imported')">已匯入</button>
               <button class="btn sm" id="air-ia-tab-draft" onclick="IntAuditQueue.setView('draft')">草稿</button>
+              <button class="btn sm" id="air-ia-tab-replies" onclick="IntAuditQueue.setView('replies')">船上回報待審</button>
               <button class="btn sm" onclick="IntAuditQueue.refresh()">🔄 重新整理</button>
             </span>
           </h3>
@@ -24448,6 +24449,63 @@ const AirQueue={
       </div>`;
     }).join("");
   },
+  /* ── 船上改善回報審核：船上在 intaudit-reply.html 送出的改善說明／完成日期／改善後照片 ── */
+  renderReplies(){
+    const box=$("#air-ia-list");if(!box)return;
+    const list=(this.replyAll||[]).filter(x=>x.status==="submitted");
+    if(!list.length){box.innerHTML=`<p class="hint">目前沒有船上回報待審核。</p>`;return;}
+    box.innerHTML=list.map(x=>{
+      const r=(this.all||[]).find(a=>String(a.id)===String(x.record_id))||{};
+      const d=(r.defs||[]).find(dd=>dd.uid===x.def_uid)||{};
+      const p=x.payload||{};
+      return `<div class="card" style="margin-bottom:10px;background:#fafbfc">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <b>${esc(r.ship||"")}</b><span class="hint">${esc(r.dateFrom||"")} ・ ${esc(this.tl(d.type))}${d.topic?"・"+esc(d.topic):""} ・ ${esc(d.closeMode||"")}</span>
+          <span class="hint">回報人：${esc(p.by||"")}（${esc(p.title||"")}）${p.at?esc(new Date(p.at).toLocaleString("zh-TW",{hour12:false})):""}</span>
+          <span style="margin-left:auto;display:flex;gap:6px">
+            <button class="btn sm dark" onclick="IntAuditQueue.closeReply('${esc(x.id)}')">✓ 審核結案</button>
+            <button class="btn sm" onclick="IntAuditQueue.returnReply('${esc(x.id)}')">↩ 退回</button></span></div>
+        <div style="margin-top:8px;font-size:12.5px;line-height:1.7"><b>${esc(d.category||"")}</b>：${esc(d.finding||"")}
+          <div style="margin-top:6px;padding:8px 10px;background:#fff;border:1px solid var(--line);border-radius:6px"><b>船上改善措施：</b>${esc(p.action||"")}<br><b>完成日期：</b>${esc(p.corrected||"")}${p.evidence?`<br><b>備註：</b>${esc(p.evidence)}`:""}
+          ${(p.photos||[]).length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${p.photos.map(ph=>`<img src="${ph.dataUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:5px;border:1px solid var(--line-2)">`).join("")}</div>`:""}</div>
+          ${d.importedDefId==null?`<div class="hint" style="color:#a04030;margin-top:4px">⚠ 這張登錄單還沒匯入主系統，請先到「待匯入」匯入，再回來審核結案。</div>`:""}</div></div>`;
+    }).join("");
+  },
+  async _patchReply(x,status,extra){
+    const p=Object.assign({},x.payload,extra||{});
+    await Cloud.api(`intaudit_replies?id=eq.${encodeURIComponent(x.id)}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),body:JSON.stringify({status,payload:p,updated_at:Date.now()})});
+  },
+  async closeReply(id){
+    if(!await Guard.require()){toast("⚠ 審核僅限維護者操作");return;}
+    const x=(this.replyAll||[]).find(a=>a.id===id);if(!x)return;
+    const r=(this.all||[]).find(a=>String(a.id)===String(x.record_id));
+    const d=r&&(r.defs||[]).find(dd=>dd.uid===x.def_uid);
+    if(!d||d.importedDefId==null){alert("這筆缺失所屬的登錄單還沒匯入主系統，請先到「待匯入」分頁匯入，再回來審核結案。");return;}
+    const rec=App.defs.find(z=>String(z.id)===String(d.importedDefId));
+    if(!rec){alert("在缺失紀錄總表找不到對應的缺失（可能已被刪除）。請到「已匯入」分頁按「重新匯入」重建後再審核。");return;}
+    const p=x.payload||{};
+    if(!confirm(`確定審核結案？\n\n將把船上的改善措施、改善後照片寫入缺失紀錄總表這一筆，並標記為已結案。${d.closeMode==="內控"?"\n\n內控項目結案後，請回「內部檢查缺失登錄」網頁再匯出一次內控 JSON，更新船舶動態系統。":""}`))return;
+    const by=(typeof Audit!=="undefined")?Audit.user():"",now=Date.now();
+    Object.assign(rec,{corrective:p.action||rec.corrective||"",photosAfter:Array.isArray(p.photos)&&p.photos.length?p.photos:(rec.photosAfter||[]),
+      intAuditStatus:"已結案",intAuditCorrectedDate:p.corrected||"",intAuditEvidence:p.evidence||"",intAuditClosedAt:now,intAuditReplyBy:`${p.by||""}（${p.title||""}）`,_impAt:now,_impBy:by});
+    try{
+      await this._patchReply(x,"reviewed",{reviewedBy:by,reviewedAt:now});
+    }catch(e){alert("⚠ 已更新缺失紀錄總表，但把回報標記為「已結案」寫回雲端失敗："+e.message+"\n\n請按「重新整理」確認狀態，必要時再按一次審核結案（不會重複新增）。");}
+    if(typeof Audit!=="undefined")Audit.log("審核結案","內部檢查缺失",`${r.ship} ${r.dateFrom} ${d.category||""}（回報人 ${p.by||""}）`);
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
+    try{if(typeof Defs!=="undefined"){Defs.init();Defs.render();}}catch(e){}
+    toast("✓ 已審核結案");this.refresh();
+  },
+  async returnReply(id){
+    if(!await Guard.require()){toast("⚠ 審核僅限維護者操作");return;}
+    const x=(this.replyAll||[]).find(a=>a.id===id);if(!x)return;
+    const note=prompt("退回原因（船上會在改善單上看到，請寫清楚要補什麼）：");
+    if(note===null)return;
+    if(!note.trim()){toast("⚠ 請填寫退回原因");return;}
+    try{await this._patchReply(x,"returned",{returnNote:note.trim(),returnedAt:Date.now(),returnedBy:(typeof Audit!=="undefined")?Audit.user():""});}
+    catch(e){alert("⚠ 退回失敗："+e.message);return;}
+    toast("已退回給船上重新回報");this.refresh();
+  },
   toggle(id){this.expandedId=this.expandedId===id?null:id;this.render();},
   renderPreview(b,defs,pos){
     return `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;font-size:12.5px">
@@ -24574,7 +24632,7 @@ const IntAuditQueue={
   async refresh(){
     const box=$("#air-ia-list");if(!box)return;
     box.innerHTML=`<p class="hint">讀取中…</p>`;
-    [["pending","待匯入"],["imported","已匯入"],["draft","草稿"]].forEach(([v])=>{const b=$("#air-ia-tab-"+v);if(b)b.className=this.view===v?"btn sm primary":"btn sm";});
+    [["pending"],["imported"],["draft"],["replies"]].forEach(([v])=>{const b=$("#air-ia-tab-"+v);if(b)b.className=this.view===v?"btn sm primary":"btn sm";});
     if(typeof Cloud==="undefined"||!Cloud.enabled()){box.innerHTML=`<p class="hint">⚠ 雲端未連線，無法讀取登錄單</p>`;return;}
     try{
       const rows=await Cloud.api(`${this.TABLE}?select=id,payload&order=id.desc&limit=500`)||[];
@@ -24582,8 +24640,13 @@ const IntAuditQueue={
     }catch(e){
       box.innerHTML=`<p class="hint">⚠ 讀取失敗：${esc(e.message)}（若是資料表不存在，請先在 Supabase SQL Editor 執行 intaudit_setup.sql）</p>`;return;
     }
-    const pend=this.all.filter(r=>!r.draft&&!r.imported).length;
+    // 船上改善回報（intaudit_replies）：讀不到（資料表未建）時當作沒有，不影響其他分頁
+    try{this.replyAll=await Cloud.api("intaudit_replies?select=id,record_id,def_uid,status,payload,updated_at&order=updated_at.desc&limit=2000")||[];}catch(e){this.replyAll=[];}
+    const repPend=this.replyAll.filter(x=>x.status==="submitted").length;
+    const rb=$("#air-ia-tab-replies");if(rb)rb.textContent="船上回報待審"+(repPend?` (${repPend})`:"");
+    const pend=this.all.filter(r=>!r.draft&&!r.imported).length+repPend;
     const bd=$("#air-ia-badge");if(bd){if(pend){bd.textContent=pend;bd.style.display="";}else bd.style.display="none";}
+    if(this.view==="replies"){this.rows=[];this.renderReplies();return;}
     this.rows=this.all.filter(r=>this.view==="draft"?!!r.draft:this.view==="imported"?(!r.draft&&!!r.imported):(!r.draft&&!r.imported));
     this.render();
   },
@@ -24608,6 +24671,63 @@ const IntAuditQueue={
           <span style="margin-left:auto;display:flex;gap:6px">${btns}</span>
         </div>${open?this.preview(r):""}</div>`;
     }).join("");
+  },
+  /* ── 船上改善回報審核：船上在 intaudit-reply.html 送出的改善說明／完成日期／改善後照片 ── */
+  renderReplies(){
+    const box=$("#air-ia-list");if(!box)return;
+    const list=(this.replyAll||[]).filter(x=>x.status==="submitted");
+    if(!list.length){box.innerHTML=`<p class="hint">目前沒有船上回報待審核。</p>`;return;}
+    box.innerHTML=list.map(x=>{
+      const r=(this.all||[]).find(a=>String(a.id)===String(x.record_id))||{};
+      const d=(r.defs||[]).find(dd=>dd.uid===x.def_uid)||{};
+      const p=x.payload||{};
+      return `<div class="card" style="margin-bottom:10px;background:#fafbfc">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <b>${esc(r.ship||"")}</b><span class="hint">${esc(r.dateFrom||"")} ・ ${esc(this.tl(d.type))}${d.topic?"・"+esc(d.topic):""} ・ ${esc(d.closeMode||"")}</span>
+          <span class="hint">回報人：${esc(p.by||"")}（${esc(p.title||"")}）${p.at?esc(new Date(p.at).toLocaleString("zh-TW",{hour12:false})):""}</span>
+          <span style="margin-left:auto;display:flex;gap:6px">
+            <button class="btn sm dark" onclick="IntAuditQueue.closeReply('${esc(x.id)}')">✓ 審核結案</button>
+            <button class="btn sm" onclick="IntAuditQueue.returnReply('${esc(x.id)}')">↩ 退回</button></span></div>
+        <div style="margin-top:8px;font-size:12.5px;line-height:1.7"><b>${esc(d.category||"")}</b>：${esc(d.finding||"")}
+          <div style="margin-top:6px;padding:8px 10px;background:#fff;border:1px solid var(--line);border-radius:6px"><b>船上改善措施：</b>${esc(p.action||"")}<br><b>完成日期：</b>${esc(p.corrected||"")}${p.evidence?`<br><b>備註：</b>${esc(p.evidence)}`:""}
+          ${(p.photos||[]).length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${p.photos.map(ph=>`<img src="${ph.dataUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:5px;border:1px solid var(--line-2)">`).join("")}</div>`:""}</div>
+          ${d.importedDefId==null?`<div class="hint" style="color:#a04030;margin-top:4px">⚠ 這張登錄單還沒匯入主系統，請先到「待匯入」匯入，再回來審核結案。</div>`:""}</div></div>`;
+    }).join("");
+  },
+  async _patchReply(x,status,extra){
+    const p=Object.assign({},x.payload,extra||{});
+    await Cloud.api(`intaudit_replies?id=eq.${encodeURIComponent(x.id)}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),body:JSON.stringify({status,payload:p,updated_at:Date.now()})});
+  },
+  async closeReply(id){
+    if(!await Guard.require()){toast("⚠ 審核僅限維護者操作");return;}
+    const x=(this.replyAll||[]).find(a=>a.id===id);if(!x)return;
+    const r=(this.all||[]).find(a=>String(a.id)===String(x.record_id));
+    const d=r&&(r.defs||[]).find(dd=>dd.uid===x.def_uid);
+    if(!d||d.importedDefId==null){alert("這筆缺失所屬的登錄單還沒匯入主系統，請先到「待匯入」分頁匯入，再回來審核結案。");return;}
+    const rec=App.defs.find(z=>String(z.id)===String(d.importedDefId));
+    if(!rec){alert("在缺失紀錄總表找不到對應的缺失（可能已被刪除）。請到「已匯入」分頁按「重新匯入」重建後再審核。");return;}
+    const p=x.payload||{};
+    if(!confirm(`確定審核結案？\n\n將把船上的改善措施、改善後照片寫入缺失紀錄總表這一筆，並標記為已結案。${d.closeMode==="內控"?"\n\n內控項目結案後，請回「內部檢查缺失登錄」網頁再匯出一次內控 JSON，更新船舶動態系統。":""}`))return;
+    const by=(typeof Audit!=="undefined")?Audit.user():"",now=Date.now();
+    Object.assign(rec,{corrective:p.action||rec.corrective||"",photosAfter:Array.isArray(p.photos)&&p.photos.length?p.photos:(rec.photosAfter||[]),
+      intAuditStatus:"已結案",intAuditCorrectedDate:p.corrected||"",intAuditEvidence:p.evidence||"",intAuditClosedAt:now,intAuditReplyBy:`${p.by||""}（${p.title||""}）`,_impAt:now,_impBy:by});
+    try{
+      await this._patchReply(x,"reviewed",{reviewedBy:by,reviewedAt:now});
+    }catch(e){alert("⚠ 已更新缺失紀錄總表，但把回報標記為「已結案」寫回雲端失敗："+e.message+"\n\n請按「重新整理」確認狀態，必要時再按一次審核結案（不會重複新增）。");}
+    if(typeof Audit!=="undefined")Audit.log("審核結案","內部檢查缺失",`${r.ship} ${r.dateFrom} ${d.category||""}（回報人 ${p.by||""}）`);
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
+    try{if(typeof Defs!=="undefined"){Defs.init();Defs.render();}}catch(e){}
+    toast("✓ 已審核結案");this.refresh();
+  },
+  async returnReply(id){
+    if(!await Guard.require()){toast("⚠ 審核僅限維護者操作");return;}
+    const x=(this.replyAll||[]).find(a=>a.id===id);if(!x)return;
+    const note=prompt("退回原因（船上會在改善單上看到，請寫清楚要補什麼）：");
+    if(note===null)return;
+    if(!note.trim()){toast("⚠ 請填寫退回原因");return;}
+    try{await this._patchReply(x,"returned",{returnNote:note.trim(),returnedAt:Date.now(),returnedBy:(typeof Audit!=="undefined")?Audit.user():""});}
+    catch(e){alert("⚠ 退回失敗："+e.message);return;}
+    toast("已退回給船上重新回報");this.refresh();
   },
   toggle(id){this.expandedId=this.expandedId===id?null:id;this.render();},
   preview(r){
