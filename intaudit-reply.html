@@ -87,7 +87,7 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
 
   <!-- ══════ 單張改善單（?rid=單號）══════ -->
   <div id="main" style="display:none">
-    <div class="banner">請針對下列每一項待改善缺失，填寫<b>改善措施簡述</b>、<b>改善完成日期</b>，並<b>上傳改善後照片（1～3 張）</b>。可以先填幾項、其餘之後再補；填完後按最下方「送出」，送出後會自動存一份 Word 檔。已送出的項目在海技審核前都能修改。</div>
+    <div class="banner">請針對下列每一項待改善缺失，填寫<b>改善措施簡述</b>、<b>改善完成日期</b>，，改善後照片<b>選填</b>（最多 3 張）。可以先填幾項、其餘之後再補；填完後按最下方「送出」，送出後會自動存一份 Word 檔。已送出的項目在海技審核前都能修改。</div>
     <div class="card">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <label>填寫人姓名 <span class="req">*</span><input type="text" id="fName" autocomplete="off"></label>
@@ -102,7 +102,7 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
     <div style="margin:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <button class="btn primary" onclick="submitAll()">✓ 送出已填完的項目（並存成 Word）</button>
       <button class="btn" onclick="downloadWord(true)">⬇ 只下載 Word（不送出）</button>
-      <span class="hint">送出時只會送「三欄都填完」的項目；填到一半的項目會保留在草稿，不會遺失。</span>
+      <span class="hint">送出時只會送「改善措施與完成日期都填完」的項目；填到一半的項目會保留在草稿，不會遺失。</span>
     </div>
   </div>
 </div>
@@ -184,7 +184,7 @@ const blankV=()=>({action:"",corrected:"",evidence:"",photos:[]});
 function val(d){if(drafts[d.uid])return drafts[d.uid];const p=rpOf(d)&&rpOf(d).payload;return p?{action:p.action||"",corrected:p.corrected||"",evidence:p.evidence||"",photos:p.photos||[]}:blankV();}
 function dr(d){if(!drafts[d.uid])drafts[d.uid]=JSON.parse(JSON.stringify(val(d)));return drafts[d.uid];}
 const isEmpty=x=>!x||(!x.action&&!x.corrected&&!x.evidence&&!(x.photos||[]).length);
-const isComplete=x=>x&&(x.action||"").trim()&&x.corrected&&(x.photos||[]).length>0;
+const isComplete=x=>x&&(x.action||"").trim()&&x.corrected; // 照片為選填
 function sameAsReply(x,p){p=p||{};return (x.action||"")===(p.action||"")&&(x.corrected||"")===(p.corrected||"")&&(x.evidence||"")===(p.evidence||"")&&JSON.stringify((x.photos||[]).map(a=>a.dataUrl))===JSON.stringify((p.photos||[]).map(a=>a.dataUrl));}
 /* 狀態：lock 已結案｜green 已填（已回報）｜yellow 待填（填到一半／已修改未重送／被退回）｜red 未填 */
 function stOf(d){
@@ -255,7 +255,7 @@ function rowHtml(d,seq){
       <label>改善措施簡述 Action Brief <span class="req">*</span><textarea data-f="action" oninput="setF('${d.uid}','action',this.value)">${esc(x.action)}</textarea></label>
       <div class="two"><label>改善完成日期 <span class="req">*</span><input type="date" data-f="corrected" max="${todayIso()}" value="${esc(x.corrected)}" onchange="setF('${d.uid}','corrected',this.value)"></label>
       <label>改善完成證據／備註（選填）<textarea data-f="evidence" style="min-height:42px" oninput="setF('${d.uid}','evidence',this.value)">${esc(x.evidence)}</textarea></label></div>
-      <div class="fld" data-f="photos" style="margin-bottom:0">改善後照片 <span class="req">*</span>（1～${MAX_PH} 張）${phHtml(d)}</div>`;
+      <div class="fld" data-f="photos" style="margin-bottom:0">改善後照片（選填，最多 ${MAX_PH} 張）${phHtml(d)}</div>`;
   }
   return `<div class="row st-${st}" id="def-${d.uid}" data-st="${st}"><div class="rl">${left}</div><div class="rr">${right}</div></div>`;
 }
@@ -305,7 +305,7 @@ async function submitAll(){
   const todo=nonFlow(rec).filter(d=>stOf(d)!=="lock");
   const ready=todo.filter(d=>{const x=drafts[d.uid];return x&&isComplete(x)&&!(rpOf(d)&&sameAsReply(x,rpOf(d).payload));});
   const partial=todo.filter(d=>{const x=drafts[d.uid];return x&&!isEmpty(x)&&!isComplete(x);});
-  if(!ready.length)errs.push({msg:partial.length?`目前沒有「三欄都填完」的項目可送出（有 ${partial.length} 項填到一半，請補齊改善措施、完成日期、至少 1 張照片）`:"還沒有填寫任何一項改善回報",sel:partial.length?"#def-"+partial[0].uid:"#defList"});
+  if(!ready.length)errs.push({msg:partial.length?`目前沒有「改善措施與完成日期都填完」的項目可送出（有 ${partial.length} 項填到一半，請補齊改善措施與完成日期）`:"還沒有填寫任何一項改善回報",sel:partial.length?"#def-"+partial[0].uid:"#defList"});
   if(errs.length){
     box.innerHTML=`<b>無法送出</b><br>${errs.map(e=>"・"+esc(e.msg)).join("<br>")}`;box.style.display="";
     errs.forEach(e=>{const el=document.querySelector(e.sel);if(el)el.classList.add("bad");});

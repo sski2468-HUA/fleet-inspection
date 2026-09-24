@@ -72,6 +72,30 @@ async function buildDocBody(r,ctx,replyOf){
   ]);
   const heading=(t,pb)=>wPara(wRun(t,{b:true,sz:22}),{shd:"D9E2E8",before:200,after:80,keepNext:true,pb});
   const tinyGap=()=>wPara(wRun("",{sz:2}),{after:0});
+  /* ── 彙整：優良案例與各檢查種類缺失數量，並依結案方式列出 FLOW／內控／系統內結案的缺失內容 ── */
+  {
+    const defs=r.defs||[],cnt=(k,m)=>defs.filter(d=>d.type===k&&(!m||d.closeMode===m)).length;
+    b+=heading("● 彙整 Summary（優良案例與缺失數量、結案方式）");
+    const sumRows=[lblCell(4678,"項目")+lblCell(2500,"合計")+lblCell(2500,"FLOW 系統（DMP-FM01）")+lblCell(2500,"內控")+lblCell(2500,"系統內結案")];
+    sumRows.push(txtCell(4678,"優良案例 Best Practice")+txtCell(2500,`${(r.best||[]).length} 項`)+txtCell(2500,"—")+txtCell(2500,"—")+txtCell(2500,"—"));
+    (r.types||[]).forEach(k=>{const t=typeDef(k)||{label:k};sumRows.push(txtCell(4678,`${t.label}缺失`)+txtCell(2500,`${cnt(k)} 項`)+txtCell(2500,`${cnt(k,"FLOW")}`)+txtCell(2500,`${cnt(k,"內控")}`)+txtCell(2500,`${cnt(k,"系統內結案")}`));});
+    sumRows.push(wCell(4678,wPara(wRun("缺失合計",{b:true,sz:19}),{after:0}),{shd:LBL})+wCell(2500,wPara(wRun(`${defs.length} 項`,{b:true,sz:19}),{after:0}),{shd:LBL})+
+      wCell(2500,wPara(wRun(`${defs.filter(d=>d.closeMode==="FLOW").length}`,{b:true,sz:19}),{after:0}),{shd:LBL})+wCell(2500,wPara(wRun(`${defs.filter(d=>d.closeMode==="內控").length}`,{b:true,sz:19}),{after:0}),{shd:LBL})+
+      wCell(2500,wPara(wRun(`${defs.filter(d=>d.closeMode==="系統內結案").length}`,{b:true,sz:19}),{after:0}),{shd:LBL}));
+    b+=wTbl([4678,2500,2500,2500,2500],sumRows)+tinyGap();
+    const kind=d=>{const t=typeDef(d.type)||{label:d.type};return t.label+(topicText(d)?"・"+topicText(d):"");};
+    const listBlock=(title,items,withRemark)=>{
+      const cols=withRemark?[700,2300,2000,6078,900,2700]:[700,2800,2400,7778,1000];
+      const head=lblCell(cols[0],"No.")+lblCell(cols[1],"檢查種類／主題")+lblCell(cols[2],"分類 Category")+lblCell(cols[3],"缺失內容 Finding")+lblCell(cols[4],"風險")+(withRemark?lblCell(cols[5],"備註：結案方式"):"");
+      const rows=[head];
+      if(!items.length)rows.push(txtCell(cols.reduce((a,c)=>a+c,0),"（無）",{span:cols.length}));
+      items.forEach((d,i)=>{const m=modeOf(d.closeMode);rows.push(txtCell(cols[0],String(i+1))+txtCell(cols[1],kind(d))+txtCell(cols[2],d.category||"")+txtCell(cols[3],d.finding||"")+txtCell(cols[4],d.risk||"")+(withRemark?txtCell(cols[5],m?m.label:""):""));});
+      return wPara(wRun(`${title}（${items.length} 項）`,{b:true,sz:20}),{before:120,after:60,keepNext:true})+wTbl(cols,rows)+tinyGap();
+    };
+    b+=listBlock("■ 需登記到 FLOW 系統（DMP-FM01）的缺失",defs.filter(d=>d.closeMode==="FLOW"),false);
+    b+=listBlock("■ 需登記內控的缺失（不用輸入 DMP-FM01）",defs.filter(d=>d.closeMode==="內控"),false);
+    b+=listBlock("■ 系統內直接結案追蹤的缺失（含內控）",defs.filter(d=>d.closeMode==="內控"||d.closeMode==="系統內結案"),true);
+  }
   if((r.best||[]).length){
     b+=heading("● 優良案例 Best Practice");
     for(let i=0;i<r.best.length;i++){
