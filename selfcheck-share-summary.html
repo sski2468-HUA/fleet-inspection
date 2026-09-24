@@ -184,12 +184,13 @@ async function api(path,opts){
 /* ══════════ 活動清單／篩選狀態 ══════════
    allResponses：全部活動、全部船舶的填答一次抓回來，列表頁靠這份現算每個活動的統計，
    不用「列出N個活動就查N次」，活動數量變多也不會變慢。 */
+const EXCLUDED_SHIPS=["F25","F26","PH","PI"]; // 不參與分享自查的船舶（預設排除）
 let campaigns=[], curCampaign=null, responses=[], shipOpts=[], allResponses=[];
 async function loadShipOpts(){
   try{
     const rows=await api("app_db?select=payload&k=eq.ships");
     const list=rows&&rows[0]&&Array.isArray(rows[0].payload)?rows[0].payload:[];
-    shipOpts=list.map(s=>({code:s.code,name:s.zh||s.name||s.code}));
+    shipOpts=list.filter(s=>!EXCLUDED_SHIPS.includes(s.code)).map(s=>({code:s.code,name:s.zh||s.name||s.code}));
   }catch(e){}
 }
 async function loadCampaignList(){

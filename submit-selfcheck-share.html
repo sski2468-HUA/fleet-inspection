@@ -235,12 +235,13 @@ function onCheckerTitleInput(v){
 }
 ["gateCheckerTitle","bodyCheckerTitle"].forEach(id=>fillTitleSelect(id,getCheckerTitle()));
 
+const EXCLUDED_SHIPS=["F25","F26","PH","PI"]; // 不參與分享自查的船舶（預設排除）
 let SHIP_OPTS=[];
 async function loadShipOpts(){
   try{
     const rows=await api("app_db?select=payload&k=eq.ships");
     const list=rows&&rows[0]&&Array.isArray(rows[0].payload)?rows[0].payload:[];
-    SHIP_OPTS=list.map(s=>({code:s.code,name:s.zh||s.name||s.code}));
+    SHIP_OPTS=list.filter(s=>!EXCLUDED_SHIPS.includes(s.code)).map(s=>({code:s.code,name:s.zh||s.name||s.code}));
   }catch(e){ /* 離線或抓取失敗，維持空清單，下面 fillShipSelect 會用活動範本裡限定的船舶代碼頂著用 */ }
 }
 function fillShipSelect(){
