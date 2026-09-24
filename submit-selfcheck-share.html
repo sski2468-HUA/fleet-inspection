@@ -104,7 +104,7 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
     <label style="margin-top:10px">填寫人姓名 *</label>
     <input type="text" id="gateChecker" placeholder="輸入您的姓名" oninput="onCheckerNameInput(this.value)">
     <label style="margin-top:10px">填寫人職稱 *</label>
-    <input type="text" id="gateCheckerTitle" placeholder="例：大副、輪機長、船長" oninput="onCheckerTitleInput(this.value)">
+    <select id="gateCheckerTitle" onchange="onCheckerTitleInput(this.value)"></select>
     <button class="btn primary" style="margin-top:14px;width:100%" id="gateBtn" onclick="enterAsShip()">▶ 開始／繼續填答</button>
     <p class="hint" style="margin-top:10px">選過一次之後，這台裝置下次打開同一條連結會記得您上次選的船名，直接帶入不用重選（仍可自行更換）。</p>
   </div>
@@ -133,7 +133,7 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
         <div style="flex:1;min-width:140px"><label style="margin:0 0 4px">填寫人姓名 *</label><input type="text" id="bodyChecker" placeholder="輸入您的姓名" oninput="onCheckerNameInput(this.value)"></div>
-        <div style="flex:1;min-width:140px"><label style="margin:0 0 4px">填寫人職稱 *</label><input type="text" id="bodyCheckerTitle" placeholder="例：大副、輪機長、船長" oninput="onCheckerTitleInput(this.value)"></div>
+        <div style="flex:1;min-width:140px"><label style="margin:0 0 4px">填寫人職稱 *</label><select id="bodyCheckerTitle" onchange="onCheckerTitleInput(this.value)"></select></div>
       </div>
       <p class="hint warn" style="margin-top:10px">內容會自動即時儲存，不用自己按存檔。答「有，需處理」的項目，等船上處理完成後記得回來勾選「已完成改善（結案）」，再按一次「送出」才算完整。送出後仍可以回來調整、再送出一次覆蓋更新。<b>姓名與職稱為必填，未填寫無法送出。</b></p>
       <div class="modebar" style="margin-top:12px">
@@ -219,6 +219,8 @@ const LASTSHIP_KEY="vsm_scshare_lastship_"+CID;
 const GLOBAL_SHIP_KEY="vsm_scshare_myship";
 const CHECKER_KEY="vsm_selfcheck_checker_name";
 const CHECKER_TITLE_KEY="vsm_scshare_checker_title";
+const RANK_OPTIONS=["Master船長","C/O大副","2/O二副","3/O三副","C/E輪機長","2/E大管","3/E二管","4/E三管","BSN水手長","AB幹練水手","OS普通水手","COOK廚師","FTR銅匠","OLR加油匠","PM泵匠","A.Capt.見習船長","A.C/O見習大副","A.2/O見習二副","A.3/O見習三副","A.C/E見習輪機長","A.2/E見習大管","A.3/E見習二管","A.4/E見習三管","其他"];
+function fillTitleSelect(id,cur){const el=document.getElementById(id);if(!el)return;const list=RANK_OPTIONS.slice();if(cur&&!list.includes(cur))list.push(cur);el.innerHTML='<option value="">請選擇職稱</option>'+list.map(r=>'<option value="'+r.replace(/"/g,"&quot;")+'">'+r+'</option>').join("");el.value=cur||"";}
 function getCheckerName(){ try{return localStorage.getItem(CHECKER_KEY)||"";}catch(e){return "";} }
 function getCheckerTitle(){ try{return localStorage.getItem(CHECKER_TITLE_KEY)||"";}catch(e){return "";} }
 /* 姓名／職稱輸入框在「進場選船」跟「答題畫面」各有一組（同一份資料），兩邊互相同步，
@@ -229,8 +231,9 @@ function onCheckerNameInput(v){
 }
 function onCheckerTitleInput(v){
   try{localStorage.setItem(CHECKER_TITLE_KEY,v||"");}catch(e){}
-  [ "gateCheckerTitle","bodyCheckerTitle" ].forEach(id=>{const el=document.getElementById(id);if(el&&el.value!==v)el.value=v;});
+  [ "gateCheckerTitle","bodyCheckerTitle" ].forEach(id=>{const el=document.getElementById(id);if(!el||el.value===v)return;el.value=v;if(el.value!==(v||""))fillTitleSelect(id,v);});
 }
+["gateCheckerTitle","bodyCheckerTitle"].forEach(id=>fillTitleSelect(id,getCheckerTitle()));
 
 let SHIP_OPTS=[];
 async function loadShipOpts(){
