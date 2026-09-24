@@ -4,58 +4,90 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>內部檢查改善回報 — FPMC</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="intaudit-word.js"></script>
 <style>
-:root{--navy:#1c3a5e;--paper:#f5f7f8;--card:#fff;--line:#dde4e8;--line-2:#c3ced5;--ink:#15262f;--ink-2:#52656f;--ink-3:#8195a0;--signal:#e8842c;--teal:#1e7f8c;--teal-l:#e4f1f2;--ok:#2e8b57;--bad:#c0392b;
+:root{--navy:#1c3a5e;--paper:#f5f7f8;--card:#fff;--line:#dde4e8;--line-2:#c3ced5;--ink:#15262f;--ink-2:#52656f;--ink-3:#8195a0;--signal:#e8842c;--teal:#1e7f8c;--teal-l:#e4f1f2;--ok:#2e8b57;--bad:#c0392b;--warn:#e0a800;
 --sans:"Segoe UI","Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--paper);font-family:var(--sans);color:var(--ink);font-size:15px}
-.wrap{max-width:860px;margin:0 auto;padding:0 0 80px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 0 80px}
 header{background:var(--navy);color:#fff;padding:18px 18px}
 header h1{margin:0;font-size:19px}
 header p{margin:6px 0 0;font-size:13px;color:#b9c8d6;line-height:1.6}
+header a{color:#cfe0ee;font-size:13px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:14px;padding:16px}
 .hint{color:var(--ink-3);font-size:12.5px;line-height:1.7}
 .banner{margin:14px;background:var(--teal-l);border:1px solid #bfdde0;border-radius:8px;padding:10px 14px;font-size:13px;line-height:1.8;color:#22505a}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-2);background:#fff;color:var(--ink);padding:10px 16px;border-radius:8px;font-size:14px;cursor:pointer;font-family:var(--sans);font-weight:600}
-.btn.primary{background:var(--signal);border-color:var(--signal);color:#fff;width:100%;font-size:16px;padding:13px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-2);background:#fff;color:var(--ink);padding:10px 16px;border-radius:8px;font-size:14px;cursor:pointer;font-family:var(--sans);font-weight:600;text-decoration:none}
+.btn.primary{background:var(--signal);border-color:var(--signal);color:#fff;font-size:16px;padding:13px 22px}
 .btn.sm{padding:5px 11px;font-size:12.5px}
 input[type=text],input[type=date],select,textarea{padding:10px 11px;border:1px solid var(--line-2);border-radius:8px;font-size:15px;font-family:var(--sans);width:100%;background:#fff}
 textarea{min-height:84px;resize:vertical;line-height:1.5}
-label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--ink-2);font-weight:600;margin-bottom:12px}
+label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--ink-2);font-weight:600;margin-bottom:10px}
 .req{color:var(--bad)}
-.item{border-left:4px solid var(--signal)}
-.item.done{border-left-color:var(--ok);background:#f6fbf8}
-.item.wait{border-left-color:var(--teal)}
 .ih{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-weight:700;color:var(--navy)}
 .pill{display:inline-block;font-size:11.5px;font-weight:700;border-radius:10px;padding:1px 9px}
 .pill.ic{background:#fdeedf;color:#b5610f}.pill.sys{background:var(--teal-l);color:var(--teal)}
-.pill.ok{background:#e2f3e8;color:var(--ok)}.pill.rep{background:#e3ecf1;color:var(--navy)}.pill.ret{background:#fde8e6;color:var(--bad)}
 .risk{display:inline-block;font-size:11.5px;font-weight:700;border-radius:3px;padding:1px 8px}
 .risk.h{background:#fde8e6;color:#c0392b}.risk.m{background:#fff3cd;color:#7a5a10}.risk.l{background:#e2f3e8;color:#2e8b57}
-.finding{white-space:pre-line;border-left:3px solid var(--line-2);padding:4px 0 4px 10px;margin:8px 0;line-height:1.6}
+.finding{white-space:pre-line;border-left:3px solid var(--line-2);padding:4px 0 4px 10px;margin:8px 0;line-height:1.65}
 .phs{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.ph{position:relative;width:88px;height:88px}
-.ph img{width:88px;height:88px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);cursor:pointer}
+.ph{position:relative;width:84px;height:84px}
+.ph img{width:84px;height:84px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);cursor:pointer}
 .ph button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:none;background:var(--bad);color:#fff;font-size:14px;line-height:22px;cursor:pointer;padding:0}
-.phadd{display:flex!important;flex-direction:row!important;align-items:center;justify-content:center;width:88px;height:88px;border:2px dashed var(--line-2);border-radius:6px;color:var(--ink-3);font-size:12px;cursor:pointer;background:#fafbfb;text-align:center;margin:0}
+.phadd{display:flex!important;flex-direction:row!important;align-items:center;justify-content:center;width:84px;height:84px;border:2px dashed var(--line-2);border-radius:6px;color:var(--ink-3);font-size:12px;cursor:pointer;background:#fafbfb;text-align:center;margin:0}
 .errors{background:#fdf0ee;border:1px solid #efc3bb;border-left:4px solid var(--bad);border-radius:6px;padding:12px 16px;margin:14px;font-size:13px;color:#8a2c1f;line-height:1.8}
 .bad{outline:2px solid var(--bad);outline-offset:1px;border-radius:6px}
-.sub{background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13.5px;line-height:1.7;white-space:pre-line}
+.sub{background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;line-height:1.7;white-space:pre-line}
+/* 進度列與篩選 */
+.bar{position:sticky;top:0;z-index:20;background:var(--paper);padding:10px 14px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{border:2px solid transparent;border-radius:999px;padding:6px 16px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+.chip b{font-size:17px;margin-left:5px}
+.chip.all{background:#fff;color:var(--ink-2);border-color:var(--line-2)}
+.chip.red{background:#fde8e6;color:#c0392b}.chip.yellow{background:#ffe38a;color:#6b4e00}.chip.green{background:#dff2e6;color:#20703f}
+.chip.on{border-color:var(--navy);box-shadow:0 0 0 2px rgba(28,58,94,.15)}
+/* 缺失列 */
+.rows{margin:12px 14px}
+.row{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);background:#fff;border:1px solid var(--line);border-left:7px solid var(--bad);border-radius:10px;margin:0 0 12px;scroll-margin-top:80px}
+.row.st-yellow{border-left-color:var(--warn)}.row.st-green{border-left-color:var(--ok)}.row.st-lock{border-left-color:#6b7f8c;background:#f6f8f9}
+.rl{padding:14px 16px;border-right:1px dashed var(--line)}
+.rr{padding:14px 16px}
+.badge{display:inline-block;font-size:12px;font-weight:700;border-radius:10px;padding:2px 11px}
+.badge.red{background:#fde8e6;color:#c0392b}.badge.yellow{background:#ffe38a;color:#6b4e00}.badge.green{background:#dff2e6;color:#20703f}.badge.lock{background:#e3e8ec;color:#455a66}
+.two{display:grid;grid-template-columns:200px 1fr;gap:12px}
+/* 清單頁 */
+.tabs{display:flex;gap:8px;margin:14px}
+.tabs button{border:1px solid var(--line-2);background:#fff;border-radius:20px;padding:8px 20px;font-size:14px;font-weight:700;cursor:pointer;color:var(--ink-2);font-family:var(--sans)}
+.tabs button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.ocard{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.ocard .info{flex:1;min-width:260px}
+.cnt{display:inline-block;font-size:12.5px;font-weight:700;border-radius:10px;padding:2px 11px;margin:4px 6px 0 0}
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);display:none;z-index:99;max-width:90vw;text-align:center}
 #toast.err{background:var(--bad)}
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:120;cursor:zoom-out}
 .lightbox img{max-width:94vw;max-height:94vh;border-radius:6px}
+@media(max-width:860px){.row{grid-template-columns:1fr}.rl{border-right:none;border-bottom:1px dashed var(--line)}.two{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>🛠 內部檢查改善單（船上回報）</h1>
+    <h1 id="hdrTitle">🛠 內部檢查改善單（船上回報）</h1>
     <p id="hdrSub">讀取中…</p>
   </header>
   <div id="msgBox"></div>
+
+  <!-- ══════ 本船改善單清單（?ship=船code）══════ -->
+  <div id="shipPage" style="display:none">
+    <div class="banner">這裡列出本船歷次的內部檢查改善單。<b>進行中</b>是還有項目待填寫或待海技審核的單；<b>已結案</b>是全部項目都已由海技審核結案的舊單，可隨時查看並下載 Word 檔。</div>
+    <div class="tabs" id="shipTabs"></div>
+    <div id="shipList"></div>
+  </div>
+
+  <!-- ══════ 單張改善單（?rid=單號）══════ -->
   <div id="main" style="display:none">
-    <div class="banner">請針對下列每一項待改善缺失，填寫<b>改善措施簡述</b>、<b>改善完成日期</b>，並<b>上傳改善後照片（1～3 張）</b>後送出回報。可以一次回報幾項、其餘之後再補；已送出的項目在海技審核前都能修改。</div>
+    <div class="banner">請針對下列每一項待改善缺失，填寫<b>改善措施簡述</b>、<b>改善完成日期</b>，並<b>上傳改善後照片（1～3 張）</b>。可以先填幾項、其餘之後再補；填完後按最下方「送出」，送出後會自動存一份 Word 檔。已送出的項目在海技審核前都能修改。</div>
     <div class="card">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <label>填寫人姓名 <span class="req">*</span><input type="text" id="fName" autocomplete="off"></label>
@@ -63,10 +95,15 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
       </div>
       <div class="hint">姓名、職稱送出時會一併記錄；這台裝置下次會記得您填過的內容。</div>
     </div>
+    <div class="bar" id="bar"></div>
     <div id="errBox" class="errors" style="display:none"></div>
-    <div id="defList"></div>
+    <div class="rows" id="defList"></div>
     <div id="flowNote"></div>
-    <div style="margin:14px"><button class="btn primary" onclick="submitAll()">✓ 送出改善回報</button></div>
+    <div style="margin:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn primary" onclick="submitAll()">✓ 送出已填完的項目（並存成 Word）</button>
+      <button class="btn" onclick="downloadWord(true)">⬇ 只下載 Word（不送出）</button>
+      <span class="hint">送出時只會送「三欄都填完」的項目；填到一半的項目會保留在草稿，不會遺失。</span>
+    </div>
   </div>
 </div>
 <div class="lightbox" id="lightbox" onclick="this.style.display='none'"><img id="lightboxImg" alt=""></div>
@@ -76,133 +113,226 @@ const CLOUD={url:"https://iqmbircjokdzdssouwkr.supabase.co",
   key:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY"};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
-function toast(msg,err){const t=$("#toast");t.textContent=msg;t.className=err?"err":"";t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",3400);}
+function toast(msg,err){const t=$("#toast");t.textContent=msg;t.className=err?"err":"";t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",3800);}
 const H=x=>Object.assign({"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json"},x||{});
 async function api(path,opts){const r=await fetch(`${CLOUD.url}/rest/v1/${path}`,Object.assign({headers:H()},opts||{}));if(!r.ok)throw new Error("HTTP "+r.status+" "+(await r.text()).slice(0,160));const t=await r.text();return t?JSON.parse(t):null;}
 const RANK_OPTIONS=["Master船長","C/O大副","2/O二副","3/O三副","C/E輪機長","2/E大管","3/E二管","4/E三管","BSN水手長","AB幹練水手","OS普通水手","COOK廚師","FTR銅匠","OLR加油匠","PM泵匠","A.Capt.見習船長","A.C/O見習大副","A.2/O見習二副","A.3/O見習三副","A.C/E見習輪機長","A.2/E見習大管","A.3/E見習二管","A.4/E見習三管","其他(請聯繫海技新增)"];
-const TYPE_LABEL={"onboard visit":"訪船","Internal audit":"內稽","ACCOMPANYING SHIP":"隨船","Cross ship visit":"交叉訪船","主題檢查":"主題檢查"};
-const RID=new URLSearchParams(location.search).get("rid");
+const QS=new URLSearchParams(location.search),RID=QS.get("rid"),SHIP=QS.get("ship");
 const MAX_PH=3,ID_KEY="vsm_iareply_who_v1",DRAFT_KEY="vsm_iareply_draft_"+RID;
-let rec=null,replies={},drafts={};
-const slash=s=>String(s||"").replace(/-/g,"/");
-const dateText=r=>r.dateFrom?(slash(r.dateFrom)+(r.dateTo&&r.dateTo!==r.dateFrom?"～"+slash(r.dateTo):"")):"";
+let SHIPS=[],rec=null,replies={},drafts={},flt="all";
 const todayIso=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+const typeLabels=r=>(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、");
+function download(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);}
+const fname=(r,ext)=>`${r.ship||"船名"}_${(dateText(r)||"檢查日期").replace(/[\\/:*?"<>|～]/g,"-")}_檢查缺失具體項目記錄表${ext}`;
 function openLightbox(u){$("#lightboxImg").src=u;$("#lightbox").style.display="flex";}
+async function loadShips(){try{const r=await api("app_db?select=payload&k=eq.ships");const p=r&&r[0]&&r[0].payload;if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code}));}catch(e){}}
+const nonFlow=r=>(r.defs||[]).filter(d=>d.closeMode!=="FLOW"&&d.uid);
+const bad=(msg)=>{$("#msgBox").innerHTML=`<div class="banner">${msg}</div>`;};
+
+/* ══════════ 本船改善單清單 ══════════ */
+let shipRows=[],shipTab="open";
+async function initShip(){
+  $("#hdrTitle").textContent=`🛠 ${SHIP} 內部檢查改善單清單`;
+  let rows;
+  try{
+    rows=await api(`intaudit_records?payload->>ship=eq.${encodeURIComponent(SHIP)}&select=id,payload&order=id.desc&limit=200`);
+    const ids=(rows||[]).map(r=>r.id);
+    const rr=ids.length?await api(`intaudit_replies?record_id=in.(${ids.join(",")})&select=id,record_id,def_uid,status&limit=5000`):[];
+    const st={};(rr||[]).forEach(x=>{st[x.id]=x.status;});
+    shipRows=(rows||[]).map(x=>Object.assign({},x.payload,{id:x.id})).filter(r=>!r.draft&&r.issuedAt&&nonFlow(r).length).map(r=>{
+      const ds=nonFlow(r),c={none:0,submitted:0,reviewed:0,returned:0};
+      ds.forEach(d=>{c[st[`${r.id}_${d.uid}`]||"none"]++;});
+      return {r,n:ds.length,c,closed:c.reviewed===ds.length};
+    });
+  }catch(e){$("#hdrSub").textContent="讀取失敗";bad(`讀取失敗：${esc(e.message)}<br>請確認網路後重新整理，或聯絡海技。`);return;}
+  $("#hdrSub").textContent=`${SHIP} 歷次改善單（依檢查日期由新到舊）`;
+  $("#shipPage").style.display="";renderShip();
+}
+function setShipTab(k){shipTab=k;renderShip();}
+function renderShip(){
+  const open=shipRows.filter(x=>!x.closed),closed=shipRows.filter(x=>x.closed);
+  $("#shipTabs").innerHTML=`<button class="${shipTab==="open"?"on":""}" onclick="setShipTab('open')">進行中（${open.length}）</button><button class="${shipTab==="closed"?"on":""}" onclick="setShipTab('closed')">已結案（${closed.length}）</button>`;
+  const list=shipTab==="open"?open:closed;
+  $("#shipList").innerHTML=list.length?list.map(({r,n,c,closed})=>{
+    const todo=c.none+c.returned;
+    return `<div class="card ocard"><div class="info"><div style="font-weight:700;color:var(--navy);font-size:16px">${esc(r.ship)}　${esc(dateText(r))}　${esc(typeLabels(r))}</div>
+      <div class="hint">檢查人：${esc(r.inspector||"")}　地點：${esc(r.psn||"")}　需船上改善 ${n} 項</div>
+      <div>${todo?`<span class="cnt" style="background:#fde8e6;color:#c0392b">待填寫 ${todo}</span>`:""}${c.submitted?`<span class="cnt" style="background:#e3ecf1;color:#1c3a5e">已回報待審核 ${c.submitted}</span>`:""}${c.reviewed?`<span class="cnt" style="background:#dff2e6;color:#20703f">已結案 ${c.reviewed}</span>`:""}</div></div>
+      <a class="btn ${closed?"":"primary"}" style="${closed?"":"font-size:15px;padding:10px 18px"}" href="?rid=${r.id}">${closed?"查看":"開啟填寫"}</a>
+      <button class="btn" onclick="listWord(${r.id},this)">⬇ Word</button></div>`;}).join(""):`<div class="banner">${shipTab==="open"?"目前沒有進行中的改善單。":"還沒有已結案的改善單。"}</div>`;
+}
+async function listWord(id,btn){
+  const it=shipRows.find(x=>x.r.id===id);if(!it)return;
+  btn.disabled=true;toast("⏳ 正在產生 Word 檔…");
+  try{
+    const rr=await api(`intaudit_replies?record_id=eq.${id}&select=id,status,payload&limit=5000`),m={};(rr||[]).forEach(x=>{m[x.id]=x;});
+    await loadShips();
+    const {blob}=await iaMakeDocx(it.r,d=>{const x=m[`${id}_${d.uid}`];return x?Object.assign({status:x.status},x.payload):null;});
+    download(blob,fname(it.r,".docx"));toast("✓ 已下載 Word 檔");
+  }catch(e){toast("⚠ 產生 Word 失敗："+e.message,true);}
+  btn.disabled=false;
+}
+
+/* ══════════ 單張改善單 ══════════ */
 function loadDrafts(){try{drafts=JSON.parse(localStorage.getItem(DRAFT_KEY)||"{}");}catch(e){drafts={};}}
 function saveDrafts(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify(drafts));}catch(e){/* 照片太多存不下時只是少了離線備份，不影響送出 */}}
 function who(){try{return JSON.parse(localStorage.getItem(ID_KEY)||"{}");}catch(e){return {};}}
 function saveWho(){try{localStorage.setItem(ID_KEY,JSON.stringify({name:$("#fName").value.trim(),title:$("#fTitle").value}));}catch(e){}}
-const pendingDefs=()=>(rec.defs||[]).map((d,i)=>({d,i})).filter(x=>x.d.closeMode!=="FLOW"&&x.d.uid);
-function stateOf(d){const rp=replies[`${RID}_${d.uid}`];return rp?rp.status:"none";}
-function dr(uid){return drafts[uid]||(drafts[uid]={action:"",corrected:"",evidence:"",photos:[]});}
-
-async function init(){
-  if(!RID){$("#hdrSub").textContent="連結不完整";$("#msgBox").innerHTML=`<div class="banner">找不到改善單編號，請向督導／海技索取完整連結。</div>`;return;}
+const rpOf=d=>replies[`${RID}_${d.uid}`];
+const blankV=()=>({action:"",corrected:"",evidence:"",photos:[]});
+/* 目前顯示的內容：有草稿用草稿；沒有草稿就用已送出的回報內容 */
+function val(d){if(drafts[d.uid])return drafts[d.uid];const p=rpOf(d)&&rpOf(d).payload;return p?{action:p.action||"",corrected:p.corrected||"",evidence:p.evidence||"",photos:p.photos||[]}:blankV();}
+function dr(d){if(!drafts[d.uid])drafts[d.uid]=JSON.parse(JSON.stringify(val(d)));return drafts[d.uid];}
+const isEmpty=x=>!x||(!x.action&&!x.corrected&&!x.evidence&&!(x.photos||[]).length);
+const isComplete=x=>x&&(x.action||"").trim()&&x.corrected&&(x.photos||[]).length>0;
+function sameAsReply(x,p){p=p||{};return (x.action||"")===(p.action||"")&&(x.corrected||"")===(p.corrected||"")&&(x.evidence||"")===(p.evidence||"")&&JSON.stringify((x.photos||[]).map(a=>a.dataUrl))===JSON.stringify((p.photos||[]).map(a=>a.dataUrl));}
+/* 狀態：lock 已結案｜green 已填（已回報）｜yellow 待填（填到一半／已修改未重送／被退回）｜red 未填 */
+function stOf(d){
+  const rp=rpOf(d),x=drafts[d.uid];
+  if(rp&&rp.status==="reviewed")return "lock";
+  if(rp&&rp.status==="returned")return "yellow";
+  if(x&&!isEmpty(x)&&!(rp&&sameAsReply(x,rp.payload)))return "yellow";
+  if(rp&&rp.status==="submitted")return "green";
+  return "red";
+}
+function badgeText(d,st){
+  const rp=rpOf(d);
+  if(st==="lock")return "✓ 已結案";
+  if(st==="green")return "已回報，待海技審核";
+  if(st==="yellow")return rp&&rp.status==="returned"?"被退回，請修正後重送":rp?"已修改，尚未重新送出":isComplete(drafts[d.uid])?"已填完，尚未送出":"待填（尚未填完）";
+  return "未填";
+}
+async function initRec(){
   try{
     const rows=await api(`intaudit_records?id=eq.${encodeURIComponent(RID)}&select=id,payload`);
-    if(!rows||!rows[0]){$("#hdrSub").textContent="找不到這張改善單";$("#msgBox").innerHTML=`<div class="banner">找不到這張改善單，可能已被刪除，請向督導／海技確認連結。</div>`;return;}
+    if(!rows||!rows[0]){$("#hdrSub").textContent="找不到這張改善單";bad("找不到這張改善單，可能已被刪除，請向督導／海技確認連結。");return;}
     rec=Object.assign({},rows[0].payload,{id:rows[0].id});
-    const rr=await api(`intaudit_replies?record_id=eq.${encodeURIComponent(RID)}&select=id,def_uid,status,payload`);
-    (rr||[]).forEach(x=>{replies[x.id]=x;});
-  }catch(e){$("#hdrSub").textContent="讀取失敗";$("#msgBox").innerHTML=`<div class="banner">讀取失敗：${esc(e.message)}<br>請確認網路後重新整理，或聯絡海技。</div>`;return;}
-  if(rec.draft){$("#hdrSub").textContent="這張改善單尚未發出";$("#msgBox").innerHTML=`<div class="banner">這張登錄單督導還沒有送出，請稍後再試。</div>`;return;}
-  $("#hdrSub").textContent=`${rec.ship}　${dateText(rec)}　${(rec.types||[]).map(k=>TYPE_LABEL[k]||k).join("、")}　檢查人：${rec.inspector||""}　地點：${rec.psn||""}`;
+    await reloadReplies();
+  }catch(e){$("#hdrSub").textContent="讀取失敗";bad(`讀取失敗：${esc(e.message)}<br>請確認網路後重新整理，或聯絡海技。`);return;}
+  if(rec.draft){$("#hdrSub").textContent="這張改善單尚未發出";bad("這張登錄單督導還沒有送出，請稍後再試。");return;}
+  $("#hdrSub").innerHTML=`${esc(rec.ship)}　${esc(dateText(rec))}　${esc(typeLabels(rec))}　檢查人：${esc(rec.inspector||"")}　地點：${esc(rec.psn||"")}　<a href="?ship=${encodeURIComponent(rec.ship)}">← 本船改善單清單</a>`;
   loadDrafts();
-  const w=who();
-  $("#fName").value=w.name||"";
+  const w=who();$("#fName").value=w.name||"";
   $("#fTitle").innerHTML='<option value="">— 請選擇職稱 —</option>'+RANK_OPTIONS.map(r=>`<option ${w.title===r?"selected":""}>${esc(r)}</option>`).join("");
   $("#fName").oninput=saveWho;$("#fTitle").onchange=saveWho;
   $("#main").style.display="";
-  renderDefs();
+  renderRows();
 }
-function phHtml(uid){
-  const list=dr(uid).photos,full=list.length>=MAX_PH;
-  return `<div class="phs">${list.map((p,k)=>`<div class="ph"><img src="${p.dataUrl}" onclick="openLightbox(dr('${uid}').photos[${k}].dataUrl)"><button type="button" title="刪除這張照片" onclick="delPhoto('${uid}',${k})">×</button></div>`).join("")}${full?`<span class="hint">最多 ${MAX_PH} 張</span>`:`<label class="phadd">＋ 上傳<br>改善後照片<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos('${uid}',this)"></label>`}</div>`;
+async function reloadReplies(){
+  const rr=await api(`intaudit_replies?record_id=eq.${encodeURIComponent(RID)}&select=id,def_uid,status,payload`);
+  replies={};(rr||[]).forEach(x=>{replies[x.id]=x;});
 }
+function phHtml(d){
+  const list=val(d).photos,full=list.length>=MAX_PH;
+  return `<div class="phs">${list.map((p,k)=>`<div class="ph"><img src="${p.dataUrl}" onclick="openLightbox(val(byUid('${d.uid}')).photos[${k}].dataUrl)"><button type="button" title="刪除這張照片" onclick="delPhoto('${d.uid}',${k})">×</button></div>`).join("")}${full?`<span class="hint">最多 ${MAX_PH} 張</span>`:`<label class="phadd">＋ 上傳<br>改善後照片<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos('${d.uid}',this)"></label>`}</div>`;
+}
+const byUid=u=>(rec.defs||[]).find(d=>d.uid===u);
 function readImg(file){return new Promise(res=>{const fr=new FileReader();fr.onload=()=>{const img=new Image();img.onload=()=>{const M=1280,s=Math.min(1,M/Math.max(img.width,img.height));const cv=document.createElement("canvas");cv.width=Math.round(img.width*s);cv.height=Math.round(img.height*s);cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);res({name:file.name,dataUrl:cv.toDataURL("image/jpeg",0.8)});};img.onerror=()=>res(null);img.src=fr.result;};fr.onerror=()=>res(null);fr.readAsDataURL(file);});}
 async function addPhotos(uid,input){
-  const files=[...input.files];input.value="";const list=dr(uid).photos;let skip=0;
+  const files=[...input.files];input.value="";const d=byUid(uid),list=dr(d).photos;let skip=0;
   for(const f of files){if(list.length>=MAX_PH){skip++;continue;}const p=await readImg(f);if(p)list.push(p);}
   if(skip)toast(`⚠ 每一項最多 ${MAX_PH} 張照片，已略過 ${skip} 張`,true);
-  saveDrafts();renderDefs();
+  saveDrafts();rerow(uid);
 }
-function delPhoto(uid,k){dr(uid).photos.splice(k,1);saveDrafts();renderDefs();}
-function setF(uid,f,v){dr(uid)[f]=v;saveDrafts();}
-function renderDefs(){
-  const list=pendingDefs();
-  $("#defList").innerHTML=list.length?list.map(({d,i},seq)=>{
-    const st=stateOf(d),rp=replies[`${RID}_${d.uid}`],x=dr(d.uid);
-    const head=`<div class="ih">待改善 No.${seq+1}　${esc(d.category||"")}
+function delPhoto(uid,k){dr(byUid(uid)).photos.splice(k,1);saveDrafts();rerow(uid);}
+function setF(uid,f,v){dr(byUid(uid))[f]=v;saveDrafts();paintStatus(uid);updateBar();}
+function rowHtml(d,seq){
+  const st=stOf(d),rp=rpOf(d),x=val(d);
+  const left=`<div class="ih">No.${seq}　${esc(d.category||"")}
       <span class="pill ${d.closeMode==="內控"?"ic":"sys"}">${esc(d.closeMode==="內控"?"內控":"系統內結案")}</span>
-      ${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">風險 ${esc(d.risk)}</span>`:""}
-      ${st==="reviewed"?`<span class="pill ok">✓ 已結案</span>`:st==="submitted"?`<span class="pill rep">已回報，待審核</span>`:st==="returned"?`<span class="pill ret">被退回，請修正後重送</span>`:""}</div>
+      ${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">風險 ${esc(d.risk)}</span>`:""}</div>
       ${d.topic?`<div class="hint">${esc(d.topic)}</div>`:""}
       <div class="finding">${esc(d.finding||"")}</div>
-      ${(d.photos||[]).length?`<div class="phs" style="margin-bottom:10px">${d.photos.map((p,k)=>`<div class="ph"><img src="${p.dataUrl}" onclick="openLightbox(rec.defs[${i}].photos[${k}].dataUrl)"></div>`).join("")}</div>`:""}`;
-    if(st==="reviewed"){
-      const p=rp.payload||{};
-      return `<div class="card item done">${head}<div class="sub"><b>改善措施：</b>${esc(p.action||"")}\n<b>完成日期：</b>${esc(p.corrected||"")}${p.evidence?`\n<b>備註：</b>${esc(p.evidence)}`:""}</div></div>`;
-    }
-    // 已回報／被退回時，把已送出的內容帶回輸入框供修改（尚未開始改的草稿優先）
-    if(rp&&!drafts[d.uid]){const p=rp.payload||{};drafts[d.uid]={action:p.action||"",corrected:p.corrected||"",evidence:p.evidence||"",photos:p.photos||[]};}
-    const y=dr(d.uid);
-    return `<div class="card item ${st==="submitted"?"wait":""}" id="def-${d.uid}">${head}
-      ${st==="returned"&&rp&&rp.payload&&rp.payload.returnNote?`<div class="errors" style="margin:0 0 12px">海技退回原因：${esc(rp.payload.returnNote)}</div>`:""}
-      <label>改善措施簡述 Action Brief <span class="req">*</span><textarea data-f="action" oninput="setF('${d.uid}','action',this.value)">${esc(y.action)}</textarea></label>
-      <label>改善完成日期 Corrected @ <span class="req">*</span><input type="date" data-f="corrected" max="${todayIso()}" value="${esc(y.corrected)}" onchange="setF('${d.uid}','corrected',this.value)"></label>
-      <label>改善完成證據／備註（選填）<textarea data-f="evidence" style="min-height:60px" oninput="setF('${d.uid}','evidence',this.value)">${esc(y.evidence)}</textarea></label>
-      <div class="fld" data-f="photos">改善後照片 <span class="req">*</span>（1～${MAX_PH} 張）${phHtml(d.uid)}</div></div>`;
-  }).join(""):`<div class="banner">這張改善單沒有需要船上改善的項目。</div>`;
+      ${(d.photos||[]).length?`<div class="phs">${d.photos.map((p,k)=>`<div class="ph"><img src="${p.dataUrl}" onclick="openLightbox(byUid('${d.uid}').photos[${k}].dataUrl)"></div>`).join("")}</div>`:""}`;
+  let right;
+  if(st==="lock"){
+    const p=rp.payload||{};
+    right=`<div class="ih"><span class="badge lock" id="bd-${d.uid}">✓ 已結案</span></div><div class="sub"><b>改善措施：</b>${esc(p.action||"")}\n<b>完成日期：</b>${esc(p.corrected||"")}${p.evidence?`\n<b>備註：</b>${esc(p.evidence)}`:""}\n<b>回報人：</b>${esc(p.by||"")}${p.title?"（"+esc(p.title)+"）":""}</div>
+      ${(p.photos||[]).length?`<div class="phs" style="margin-top:8px">${p.photos.map(a=>`<div class="ph"><img src="${a.dataUrl}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:""}`;
+  }else{
+    right=`<div class="ih"><span class="badge ${st}" id="bd-${d.uid}">${esc(badgeText(d,st))}</span></div>
+      ${rp&&rp.status==="returned"&&rp.payload&&rp.payload.returnNote?`<div class="errors" style="margin:0 0 10px;padding:8px 12px">海技退回原因：${esc(rp.payload.returnNote)}</div>`:""}
+      <label>改善措施簡述 Action Brief <span class="req">*</span><textarea data-f="action" oninput="setF('${d.uid}','action',this.value)">${esc(x.action)}</textarea></label>
+      <div class="two"><label>改善完成日期 <span class="req">*</span><input type="date" data-f="corrected" max="${todayIso()}" value="${esc(x.corrected)}" onchange="setF('${d.uid}','corrected',this.value)"></label>
+      <label>改善完成證據／備註（選填）<textarea data-f="evidence" style="min-height:42px" oninput="setF('${d.uid}','evidence',this.value)">${esc(x.evidence)}</textarea></label></div>
+      <div class="fld" data-f="photos" style="margin-bottom:0">改善後照片 <span class="req">*</span>（1～${MAX_PH} 張）${phHtml(d)}</div>`;
+  }
+  return `<div class="row st-${st}" id="def-${d.uid}" data-st="${st}"><div class="rl">${left}</div><div class="rr">${right}</div></div>`;
+}
+function rerow(uid){const el=document.getElementById("def-"+uid);if(!el)return;const list=nonFlow(rec),i=list.findIndex(d=>d.uid===uid);const disp=el.style.display;el.outerHTML=rowHtml(list[i],i+1);const n=document.getElementById("def-"+uid);if(n)n.style.display=disp;updateBar();}
+/* 打字時只更新狀態色條與文字，不重畫整列（避免輸入框失去游標） */
+function paintStatus(uid){
+  const el=document.getElementById("def-"+uid);if(!el)return;const d=byUid(uid),st=stOf(d);
+  el.className="row st-"+st;el.dataset.st=st;
+  const b=document.getElementById("bd-"+uid);if(b){b.className="badge "+st;b.textContent=badgeText(d,st);}
+}
+function counts(){const c={red:0,yellow:0,green:0,lock:0};nonFlow(rec).forEach(d=>{c[stOf(d)]++;});return c;}
+function updateBar(){
+  const c=counts(),n=nonFlow(rec).length,g=c.green+c.lock;
+  $("#bar").innerHTML=`<b style="color:var(--navy);margin-right:4px">共 ${n} 項　已填 ${g}　待填 ${c.yellow}　未填 ${c.red}</b>
+    <button class="chip all ${flt==="all"?"on":""}" onclick="setFlt('all')">全部<b>${n}</b></button>
+    <button class="chip red ${flt==="red"?"on":""}" onclick="setFlt('red')">未填<b>${c.red}</b></button>
+    <button class="chip yellow ${flt==="yellow"?"on":""}" onclick="setFlt('yellow')">待填<b>${c.yellow}</b></button>
+    <button class="chip green ${flt==="green"?"on":""}" onclick="setFlt('green')">已填<b>${g}</b></button>
+    <span class="hint">${c.lock?`（已填含 ${c.lock} 項已結案）　`:""}紅＝還沒開始　黃＝填到一半／已修改未送出　綠＝已送出</span>`;
+}
+function setFlt(k){flt=k;applyFlt();updateBar();}
+function applyFlt(){document.querySelectorAll("#defList .row").forEach(el=>{const st=el.dataset.st,g=st==="green"||st==="lock";el.style.display=(flt==="all"||flt===st||(flt==="green"&&g))?"":"none";});}
+function renderRows(){
+  const list=nonFlow(rec);
+  $("#defList").innerHTML=list.length?list.map((d,i)=>rowHtml(d,i+1)).join(""):`<div class="banner" style="margin:0">這張改善單沒有需要船上改善的項目。</div>`;
   const flows=(rec.defs||[]).filter(d=>d.closeMode==="FLOW");
   $("#flowNote").innerHTML=flows.length?`<div class="card"><b>以下 ${flows.length} 項屬 FLOW 系統（DMP-FM01）缺失，不在這裡回報，請船上自行至 FLOW 系統填單：</b><ul style="margin:8px 0 0 18px;line-height:1.8">${flows.map(d=>`<li>${esc(d.category||"")}：${esc((d.finding||"").slice(0,80))}</li>`).join("")}</ul></div>`:"";
+  updateBar();applyFlt();
 }
-const isEmpty=x=>!x||(!x.action&&!x.corrected&&!x.evidence&&!(x.photos||[]).length);
-function validate(){
-  const errs=[];
-  if(!$("#fName").value.trim())errs.push({msg:"填寫人姓名未填",sel:"#fName"});
-  if(!$("#fTitle").value)errs.push({msg:"填寫人職稱未選",sel:"#fTitle"});
-  const todo=pendingDefs().filter(({d})=>stateOf(d)!=="reviewed");
-  const filled=todo.filter(({d})=>!isEmpty(drafts[d.uid]));
-  if(!filled.length)errs.push({msg:"還沒有填寫任何一項改善回報",sel:"#defList"});
-  todo.forEach(({d},seq)=>{
-    const x=drafts[d.uid];if(isEmpty(x))return;
-    const n=`待改善 No.${pendingDefs().findIndex(p=>p.d===d)+1}`,q=f=>`#def-${d.uid} [data-f="${f}"]`;
-    if(!(x.action||"").trim())errs.push({msg:`${n}：「改善措施簡述」未填`,sel:q("action")});
-    if(!x.corrected)errs.push({msg:`${n}：「改善完成日期」未填`,sel:q("corrected")});
-    if(!(x.photos||[]).length)errs.push({msg:`${n}：請上傳至少 1 張改善後照片`,sel:q("photos")});
-  });
-  return errs;
+/* Word：內容＝督導登錄單全部內容＋船上已送出的回報（改善措施、完成日期、證據備註、改善後照片） */
+async function downloadWord(manual){
+  toast("⏳ 正在產生 Word 檔…");
+  try{
+    await loadShips();
+    if(manual)await reloadReplies();
+    const {blob,photoCount}=await iaMakeDocx(rec,d=>{const x=rpOf(d);return x?Object.assign({status:x.status},x.payload):null;});
+    download(blob,fname(rec,".docx"));
+    toast(`✓ 已存成 Word 檔：${fname(rec,".docx")}（照片 ${photoCount} 張）`);
+    return true;
+  }catch(e){toast("⚠ 產生 Word 失敗："+e.message+"（回報本身已送出，可稍後按「只下載 Word」重試）",true);return false;}
 }
 async function submitAll(){
   document.querySelectorAll(".bad").forEach(e=>e.classList.remove("bad"));
-  const errs=validate(),box=$("#errBox");
+  const box=$("#errBox"),errs=[];
+  if(!$("#fName").value.trim())errs.push({msg:"填寫人姓名未填",sel:"#fName"});
+  if(!$("#fTitle").value)errs.push({msg:"填寫人職稱未選",sel:"#fTitle"});
+  const todo=nonFlow(rec).filter(d=>stOf(d)!=="lock");
+  const ready=todo.filter(d=>{const x=drafts[d.uid];return x&&isComplete(x)&&!(rpOf(d)&&sameAsReply(x,rpOf(d).payload));});
+  const partial=todo.filter(d=>{const x=drafts[d.uid];return x&&!isEmpty(x)&&!isComplete(x);});
+  if(!ready.length)errs.push({msg:partial.length?`目前沒有「三欄都填完」的項目可送出（有 ${partial.length} 項填到一半，請補齊改善措施、完成日期、至少 1 張照片）`:"還沒有填寫任何一項改善回報",sel:partial.length?"#def-"+partial[0].uid:"#defList"});
   if(errs.length){
-    box.innerHTML=`<b>還有 ${errs.length} 個項目需要補齊</b><br>${errs.map(e=>"・"+esc(e.msg)).join("<br>")}`;box.style.display="";
+    box.innerHTML=`<b>無法送出</b><br>${errs.map(e=>"・"+esc(e.msg)).join("<br>")}`;box.style.display="";
     errs.forEach(e=>{const el=document.querySelector(e.sel);if(el)el.classList.add("bad");});
-    const el=document.querySelector(errs[0].sel);(el||box).scrollIntoView({behavior:"smooth",block:"center"});
-    toast(`⚠ 尚有 ${errs.length} 個項目未完成`,true);return;
+    (document.querySelector(errs[0].sel)||box).scrollIntoView({behavior:"smooth",block:"center"});
+    toast("⚠ "+errs[0].msg,true);return;
   }
   box.style.display="none";
   const by=$("#fName").value.trim(),title=$("#fTitle").value,now=Date.now();
   try{
-    // 送出前再讀一次最新回報狀態，避免蓋掉剛好在這段時間被海技審核結案的項目
-    const rr=await api(`intaudit_replies?record_id=eq.${encodeURIComponent(RID)}&select=id,def_uid,status,payload`);
-    replies={};(rr||[]).forEach(x=>{replies[x.id]=x;});
-    const rows=pendingDefs().filter(({d})=>stateOf(d)!=="reviewed"&&!isEmpty(drafts[d.uid])).map(({d})=>{
-      const x=drafts[d.uid];
+    await reloadReplies(); // 送出前再讀一次最新狀態，避免蓋掉剛好被海技審核結案的項目
+    const rows=ready.filter(d=>stOf(d)!=="lock").map(d=>{const x=drafts[d.uid];
       return {id:`${RID}_${d.uid}`,record_id:+RID,def_uid:d.uid,status:"submitted",updated_at:now,
-        payload:{action:x.action.trim(),corrected:x.corrected,evidence:(x.evidence||"").trim(),photos:x.photos,by,title,at:now}};
-    });
+        payload:{action:x.action.trim(),corrected:x.corrected,evidence:(x.evidence||"").trim(),photos:x.photos,by,title,at:now}};});
+    if(!rows.length){toast("⚠ 這些項目剛剛已被海技結案，請重新整理頁面",true);return;}
     await api("intaudit_replies?on_conflict=id",{method:"POST",headers:H({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(rows)});
     rows.forEach(r=>{delete drafts[r.def_uid];});saveDrafts();
-    const rr2=await api(`intaudit_replies?record_id=eq.${encodeURIComponent(RID)}&select=id,def_uid,status,payload`);
-    replies={};(rr2||[]).forEach(x=>{replies[x.id]=x;});
-    renderDefs();
-    toast(`✓ 已送出 ${rows.length} 項改善回報，海技審核後會結案`);
+    await reloadReplies();renderRows();
+    toast(`✓ 已送出 ${rows.length} 項改善回報`+(partial.length?`；另有 ${partial.length} 項填到一半，已保留為草稿`:"")+"，正在存成 Word…");
     window.scrollTo({top:0,behavior:"smooth"});
+    await downloadWord(false);
   }catch(e){toast("⚠ 送出失敗："+e.message+"（請確認網路後再試，填寫內容還在）",true);}
 }
-init();
+(async function init(){
+  if(SHIP&&!RID){await loadShips();return initShip();}
+  if(!RID){$("#hdrSub").textContent="連結不完整";bad("找不到改善單編號，請向督導／海技索取完整連結。");return;}
+  await initRec();
+})();
 </script>
 </body>
 </html>

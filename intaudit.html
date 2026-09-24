@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>內部檢查缺失登錄 — FPMC</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="intaudit-word.js"></script>
 <style>
 :root{
   --navy:#1c3a5e; --navy-2:#234a72; --paper:#f5f7f8; --card:#ffffff; --line:#dde4e8; --line-2:#c3ced5;
@@ -14,7 +15,7 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--paper);font-family:var(--sans);color:var(--ink);font-size:14px}
-.wrap{max-width:1180px;margin:0 auto;padding:0 0 70px}
+.wrap{max-width:1440px;margin:0 auto;padding:0 0 70px}
 header{background:var(--navy);color:#fff;padding:18px 20px}
 header h1{margin:0;font-size:19px}
 header p{margin:5px 0 0;font-size:12.5px;color:#b9c8d6;line-height:1.6}
@@ -81,6 +82,27 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
 #toast.err{background:var(--bad)}
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:120;cursor:zoom-out}
 .lightbox img{max-width:92vw;max-height:92vh;border-radius:6px}
+.drow{display:grid;grid-template-columns:235px minmax(0,1fr) 215px;gap:16px;align-items:start}
+.drow .c1,.drow .c2,.drow .c3{display:flex;flex-direction:column;gap:10px;min-width:0}
+.drow label,.drow .fld{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--ink-2);font-weight:600}
+.drow input,.drow select,.drow textarea{font-weight:400}
+.drow .radios.v{flex-direction:column;flex-wrap:nowrap}
+.drow .radios.v label{width:100%}
+.item,.flashable{scroll-margin-top:190px}
+.flash{animation:flash 1.8s ease-out}
+@keyframes flash{0%,35%{background:#fff3b8;box-shadow:0 0 0 3px #f3c94f}100%{background:#fff;box-shadow:none}}
+.qnav{display:flex;flex-wrap:wrap;gap:5px;margin-left:8px}
+.qnav a{cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--navy);background:#eef3f6;border:1px solid var(--line-2);border-radius:5px;padding:2px 8px;text-decoration:none}
+.qnav a:hover{background:var(--navy);color:#fff}
+.modal{position:fixed;inset:0;background:rgba(15,30,45,.5);display:none;align-items:flex-start;justify-content:center;z-index:100;overflow:auto;padding:24px 10px}
+.modal .box{background:#fff;border-radius:10px;width:min(1440px,98vw);padding:18px 20px 22px;font-size:15px}
+.bt{table-layout:fixed;min-width:1080px}
+.bt th{font-size:13px;padding:8px 8px;position:sticky;top:0}
+.bt td{padding:6px 6px;border-bottom:1px solid var(--line)}
+.bt input,.bt select,.bt textarea{font-size:15px;padding:9px 10px}
+.bt textarea{min-height:92px}
+.item>.fld.fw{margin-top:12px}
+@media(max-width:1000px){.drow{grid-template-columns:1fr}}
 @media(max-width:900px){.fgrid,.fgrid.c4{grid-template-columns:1fr 1fr}.crew-row{grid-template-columns:1fr}}
 @media(max-width:560px){.fgrid,.fgrid.c4{grid-template-columns:1fr}}
 </style>
@@ -110,12 +132,13 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
         <select id="fStatus" onchange="renderList()" style="width:auto"><option value="">全部狀態</option><option>FLOW 結案</option><option>待船上改善</option><option>船上已回報</option><option>已結案</option></select>
         <input type="text" id="fQ" placeholder="🔍 搜尋船名／檢查人／分類／缺失描述…" oninput="renderList()" style="flex:1;min-width:220px;max-width:420px">
         <button class="btn sm" onclick="clearFilters()">清除篩選</button>
+        <button class="btn sm" onclick="expandAll(true)">▾ 全部展開</button><button class="btn sm" onclick="expandAll(false)">▸ 全部收合</button>
         <span class="hint" id="listStat"></span>
       </div>
     </div>
     <div class="card" style="padding:0;overflow:auto">
       <table><thead><tr>
-        <th style="width:44px">No.</th><th style="width:170px">檢查類別／分類</th><th>待改善描述</th><th style="width:60px">風險</th><th style="width:130px">結案方式</th><th style="width:110px">狀態</th><th style="width:160px">後續</th>
+        <th style="width:44px">No.</th><th style="width:170px">檢查類別／分類</th><th>待改善描述</th><th style="width:60px">風險</th><th style="width:130px">結案方式</th><th style="width:110px">狀態</th><th style="width:160px">後續</th><th style="width:130px">操作</th>
       </tr></thead><tbody id="listBody"></tbody></table>
     </div>
   </div>
@@ -135,10 +158,11 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
         <button class="btn sm primary" onclick="submitForm()">✓ 檢查並送出</button>
       </div>
       <div id="sumLine" style="margin-top:6px;font-size:13px;color:var(--navy);font-weight:600;line-height:1.7"></div>
+      <div class="subtabs" id="secTabs" style="margin:8px 0 0"></div>
     </div>
     <div id="errBox" class="errors" style="display:none"></div>
 
-    <div class="card">
+    <div class="card sec" data-sec="basic">
       <h3>① 檢查基本資料 <span class="hint" style="font-weight:400">檢查缺失具體項目記錄表 Audit N/C / Deficiency Items Details Records</span></h3>
       <div class="fgrid">
         <label>訪問船舶 Ship Visited <span class="req">*</span><select id="fShipSel"></select></label>
@@ -158,7 +182,7 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
       </div>
     </div>
 
-    <div class="card">
+    <div class="card sec" data-sec="overall">
       <h3>② 總體評價 <span class="hint" style="font-weight:400">Overall Assessment</span></h3>
       <div class="fgrid">
         <label class="fw">總體評價（船上總體氣氛、TOP4 配合程度、管理效果、船副管輪表現、乙級船員表現、船舶保養與機器狀況等）<textarea id="fOverall" style="min-height:130px"></textarea></label>
@@ -171,20 +195,20 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
       </div>
     </div>
 
-    <div class="card">
-      <h3>③ 優良案例 Best Practice（正面評價） <span style="margin-left:auto"><button class="btn sm" onclick="addBest()">＋ 新增一筆優良案例</button></span></h3>
+    <div class="card sec" data-sec="best">
+      <h3>③ 優良案例 Best Practice（正面評價） <span class="qnav" id="bestNav"></span><span style="margin-left:auto"><button class="btn sm" onclick="addBest()">＋ 新增一筆優良案例</button></span></h3>
       <div id="bestList"></div>
     </div>
 
-    <div class="card">
+    <div class="card sec" data-sec="defs">
       <h3>④ 缺失明細 <span class="hint" style="font-weight:400">先在基本資料勾選檢查種類，再點下方分頁登錄該種類的缺失；每筆必填「結案方式」（單選）</span></h3>
       <div class="subtabs" id="defTabs"></div>
       <div id="defTabHead" class="toolbar" style="margin:0 0 10px"></div>
       <div id="defList"></div>
     </div>
 
-    <div class="card">
-      <h3>⑤ 船舶訴求／建議 Ship's Demand / Suggestion <span style="margin-left:auto"><button class="btn sm" onclick="addSugg()">＋ 新增一筆</button></span></h3>
+    <div class="card sec" data-sec="sugg">
+      <h3>⑤ 船舶訴求／建議 Ship's Demand / Suggestion <span class="qnav" id="suggNav"></span><span style="margin-left:auto"><button class="btn sm" onclick="addSugg()">＋ 新增一筆</button></span></h3>
       <div id="suggList"></div>
     </div>
 
@@ -195,6 +219,30 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
     </div>
   </div>
 </div>
+<!-- 批量新增缺失 -->
+<div class="modal" id="batchModal"><div class="box">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+    <h3 style="margin:0;font-size:18px;color:var(--navy)" id="batchTitle">批量新增缺失</h3>
+    <span class="hint" style="font-size:13px">一列一筆缺失；空白列不會加入。照片請加入後，再到各筆缺失補上（每筆最多 3 張）。</span>
+  </div>
+  <div class="toolbar" style="margin:0 0 10px;font-size:13.5px">
+    <b>套用到「尚未填」的列：</b>
+    <select id="bDefRisk" style="width:auto" onchange="applyBatchDefault('risk',this.value);this.value=''"><option value="">風險等級…</option></select>
+    <select id="bDefMode" style="width:auto" onchange="applyBatchDefault('closeMode',this.value);this.value=''"><option value="">結案方式…</option></select>
+    <span style="flex:1"></span>
+    <button class="btn" onclick="addBatchRows(5)">＋ 再加 5 列</button>
+  </div>
+  <div style="overflow:auto;border:1px solid var(--line);border-radius:8px;max-height:64vh">
+    <table class="bt"><thead><tr>
+      <th style="width:40px">#</th><th style="width:210px" id="bThTopic">主題</th><th style="width:150px">分類 Category *</th><th style="width:100px">風險 *</th><th style="width:150px">發現日期 *</th><th>待改善描述 Finding Brief *</th><th style="width:170px">結案方式 *</th><th style="width:46px"></th>
+    </tr></thead><tbody id="batchBody"></tbody></table>
+  </div>
+  <div class="toolbar" style="justify-content:flex-end;margin:14px 0 0">
+    <span class="hint" id="batchCount" style="margin-right:auto;font-size:13px"></span>
+    <button class="btn" onclick="closeBatch()">取消</button>
+    <button class="btn primary" onclick="confirmBatch()">✓ 加入缺失明細</button>
+  </div>
+</div></div>
 <div class="lightbox" id="lightbox" onclick="this.style.display='none'"><img id="lightboxImg" alt=""></div>
 <div id="toast"></div>
 
@@ -216,18 +264,6 @@ const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>re
 /* ══════ 固定選項 ══════ */
 /* 檢查種類＝系統的「檢查來源」（airform_lists.itype）。本表只列內部檢查會用到的幾種；
    「主題檢查」目前系統的檢查來源清單還沒有，先在本頁補上，之後需由維護者新增到系統的檢查來源。 */
-const TYPE_DEFS=[
-  {k:"onboard visit",label:"訪船",en:"Superintendent Visit",section:"訪船缺失",topicLabel:"訪船主題評估表",
-   topics:["SAR-FM20 靜態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表"]},
-  {k:"Internal audit",label:"內稽",en:"Internal Audit",section:"內稽缺失",topicLabel:"內稽區域／類別",topics:["甲板","機艙","ISM","MLC","ISPS"]},
-  {k:"ACCOMPANYING SHIP",label:"隨船",en:"On-Voyage Audit",section:"隨船缺失",topicLabel:"隨船主題評估表",
-   topics:["SAR-FM21 動態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表"]},
-  {k:"Cross ship visit",label:"交叉訪船",en:"Cross Visit",section:"交叉訪船缺失",topicLabel:"",topics:null},
-  {k:"主題檢查",label:"主題檢查",en:"Topic Audit",section:"主題檢查缺失",topicLabel:"",topics:null}
-];
-const typeDef=k=>TYPE_DEFS.find(t=>t.k===k);
-const MODES=[{k:"FLOW",label:"FLOW 系統（DMP-FM01）",cls:"flow"},{k:"內控",label:"內控",cls:"ic"},{k:"系統內結案",label:"系統內結案",cls:"sys"}];
-const modeOf=k=>MODES.find(m=>m.k===k);
 const RISKS=["高","中","低"];
 const RANK_OPTIONS=["Master船長","C/O大副","2/O二副","3/O三副","C/E輪機長","2/E大管","3/E二管","4/E三管","BSN水手長","AB幹練水手","OS普通水手","COOK廚師","FTR銅匠","OLR加油匠","PM泵匠","A.Capt.見習船長","A.C/O見習大副","A.2/O見習二副","A.3/O見習三副","A.C/E見習輪機長","A.2/E見習大管","A.3/E見習二管","A.4/E見習三管","其他(請聯繫海技新增)"];
 const MAX_DEF_PHOTOS=3;
@@ -294,8 +330,6 @@ const Store={
 
 /* ══════ 共用小工具 ══════ */
 const todayIso=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
-const slash=s=>String(s||"").replace(/-/g,"/");
-const dateText=r=>r.dateFrom?(slash(r.dateFrom)+(r.dateTo&&r.dateTo!==r.dateFrom?"～"+slash(r.dateTo):"")):"";
 /* 缺失目前的實際狀態：FLOW 固定「FLOW 結案」；有船上回報時依回報／審核結果，其餘用登錄單記錄的狀態 */
 function effStatus(r,d){
   if(d.closeMode==="FLOW")return "FLOW 結案";
@@ -317,6 +351,24 @@ function showList(){
   renderList();
 }
 function clearFilters(){$("#fShip").value="";$("#fMode").value="";$("#fStatus").value="";$("#fQ").value="";renderList();}
+const expanded=new Set(); // 已展開缺失明細的登錄單 id（預設全部收合）；篩選／搜尋中一律展開
+function toggleRec(id){if(expanded.has(id))expanded.delete(id);else expanded.add(id);renderList();}
+function expandAll(on){expanded.clear();if(on)Store.rows.forEach(r=>expanded.add(r.id));renderList();}
+function jumpTo(id){const el=document.getElementById(id);if(!el)return;el.scrollIntoView({behavior:"smooth",block:"start"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash");}
+function editDef(rid,i){
+  const r=Store.rows.find(x=>x.id===rid);if(!r||!r.defs[i])return;
+  cur=JSON.parse(JSON.stringify(r));activeTab=cur.defs[i].type;
+  if(!cur.types.includes(activeTab))cur.types.push(activeTab);
+  openForm("defs");setTimeout(()=>jumpTo("def-"+i),120);
+}
+async function delDefFromList(rid,i){
+  const r=Store.rows.find(x=>x.id===rid);if(!r||!r.defs[i])return;
+  const d=r.defs[i],rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;
+  const warn=(rp?"\n\n⚠ 船上已對這筆缺失回報過，回報內容會一併失去關聯。":"")+(r.imported?"\n\n⚠ 這張登錄單已匯入主系統，主系統裡的缺失紀錄不會被刪除。":"");
+  if(!confirm(`刪除這筆缺失？\n\n${d.category||""}：${String(d.finding||"").slice(0,60)}${warn}\n\n此動作無法復原。`))return;
+  const rec=JSON.parse(JSON.stringify(r));rec.defs.splice(i,1);rec.updatedAt=Date.now();
+  if(await Store.save(rec)){toast("✓ 已刪除該筆缺失");renderList();}
+}
 function renderList(){
   const rows=Store.rows,all=[];rows.forEach(r=>(r.defs||[]).forEach(d=>all.push(d)));
   const cnt=k=>all.filter(d=>d.closeMode===k).length;
@@ -333,7 +385,9 @@ function renderList(){
     n+=ds.length;
     const types=(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、");
     const hasIC=(r.defs||[]).some(d=>d.closeMode==="內控");
-    html+=`<tr class="rec"><td colspan="7"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    const filtering=!!(fm||fst||q),open=filtering||expanded.has(r.id);
+    html+=`<tr class="rec"><td colspan="8"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      ${filtering?"":`<button class="btn sm" onclick="toggleRec(${r.id})" title="展開／收合這張登錄單的缺失明細">${open?"▾ 收合":"▸ 展開"}（${(r.defs||[]).length}）</button>`}
       <span style="font-size:14px">${esc(r.ship)}</span><span>${esc(dateText(r))}</span><span class="hint">${esc(types)}${r.draft?" ・<b style='color:#b5610f'>草稿</b>":""}</span>
       <span class="hint">檢查人：${esc(r.inspector)}　地點：${esc(r.psn)}</span>
       <span class="hint" style="flex-basis:100%;font-weight:400">${esc(summaryText(r))}</span>
@@ -346,7 +400,7 @@ function renderList(){
         <button class="btn sm" ${(r.draft||!(r.defs||[]).some(d=>d.closeMode!=="FLOW"))?"disabled":""} onclick="issueOrder(${r.id})" title="把「內控／系統內結案」的缺失做成改善單，給船上填改善回報">📨 發改善單${r.issuedAt?"（已發）":""}</button>
         <button class="btn sm dark" onclick="importPreview(${r.id})" title="預覽匯入主系統時會建立哪些紀錄">➜ 匯入主系統</button>
         <button class="btn sm danger" onclick="delRec(${r.id})">🗑</button></span></div></td></tr>`;
-    html+=ds.map(d=>{
+    if(open)html+=ds.map(d=>{
       const i=r.defs.indexOf(d),m=modeOf(d.closeMode),td=typeDef(d.type);
       const es=effStatus(r,d);
       const nxt=d.closeMode==="FLOW"?`<span class="hint">船上自行至 FLOW 系統填單</span>`:es==="待船上改善"?`<span class="hint">${r.issuedAt?"已發改善單，等船上回報":"尚未發改善單"}</span>`:es==="船上已回報"?`<span class="hint">船上已回報，待海技審核</span>`:`<span class="hint">已結案</span>`;
@@ -355,9 +409,10 @@ function renderList(){
         <td style="white-space:pre-line;max-width:520px">${esc(d.finding||"")}${(d.photos||[]).length?`<div class="hint">📷 ${d.photos.length} 張照片</div>`:""}</td>
         <td>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">${esc(d.risk)}</span>`:""}</td>
         <td>${m?`<span class="mode ${m.cls}">${esc(m.label)}</span>`:'<span class="hint">未選</span>'}</td>
-        <td><span class="stat ${statCls(es)}">${esc(es||"—")}</span></td><td>${nxt}</td></tr>`;}).join("");
+        <td><span class="stat ${statCls(es)}">${esc(es||"—")}</span></td><td>${nxt}</td>
+        <td style="white-space:nowrap"><button class="btn sm" onclick="editDef(${r.id},${i})" title="開啟這張登錄單並直接跳到這筆缺失">✎ 編輯</button> <button class="btn sm danger" onclick="delDefFromList(${r.id},${i})" title="只刪除這一筆缺失">🗑 刪除</button></td></tr>`;}).join("");
   });
-  $("#listBody").innerHTML=html||`<tr><td colspan="7" style="text-align:center;color:#8195a0;padding:24px">目前沒有登錄紀錄，請按上方「＋ 新增登錄」。</td></tr>`;
+  $("#listBody").innerHTML=html||`<tr><td colspan="8" style="text-align:center;color:#8195a0;padding:24px">目前沒有登錄紀錄，請按上方「＋ 新增登錄」。</td></tr>`;
   $("#listStat").textContent=`顯示 ${n} 筆缺失`;
 }
 async function delRec(id){if(!confirm("確定刪除這張登錄單？此動作無法復原。"))return;await Store.remove(id);renderList();}
@@ -369,11 +424,13 @@ async function issueOrder(id){
   if(!n){toast("⚠ 這張登錄單沒有需要船上改善的缺失（都是 FLOW）",true);return;}
   if(Store.mode!=="cloud"){alert("⚠ 雲端資料表尚未建立（請先執行 intaudit_setup.sql），改善單連結目前無法給船上使用。");return;}
   const text=`內部檢查改善單：${r.ship} ${dateText(r)} ${(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、")}，共 ${n} 項待改善 連結:${replyUrl(r)}`;
+  const shipUrl=replyUrl(r).replace(/\?rid=.*/,"?ship="+encodeURIComponent(r.ship));
+  const textFull=text+"\n（本船歷次改善單清單，固定連結："+shipUrl+"）";
   if(r.issuedAt&&!confirm("這張登錄單已發過改善單，要再複製一次連結嗎？（連結不變，船上先前的回報不會消失）"))return;
-  try{await navigator.clipboard.writeText(text);}catch(e){}
+  try{await navigator.clipboard.writeText(textFull);}catch(e){}
   (r.defs||[]).forEach(d=>{if(!d.uid)d.uid=newUid();}); // 舊登錄單的缺失補上固定 id，船上回報才對得回這一筆
   r.issuedAt=Date.now();await Store.save(r);renderList();
-  alert("已複製下列內容，可貼入郵件發給船上：\n\n"+text+"\n\n船上打開連結後，會看到這張單的待改善缺失，填寫改善說明、完成日期並上傳改善後照片回報。");
+  alert("已複製下列內容，可貼入郵件發給船上：\n\n"+textFull+"\n\n船上打開連結後，會看到這張單的待改善缺失，填寫改善說明、完成日期並上傳改善後照片回報。");
 }
 /* 內控 Excel：欄位、順序與船舶動態與早會待辦系統「內控異常清單」匯出檔一致（16 欄，HTML 格式 .xls，Excel 可直接開） */
 function exportIcXls(id){
@@ -401,126 +458,16 @@ function exportIcJson(id){
   download(new Blob([JSON.stringify({ship:r.ship,date:dateText(r),inspector:r.inspector,psn:r.psn,types:r.types,defs},null,1)],{type:"application/json"}),`${r.ship}_${dateText(r).replace(/[\\/:*?"<>|～]/g,"-")}_內控缺失.json`);
 }
 const fname=(r,ext)=>`${r.ship||"船名"}_${(dateText(r)||"檢查日期").replace(/[\\/:*?"<>|～]/g,"-")}_檢查缺失具體項目記錄表${ext}`;
-/* ══════ Word 匯出：以原「檢查缺失具體項目記錄表」的頁首／頁尾／版面設定為範本（intaudit-template.docx，
-   保留公司標題列、SAR-FM30 頁尾、A4 橫向），內文依登錄單內容重新排版並附照片，輸出 .docx ══════ */
-const W_NS_A="http://schemas.openxmlformats.org/drawingml/2006/main",W_NS_PIC="http://schemas.openxmlformats.org/drawingml/2006/picture";
-const xe=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const wRun=(t,o)=>{o=o||{};const rp=`${o.b?"<w:b/>":""}${o.i?"<w:i/>":""}${o.color?`<w:color w:val="${o.color}"/>`:""}<w:sz w:val="${o.sz||20}"/><w:szCs w:val="${o.sz||20}"/>`;
-  const lines=String(t??"").split(/\r?\n/);
-  return `<w:r><w:rPr>${rp}</w:rPr>${lines.map((l,i)=>(i?"<w:br/>":"")+`<w:t xml:space="preserve">${xe(l)}</w:t>`).join("")}</w:r>`;};
-const wPara=(inner,o)=>{o=o||{};return `<w:p><w:pPr>${o.keepNext?"<w:keepNext/>":""}${o.shd?`<w:shd w:val="clear" w:color="auto" w:fill="${o.shd}"/>`:""}<w:spacing w:before="${o.before||0}" w:after="${o.after==null?40:o.after}"/>${o.jc?`<w:jc w:val="${o.jc}"/>`:""}</w:pPr>${inner}</w:p>`;};
-const wCell=(w,inner,o)=>{o=o||{};return `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${o.span?`<w:gridSpan w:val="${o.span}"/>`:""}${o.shd?`<w:shd w:val="clear" w:color="auto" w:fill="${o.shd}"/>`:""}<w:vAlign w:val="${o.va||"top"}"/></w:tcPr>${inner||wPara("")}</w:tc>`;};
-const wTbl=(cols,rows)=>`<w:tbl><w:tblPr><w:tblW w:w="${cols.reduce((a,b)=>a+b,0)}" w:type="dxa"/><w:tblBorders>${["top","left","bottom","right","insideH","insideV"].map(s=>`<w:${s} w:val="single" w:sz="4" w:space="0" w:color="808080"/>`).join("")}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${cols.map(c=>`<w:gridCol w:w="${c}"/>`).join("")}</w:tblGrid>${rows.map(r=>`<w:tr><w:trPr><w:cantSplit/></w:trPr>${r}</w:tr>`).join("")}</w:tbl>`;
-const LBL="E4F1F2";
-const lblCell=(w,t,o)=>wCell(w,wPara(wRun(t,{b:true,sz:18}),{after:0}),Object.assign({shd:LBL},o||{}));
-const txtCell=(w,t,o)=>wCell(w,wPara(wRun(t,{sz:19}),{after:0}),o);
-
-async function imgSize(dataUrl){return new Promise(res=>{const im=new Image();im.onload=()=>res({w:im.naturalWidth,h:im.naturalHeight});im.onerror=()=>res({w:4,h:3});im.src=dataUrl;});}
-function buildDocx_photos(ctx){
-  /* 回傳 async 函式：把 photos 陣列轉成一段含多張圖片的 <w:p>，同時把圖檔登記到 ctx（之後寫進 zip） */
-  return async function(photos,maxCm){
-    if(!photos||!photos.length)return wPara("",{after:0});
-    let runs="";
-    for(const p of photos){
-      const id=++ctx.n,sz=await imgSize(p.dataUrl),box=maxCm*360000,sc=Math.min(box/sz.w,box*0.8/sz.h);
-      const cx=Math.round(sz.w*sc),cy=Math.round(sz.h*sc),rid="rIdIa"+id;
-      ctx.files.push({name:`word/media/ia${id}.jpeg`,b64:p.dataUrl.split(",")[1],rid,target:`media/ia${id}.jpeg`});
-      runs+=`<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="114300"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${1000+id}" name="Picture ${id}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="${W_NS_A}" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="${W_NS_A}"><a:graphicData uri="${W_NS_PIC}"><pic:pic xmlns:pic="${W_NS_PIC}"><pic:nvPicPr><pic:cNvPr id="${1000+id}" name="ia${id}.jpeg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r>`;
-    }
-    return `<w:p><w:pPr><w:spacing w:before="20" w:after="20"/></w:pPr>${runs}</w:p>`;
-  };
-}
-const MODE_SUFFIX={"FLOW":"需要登記到DMP-FM01中","內控":"需要登記內控中（不用輸入DMP-FM01）","系統內結案":"無需輸入FLOW系統追蹤，本表改善即可"};
-const SECTION_HEAD={"onboard visit":"訪船缺失 Ship Visit","Internal audit":"內稽缺失 Internal Audit","ACCOMPANYING SHIP":"隨船缺失 On-Voyage Audit","Cross ship visit":"交叉訪船缺失 Cross Visit","主題檢查":"主題檢查缺失 Topic Inspection"};
-async function buildDocBody(r,ctx){
-  const P=buildDocx_photos(ctx),W=14678;
-  const ship=SHIPS.find(s=>s.code===r.ship),shipTxt=ship?`${ship.code} ${ship.name}`:r.ship;
-  let b="";
-  b+=wPara(wRun("檢查缺失具體項目記錄表 Audit N/C / Deficiency Items Details Records",{sz:28}),{jc:"center",after:120});
-  const typeChecks=TYPE_DEFS.map(t=>`${(r.types||[]).includes(t.k)?"☑":"☐"} ${t.label} ${t.en}`).join("　　");
-  b+=wTbl([2400,4939,2400,4939],[
-    lblCell(2400,"訪問船舶 Ship Visited：")+txtCell(4939,shipTxt)+lblCell(2400,"日期 Date：")+txtCell(4939,dateText(r)),
-    lblCell(2400,"檢查人 Auditor：")+txtCell(4939,r.inspector)+lblCell(2400,"地點 Ship's PSN：")+txtCell(4939,r.psn),
-    lblCell(2400,"檢查種類 Audit Type：")+txtCell(12278,typeChecks,{span:3}),
-    lblCell(2400,"船長 Captain：")+txtCell(4939,r.master)+lblCell(2400,"大副 C/O：")+txtCell(4939,r.co),
-    lblCell(2400,"輪機長 C/E：")+txtCell(4939,r.ce)+lblCell(2400,"大管輪 2/E：")+txtCell(4939,r.e2)
-  ]);
-  b+=wPara(wRun("*這份缺失記錄僅為具體缺失項目記錄表格，因搭配不同的檢查種類要求的表格使用。This deficiency record is intended solely for documenting specific deficiencies and shall be used together with the relevant forms required for the applicable type of inspection.",{sz:16,color:"666666"}),{before:60,after:120});
-  const crewTxt=a=>(a||[]).filter(x=>x.name||x.brief).map(x=>`${x.name||""}${x.rank?`（${x.rank}）`:""}：${x.brief||""}`).join("\n")||"N/A";
-  b+=wTbl([2900,11778],[
-    lblCell(2900,"總體評價：船上總體氣氛、TOP4配合程度、管理效果、船副管輪表現、乙級船員表現、船舶總體保養情況、機器狀況等\nOverall Assessment")+txtCell(11778,r.overall||""),
-    lblCell(2900,"TOP 4 合照")+wCell(11778,await P(r.top4&&r.top4.photos,5.5)+(r.top4&&r.top4.cap?wPara(wRun(r.top4.cap,{sz:18}),{after:0}):"")),
-    lblCell(2900,"表現亮眼船員姓名和簡述\nGood Performance Crew & Brief")+txtCell(11778,crewTxt(r.goodCrew)),
-    lblCell(2900,"表現較差船員姓名和簡述\nPoor Performance Crew & Brief")+txtCell(11778,crewTxt(r.poorCrew))
-  ]);
-  const heading=t=>wPara(wRun(t,{b:true,sz:22}),{shd:"D9E2E8",before:200,after:80,keepNext:true});
-  if((r.best||[]).length){
-    b+=heading("● 優良案例 Best Practice");
-    for(let i=0;i<r.best.length;i++){
-      const x=r.best[i];
-      b+=wTbl([2400,12278],[
-        lblCell(2400,"No.")+txtCell(12278,String(i+1)),
-        lblCell(2400,"分類 Category")+txtCell(12278,x.category),
-        lblCell(2400,"涉及人員姓名")+txtCell(12278,x.people),
-        lblCell(2400,"職務")+txtCell(12278,x.rank),
-        lblCell(2400,"描述 Brief")+txtCell(12278,x.brief),
-        lblCell(2400,"案例照片 Photos")+wCell(12278,await P(x.photos,5))
-      ])+wPara("",{after:60});
-    }
-  }
-  // 缺失：依「檢查種類（＋主題）＋結案方式」分組，各組一個標題，跟原記錄表的分區一致
-  const order=TYPE_DEFS.map(t=>t.k),modeOrder=MODES.map(m=>m.k),groups=new Map();
-  (r.defs||[]).forEach(d=>{
-    const t=typeDef(d.type),topic=t&&t.topics&&["Internal audit"].includes(d.type)&&["MLC","ISPS","ISM"].includes(d.topic)?d.topic:"";
-    const key=[order.indexOf(d.type),topic,modeOrder.indexOf(d.closeMode)].join("|");
-    if(!groups.has(key))groups.set(key,{type:d.type,topic,mode:d.closeMode,items:[]});
-    groups.get(key).items.push(d);
-  });
-  const cols=[900,2200,4400,3600,1800,1778];
-  for(const key of [...groups.keys()].sort((a,b)=>{const A=a.split("|").map(Number),B=b.split("|").map(Number);return A[0]-B[0]||String(a.split("|")[1]).localeCompare(b.split("|")[1])||A[2]-B[2];})){
-    const g=groups.get(key);
-    b+=heading(`● ${SECTION_HEAD[g.type]||g.type}${g.topic?" - "+g.topic:""} - ${MODE_SUFFIX[g.mode]||""}`);
-    for(let i=0;i<g.items.length;i++){
-      const d=g.items[i],mm=modeOf(d.closeMode);
-      b+=wTbl(cols,[
-        lblCell(900,"No.")+lblCell(2200,"分類 Category")+lblCell(4400,"待改善項目 Items to be corrected")+lblCell(3600,"改善完成證據/備註 Corrected Evidence / Remark")+lblCell(1800,"Reported @")+lblCell(1778,"Corrected @"),
-        txtCell(900,String(i+1))+wCell(2200,wPara(wRun(d.category||"",{b:true,sz:19}),{after:0})+(d.topic?wPara(wRun(d.topic,{sz:16,color:"666666"}),{after:0}):""))+wCell(4400,await P(d.photos,2.4))+txtCell(3600,"")+txtCell(1800,slash(d.reported))+txtCell(1778,""),
-        lblCell(3100,"Risk Level",{span:2})+txtCell(8000,d.risk||"",{span:2})+lblCell(1800,"結案方式")+txtCell(1778,mm?mm.label:""),
-        lblCell(3100,"待改善描述 Finding Brief",{span:2})+txtCell(11578,d.finding||"",{span:4}),
-        lblCell(3100,"改善措施簡述 Action Brief",{span:2})+txtCell(11578,"",{span:4})
-      ])+wPara("",{after:60});
-    }
-  }
-  if((r.sugg||[]).length){
-    b+=heading("● 船舶訴求/建議 Ship's Demand / Suggestion");
-    b+=wTbl([900,6889,6889],[lblCell(900,"No.")+lblCell(6889,"現狀 Situation")+lblCell(6889,"建議 Suggestion")].concat(
-      r.sugg.map((s,i)=>txtCell(900,String(i+1))+txtCell(6889,s.situation)+txtCell(6889,s.suggestion))));
-  }
-  return b;
-}
+/* Word 匯出：內容含船上回報（若有）——改善措施、完成日期、證據備註與改善後照片，寫在各缺失表格對應欄位 */
 async function exportWord(id){
   const r=Store.rows.find(x=>x.id===id);if(!r)return;
-  if(typeof JSZip==="undefined"){toast("⚠ Word 元件載入失敗，請確認網路後重新整理頁面",true);return;}
   toast("⏳ 正在產生 Word 檔…");
   try{
-    const resp=await fetch("intaudit-template.docx");
-    if(!resp.ok)throw new Error("找不到範本檔 intaudit-template.docx（HTTP "+resp.status+"），請確認已一併上傳");
-    const zip=await JSZip.loadAsync(await resp.arrayBuffer());
-    const ctx={n:0,files:[]};
-    const body=await buildDocBody(r,ctx);
-    let doc=await zip.file("word/document.xml").async("string");
-    if(!doc.includes("<!--BODY-->"))throw new Error("範本檔內容不符");
-    doc=doc.replace("<!--BODY-->",()=>body);
-    zip.file("word/document.xml",doc);
-    let rels=await zip.file("word/_rels/document.xml.rels").async("string");
-    ctx.files.forEach(f=>{zip.file(f.name,f.b64,{base64:true});rels=rels.replace("</Relationships>",`<Relationship Id="${f.rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${f.target}"/></Relationships>`);});
-    zip.file("word/_rels/document.xml.rels",rels);
-    const blob=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",compression:"DEFLATE"});
+    const {blob,photoCount}=await iaMakeDocx(r,d=>{const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;return rp&&rp.payload?Object.assign({status:rp.status},rp.payload):null;});
     download(blob,fname(r,".docx"));
-    toast(`✓ 已產生 Word 檔（缺失 ${(r.defs||[]).length} 筆、照片 ${ctx.n} 張）`);
+    toast(`✓ 已產生 Word 檔（缺失 ${(r.defs||[]).length} 筆、照片 ${photoCount} 張）`);
   }catch(e){toast("⚠ 產生 Word 失敗："+e.message,true);}
 }
-
 /* 匯入主系統（尚待串接）：先預覽會拆成哪些紀錄——每個檢查種類一筆檢查紀錄；缺失依「缺失所屬檢查種類」成為缺失紀錄，
    檢查來源＝該種類；優良案例成為正面評價。實際寫入需在主系統執行（避免外部頁面直接改主系統資料造成同步衝突）。 */
 function importPreview(id){
@@ -538,7 +485,17 @@ const blank=()=>({id:null,ship:"",dateFrom:todayIso(),dateTo:"",inspector:"",psn
   top4:{photos:[],cap:""},goodCrew:[],poorCrew:[],best:[],defs:[],sugg:[],draft:true});
 function newForm(){cur=blank();activeTab=null;openForm();}
 function editRec(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;cur=JSON.parse(JSON.stringify(r));activeTab=(cur.types||[])[0]||null;openForm();}
-function openForm(){
+/* ②～⑤ 分頁：一次只開一個區塊來編輯 */
+let secTab="basic";
+const SECS=[["basic","① 基本資料"],["overall","② 總體評價"],["best","③ 優良案例"],["defs","④ 缺失明細"],["sugg","⑤ 船舶訴求／建議"]];
+function secCount(k){return !cur?"":k==="best"?cur.best.length:k==="defs"?cur.defs.length:k==="sugg"?cur.sugg.length:"";}
+function renderSecTabs(){
+  $("#secTabs").innerHTML=SECS.map(([k,l])=>{const n=secCount(k);return `<button type="button" class="${k===secTab?"on":""}" onclick="setSec('${k}')">${l}${n!==""?`<span class="n">${n}</span>`:""}</button>`;}).join("");
+  document.querySelectorAll(".sec").forEach(el=>{el.style.display=el.dataset.sec===secTab?"":"none";});
+}
+function setSec(k){if(cur)collect();secTab=k;renderSecTabs();}
+function openForm(sec){
+  secTab=sec||"basic";
   $("#listPage").style.display="none";$("#formPage").style.display="";
   $("#btnList").classList.remove("primary");$("#btnNew").classList.add("primary");$("#errBox").style.display="none";
   $("#fShipSel").innerHTML='<option value="">— 請選擇船舶 —</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}" ${cur.ship===s.code?"selected":""}>${esc(s.code)} ${esc(s.name)}</option>`).join("");
@@ -607,7 +564,8 @@ function addBest(){collect();cur.best.push({category:"",people:"",rank:"",brief:
 function delBest(i){if(!confirm("刪除這筆優良案例？"))return;collect();cur.best.splice(i,1);renderBest();updateCounts();}
 function setB(i,f,v){cur.best[i][f]=v;}
 function renderBest(){
-  $("#bestList").innerHTML=cur.best.length?cur.best.map((x,i)=>`<div class="item"><div class="ih">優良案例 No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
+  $("#bestNav").innerHTML=cur.best.map((x,i)=>`<a onclick="jumpTo('best-${i}')" title="${esc(x.category||"")}">#${i+1}</a>`).join("");
+  $("#bestList").innerHTML=cur.best.length?cur.best.map((x,i)=>`<div class="item" id="best-${i}"><div class="ih">優良案例 No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
     <div class="fgrid"><label>分類 Category<input type="text" value="${esc(x.category)}" placeholder="例：作業記錄、壓載水記錄" oninput="setB(${i},'category',this.value)"></label>
     <label>涉及人員姓名<input type="text" value="${esc(x.people)}" oninput="setB(${i},'people',this.value)"></label>
     <label>職務${rankSelect(x.rank,`setB(${i},'rank',this.value)`)}</label>
@@ -631,6 +589,7 @@ function summaryText(r){
   return parts.join("　・　");
 }
 function updateCounts(){
+  renderSecTabs();
   $("#sumLine").textContent="已填項目：\n"+summaryText(cur);
   $("#sumLine").style.whiteSpace="pre-line";
   const ds=cur.defs,n=k=>ds.filter(d=>d.closeMode===k).length;
@@ -661,7 +620,7 @@ function renderDefs(){
   const tabs=cur.types;
   $("#defTabs").innerHTML=tabs.length?tabs.map(k=>{const t=typeDef(k)||{label:k};const n=cur.defs.filter(d=>d.type===k).length;return `<button type="button" class="${k===activeTab?"on":""}" onclick="setTab('${k}')">${esc(t.label)}缺失<span class="n">${n}</span></button>`;}).join(""):`<span class="hint">請先在「① 檢查基本資料」勾選檢查種類（可複選）。</span>`;
   const td=typeDef(activeTab);
-  $("#defTabHead").innerHTML=activeTab?`<span class="hint">目前分頁：<b>${esc(td?td.label:activeTab)}</b>（${esc(td?td.section:"")}）——缺失會匯入系統，檢查來源＝<b>${esc(activeTab)}</b></span><span style="flex:1"></span><button class="btn sm primary" onclick="addDef()">＋ 新增一筆${esc(td?td.label:"")}缺失</button>`:"";
+  $("#defTabHead").innerHTML=activeTab?`<span class="hint">目前分頁：<b>${esc(td?td.label:activeTab)}</b>（${esc(td?td.section:"")}）——缺失會匯入系統，檢查來源＝<b>${esc(activeTab)}</b></span><span style="flex:1"></span><button class="btn primary" onclick="openBatch()" title="一次輸入多筆缺失：大表格逐列填寫">▦ 批量新增${esc(td?td.label:"")}缺失</button><button class="btn sm" onclick="addDef()">＋ 新增一筆</button>`:"";
   const idxs=cur.defs.map((d,i)=>i).filter(i=>cur.defs[i].type===activeTab);
   $("#defList").innerHTML=idxs.length?idxs.map((i,seq)=>{
     const d=cur.defs[i],m=modeOf(d.closeMode);
@@ -669,16 +628,23 @@ function renderDefs(){
       :`<label>主題（選填）<input type="text" data-f="topic" value="${esc(d.topic)}" placeholder="例：靜態航行評估" oninput="setD(${i},'topic',this.value)"></label>`;
     return `<div class="item ${m?"m-"+m.cls:""}" id="def-${i}">
       <div class="ih">${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
-      <div class="fgrid">
-        ${topicCtl}
-        <label>分類 Category <span class="req">*</span><input type="text" data-f="category" value="${esc(d.category)}" placeholder="例：防火門、IMO標誌" oninput="setD(${i},'category',this.value)"></label>
-        <label>風險等級 Risk Level <span class="req">*</span><select data-f="risk" onchange="setD(${i},'risk',this.value)"><option value="">— 請選擇 —</option>${RISKS.map(s=>`<option ${d.risk===s?"selected":""}>${s}</option>`).join("")}</select></label>
-        <label>Reported @（發現日期）<span class="req">*</span><input type="date" data-f="reported" value="${esc(d.reported)}" onchange="setD(${i},'reported',this.value)"></label>
-        <label class="fw">待改善描述 Finding Brief <span class="req">*</span><textarea data-f="finding" oninput="setD(${i},'finding',this.value)">${esc(d.finding)}</textarea></label>
-        <div class="fld fw">待改善項目照片 Items to be corrected <span class="hint" style="font-weight:400">最多 ${MAX_DEF_PHOTOS} 張（改善完成的照片由船上在改善單填寫，這裡不用放）</span>${phHtml("def",i,MAX_DEF_PHOTOS)}</div>
-        <div class="fld fw">結案方式 <span class="req">*</span>（單選）
-          <div class="radios" data-f="closeMode">${MODES.map(mm=>`<label><input type="radio" name="cm-${i}" ${d.closeMode===mm.k?"checked":""} onchange="setMode(${i},'${mm.k}')"> ${esc(mm.label)}</label>`).join("")}</div>
-          <span class="hint" style="font-weight:400">FLOW：僅留紀錄、不發改善單，由船上至 FLOW 系統填單　｜　內控：發改善單，並提供「內控 Excel」匯出（格式同船舶動態系統的內控異常清單）　｜　系統內結案：發改善單，於系統內結案</span></div>
+      <div class="drow">
+        <div class="c1">
+          ${topicCtl}
+          <label>分類 Category <span class="req">*</span><input type="text" data-f="category" value="${esc(d.category)}" placeholder="例：防火門、IMO標誌" oninput="setD(${i},'category',this.value)"></label>
+          <label>風險等級 Risk Level <span class="req">*</span><select data-f="risk" onchange="setD(${i},'risk',this.value)"><option value="">— 請選擇 —</option>${RISKS.map(s=>`<option ${d.risk===s?"selected":""}>${s}</option>`).join("")}</select></label>
+          <label>Reported @（發現日期）<span class="req">*</span><input type="date" data-f="reported" value="${esc(d.reported)}" onchange="setD(${i},'reported',this.value)"></label>
+        </div>
+        <div class="c2">
+          <label>待改善描述 Finding Brief <span class="req">*</span><textarea data-f="finding" style="min-height:130px" oninput="setD(${i},'finding',this.value)">${esc(d.finding)}</textarea></label>
+          <div class="fld">待改善項目照片 Items to be corrected <span class="hint" style="font-weight:400">最多 ${MAX_DEF_PHOTOS} 張（改善完成的照片由船上在改善單填寫）</span>${phHtml("def",i,MAX_DEF_PHOTOS)}</div>
+        </div>
+        <div class="c3">
+          <div class="fld">結案方式 <span class="req">*</span>（單選）
+            <div class="radios v" data-f="closeMode">${MODES.map(mm=>`<label><input type="radio" name="cm-${i}" ${d.closeMode===mm.k?"checked":""} onchange="setMode(${i},'${mm.k}')"> ${esc(mm.label)}</label>`).join("")}</div>
+          </div>
+        </div>
+      </div>
         ${d.closeMode==="內控"?`<div class="fld fw" style="border:1px dashed var(--signal);border-radius:8px;padding:12px;background:#fffaf5"><b style="color:var(--navy)">內控異常登錄資料（船舶動態與早會待辦系統的欄位）</b>
           <div class="fgrid" style="margin-top:8px">
             <label>關注程度 <span class="req">*</span><select data-f="icLevel" onchange="setD(${i},'icLevel',this.value)"><option value="">— 請選擇 —</option>${IC_LEVELS.map(s=>`<option ${d.icLevel===s?"selected":""}>${s}</option>`).join("")}</select></label>
@@ -688,14 +654,65 @@ function renderDefs(){
             <div class="checks" style="align-self:end;margin-bottom:6px"><label><input type="checkbox" ${d.icAware?"checked":""} onchange="setD(${i},'icAware',this.checked)"> 標記為知曉事項</label><label><input type="checkbox" ${d.icKey?"checked":""} onchange="setD(${i},'icKey',this.checked)"> 同步到要事</label></div>
             <div class="fld fw">涉及部門 <span class="req">*</span><div class="checks" data-f="icDepts">${IC_DEPTS.map(n=>`<label><input type="checkbox" ${(d.icDepts||[]).includes(n)?"checked":""} onchange="toggleDept(${i},'${n}',this.checked)"> ${n}</label>`).join("")}</div></div>
           </div></div>`:""}
-      </div></div>`;}).join(""):(activeTab?`<p class="hint">這個分頁還沒有缺失，請按右上「＋ 新增一筆缺失」。</p>`:"");
+      </div>`;}).join(""):(activeTab?`<p class="hint">這個分頁還沒有缺失，請按右上「＋ 新增一筆缺失」。</p>`:"");
+}
+/* ══════ 批量新增缺失：大表格一列一筆，填完一次加入目前分頁的檢查種類 ══════ */
+let batch=null;
+const blankBatchRow=()=>({topic:"",category:"",risk:"",reported:batch.date,finding:"",closeMode:""});
+function openBatch(){
+  if(!activeTab){toast("⚠ 請先在「① 檢查基本資料」勾選檢查種類",true);return;}
+  collect();
+  const td=typeDef(activeTab)||{label:activeTab};
+  batch={type:activeTab,date:cur.dateTo||cur.dateFrom||todayIso(),rows:[]};
+  for(let i=0;i<5;i++)batch.rows.push(blankBatchRow());
+  $("#batchTitle").textContent=`批量新增${td.label}缺失`;
+  $("#bThTopic").textContent=td.topicLabel||"主題（選填）";
+  $("#bDefRisk").innerHTML='<option value="">風險等級…</option>'+RISKS.map(s=>`<option>${s}</option>`).join("");
+  $("#bDefMode").innerHTML='<option value="">結案方式…</option>'+MODES.map(m=>`<option value="${m.k}">${esc(m.label)}</option>`).join("");
+  renderBatch();$("#batchModal").style.display="flex";
+}
+function closeBatch(){$("#batchModal").style.display="none";batch=null;}
+function setBR(i,f,v){batch.rows[i][f]=v;updateBatchCount();}
+function addBatchRows(n){batch.rows.push(...Array.from({length:n},blankBatchRow));renderBatch();}
+function delBatchRow(i){batch.rows.splice(i,1);if(!batch.rows.length)batch.rows.push(blankBatchRow());renderBatch();}
+function applyBatchDefault(f,v){if(!v)return;batch.rows.forEach(r=>{if(!r[f])r[f]=v;});renderBatch();}
+const batchFilled=r=>String(r.category||"").trim()||String(r.finding||"").trim();
+function updateBatchCount(){const n=batch.rows.filter(batchFilled).length;$("#batchCount").textContent=`已填 ${n} 列（空白列不會加入）`;}
+function renderBatch(){
+  const td=typeDef(batch.type);
+  $("#batchBody").innerHTML=batch.rows.map((r,i)=>`<tr>
+    <td style="text-align:center;font-weight:700;color:var(--ink-2)">${i+1}</td>
+    <td>${td&&td.topics?`<select onchange="setBR(${i},'topic',this.value)"><option value="">（不特別標註）</option>${td.topics.map(t=>`<option ${r.topic===t?"selected":""}>${esc(t)}</option>`).join("")}</select>`
+      :`<input type="text" value="${esc(r.topic)}" placeholder="例：靜態航行評估" oninput="setBR(${i},'topic',this.value)">`}</td>
+    <td><input type="text" value="${esc(r.category)}" placeholder="例：防火門" oninput="setBR(${i},'category',this.value)"></td>
+    <td><select onchange="setBR(${i},'risk',this.value)"><option value="">—</option>${RISKS.map(s=>`<option ${r.risk===s?"selected":""}>${s}</option>`).join("")}</select></td>
+    <td><input type="date" value="${esc(r.reported)}" onchange="setBR(${i},'reported',this.value)"></td>
+    <td><textarea placeholder="待改善描述（中英文皆可）" oninput="setBR(${i},'finding',this.value)">${esc(r.finding)}</textarea></td>
+    <td><select onchange="setBR(${i},'closeMode',this.value)"><option value="">— 請選擇 —</option>${MODES.map(m=>`<option value="${m.k}" ${r.closeMode===m.k?"selected":""}>${esc(m.label)}</option>`).join("")}</select></td>
+    <td><button class="btn sm danger" type="button" title="刪除這一列" onclick="delBatchRow(${i})">×</button></td></tr>`).join("");
+  updateBatchCount();
+}
+function confirmBatch(){
+  const rows=batch.rows.filter(batchFilled);
+  if(!rows.length){toast("⚠ 還沒有填任何一列",true);return;}
+  const type=batch.type;let missing=0;
+  rows.forEach(r=>{
+    if(!r.category||!r.risk||!r.reported||!r.finding||!r.closeMode)missing++;
+    const d=blankDef(type);d.topic=r.topic;d.category=r.category.trim();d.risk=r.risk;d.reported=r.reported;d.finding=r.finding.trim();d.closeMode=r.closeMode;
+    if(r.closeMode==="內控")d.icLevel=r.risk||"";
+    cur.defs.push(d);
+  });
+  closeBatch();renderDefs();updateCounts();
+  const nIc=rows.filter(r=>r.closeMode==="內控").length;
+  toast(`✓ 已加入 ${rows.length} 筆缺失`+(missing?`；其中 ${missing} 筆還有必填欄位沒填，送出前會提醒`:"")+(nIc?`；${nIc} 筆「內控」記得補內控欄位`:""));
 }
 /* 船舶訴求／建議 */
 function addSugg(){collect();cur.sugg.push({situation:"",suggestion:""});renderSugg();updateCounts();}
 function delSugg(i){collect();cur.sugg.splice(i,1);renderSugg();updateCounts();}
 function setS(i,f,v){cur.sugg[i][f]=v;}
 function renderSugg(){
-  $("#suggList").innerHTML=cur.sugg.length?cur.sugg.map((x,i)=>`<div class="item"><div class="ih">No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delSugg(${i})">🗑 刪除</button></div>
+  $("#suggNav").innerHTML=cur.sugg.map((x,i)=>`<a onclick="jumpTo('sugg-${i}')">#${i+1}</a>`).join("");
+  $("#suggList").innerHTML=cur.sugg.length?cur.sugg.map((x,i)=>`<div class="item" id="sugg-${i}"><div class="ih">No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delSugg(${i})">🗑 刪除</button></div>
     <div class="fgrid"><label style="grid-column:span 2">現狀 Situation<textarea oninput="setS(${i},'situation',this.value)">${esc(x.situation)}</textarea></label>
     <label>建議 Suggestion<textarea oninput="setS(${i},'suggestion',this.value)">${esc(x.suggestion)}</textarea></label></div></div>`).join(""):`<p class="hint">尚無船舶訴求／建議。</p>`;
 }
@@ -727,6 +744,7 @@ function showErrors(errs){
   box.innerHTML=`<b>送出前檢查：共 ${errs.length} 個項目需要補齊</b><br>${errs.map(e=>"・"+esc(e.msg)).join("<br>")}`;box.style.display="";
   // 錯誤分散在不同檢查種類分頁時，只標示目前分頁看得到的欄位；點到有錯誤的分頁就會看到紅框
   const first=errs[0];if(first.tab&&first.tab!==activeTab){activeTab=first.tab;renderDefs();}
+  if(first.sel){const want=/^#(def-|defTabs)/.test(first.sel)?"defs":/^#(fShipSel|fDateFrom|fInspector|fPsn|typeBox)$/.test(first.sel)?"basic":null;if(want&&secTab!==want)setSec(want);}
   errs.forEach(e=>{if(e.tab&&e.tab!==activeTab)return;const el=e.sel&&document.querySelector(e.sel);if(el)el.classList.add("bad");});
   const el=first.sel&&document.querySelector(first.sel);(el||box).scrollIntoView({behavior:"smooth",block:"center"});
 }

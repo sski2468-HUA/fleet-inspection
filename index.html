@@ -4962,7 +4962,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         </div>
       </div>
       <div class="card" style="margin-bottom:14px;border-left:4px solid var(--teal)">
-        <h3>⬇ 一鍵下載全部備份（Excel ＋ JS）</h3>        <p class="hint" style="line-height:1.8">一次下載<b>兩種格式</b>的完整備份，涵蓋系統全部資料表（檢查紀錄、缺失紀錄、船舶資料、檢查管控、內稽動態、年度計畫、操演紀錄、AIR<b>（含每艘船每條缺失的對外回覆完整內容）</b>、正面評價/優秀案例、船隊通報單、海技參考資料、人員名冊、<b>分類階層與根因分類</b>等）：<br>
+        <h3>⬇ 一鍵下載全部備份（Excel ＋ JS）</h3>        <p class="hint" style="line-height:1.8">一次下載<b>兩種格式</b>的完整備份，涵蓋系統全部資料表（檢查紀錄、缺失紀錄、船舶資料、檢查管控、內稽動態、年度計畫、操演紀錄、AIR<b>（含每艘船每條缺失的對外回覆完整內容）</b>、正面評價/優秀案例、船隊通報單、海技參考資料、人員名冊、<b>分類階層與根因分類</b>、<b>內部檢查缺失登錄與船上改善回報</b>、<b>分享自查活動與船隊填答</b>等）：<br>
           ・<b>Excel（.xlsx）</b>—— 每個資料表一個工作表，供人閱讀、查核、離線分析，其中「對外回覆內容」工作表會列出所有已產生對外回覆的缺失，中英文各欄位完整內容都在裡面；「分類階層」「根因分類」這兩個工作表僅供閱讀查核，無法用來還原（要還原分類/根因設定，仍需使用 JS 檔）。<br>
           ・<b>JS（.json）</b>—— 完整結構備份，是<b>唯一可以原樣還原回系統</b>的格式；Excel 因為只保留人看得懂的欄位，無法完整還原。<br>
           建議定期執行並異地保存。兩個檔案會依序下載，瀏覽器可能會詢問是否允許多重下載，請按允許。</p>
@@ -27158,6 +27158,18 @@ const DM={
           audit_log:await fetchAll("audit_log","ts.asc"),
           voy_submissions:await fetchAll("voy_submissions",null)
         };
+        // 內部檢查缺失登錄（intaudit.html 登錄單＋船上改善回報）與分享自查（活動＋船隊填答）：
+        // 這幾張表的資料只存在雲端、不在 App.* 陣列裡，之前的備份完全沒有。
+        // 表格若還沒建立（沒執行過對應的 setup.sql）就略過，不影響其他項目。
+        const optional=async(table,order)=>{try{return await fetchAll(table,order);}catch(e){console.warn("備份略過 "+table,e);return null;}};
+        const ia=await optional("intaudit_records","id.asc");
+        const iar=await optional("intaudit_replies","id.asc");
+        const sc=await optional("selfcheck_share_campaigns","id.asc");
+        const sr=await optional("selfcheck_share_responses","id.asc");
+        if(ia)bundle.cloudRaw.intaudit_records=ia;
+        if(iar)bundle.cloudRaw.intaudit_replies=iar;
+        if(sc)bundle.cloudRaw.selfcheck_share_campaigns=sc;
+        if(sr)bundle.cloudRaw.selfcheck_share_responses=sr;
       }catch(e){
         if(!confirm("⚠ 雲端全站設定／填單送出佇列／操作紀錄下載失敗（"+e.message+"），這份備份將不含這幾項。\n\n確定仍要繼續下載其餘部分嗎？"))return;
       }
@@ -27270,7 +27282,9 @@ const DM={
         perms:["defsGridEditors","taskCreators","exporters","defsEditMembers","airHaijiConfirmers"].some(k=>Array.isArray(d[k])),
         enh:Array.isArray(d.enhAuditLog),
         cloudsettings:!!(bundle.cloudRaw&&Array.isArray(bundle.cloudRaw.app_db)&&bundle.cloudRaw.app_db.length),
-        airqueue:!!(bundle.cloudRaw&&Array.isArray(bundle.cloudRaw.air_submissions)&&bundle.cloudRaw.air_submissions.length)};
+        airqueue:!!(bundle.cloudRaw&&Array.isArray(bundle.cloudRaw.air_submissions)&&bundle.cloudRaw.air_submissions.length),
+        intaudit:!!(bundle.cloudRaw&&[bundle.cloudRaw.intaudit_records,bundle.cloudRaw.intaudit_replies].some(a=>Array.isArray(a)&&a.length)),
+        sharecheck:!!(bundle.cloudRaw&&[bundle.cloudRaw.selfcheck_share_campaigns,bundle.cloudRaw.selfcheck_share_responses].some(a=>Array.isArray(a)&&a.length))};
       const v=probe[step.cat];
       return Array.isArray(v)?v.length>0||v===true:!!v;
     });
@@ -27386,6 +27400,27 @@ const DM={
         for(let i=0;i<raw.length;i+=50)await Cloud.api("air_submissions?on_conflict=id",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(raw.slice(i,i+50))});
         toast(`✓ 已把 ${raw.length} 筆填單送出佇列寫回雲端`);
       }catch(e){toast("⚠ 填單送出佇列寫回雲端失敗："+e.message);}})();
+      return true;
+    }},
+    // 以下兩項同樣直接 upsert 回雲端（以 id 合併：備份裡有的會覆蓋、備份後才新增的不會被刪）。
+    {cat:"intaudit",label:"內部檢查缺失登錄＋船上改善回報（intaudit_records／intaudit_replies，直接寫回雲端）",run(d,bundleRoot){
+      const cr=bundleRoot&&bundleRoot.cloudRaw;if(!cr||typeof Cloud==="undefined"||!Cloud.enabled())return false;
+      const jobs=[["intaudit_records",cr.intaudit_records,5],["intaudit_replies",cr.intaudit_replies,20]].filter(j=>Array.isArray(j[1])&&j[1].length);
+      if(!jobs.length)return false;
+      (async()=>{try{
+        for(const [t,rows,sz] of jobs)for(let i=0;i<rows.length;i+=sz)await Cloud.api(t+"?on_conflict=id",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(rows.slice(i,i+sz))});
+        toast("✓ 已把內部檢查缺失登錄／改善回報寫回雲端");
+      }catch(e){toast("⚠ 內部檢查缺失登錄寫回雲端失敗："+e.message);}})();
+      return true;
+    }},
+    {cat:"sharecheck",label:"分享自查活動＋船隊填答（selfcheck_share_campaigns／responses，直接寫回雲端）",run(d,bundleRoot){
+      const cr=bundleRoot&&bundleRoot.cloudRaw;if(!cr||typeof Cloud==="undefined"||!Cloud.enabled())return false;
+      const jobs=[["selfcheck_share_campaigns",cr.selfcheck_share_campaigns],["selfcheck_share_responses",cr.selfcheck_share_responses]].filter(j=>Array.isArray(j[1])&&j[1].length);
+      if(!jobs.length)return false;
+      (async()=>{try{
+        for(const [t,rows] of jobs)for(let i=0;i<rows.length;i+=50)await Cloud.api(t+"?on_conflict=id",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(rows.slice(i,i+50))});
+        toast("✓ 已把分享自查活動／填答寫回雲端");
+      }catch(e){toast("⚠ 分享自查寫回雲端失敗："+e.message);}})();
       return true;
     }}
   ],
