@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>內部檢查缺失登錄 — FPMC</title>
+<style>
+:root{
+  --navy:#1c3a5e; --navy-2:#234a72; --paper:#f5f7f8; --card:#ffffff; --line:#dde4e8; --line-2:#c3ced5;
+  --ink:#15262f; --ink-2:#52656f; --ink-3:#8195a0; --signal:#e8842c; --teal:#1e7f8c; --teal-l:#e4f1f2;
+  --ok:#2e8b57; --bad:#c0392b; --mono:ui-monospace,Consolas,monospace;
+  --sans:"Segoe UI","Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);font-family:var(--sans);color:var(--ink);font-size:14px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 0 70px}
+header{background:var(--navy);color:#fff;padding:18px 20px}
+header h1{margin:0;font-size:19px}
+header p{margin:5px 0 0;font-size:12.5px;color:#b9c8d6;line-height:1.6}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:14px;padding:16px}
+.card h3{margin:0 0 12px;font-size:14px;color:var(--navy);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hint{color:var(--ink-3);font-size:12px;line-height:1.7}
+.banner{margin:14px;background:var(--teal-l);border:1px solid #bfdde0;border-radius:8px;padding:10px 14px;font-size:12.5px;line-height:1.8;color:#22505a}
+.banner.warn{background:#fff6e0;border-color:#efd9a0;color:#7a5a10}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-2);background:#fff;color:var(--ink);padding:8px 13px;border-radius:8px;font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:600}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--signal);border-color:var(--signal);color:#fff}
+.btn.dark{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn.sm{padding:4px 10px;font-size:12px}
+.btn.danger{color:var(--bad);border-color:#e3b3ab}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px}
+input[type=text],input[type=date],select,textarea{padding:8px 10px;border:1px solid var(--line-2);border-radius:7px;font-size:14px;font-family:var(--sans);width:100%;background:#fff}
+textarea{min-height:74px;resize:vertical;line-height:1.5}
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 12px}
+.fgrid.c4{grid-template-columns:repeat(4,1fr)}
+.fgrid .fw{grid-column:1/-1}
+.fgrid label,.fgrid .fld{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2);font-weight:600}
+.fgrid input,.fgrid select,.fgrid textarea{font-weight:400}
+.req{color:var(--bad)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
+.cchips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.cchip b{font-family:var(--mono);font-size:17px;color:var(--navy)}
+.cchip.flow{border-left:4px solid #8195a0}.cchip.ic{border-left:4px solid var(--signal)}.cchip.sys{border-left:4px solid var(--teal)}.cchip.none{border-left:4px dashed var(--line-2)}
+.sticky{position:sticky;top:0;z-index:30;background:var(--paper);padding:8px 14px;border-bottom:1px solid var(--line)}
+.item{background:#fff;border:1px solid var(--line);border-left:4px solid var(--line-2);border-radius:8px;padding:14px 16px;margin-bottom:12px}
+.item.m-flow{border-left-color:#8195a0}.item.m-ic{border-left-color:var(--signal)}.item.m-sys{border-left-color:var(--teal)}
+.item .ih{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:700;color:var(--navy);font-size:13px}
+.item .ih .sp{flex:1}
+.radios,.checks{display:flex;flex-wrap:wrap;gap:8px}
+.radios label,.checks label{flex-direction:row!important;align-items:center;gap:6px!important;border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer;background:#fafbfb;font-weight:600}
+.radios label:has(input:checked),.checks label:has(input:checked){border-color:var(--teal);background:var(--teal-l);color:var(--teal)}
+.radios input,.checks input{width:auto}
+.subtabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.subtabs button{border:1px solid var(--line-2);background:#fff;border-radius:20px;padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink-2);font-family:var(--sans)}
+.subtabs button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.subtabs button .n{font-family:var(--mono);margin-left:6px;opacity:.85}
+.phs{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ph{position:relative;width:84px;height:84px}
+.ph img{width:84px;height:84px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);cursor:pointer}
+.ph button{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--bad);color:#fff;font-size:13px;line-height:20px;cursor:pointer;padding:0}
+.phadd{display:flex!important;flex-direction:row!important;align-items:center;justify-content:center;width:84px;height:84px;border:2px dashed var(--line-2);border-radius:6px;color:var(--ink-3);font-size:12px;cursor:pointer;background:#fafbfb;text-align:center}
+.errors{background:#fdf0ee;border:1px solid #efc3bb;border-left:4px solid var(--bad);border-radius:6px;padding:12px 16px;margin:14px;font-size:12.5px;color:#8a2c1f;line-height:1.8}
+.bad{outline:2px solid var(--bad);outline-offset:1px;border-radius:4px}
+.rec td{background:#eef3f6;font-weight:700;color:var(--navy);padding:8px 10px}
+.mode{display:inline-block;font-size:11px;font-weight:700;border-radius:3px;padding:1px 7px}
+.mode.flow{background:#eceff1;color:#52656f}.mode.ic{background:#fdeedf;color:#b5610f}.mode.sys{background:var(--teal-l);color:var(--teal)}
+.stat{display:inline-block;font-size:11px;font-weight:700;border-radius:10px;padding:1px 9px}
+.stat.s-flow{background:#eceff1;color:#52656f}.stat.s-wait{background:#fff3cd;color:#7a5a10}.stat.s-rep{background:#e3ecf1;color:var(--navy)}.stat.s-done{background:#e2f3e8;color:#2e8b57}
+.risk{display:inline-block;font-size:11px;font-weight:700;border-radius:3px;padding:1px 8px}
+.risk.h{background:#fde8e6;color:#c0392b}.risk.m{background:#fff3cd;color:#7a5a10}.risk.l{background:#e2f3e8;color:#2e8b57}
+.nc-box{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#fafbfb}
+.nc-leaves{display:flex;flex-direction:column;gap:4px;max-height:200px;overflow:auto;margin-top:6px}
+.nc-leaves label{flex-direction:row!important;align-items:center;gap:6px!important;font-weight:400;font-size:12.5px;color:var(--ink)}
+.nc-leaves input{width:auto}
+.crew-row{display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:8px;margin-bottom:8px;align-items:start}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);display:none;z-index:99;max-width:90vw;text-align:center}
+#toast.err{background:var(--bad)}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:120;cursor:zoom-out}
+.lightbox img{max-width:92vw;max-height:92vh;border-radius:6px}
+@media(max-width:900px){.fgrid,.fgrid.c4{grid-template-columns:1fr 1fr}.crew-row{grid-template-columns:1fr}}
+@media(max-width:560px){.fgrid,.fgrid.c4{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🛠 內部檢查缺失登錄</h1>
+    <p>督導、內部稽核員上船檢查發現的缺失在這裡建檔。資料獨立存放，不會與主系統同步作業互相干擾；建檔完成後由海技在主系統匯入檢查紀錄／缺失紀錄。</p>
+  </header>
+  <div id="modeBanner" class="banner warn" style="display:none"></div>
+
+  <div class="toolbar">
+    <button class="btn primary" id="btnList" onclick="showList()">📋 登錄紀錄</button>
+    <button class="btn" id="btnNew" onclick="newForm()">＋ 新增登錄</button>
+    <span style="flex:1"></span>
+    <a class="btn sm" href="./" title="回到主系統">← 返回系統</a>
+  </div>
+
+  <!-- ══════ 登錄紀錄 ══════ -->
+  <div id="listPage">
+    <div class="card">
+      <div class="cchips" id="listCounts"></div>
+      <div class="toolbar" style="margin:12px 0 0">
+        <select id="fShip" onchange="renderList()" style="width:auto"><option value="">全部船舶</option></select>
+        <select id="fMode" onchange="renderList()" style="width:auto"><option value="">全部結案方式</option><option value="FLOW">FLOW 系統（DMP-FM01）</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
+        <select id="fStatus" onchange="renderList()" style="width:auto"><option value="">全部狀態</option><option>FLOW 結案</option><option>待船上改善</option><option>船上已回報</option><option>已結案</option></select>
+        <input type="text" id="fQ" placeholder="🔍 搜尋船名／檢查人／分類／缺失描述…" oninput="renderList()" style="flex:1;min-width:220px;max-width:420px">
+        <button class="btn sm" onclick="clearFilters()">清除篩選</button>
+        <span class="hint" id="listStat"></span>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:auto">
+      <table><thead><tr>
+        <th style="width:44px">No.</th><th style="width:170px">檢查類別／分類</th><th>待改善描述</th><th style="width:60px">風險</th><th style="width:130px">結案方式</th><th style="width:110px">狀態</th><th style="width:160px">後續</th>
+      </tr></thead><tbody id="listBody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ══════ 新增／編輯登錄 ══════ -->
+  <div id="formPage" style="display:none">
+    <div class="sticky">
+      <div class="cchips">
+        <span class="hint" style="font-weight:700">結案方式統計</span>
+        <span class="cchip flow">FLOW 系統（DMP-FM01）<b id="cFlow">0</b> 筆</span>
+        <span class="cchip ic">內控<b id="cIc">0</b> 筆</span>
+        <span class="cchip sys">系統內結案<b id="cSys">0</b> 筆</span>
+        <span class="cchip none">尚未選擇<b id="cNone">0</b> 筆</span>
+        <span style="flex:1"></span>
+        <button class="btn sm" onclick="cancelForm()">取消</button>
+        <button class="btn sm" onclick="saveDraft()">💾 儲存草稿</button>
+        <button class="btn sm primary" onclick="submitForm()">✓ 檢查並送出</button>
+      </div>
+      <div id="sumLine" style="margin-top:6px;font-size:13px;color:var(--navy);font-weight:600;line-height:1.7"></div>
+    </div>
+    <div id="errBox" class="errors" style="display:none"></div>
+
+    <div class="card">
+      <h3>① 檢查基本資料 <span class="hint" style="font-weight:400">檢查缺失具體項目記錄表 Audit N/C / Deficiency Items Details Records</span></h3>
+      <div class="fgrid">
+        <label>訪問船舶 Ship Visited <span class="req">*</span><select id="fShipSel"></select></label>
+        <label>檢查日期（起）<span class="req">*</span><input type="date" id="fDateFrom" onchange="onDateChange()"></label>
+        <label>檢查日期（迄）<span class="hint" style="font-weight:400">單日檢查可不填</span><input type="date" id="fDateTo"></label>
+        <label>檢查人 Auditor <span class="req">*</span><select id="fInspector"></select><span class="hint" style="font-weight:400">名單來自系統名冊的督導；找不到請洽海技新增</span></label>
+        <label>地點 Ship's PSN <span class="req">*</span><input type="text" id="fPsn" list="dlPorts" placeholder="請用英文打幾個字選港口，例：Kaohsiung" autocomplete="off"><datalist id="dlPorts"></datalist></label>
+        <div></div>
+        <div class="fld fw">檢查種類 Audit Type <span class="req">*</span>（可複選；缺失明細會依所選種類分頁）
+          <div class="checks" id="typeBox"></div></div>
+      </div>
+      <div class="fgrid c4" style="margin-top:10px">
+        <label>船長 Captain<input type="text" id="fMaster"></label>
+        <label>大副 C/O<input type="text" id="fCo"></label>
+        <label>輪機長 C/E<input type="text" id="fCe"></label>
+        <label>大管輪 2/E<input type="text" id="f2e"></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>② 總體評價 <span class="hint" style="font-weight:400">Overall Assessment</span></h3>
+      <div class="fgrid">
+        <label class="fw">總體評價（船上總體氣氛、TOP4 配合程度、管理效果、船副管輪表現、乙級船員表現、船舶保養與機器狀況等）<textarea id="fOverall" style="min-height:130px"></textarea></label>
+        <div class="fld fw">TOP 4 合照<div id="top4Ph"></div></div>
+        <label class="fw">照片說明（例：左後：船長 ○○　右後：大管輪 ○○　左前：大副 ○○　右前：輪機長 ○○）<input type="text" id="fTop4Cap"></label>
+        <div class="fld fw">表現亮眼船員 Good Performance Crew &amp; Brief <div id="goodCrew"></div>
+          <div><button class="btn sm" type="button" onclick="addCrew('good')">＋ 新增一位</button></div></div>
+        <div class="fld fw">表現較差船員 Poor Performance Crew &amp; Brief <div id="poorCrew"></div>
+          <div><button class="btn sm" type="button" onclick="addCrew('poor')">＋ 新增一位</button></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>③ 優良案例 Best Practice（正面評價） <span style="margin-left:auto"><button class="btn sm" onclick="addBest()">＋ 新增一筆優良案例</button></span></h3>
+      <div id="bestList"></div>
+    </div>
+
+    <div class="card">
+      <h3>④ 缺失明細 <span class="hint" style="font-weight:400">先在基本資料勾選檢查種類，再點下方分頁登錄該種類的缺失；每筆必填「結案方式」（單選）</span></h3>
+      <div class="subtabs" id="defTabs"></div>
+      <div id="defTabHead" class="toolbar" style="margin:0 0 10px"></div>
+      <div id="defList"></div>
+    </div>
+
+    <div class="card">
+      <h3>⑤ 船舶訴求／建議 Ship's Demand / Suggestion <span style="margin-left:auto"><button class="btn sm" onclick="addSugg()">＋ 新增一筆</button></span></h3>
+      <div id="suggList"></div>
+    </div>
+
+    <div class="toolbar" style="justify-content:flex-end">
+      <button class="btn" onclick="cancelForm()">取消</button>
+      <button class="btn" onclick="saveDraft()">💾 儲存草稿</button>
+      <button class="btn primary" onclick="submitForm()">✓ 檢查並送出</button>
+    </div>
+  </div>
+</div>
+<div class="lightbox" id="lightbox" onclick="this.style.display='none'"><img id="lightboxImg" alt=""></div>
+<div id="toast"></div>
+
+<script>
+const CLOUD={url:"https://iqmbircjokdzdssouwkr.supabase.co",
+  key:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY"};
+const TABLE="intaudit_records";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+function toast(msg,err){const t=$("#toast");t.textContent=msg;t.className=err?"err":"";t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",3200);}
+const H=(extra)=>Object.assign({"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json"},extra||{});
+async function api(path,opts){
+  const r=await fetch(`${CLOUD.url}/rest/v1/${path}`,Object.assign({headers:H()},opts||{}));
+  if(!r.ok)throw new Error("HTTP "+r.status+" "+(await r.text()).slice(0,200));
+  const t=await r.text();return t?JSON.parse(t):null;
+}
+const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error("逾時")),ms))]);
+
+/* ══════ 固定選項 ══════ */
+/* 檢查種類＝系統的「檢查來源」（airform_lists.itype）。本表只列內部檢查會用到的幾種；
+   「主題檢查」目前系統的檢查來源清單還沒有，先在本頁補上，之後需由維護者新增到系統的檢查來源。 */
+const TYPE_DEFS=[
+  {k:"onboard visit",label:"訪船",en:"Superintendent Visit",section:"訪船缺失",topicLabel:"訪船主題評估表",
+   topics:["SAR-FM20 靜態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表"]},
+  {k:"Internal audit",label:"內稽",en:"Internal Audit",section:"內稽缺失",topicLabel:"內稽區域／類別",topics:["甲板","機艙","ISM","MLC","ISPS"]},
+  {k:"ACCOMPANYING SHIP",label:"隨船",en:"On-Voyage Audit",section:"隨船缺失",topicLabel:"隨船主題評估表",
+   topics:["SAR-FM21 動態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表"]},
+  {k:"Cross ship visit",label:"交叉訪船",en:"Cross Visit",section:"交叉訪船缺失",topicLabel:"",topics:null},
+  {k:"主題檢查",label:"主題檢查",en:"Topic Audit",section:"主題檢查缺失",topicLabel:"",topics:null},
+  {k:"其他",label:"其他事項",en:"Other / Minor Issue",section:"其它／較小問題",topicLabel:"",topics:null}
+];
+const typeDef=k=>TYPE_DEFS.find(t=>t.k===k);
+const MODES=[{k:"FLOW",label:"FLOW 系統（DMP-FM01）",cls:"flow"},{k:"內控",label:"內控",cls:"ic"},{k:"系統內結案",label:"系統內結案",cls:"sys"}];
+const modeOf=k=>MODES.find(m=>m.k===k);
+const RISKS=["高","中","低"];
+const RANK_OPTIONS=["Master船長","C/O大副","2/O二副","3/O三副","C/E輪機長","2/E大管","3/E二管","4/E三管","BSN水手長","AB幹練水手","OS普通水手","COOK廚師","FTR銅匠","OLR加油匠","PM泵匠","A.Capt.見習船長","A.C/O見習大副","A.2/O見習二副","A.3/O見習三副","A.C/E見習輪機長","A.2/E見習大管","A.3/E見習二管","A.4/E見習三管","其他(請聯繫海技新增)"];
+const MAX_DEF_PHOTOS=3;
+const PORTS=["Aarhus, Denmark", "Abbot Point, Australia", "Abidjan, Ivory Coast", "Abu Dhabi, UAE", "Adelaide, Australia", "Alexandria, Egypt", "Algeciras, Spain", "Algiers, Algeria", "Aliaga, Turkey", "Altamira, Mexico", "Ambarli, Turkey", "Amsterdam, Netherlands", "Anping, Taiwan", "Antofagasta, Chile", "Antwerp, Belgium", "Aqaba, Jordan", "Arzew, Algeria", "Ashdod, Israel", "Auckland, New Zealand", "Augusta, Italy", "Bahia Blanca, Argentina", "Bahrain, Bahrain", "Balboa, Panama", "Balikpapan, Indonesia", "Baltimore, USA", "Bandar Abbas, Iran", "Bandar Imam Khomeini, Iran", "Bangkok, Thailand", "Banjarmasin, Indonesia", "Barcelona, Spain", "Barranquilla, Colombia", "Basrah, Iraq", "Batangas, Philippines", "Baton Rouge, USA", "Beaumont, USA", "Beihai, China", "Beira, Mozambique", "Beirut, Lebanon", "Belawan, Indonesia", "Bergen, Norway", "Bilbao, Spain", "Bintulu, Malaysia", "Bluff, New Zealand", "Bontang, Indonesia", "Bordeaux, France", "Boston, USA", "Bremen, Germany", "Bremerhaven, Germany", "Brisbane, Australia", "Bristol, UK", "Brunsbuttel, Germany", "Brunswick, USA", "Buenaventura, Colombia", "Buenos Aires, Argentina", "Burgas, Bulgaria", "Busan, South Korea", "Cagayan de Oro, Philippines", "Cai Mep, Vietnam", "Callao, Peru", "Cam Pha, Vietnam", "Caofeidian, China", "Cape Town, South Africa", "Cartagena, Colombia", "Cartagena, Spain", "Casablanca, Morocco", "Cebu, Philippines", "Changshu, China", "Changzhou, China", "Charleston, USA", "Chattogram, Bangladesh", "Chennai, India", "Chiba, Japan", "Chittagong, Bangladesh", "Cigading, Indonesia", "Cilegon, Indonesia", "Coatzacoalcos, Mexico", "Cochin, India", "Colombo, Sri Lanka", "Colon, Panama", "Come By Chance, Canada", "Conakry, Guinea", "Constanta, Romania", "Copenhagen, Denmark", "Corpus Christi, USA", "Cristobal, Panama", "Da Nang, Vietnam", "Daesan, Korea", "Daesan, South Korea", "Dahej, India", "Dakar, Senegal", "Dalian, China", "Dalrymple Bay, Australia", "Damietta, Egypt", "Dammam, Saudi Arabia", "Dampier, Australia", "Dar es Salaam, Tanzania", "Davao, Philippines", "Djeno, Congo", "Djibouti, Djibouti", "Doha, Qatar", "Dong Nai, Vietnam", "Douala, Cameroon", "Dumai, Indonesia", "Dung Quat, Vietnam", "Dunkirk, France", "Duqm, Oman", "Durban, South Africa", "Ennore, India", "Esperance, Australia", "Fangcheng, China", "Fazendinha, Brazil", "Felixstowe, UK", "Ferrol, Spain", "Fos, France", "Freeport, Bahamas", "Freeport, USA", "Freetown, Sierra Leone", "Fremantle, Australia", "Fujairah, UAE", "Fuzhou, China", "Galveston, USA", "Gangavaram, India", "Gdansk, Poland", "Gdynia, Poland", "Genoa, Italy", "Geraldton, Australia", "Ghent, Belgium", "Gijon, Spain", "Gioia Tauro, Italy", "Gladstone, Australia", "Gore Bay, Australia", "Gothenburg, Sweden", "Gove, Australia", "Gresik, Indonesia", "Grimsby, UK", "Guangzhou, China", "Guayaquil, Ecuador", "Guaymas, Mexico", "Gwadar, Pakistan", "Gwangyang, South Korea", "Hai Phong, Vietnam", "Haifa, Israel", "Halifax, Canada", "Halul, Qatar", "Hamburg, Germany", "Hamilton, Canada", "Hamriyah, UAE", "Hay Point, Australia", "Hazira, India", "Helsingborg, Sweden", "Helsinki, Finland", "Ho Chi Minh City, Vietnam", "Hon Gai, Vietnam", "Hong Kong, Hong Kong", "Houston, USA", "Hualien, Taiwan", "Huanghua, China", "Huasco, Chile", "Huelva, Spain", "Hull, UK", "Immingham, UK", "Incheon, South Korea", "Isabel, Philippines", "Iskenderun, Turkey", "Istanbul, Turkey", "Itaguai, Brazil", "Itaqui, Brazil", "Izmir, Turkey", "Jaigarh, India", "Jakarta, Indonesia", "Jebel Ali, UAE", "Jeddah, Saudi Arabia", "Jiangyin, China", "Jiaxing, China", "Jieyang, China", "Jingtang, China", "Jorf Lasfar, Morocco", "Jubail, Saudi Arabia", "Jurong, Singapore", "Kamsar, Guinea", "Kandla, India", "Kaohsiung, Taiwan", "Karachi, Pakistan", "Kashima, Japan", "Kawasaki, Japan", "Keelung, Taiwan", "Kemaman, Malaysia", "Khalifa Port, UAE", "King Abdullah Port, Saudi Arabia", "Kinmen, Taiwan", "Kitakyushu, Japan", "Klaipeda, Lithuania", "Kobe, Japan", "Kolkata, India", "Kotka, Finland", "Krishnapatnam, India", "Kuantan, Malaysia", "Kuwait City, Kuwait", "Kwangyang, Korea", "Kwinana, Australia", "La Plata, Argentina", "Labuan, Malaysia", "Laem Chabang, Thailand", "Lagos (Apapa), Nigeria", "Lagos, Nigeria", "Lake Charles, USA", "Latakia, Syria", "Lazaro Cardenas, Mexico", "Le Havre, France", "Leixoes, Portugal", "Lianyungang, China", "Libreville, Gabon", "Lisbon, Portugal", "Liverpool, UK", "Livorno, Italy", "Lobito, Angola", "London, UK", "Long Beach, USA", "Longview, USA", "Los Angeles, USA", "Luanda, Angola", "Lyttelton, New Zealand", "Macau, China", "Mailiao, Taiwan", "Makassar, Indonesia", "Manaus, Brazil", "Mangalore, India", "Manila, Philippines", "Manzanillo, Mexico", "Map Ta Phut, Thailand", "Maputo, Mozambique", "Marseille, France", "Masan, South Korea", "Matarani, Peru", "Mawan, China", "Mejillones, Chile", "Melbourne, Australia", "Mersin, Turkey", "Mesaieed, Qatar", "Milford Haven, UK", "Mina Al Ahmadi, Kuwait", "Mina Zayed, UAE", "Misurata, Libya", "Mizushima, Japan", "Mobile, USA", "Mombasa, Kenya", "Mongla, Bangladesh", "Monrovia, Liberia", "Montevideo, Uruguay", "Montreal, Canada", "Mormugao, India", "Mumbai, India", "Mundra, India", "Murmansk, Russia", "Muscat, Oman", "Nacala, Mozambique", "Nagoya, Japan", "Nakhodka, Russia", "Nanjing, China", "Nansha, China", "Nantes, France", "Nantong, China", "Napier, New Zealand", "Naples, Italy", "New Orleans, USA", "New York, USA", "Newcastle, Australia", "Nghi Son, Vietnam", "Nhava Sheva, India", "Ningbo, China", "Norco, USA", "Norfolk, USA", "Noumea, New Caledonia", "Novorossiysk, Russia", "Nueva Palmira, Uruguay", "Oakland, USA", "Odessa, Ukraine", "Oita, Japan", "Onne, Nigeria", "Onsan, South Korea", "Osaka, Japan", "Oslo, Norway", "Panama, Panama", "Paradip, India", "Paranagua, Brazil", "Pascagoula, USA", "Pasir Gudang, Malaysia", "Paulsboro, USA", "Penang, Malaysia", "Philadelphia, USA", "Piraeus, Greece", "Pivdennyi, Ukraine", "Pohang, Korea", "Pohang, South Korea", "Pointe-Noire, Congo", "Ponta da Madeira, Brazil", "Port Arthur, USA", "Port Boffa, Guinea", "Port Elizabeth, South Africa", "Port Harcourt, Nigeria", "Port Hedland, Australia", "Port Kamsar, Guinea", "Port Klang, Malaysia", "Port Marsden, New Zealand", "Port Moresby, Papua New Guinea", "Port Qasim, Pakistan", "Port Reading, USA", "Port Said, Egypt", "Port Sudan, Sudan", "Port Walcott, Australia", "Portland, Australia", "Portland, USA", "Primorsk, Russia", "Prince Rupert, Canada", "Puerto Cabello, Venezuela", "Puerto Cortes, Honduras", "Puerto Quetzal, Guatemala", "Pyeongtaek, Korea", "Pyeongtaek, South Korea", "Qingdao, China", "Quanzhou, China", "Quebec, Canada", "Quy Nhon, Vietnam", "Rabigh, Saudi Arabia", "Ras Laffan, Qatar", "Ras Tanura, Saudi Arabia", "Ravenna, Italy", "Rayong, Thailand", "Richards Bay, South Africa", "Riga, Latvia", "Rio Grande, Brazil", "Rio de Janeiro, Brazil", "Rizhao, China", "Rosario, Argentina", "Rotterdam, Netherlands", "Rouen, France", "Ruwais, UAE", "Sakai, Japan", "Sakaide, Japan", "Salalah, Oman", "Saldanha Bay, South Africa", "Samarinda, Indonesia", "San Antonio, Chile", "San Francisco, USA", "San Lorenzo, Argentina", "San Nicolas, Argentina", "San Vicente, Chile", "Santa Marta, Colombia", "Santos, Brazil", "Sao Luis, Brazil", "Sariaya, Philippines", "Savannah, USA", "Seattle, USA", "Semarang, Indonesia", "Sept-Iles, Canada", "Shanghai, China", "Shantou, China", "Sharjah, UAE", "Shekou, China", "Shenzhen, China", "Shuaiba, Kuwait", "Shuwaikh, Kuwait", "Sihanoukville, Cambodia", "Sikka, India", "Sines, Portugal", "Singapore (Anchorage), Singapore", "Singapore, Singapore", "Sitra, Bahrain", "Sohar, Oman", "Sokhna, Egypt", "Son Duong, Vietnam", "Songkhla, Thailand", "Southampton, UK", "Sriracha, Thailand", "St Croix, USA", "St Petersburg, Russia", "St. Croix, USA", "St. Eustatius, Caribbean Netherlands", "Suao, Taiwan", "Suape, Brazil", "Subic Bay, Philippines", "Suez, Egypt", "Surabaya, Indonesia", "Sydney, Australia", "Szczecin, Poland", "Taboneo, Indonesia", "Tacoma, USA", "Taicang, China", "Taichung, Taiwan", "Taipei, Taiwan", "Taizhou, China", "Takoradi, Ghana", "Tallinn, Estonia", "Tampa, USA", "Tampico, Mexico", "Tanga, Tanzania", "Tangier, Morocco", "Tangshan (Jingtang Port), China", "Tanjung Pelepas, Malaysia", "Tanjung Perak, Indonesia", "Tanjung Priok, Indonesia", "Tarahan, Indonesia", "Taranto, Italy", "Tarragona, Spain", "Tauranga, New Zealand", "Teesport, UK", "Tema, Ghana", "Texas City, USA", "Thames, UK", "Thamesport, UK", "Thessaloniki, Greece", "Thilawa, Myanmar", "Thunder Bay, Canada", "Tianjin, China", "Tilbury, UK", "Tokyo, Japan", "Tomakomai, Japan", "Townsville, Australia", "Trieste, Italy", "Tripoli, Libya", "Trois-Rivieres, Canada", "Tubarao, Brazil", "Tunis, Tunisia", "Tuticorin, India", "Ube, Japan", "Ulsan, Korea", "Ulsan, South Korea", "Umm Qasr, Iraq", "Ust-Luga, Russia", "Vadinar, India", "Valencia, Spain", "Valparaiso, Chile", "Vancouver, Canada", "Varna, Bulgaria", "Venice, Italy", "Veracruz, Mexico", "Visakhapatnam, India", "Vitoria, Brazil", "Vladivostok, Russia", "Vostochny, Russia", "Vung Ang, Vietnam", "Vung Tau, Vietnam", "Wakayama, Japan", "Walvis Bay, Namibia", "Wenzhou, China", "Whyalla, Australia", "Wilhelmshaven, Germany", "Xiamen, China", "Yanbu, Saudi Arabia", "Yangon, Myanmar", "Yangpu, China", "Yantai, China", "Yeosu, South Korea", "Yingkou, China", "Yokohama, Japan", "Yuzhny, Ukraine", "Zeebrugge, Belgium", "Zhangjiagang, China", "Zhanjiang, China", "Zhapu, China", "Zhenjiang, China", "Zhoushan, China"];
+
+/* ══════ 雲端清單：船舶／督導名冊／分類階層（讀不到時用備援，不擋填單） ══════ */
+let SHIPS=[],SUPERVISORS=[],NC={equip:[],ops:[],ok:false};
+async function getKey(k){const r=await withTimeout(api(`app_db?select=payload&k=eq.${encodeURIComponent(k)}`),8000);return r&&r[0]?r[0].payload:null;}
+async function loadLists(){
+  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code}));}catch(e){}
+  try{const p=await getKey("roster");if(Array.isArray(p))SUPERVISORS=[...new Set(p.filter(r=>r.dept==="督導").map(r=>r.name))].filter(Boolean).sort();}catch(e){}
+  try{const p=(await getKey("nctree_full_v2"))||(await getKey("ncdb"));if(p&&p.equip&&p.ops){NC={equip:p.equip,ops:p.ops,ok:true};}}catch(e){}
+  $("#dlPorts").innerHTML=PORTS.concat(["At Sea"]).map(p=>`<option value="${esc(p)}">`).join("");
+  if(!SHIPS.length)toast("⚠ 船舶清單讀取失敗，請確認網路後重新整理頁面",true);
+  if(!SUPERVISORS.length)toast("⚠ 督導名單讀取失敗，請確認網路後重新整理頁面",true);
+  $("#fShip").innerHTML='<option value="">全部船舶</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}">${esc(s.code)} ${esc(s.name)}</option>`).join("");
+}
+
+/* ══════ 資料存取：優先寫雲端資料表 intaudit_records；資料表還沒建立時退回本機瀏覽器暫存並提示 ══════ */
+const LOCAL_KEY="vsm_intaudit_local_v1";
+const Store={
+  mode:"cloud",rows:[],
+  async load(){
+    try{
+      const rows=await api(`${TABLE}?select=id,payload&order=id.desc&limit=1000`);
+      this.mode="cloud";this.rows=(rows||[]).map(r=>Object.assign({},r.payload,{id:r.id}));
+    }catch(e){
+      this.mode="local";
+      try{this.rows=JSON.parse(localStorage.getItem(LOCAL_KEY)||"[]");}catch(e2){this.rows=[];}
+    }
+    const b=$("#modeBanner");
+    if(this.mode==="local"){b.style.display="";b.innerHTML="⚠ 雲端資料表 <b>intaudit_records</b> 尚未建立（請維護者在 Supabase SQL Editor 執行 <b>intaudit_setup.sql</b> 一次）。<b>目前資料只暫存在這台電腦的瀏覽器，不會給別人看到，也不能匯入主系統。</b>";}
+    else b.style.display="none";
+  },
+  async save(rec){
+    if(this.mode==="cloud"){
+      try{
+        await api(`${TABLE}?on_conflict=id`,{method:"POST",headers:H({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify([{id:rec.id,payload:rec,updated_at:Date.now()}])});
+      }catch(e){toast("⚠ 儲存到雲端失敗："+e.message,true);return false;}
+    }
+    const ix=this.rows.findIndex(r=>r.id===rec.id);
+    if(ix>=0)this.rows[ix]=rec;else this.rows.unshift(rec);
+    if(this.mode==="local")try{localStorage.setItem(LOCAL_KEY,JSON.stringify(this.rows));}catch(e){toast("⚠ 本機空間不足（照片太多），請減少照片後再試",true);return false;}
+    return true;
+  },
+  async remove(id){
+    if(this.mode==="cloud"){try{await api(`${TABLE}?id=eq.${id}`,{method:"DELETE"});}catch(e){toast("⚠ 刪除失敗："+e.message,true);return;}}
+    this.rows=this.rows.filter(r=>r.id!==id);
+    if(this.mode==="local")try{localStorage.setItem(LOCAL_KEY,JSON.stringify(this.rows));}catch(e){}
+  }
+};
+
+/* ══════ 共用小工具 ══════ */
+const todayIso=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+const slash=s=>String(s||"").replace(/-/g,"/");
+const dateText=r=>r.dateFrom?(slash(r.dateFrom)+(r.dateTo&&r.dateTo!==r.dateFrom?"～"+slash(r.dateTo):"")):"";
+const statCls=s=>s==="FLOW 結案"?"s-flow":s==="待船上改善"?"s-wait":s==="船上已回報"?"s-rep":"s-done";
+const rankSelect=(cur,onchange,extra)=>`<select ${extra||""} onchange="${onchange}"><option value="">— 職級 —</option>${RANK_OPTIONS.map(r=>`<option ${cur===r?"selected":""}>${esc(r)}</option>`).join("")}${cur&&!RANK_OPTIONS.includes(cur)?`<option selected>${esc(cur)}</option>`:""}</select>`;
+function openLightbox(url){$("#lightboxImg").src=url;$("#lightbox").style.display="flex";}
+function download(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
+
+/* ══════ 登錄紀錄（清單） ══════ */
+function showList(){
+  $("#listPage").style.display="";$("#formPage").style.display="none";
+  $("#btnList").classList.add("primary");$("#btnNew").classList.remove("primary");
+  renderList();
+}
+function clearFilters(){$("#fShip").value="";$("#fMode").value="";$("#fStatus").value="";$("#fQ").value="";renderList();}
+function renderList(){
+  const rows=Store.rows,all=[];rows.forEach(r=>(r.defs||[]).forEach(d=>all.push(d)));
+  const cnt=k=>all.filter(d=>d.closeMode===k).length;
+  $("#listCounts").innerHTML=`<span class="hint" style="font-weight:700">全部缺失結案方式</span>
+    <span class="cchip flow">FLOW 系統（DMP-FM01）<b>${cnt("FLOW")}</b> 筆</span><span class="cchip ic">內控<b>${cnt("內控")}</b> 筆</span><span class="cchip sys">系統內結案<b>${cnt("系統內結案")}</b> 筆</span>
+    <span class="hint">共 ${rows.length} 張登錄單、${all.length} 筆缺失</span>`;
+  const fs=$("#fShip").value,fm=$("#fMode").value,fst=$("#fStatus").value,q=$("#fQ").value.trim().toLowerCase();
+  let html="",n=0;
+  rows.forEach(r=>{
+    if(fs&&r.ship!==fs)return;
+    const ds=(r.defs||[]).filter(d=>(!fm||d.closeMode===fm)&&(!fst||d.status===fst)&&
+      (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,d.topic].join(" ").toLowerCase().includes(q)));
+    if(!ds.length&&(fm||fst||q))return;
+    n+=ds.length;
+    const types=(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、");
+    const hasIC=(r.defs||[]).some(d=>d.closeMode==="內控");
+    html+=`<tr class="rec"><td colspan="7"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:14px">${esc(r.ship)}</span><span>${esc(dateText(r))}</span><span class="hint">${esc(types)}${r.draft?" ・<b style='color:#b5610f'>草稿</b>":""}</span>
+      <span class="hint">檢查人：${esc(r.inspector)}　地點：${esc(r.psn)}</span>
+      <span class="hint" style="flex-basis:100%;font-weight:400">${esc(summaryText(r))}</span>
+      <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn sm" onclick="editRec(${r.id})">✎ 編輯</button>
+        <button class="btn sm" onclick="exportWord(${r.id})" title="以原記錄表為範本套版輸出 .docx（尚待串接）">⬇ Word</button>
+        <button class="btn sm" onclick="exportJson(${r.id})">⬇ JSON</button>
+        <button class="btn sm" ${hasIC?"":"disabled"} onclick="exportIcJson(${r.id})" title="只含結案方式為「內控」的缺失">⬇ 內控 JSON</button>
+        <button class="btn sm dark" onclick="importPreview(${r.id})" title="預覽匯入主系統時會建立哪些紀錄">➜ 匯入主系統</button>
+        <button class="btn sm danger" onclick="delRec(${r.id})">🗑</button></span></div></td></tr>`;
+    html+=ds.map(d=>{
+      const i=r.defs.indexOf(d),m=modeOf(d.closeMode),td=typeDef(d.type);
+      const nxt=d.closeMode==="FLOW"?`<span class="hint">船上自行至 FLOW 系統填單</span>`:d.status==="待船上改善"?`<span class="hint">待發改善單給船上</span>`:d.status==="船上已回報"?`<span class="hint">在填單佇列待審核</span>`:`<span class="hint">已完成</span>`;
+      return `<tr><td style="text-align:center">${i+1}</td>
+        <td><b>${esc(d.category||"—")}</b><div class="hint">${esc(td?td.label:d.type)}${d.topic?"・"+esc(d.topic):""}</div></td>
+        <td style="white-space:pre-line;max-width:520px">${esc(d.finding||"")}${(d.photos||[]).length?`<div class="hint">📷 ${d.photos.length} 張照片</div>`:""}</td>
+        <td>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">${esc(d.risk)}</span>`:""}</td>
+        <td>${m?`<span class="mode ${m.cls}">${esc(m.label)}</span>`:'<span class="hint">未選</span>'}</td>
+        <td><span class="stat ${statCls(d.status)}">${esc(d.status||"—")}</span></td><td>${nxt}</td></tr>`;}).join("");
+  });
+  $("#listBody").innerHTML=html||`<tr><td colspan="7" style="text-align:center;color:#8195a0;padding:24px">目前沒有登錄紀錄，請按上方「＋ 新增登錄」。</td></tr>`;
+  $("#listStat").textContent=`顯示 ${n} 筆缺失`;
+}
+async function delRec(id){if(!confirm("確定刪除這張登錄單？此動作無法復原。"))return;await Store.remove(id);renderList();}
+function exportJson(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;download(new Blob([JSON.stringify(r,null,1)],{type:"application/json"}),fname(r,".json"));}
+function exportIcJson(id){
+  const r=Store.rows.find(x=>x.id===id);if(!r)return;
+  const ic=(r.defs||[]).filter(d=>d.closeMode==="內控");
+  if(!ic.length){toast("⚠ 這張登錄單沒有結案方式為「內控」的缺失",true);return;}
+  download(new Blob([JSON.stringify({ship:r.ship,date:dateText(r),inspector:r.inspector,psn:r.psn,types:r.types,defs:ic},null,1)],{type:"application/json"}),`${r.ship}_${dateText(r).replace(/[\\/:*?"<>|～]/g,"-")}_內控缺失.json`);
+}
+const fname=(r,ext)=>`${r.ship||"船名"}_${(dateText(r)||"檢查日期").replace(/[\\/:*?"<>|～]/g,"-")}_檢查缺失具體項目記錄表${ext}`;
+function exportWord(){toast("📄 Word 匯出（以原記錄表為範本套版、附照片）尚待串接");}
+/* 匯入主系統（尚待串接）：先預覽會拆成哪些紀錄——每個檢查種類一筆檢查紀錄；缺失依「缺失所屬檢查種類」成為缺失紀錄，
+   檢查來源＝該種類；優良案例成為正面評價。實際寫入需在主系統執行（避免外部頁面直接改主系統資料造成同步衝突）。 */
+function importPreview(id){
+  const r=Store.rows.find(x=>x.id===id);if(!r)return;
+  const lines=(r.types||[]).map(k=>{const n=(r.defs||[]).filter(d=>d.type===k).length;return `・檢查紀錄 1 筆：${(typeDef(k)||{label:k}).label}（檢查來源 ${k}），缺失紀錄 ${n} 筆`;});
+  alert(`匯入主系統時預計建立：\n\n${lines.join("\n")}\n・正面評價／優良案例 ${(r.best||[]).length} 筆\n\n（此功能尚待串接，目前不會寫入主系統）`);
+}
+
+/* ══════ 表單 ══════ */
+let cur=null,activeTab=null;
+const blankDef=type=>({type,topic:"",category:"",risk:"",reported:cur&&cur.dateTo?cur.dateTo:(cur&&cur.dateFrom)||todayIso(),finding:"",photos:[],
+  equipMain:"",equipLeaf:[],opMain:"",opLeaf:[],closeMode:"",status:""});
+const blank=()=>({id:null,ship:"",dateFrom:todayIso(),dateTo:"",inspector:"",psn:"",types:[],master:"",co:"",ce:"",e2:"",overall:"",
+  top4:{photos:[],cap:""},goodCrew:[],poorCrew:[],best:[],defs:[],sugg:[],draft:true});
+function newForm(){cur=blank();activeTab=null;openForm();}
+function editRec(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;cur=JSON.parse(JSON.stringify(r));activeTab=(cur.types||[])[0]||null;openForm();}
+function openForm(){
+  $("#listPage").style.display="none";$("#formPage").style.display="";
+  $("#btnList").classList.remove("primary");$("#btnNew").classList.add("primary");$("#errBox").style.display="none";
+  $("#fShipSel").innerHTML='<option value="">— 請選擇船舶 —</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}" ${cur.ship===s.code?"selected":""}>${esc(s.code)} ${esc(s.name)}</option>`).join("");
+  const insp=SUPERVISORS.slice();if(cur.inspector&&!insp.includes(cur.inspector))insp.unshift(cur.inspector);
+  $("#fInspector").innerHTML='<option value="">— 請選擇督導 —</option>'+insp.map(n=>`<option ${cur.inspector===n?"selected":""}>${esc(n)}</option>`).join("");
+  $("#fDateFrom").value=cur.dateFrom||"";$("#fDateTo").value=cur.dateTo||"";$("#fPsn").value=cur.psn||"";
+  $("#fMaster").value=cur.master||"";$("#fCo").value=cur.co||"";$("#fCe").value=cur.ce||"";$("#f2e").value=cur.e2||"";
+  $("#fOverall").value=cur.overall||"";$("#fTop4Cap").value=cur.top4.cap||"";
+  renderTypes();renderTop4();renderCrew("good");renderCrew("poor");renderBest();renderDefs();renderSugg();updateCounts();
+  window.scrollTo({top:0});
+}
+function cancelForm(){if(!confirm("放棄目前填寫的內容並回到登錄紀錄？"))return;showList();}
+function collect(){
+  const g=id=>$(id).value.trim();
+  cur.ship=$("#fShipSel").value;cur.dateFrom=$("#fDateFrom").value;cur.dateTo=$("#fDateTo").value;cur.inspector=$("#fInspector").value;cur.psn=g("#fPsn");
+  cur.master=g("#fMaster");cur.co=g("#fCo");cur.ce=g("#fCe");cur.e2=g("#f2e");cur.overall=g("#fOverall");cur.top4.cap=g("#fTop4Cap");
+  return cur;
+}
+function onDateChange(){const f=$("#fDateFrom").value,t=$("#fDateTo");if(t.value&&t.value<f)t.value=f;}
+/* 檢查種類（多選） */
+function renderTypes(){
+  $("#typeBox").innerHTML=TYPE_DEFS.map(t=>`<label><input type="checkbox" ${cur.types.includes(t.k)?"checked":""} onchange="toggleType('${t.k}',this.checked)"> ${esc(t.label)} <span class="hint" style="font-weight:400">${esc(t.en)}</span></label>`).join("");
+}
+function toggleType(k,on){
+  collect();
+  if(on){if(!cur.types.includes(k))cur.types.push(k);if(!activeTab)activeTab=k;}
+  else{
+    if(cur.defs.some(d=>d.type===k)){toast("⚠ 這個檢查種類底下已有缺失，請先刪除該分頁的缺失再取消勾選",true);renderTypes();return;}
+    cur.types=cur.types.filter(x=>x!==k);if(activeTab===k)activeTab=cur.types[0]||null;
+  }
+  renderTypes();renderDefs();updateCounts();
+}
+/* 照片：讀檔、縮圖（長邊 1280px）、預覽、刪除 */
+function listOf(scope,i,j){return scope==="top4"?cur.top4.photos:scope==="best"?cur.best[i].photos:cur.defs[i].photos;}
+function phHtml(scope,i,max){
+  const list=listOf(scope,i),full=max&&list.length>=max;
+  return `<div class="phs">${list.map((p,k)=>`<div class="ph"><img src="${p.dataUrl}" title="${esc(p.name)}" onclick="openLightbox(listOf('${scope}',${i})[${k}].dataUrl)"><button type="button" title="刪除這張照片" onclick="delPhoto('${scope}',${i},${k})">×</button></div>`).join("")}
+    ${full?`<span class="hint">最多 ${max} 張</span>`:`<label class="phadd">＋ 上傳照片${max?`<br>（最多 ${max} 張）`:""}<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos('${scope}',${i},this,${max||0})"></label>`}</div>`;
+}
+function readImg(file){return new Promise(res=>{const fr=new FileReader();fr.onload=()=>{const img=new Image();img.onload=()=>{const M=1280,s=Math.min(1,M/Math.max(img.width,img.height));const cv=document.createElement("canvas");cv.width=Math.round(img.width*s);cv.height=Math.round(img.height*s);cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);res({name:file.name,dataUrl:cv.toDataURL("image/jpeg",0.8)});};img.onerror=()=>res(null);img.src=fr.result;};fr.onerror=()=>res(null);fr.readAsDataURL(file);});}
+async function addPhotos(scope,i,input,max){
+  const files=[...input.files];input.value="";if(!files.length)return;
+  const list=listOf(scope,i);let skipped=0;
+  for(const f of files){if(max&&list.length>=max){skipped++;continue;}const p=await readImg(f);if(p)list.push(p);}
+  if(skipped)toast(`⚠ 每筆缺失最多 ${max} 張照片，已略過 ${skipped} 張`,true);
+  collect();refreshPh(scope);
+}
+function delPhoto(scope,i,k){listOf(scope,i).splice(k,1);collect();refreshPh(scope);}
+function refreshPh(scope){if(scope==="top4")renderTop4();else if(scope==="best")renderBest();else renderDefs();}
+function renderTop4(){$("#top4Ph").innerHTML=phHtml("top4",0,0);}
+/* 表現亮眼／較差船員：姓名／職級（系統職務別）／簡述 */
+function crewArr(w){return w==="good"?cur.goodCrew:cur.poorCrew;}
+function addCrew(w){collect();crewArr(w).push({name:"",rank:"",brief:""});renderCrew(w);}
+function delCrew(w,i){collect();crewArr(w).splice(i,1);renderCrew(w);}
+function setCrew(w,i,f,v){crewArr(w)[i][f]=v;}
+function renderCrew(w){
+  const a=crewArr(w);
+  $(w==="good"?"#goodCrew":"#poorCrew").innerHTML=a.length?`<div class="hint" style="display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:8px;margin-bottom:2px"><span>姓名</span><span>職級</span><span>簡述 Brief</span><span></span></div>`+a.map((x,i)=>`<div class="crew-row">
+    <input type="text" value="${esc(x.name)}" placeholder="姓名" oninput="setCrew('${w}',${i},'name',this.value)">
+    ${rankSelect(x.rank,`setCrew('${w}',${i},'rank',this.value)`)}
+    <textarea style="min-height:40px" placeholder="簡述" oninput="setCrew('${w}',${i},'brief',this.value)">${esc(x.brief)}</textarea>
+    <button class="btn sm danger" type="button" onclick="delCrew('${w}',${i})">🗑</button></div>`).join(""):`<span class="hint" style="font-weight:400">${w==="good"?"尚未新增":"無則不必填（N/A）"}</span>`;
+}
+/* 優良案例 */
+function addBest(){collect();cur.best.push({category:"",people:"",rank:"",brief:"",photos:[]});renderBest();updateCounts();}
+function delBest(i){if(!confirm("刪除這筆優良案例？"))return;collect();cur.best.splice(i,1);renderBest();updateCounts();}
+function setB(i,f,v){cur.best[i][f]=v;}
+function renderBest(){
+  $("#bestList").innerHTML=cur.best.length?cur.best.map((x,i)=>`<div class="item"><div class="ih">優良案例 No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
+    <div class="fgrid"><label>分類 Category<input type="text" value="${esc(x.category)}" placeholder="例：作業記錄、壓載水記錄" oninput="setB(${i},'category',this.value)"></label>
+    <label>涉及人員姓名<input type="text" value="${esc(x.people)}" oninput="setB(${i},'people',this.value)"></label>
+    <label>職務${rankSelect(x.rank,`setB(${i},'rank',this.value)`)}</label>
+    <label class="fw">描述 Brief<textarea oninput="setB(${i},'brief',this.value)">${esc(x.brief)}</textarea></label>
+    <div class="fld fw">案例照片 Photos${phHtml("best",i,0)}</div></div></div>`).join(""):`<p class="hint">尚無優良案例；這些會匯入系統的「正面評價／優秀案例」。</p>`;
+}
+/* 缺失明細：依檢查種類分頁 */
+/* 已填項目摘要：優良案例、各檢查種類缺失（有主題的列出各主題筆數）、船舶訴求／建議 */
+function summaryText(r){
+  const parts=[];
+  parts.push(`優良案例 ${(r.best||[]).length} 項`);
+  (r.types||[]).forEach(k=>{
+    const t=typeDef(k)||{label:k},ds=(r.defs||[]).filter(d=>d.type===k);
+    let s=`${t.label}缺失 ${ds.length} 項`;
+    const by={};ds.forEach(d=>{if(d.topic){const key=/^SAR-FM\d+/.test(d.topic)?d.topic.match(/^SAR-FM\d+/)[0]:d.topic;by[key]=(by[key]||0)+1;}});
+    const tp=Object.entries(by).map(([a,b])=>`${a} ${b} 項`);
+    if(tp.length)s+=`（其中${tp.join("、")}）`;
+    parts.push(s);
+  });
+  parts.push(`船上反饋／訴求 ${(r.sugg||[]).length} 項`);
+  return parts.join("　・　");
+}
+function updateCounts(){
+  $("#sumLine").textContent="已填項目：\n"+summaryText(cur);
+  $("#sumLine").style.whiteSpace="pre-line";
+  const ds=cur.defs,n=k=>ds.filter(d=>d.closeMode===k).length;
+  $("#cFlow").textContent=n("FLOW");$("#cIc").textContent=n("內控");$("#cSys").textContent=n("系統內結案");$("#cNone").textContent=ds.filter(d=>!d.closeMode).length;
+}
+function setTab(k){collect();activeTab=k;renderDefs();}
+function addDef(){
+  if(!activeTab){toast("⚠ 請先在「① 檢查基本資料」勾選檢查種類",true);return;}
+  collect();cur.defs.push(blankDef(activeTab));renderDefs();updateCounts();
+  setTimeout(()=>{const el=$("#def-"+(cur.defs.length-1));if(el)el.scrollIntoView({behavior:"smooth",block:"center"});},50);
+}
+function delDef(i){if(!confirm("刪除這筆缺失？"))return;collect();cur.defs.splice(i,1);renderDefs();updateCounts();}
+function setD(i,f,v){cur.defs[i][f]=v;if(f==="topic")updateCounts();}
+function setMode(i,k){
+  cur.defs[i].closeMode=k;const el=$("#def-"+i);
+  if(el){el.classList.remove("m-flow","m-ic","m-sys");const m=modeOf(k);if(m)el.classList.add("m-"+m.cls);const rw=el.querySelector('[data-f="closeMode"]');if(rw)rw.classList.remove("bad");}
+  updateCounts();
+}
+/* 缺失分類（跟線上填單同一份分類階層）：設備大類／設備具體（多選）、作業大類／作業具體（多選） */
+function mainsOf(side){return [...new Set((side==="equip"?NC.equip:NC.ops).map(x=>x[0]))];}
+function leavesOf(side,main){return (side==="equip"?NC.equip:NC.ops).filter(x=>x[0]===main).map(x=>x[1]);}
+function setMain(i,side,v){const d=cur.defs[i];if(side==="equip"){d.equipMain=v;d.equipLeaf=[];}else{d.opMain=v;d.opLeaf=[];}collect();renderDefs();}
+function toggleLeaf(i,side,leaf,on){const a=cur.defs[i][side==="equip"?"equipLeaf":"opLeaf"];const ix=a.indexOf(leaf);if(on&&ix<0)a.push(leaf);if(!on&&ix>=0)a.splice(ix,1);}
+function ncBlock(i,d,side){
+  const label=side==="equip"?"🔧 設備大類":"⚙️ 作業大類",main=side==="equip"?d.equipMain:d.opMain,leaves=side==="equip"?d.equipLeaf:d.opLeaf;
+  return `<div class="nc-box"><div class="fld">${label}<select data-f="${side}Main" onchange="setMain(${i},'${side}',this.value)"><option value="">（未選）</option>${mainsOf(side).map(m=>`<option ${main===m?"selected":""}>${esc(m)}</option>`).join("")}</select></div>
+    <div class="fld" style="margin-top:8px">${side==="equip"?"設備":"作業"}具體（可多選）${main?`<div class="nc-leaves" data-f="${side}Leaf">${leavesOf(side,main).map(l=>`<label><input type="checkbox" ${leaves.includes(l)?"checked":""} onchange="toggleLeaf(${i},'${side}',this.dataset.v,this.checked);this.closest('.nc-leaves').classList.remove('bad')" data-v="${esc(l)}"> ${esc(l)}</label>`).join("")}</div>`:`<span class="hint" style="font-weight:400">請先選大類</span>`}</div></div>`;
+}
+function renderDefs(){
+  const tabs=cur.types;
+  $("#defTabs").innerHTML=tabs.length?tabs.map(k=>{const t=typeDef(k)||{label:k};const n=cur.defs.filter(d=>d.type===k).length;return `<button type="button" class="${k===activeTab?"on":""}" onclick="setTab('${k}')">${esc(t.label)}缺失<span class="n">${n}</span></button>`;}).join(""):`<span class="hint">請先在「① 檢查基本資料」勾選檢查種類（可複選）。</span>`;
+  const td=typeDef(activeTab);
+  $("#defTabHead").innerHTML=activeTab?`<span class="hint">目前分頁：<b>${esc(td?td.label:activeTab)}</b>（${esc(td?td.section:"")}）——缺失會匯入系統，檢查來源＝<b>${esc(activeTab)}</b></span><span style="flex:1"></span><button class="btn sm primary" onclick="addDef()">＋ 新增一筆${esc(td?td.label:"")}缺失</button>`:"";
+  const idxs=cur.defs.map((d,i)=>i).filter(i=>cur.defs[i].type===activeTab);
+  $("#defList").innerHTML=idxs.length?idxs.map((i,seq)=>{
+    const d=cur.defs[i],m=modeOf(d.closeMode);
+    const topicCtl=td&&td.topics?`<label>${esc(td.topicLabel)}（選填）<select data-f="topic" onchange="setD(${i},'topic',this.value)"><option value="">（不特別標註）</option>${td.topics.map(t=>`<option ${d.topic===t?"selected":""}>${esc(t)}</option>`).join("")}</select></label>`
+      :`<label>主題（選填）<input type="text" data-f="topic" value="${esc(d.topic)}" placeholder="例：靜態航行評估" oninput="setD(${i},'topic',this.value)"></label>`;
+    return `<div class="item ${m?"m-"+m.cls:""}" id="def-${i}">
+      <div class="ih">${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
+      <div class="fgrid">
+        ${topicCtl}
+        <label>分類 Category <span class="req">*</span><input type="text" data-f="category" value="${esc(d.category)}" placeholder="例：防火門、IMO標誌" oninput="setD(${i},'category',this.value)"></label>
+        <label>風險等級 Risk Level <span class="req">*</span><select data-f="risk" onchange="setD(${i},'risk',this.value)"><option value="">— 請選擇 —</option>${RISKS.map(s=>`<option ${d.risk===s?"selected":""}>${s}</option>`).join("")}</select></label>
+        <label>Reported @（發現日期）<span class="req">*</span><input type="date" data-f="reported" value="${esc(d.reported)}" onchange="setD(${i},'reported',this.value)"></label>
+        <label class="fw">待改善描述 Finding Brief <span class="req">*</span><textarea data-f="finding" oninput="setD(${i},'finding',this.value)">${esc(d.finding)}</textarea></label>
+        <div class="fld fw">待改善項目照片 Items to be corrected <span class="hint" style="font-weight:400">最多 ${MAX_DEF_PHOTOS} 張（改善完成的照片由船上在改善單填寫，這裡不用放）</span>${phHtml("def",i,MAX_DEF_PHOTOS)}</div>
+        ${NC.ok?`<div class="fld fw">缺失分類 <span class="req">*</span><span class="hint" style="font-weight:400">設備大類、作業大類請依缺失內容判斷，可只選一種、也可兩種都選</span>
+          <div class="fgrid" style="grid-template-columns:1fr 1fr">${ncBlock(i,d,"equip")}${ncBlock(i,d,"ops")}</div></div>`:`<div class="fld fw"><span class="hint">⚠ 分類清單讀取失敗，這次先不填缺失分類（匯入系統前需補）。</span></div>`}
+        <div class="fld fw">結案方式 <span class="req">*</span>（單選）
+          <div class="radios" data-f="closeMode">${MODES.map(mm=>`<label><input type="radio" name="cm-${i}" ${d.closeMode===mm.k?"checked":""} onchange="setMode(${i},'${mm.k}')"> ${esc(mm.label)}</label>`).join("")}</div>
+          <span class="hint" style="font-weight:400">FLOW：僅留紀錄、不發改善單，由船上至 FLOW 系統填單　｜　內控：發改善單並匯出內控 JSON　｜　系統內結案：發改善單，於系統內結案</span></div>
+      </div></div>`;}).join(""):(activeTab?`<p class="hint">這個分頁還沒有缺失，請按右上「＋ 新增一筆缺失」。</p>`:"");
+}
+/* 船舶訴求／建議 */
+function addSugg(){collect();cur.sugg.push({situation:"",suggestion:""});renderSugg();updateCounts();}
+function delSugg(i){collect();cur.sugg.splice(i,1);renderSugg();updateCounts();}
+function setS(i,f,v){cur.sugg[i][f]=v;}
+function renderSugg(){
+  $("#suggList").innerHTML=cur.sugg.length?cur.sugg.map((x,i)=>`<div class="item"><div class="ih">No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delSugg(${i})">🗑 刪除</button></div>
+    <div class="fgrid"><label style="grid-column:span 2">現狀 Situation<textarea oninput="setS(${i},'situation',this.value)">${esc(x.situation)}</textarea></label>
+    <label>建議 Suggestion<textarea oninput="setS(${i},'suggestion',this.value)">${esc(x.suggestion)}</textarea></label></div></div>`).join(""):`<p class="hint">尚無船舶訴求／建議。</p>`;
+}
+/* ══════ 送出前檢查：明確指出第幾筆的哪個欄位 ══════ */
+function validate(){
+  collect();const errs=[];
+  [["ship","訪問船舶","#fShipSel"],["dateFrom","檢查日期（起）","#fDateFrom"],["inspector","檢查人","#fInspector"],["psn","地點 Ship's PSN","#fPsn"]].forEach(([f,l,s])=>{if(!cur[f])errs.push({msg:`表頭：「${l}」未填`,sel:s});});
+  if(!cur.types.length)errs.push({msg:"表頭：「檢查種類」至少勾選一種",sel:"#typeBox"});
+  if(!cur.defs.length)errs.push({msg:"缺失明細：至少需要一筆缺失",sel:"#defTabs"});
+  cur.types.forEach(k=>{
+    const ds=cur.defs.map((d,i)=>i).filter(i=>cur.defs[i].type===k);
+    ds.forEach((i,seq)=>{
+      const d=cur.defs[i],n=`【${(typeDef(k)||{label:k}).label}】第 ${seq+1} 筆缺失`,q=f=>`#def-${i} [data-f="${f}"]`;
+      [["category","分類 Category"],["risk","風險等級"],["reported","Reported @（發現日期）"],["finding","待改善描述"]].forEach(([f,l])=>{if(!String(d[f]||"").trim())errs.push({msg:`${n}：「${l}」未填`,sel:q(f),tab:k});});
+      if(NC.ok){
+        if(!d.equipMain&&!d.opMain)errs.push({msg:`${n}：「缺失分類」設備大類或作業大類至少選一種`,sel:q("equipMain"),tab:k});
+        if(d.equipMain&&!d.equipLeaf.length)errs.push({msg:`${n}：「設備具體」至少勾選一項`,sel:q("equipLeaf"),tab:k});
+        if(d.opMain&&!d.opLeaf.length)errs.push({msg:`${n}：「作業具體」至少勾選一項`,sel:q("opLeaf"),tab:k});
+      }
+      if(!d.closeMode)errs.push({msg:`${n}：「結案方式」未選擇（FLOW／內控／系統內結案，須擇一）`,sel:q("closeMode"),tab:k});
+    });
+  });
+  return errs;
+}
+function showErrors(errs){
+  document.querySelectorAll(".bad").forEach(e=>e.classList.remove("bad"));
+  const box=$("#errBox");
+  if(!errs.length){box.style.display="none";return;}
+  box.innerHTML=`<b>送出前檢查：共 ${errs.length} 個項目需要補齊</b><br>${errs.map(e=>"・"+esc(e.msg)).join("<br>")}`;box.style.display="";
+  // 錯誤分散在不同檢查種類分頁時，只標示目前分頁看得到的欄位；點到有錯誤的分頁就會看到紅框
+  const first=errs[0];if(first.tab&&first.tab!==activeTab){activeTab=first.tab;renderDefs();}
+  errs.forEach(e=>{if(e.tab&&e.tab!==activeTab)return;const el=e.sel&&document.querySelector(e.sel);if(el)el.classList.add("bad");});
+  const el=first.sel&&document.querySelector(first.sel);(el||box).scrollIntoView({behavior:"smooth",block:"center"});
+}
+async function persist(draft){
+  const c=JSON.parse(JSON.stringify(cur));
+  c.draft=draft;
+  c.defs.forEach(d=>{
+    if(!d.closeMode){d.status="";return;}
+    if(d.closeMode==="FLOW")d.status="FLOW 結案";
+    else if(!d.status||d.status==="FLOW 結案")d.status="待船上改善";
+  });
+  if(!c.id)c.id=Date.now();
+  c.createdBy=c.createdBy||c.inspector||"";c.createdAt=c.createdAt||todayIso().replace(/-/g,"/");c.updatedAt=Date.now();
+  const ok=await Store.save(c);if(ok)cur.id=c.id;return ok;
+}
+async function saveDraft(){collect();if(!cur.ship&&!cur.inspector&&!cur.defs.length){toast("⚠ 還沒有填寫任何內容",true);return;}if(await persist(true))toast("💾 已儲存草稿"+(Store.mode==="local"?"（暫存於本機瀏覽器）":""));}
+async function submitForm(){
+  const errs=validate();showErrors(errs);
+  if(errs.length){toast(`⚠ 尚有 ${errs.length} 個必填項目未完成，請見頁面上方紅色提示`,true);return;}
+  if(!await persist(false))return;
+  const nIssue=cur.defs.filter(d=>d.closeMode!=="FLOW").length;
+  toast(`✓ 已送出：共 ${cur.defs.length} 筆缺失，其中 ${nIssue} 筆需發改善單給船上（改善單發送功能尚待串接）`);
+  showList();
+}
+
+(async function init(){
+  await loadLists();await Store.load();showList();
+})();
+</script>
+</body>
+</html>
