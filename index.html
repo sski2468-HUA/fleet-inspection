@@ -22532,11 +22532,14 @@ const Air={
     const b=(typeof SelfCheck!=="undefined"&&SelfCheck.getExternalBase)?SelfCheck.getExternalBase():"https://sski2468-hua.github.io/fleet-inspection/submit-selfcheck.html";
     return b.replace(/[^/]*$/,"");
   },
-  openShareCheckWizard(){
-    if(this.editId==null){toast("⚠ 請先儲存基本資料");return;}
-    const d=App.air.find(x=>x.id===this.editId);if(!d)return;
-    let rows=this.defRows.filter(r=>r.detail||r.actual);
-    const selScope=this.defSel.size>0;
+  openShareCheckWizard(airId){
+    const fromList=airId!=null; // 從填單清單列上的「分」進來：用該筆已存的全部缺失；從編輯頁進來：沿用目前勾選範圍
+    const id=fromList?airId:this.editId;
+    if(id==null){toast("⚠ 請先儲存基本資料");return;}
+    const d=App.air.find(x=>x.id===id);if(!d)return;
+    this._shareAirId=id;
+    let rows=(fromList?(d.defects||[]):this.defRows).filter(r=>r.detail||r.actual);
+    const selScope=!fromList&&this.defSel.size>0;
     if(selScope)rows=rows.filter(r=>this.defSel.has(r.id));
     if(!rows.length){toast(selScope?"⚠ 已勾選的列中沒有可分享的缺失明細":"⚠ 沒有可分享的缺失明細（至少需要缺失詳情或實際情況）");return;}
     if((d.sharedCheckCampaignIds||[]).length&&!confirm("已建立過分享自查，確定要再建立？"))return;
@@ -22556,7 +22559,7 @@ const Air={
     if(!await Guard.require())return;
     if(typeof Role!=="undefined"&&!Role.isAdmin()&&!(Role.cur&&Role.cur.tier==="op1")){toast("⚠ 建立分享自查僅限 Owner／管理員／督導");return;}
     if(typeof Cloud==="undefined"||!Cloud.enabled()){toast("⚠ 需先於「資料管理→雲端同步」完成設定，才能建立分享自查連結（資料存在雲端，船上才讀得到）");return;}
-    const d=App.air.find(x=>x.id===this.editId);if(!d)return;
+    const d=App.air.find(x=>x.id===this._shareAirId);if(!d)return;
     const rows=this._pendingShareRows;
     if(!rows||!rows.length){toast("⚠ 找不到要分享的缺失，請重新開啟");return;}
     const limited=$("#air-sw-limit").checked;
@@ -22571,7 +22574,7 @@ const Air={
       detail:r.detail||"",actual2:r.actual||""
     }));
     const campaignId=Date.now();
-    const campaign={id:campaignId,title:`分享自查：${d.ship} ${d.itype||""} ${d.date} 缺失重點`,items,ship_scope:shipScope,
+    const campaign={id:campaignId,title:`缺失分享自查：${d.ship} ${d.itype||""} ${d.date}  ${rows.length}項查缺失`,items,ship_scope:shipScope,
       source_air_id:(+d.id||null),created_at:Date.now(),created_by:(typeof Audit!=="undefined"?Audit.user():""),active:true};
     try{
       await Cloud.api("selfcheck_share_campaigns",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),body:JSON.stringify([campaign])});
@@ -22588,12 +22591,13 @@ const Air={
     $("#air-sw-summary-link").value=`${folder}selfcheck-share-summary.html`;
     this.closeShareCheckWizard();
     this._pendingShareRows=null;
-    safeCopyText(fillLink,"✓ 已複製給船上的填答連結");
-    alert(`✓ 已建立分享自查活動（共 ${rows.length} 項查核項目）。\n\n給船上填答的連結已自動複製，請把連結貼給船隊進行填單：\n${fillLink}\n\n按「確定」後將跳轉到「分享自查彙整清單」。`);
+    const copyText=`${campaign.title} 連結:${fillLink}`;
+    safeCopyText(copyText,"✓ 已複製活動名稱＋填答連結");
+    alert(`✓ 已建立分享自查活動（共 ${rows.length} 項查核項目）。\n\n活動名稱＋填答連結已自動複製，請貼給船隊進行填單：\n${copyText}\n\n按「確定」後將跳轉到「分享自查彙整清單」。`);
     this._formDirty=false;
     location.href=`${folder}selfcheck-share-summary.html`;
   },
-  copyShareLink(){ safeCopyText($("#air-sw-link").value,"✓ 已複製分享連結"); },
+  copyShareLink(){ safeCopyText($("#air-sw-link").value,"✓ 已複製分享連結"); }, // 舊的連結視窗已不再使用，建立後改為直接複製「活動名稱＋連結」並跳轉
   copySummaryLink(){ safeCopyText($("#air-sw-summary-link").value,"✓ 已複製彙整清單連結"); },
   async pushPosRowsToSire(){
     if(!await Guard.require())return;
@@ -22718,6 +22722,7 @@ const Air={
           <button class="btn sm" onclick="Air.openListDownloadModal(${d.id})" title="下載此筆的匯出檔">⬇</button>
           <button class="btn sm danger" onclick="Air.delAir(${d.id})">🗑</button>
           ${(d.defects&&d.defects.length)?`<button class="btn sm" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10;font-weight:700" onclick="Air.goToExternalReply(${d.id},0)" title="開新分頁前往對外回覆編輯">外</button>`:""}
+          ${(canPush&&d.defects&&d.defects.length)?`<button class="btn sm" style="background:#e4f1f2;border-color:#8cc3ca;color:#16606b;font-weight:700" onclick="Air.openShareCheckWizard(${d.id})" title="建立缺失分享：把這筆的缺失做成一條連結，分享給船隊自查">分</button>`:""}
           ${canPush?`<button class="btn sm dark" onclick="Air.openPushModal(${d.id})" title="轉入檢查紀錄／缺失紀錄總表／正面評價，可複選">轉</button>`:""}
         </td>
         <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span></td>

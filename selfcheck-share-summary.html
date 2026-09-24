@@ -52,7 +52,19 @@ tr.done td{background:#eaf5ee}
 .kpi{background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
 .kpi .v{font-size:20px;font-weight:700;color:var(--navy)}
 .kpi .l{font-size:11px;color:var(--ink-3)}
+#printArea{display:none}
+@media print{
+  #mainWrap,#toast{display:none!important}
+  #printArea{display:block!important;font-size:11px;color:#000}
+  #printArea h1{font-size:18px;margin:0 0 4px}
+  #printArea h2{font-size:14px;margin:16px 0 6px}
+  #printArea table{width:100%;border-collapse:collapse}
+  #printArea th,#printArea td{border:1px solid #888;padding:4px 6px;font-size:10.5px;position:static;background:none}
+  #printArea th{background:#e8edf1;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #printArea tr{page-break-inside:avoid}
+}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -82,6 +94,8 @@ tr.done td{background:#eaf5ee}
         <button class="btn sm" onclick="showListView()">← 返回活動列表</button>
         <span style="font-weight:700;font-size:14px" id="detailTitle"></span>
         <span style="flex:1"></span>
+        <button class="btn sm" onclick="exportExcel()" title="船隊完成狀況＋需處理項目（實際情況／處理情況／結案狀態）">⬇ 下載 Excel</button>
+        <button class="btn sm" onclick="exportPdf()" title="開啟列印，選「另存為 PDF」">⬇ 下載 PDF</button>
         <button class="btn sm" onclick="copyFillLink()">📋 複製本活動填答連結</button>
         <button class="btn sm" onclick="loadCampaign(curCampaign&&curCampaign.id)">🔄 重新整理</button>
       </div>
@@ -110,6 +124,7 @@ tr.done td{background:#eaf5ee}
   </div>
 </div>
 
+<div id="printArea"></div>
 <div id="toast"></div>
 
 <script>
@@ -144,8 +159,10 @@ function fallbackCopyText(text,okMsg){
 function copyFillLink(id){
   const cid=id!=null?id:(curCampaign&&curCampaign.id);
   if(cid==null){notify("⚠ 請先選擇活動","err");return;}
-  const link=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${cid}`;
-  safeCopyText(link,"✓ 已複製本活動的填答連結");
+  const url=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${cid}`;
+  const c=campaigns.find(x=>String(x.id)===String(cid));
+  const link=`${c&&c.title?c.title+" ":""}連結:${url}`;
+  safeCopyText(link,"✓ 已複製活動名稱＋填答連結");
 }
 let toastTimer;
 function notify(msg,tone){
@@ -345,6 +362,55 @@ async function deleteResponse(ship){
   }catch(e){notify("⚠ 刪除失敗："+e.message,"err");}
 }
 
+/* ── 匯出：船隊完成狀況＋需處理項目（有類似情形者：本船實際狀況、處理情況、結案／未結案） ── */
+function collectReport(){
+  const byShip=new Map(responses.map(r=>[r.ship,r]));
+  const fmt=t=>t?new Date(t).toLocaleString("zh-TW",{hour12:false}):"";
+  const status=[],issues=[];
+  targetShips().forEach(s=>{
+    const resp=byShip.get(s.code),st=rowStat(resp);
+    const similar=resp?(resp.items||[]).filter(it=>it.status==="similar"):[];
+    status.push({code:s.code,name:s.name||"",checker:resp?(resp.checker_name||""):"",title:resp?(resp.checker_title||""):"",
+      progress:resp?`${st.done} / ${st.total}`:`0 / ${(curCampaign.items||[]).length}`,
+      state:!resp?"尚未開始":(resp.submitted_at?"已送出":"填答中"),
+      submitCount:resp?(resp.submit_count||0):0,submittedAt:resp?fmt(resp.submitted_at):"",
+      needN:similar.length,openN:similar.filter(it=>!it.closed).length});
+    similar.forEach(it=>issues.push({code:s.code,name:s.name||"",checker:resp.checker_name||"",title:resp.checker_title||"",
+      itemCode:it.code||"",detail:it.detail||"",src:it.actual2||"",note:it.note||"",handle:it.actual||"",
+      closed:it.closed?"已結案":"未結案"}));
+  });
+  return {status,issues};
+}
+function exportExcel(){
+  if(!curCampaign){notify("⚠ 請先進入某個活動","err");return;}
+  if(typeof XLSX==="undefined"){notify("⚠ Excel 元件載入失敗，請確認網路後重新整理頁面","err");return;}
+  const {status,issues}=collectReport();
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.json_to_sheet(status.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"填答進度":r.progress,"狀態":r.state,"送出次數":r.submitCount,"最後送出":r.submittedAt,"需處理項數":r.needN,"未結案數":r.openN})));
+  ws1["!cols"]=[8,14,12,12,10,9,8,20,10,9].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws1,"船隊完成狀況");
+  const ws2=XLSX.utils.json_to_sheet(issues.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"CODE":r.itemCode,"缺失內容":r.detail,"來源實際情況":r.src,"本船實際狀況":r.note,"處理情況":r.handle,"結案狀態":r.closed})));
+  ws2["!cols"]=[8,14,12,12,10,40,36,36,36,9].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws2,"需處理項目");
+  XLSX.writeFile(wb,`分享自查彙整_${(curCampaign.title||curCampaign.id).replace(/[\\/:*?"<>|]/g,"_")}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  notify(`✓ 已下載 Excel（${status.length} 艘船、${issues.length} 項需處理）`,"ok2");
+}
+function exportPdf(){
+  if(!curCampaign){notify("⚠ 請先進入某個活動","err");return;}
+  const {status,issues}=collectReport();
+  const c=s=>esc(s||"").replace(/\n/g,"<br>");
+  document.getElementById("printArea").innerHTML=`
+    <h1>${esc(curCampaign.title||"分享自查")}</h1>
+    <div>產出日期：${new Date().toLocaleString("zh-TW",{hour12:false})}　查核項目 ${(curCampaign.items||[]).length} 項　已送出 ${status.filter(r=>r.state==="已送出").length} / ${status.length} 艘　需處理 ${issues.length} 項（未結案 ${issues.filter(r=>r.closed==="未結案").length}）</div>
+    <h2>一、船隊完成狀況</h2>
+    <table><thead><tr><th>船舶</th><th>填寫人</th><th>進度</th><th>狀態</th><th>最後送出</th><th>需處理</th><th>未結案</th></tr></thead><tbody>
+    ${status.map(r=>`<tr><td>${c(r.code)} ${c(r.name)}</td><td>${c(r.checker)}${r.title?"（"+c(r.title)+"）":""}</td><td>${c(r.progress)}</td><td>${r.state}</td><td>${c(r.submittedAt)}</td><td>${r.needN}</td><td>${r.openN}</td></tr>`).join("")}</tbody></table>
+    <h2>二、有類似情形、需處理項目（${issues.length} 項）</h2>
+    ${issues.length?`<table><thead><tr><th style="width:11%">船舶</th><th style="width:26%">缺失內容</th><th style="width:20%">本船實際狀況</th><th style="width:29%">處理情況</th><th style="width:8%">結案</th></tr></thead><tbody>
+    ${issues.map(r=>`<tr><td>${c(r.code)}<br>${c(r.name)}</td><td>${c(r.detail)}${r.src?"<br><i>實際情況："+c(r.src)+"</i>":""}</td><td>${c(r.note)}</td><td>${c(r.handle)}</td><td>${r.closed}</td></tr>`).join("")}</tbody></table>`:"<div>目前沒有需處理項目。</div>"}`;
+  window.print();
+}
+
 const ST_LABEL={ok:"✅ 沒有",similar:"⚠️ 有，需處理",na:"➖ 不適用",pending:"（未作答）"};
 function toggleDetail(ship){
   const row=document.getElementById("detail-"+ship);
@@ -374,6 +440,19 @@ function toggleDetail(ship){
 }
 
 loadCampaignList();
+/* 打開頁面時已自動整理一次；之後只在「離開又回到這個分頁」且距上次整理超過 60 秒時才自動再整理，
+   停在原頁面沒動作的情況才需要自己按「🔄 重新整理」。整理時停留在原本畫面，不會被跳回活動列表。 */
+let lastAutoAt=Date.now();
+document.addEventListener("visibilitychange",async()=>{
+  if(document.hidden||Date.now()-lastAutoAt<60000)return;
+  lastAutoAt=Date.now();
+  try{
+    campaigns=await api(`${CAMPAIGN_TABLE}?order=created_at.desc&limit=200`);
+    allResponses=await api(`${RESPONSE_TABLE}?select=id,campaign_id,ship,items,submitted_at&limit=5000`);
+    if(document.getElementById("detailView").style.display!=="none"&&curCampaign)await loadCampaign(curCampaign.id);
+    else renderListView();
+  }catch(e){}
+});
 </script>
 </body>
 </html>
