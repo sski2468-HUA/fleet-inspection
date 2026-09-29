@@ -253,10 +253,16 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
   </div>
   <div class="toolbar" style="margin:0 0 10px;font-size:13.5px">
     <b>套用到「尚未填」的列：</b>
+    <select id="bDefTopic" style="width:auto;display:none" onchange="applyBatchDefault('topic',this.value);this.value=''"><option value="">主題…</option></select>
+    <input type="text" id="bDefTopicText" placeholder="主題…" style="width:130px;display:none">
+    <button class="btn sm" type="button" id="bDefTopicTextBtn" style="display:none" onclick="applyBatchText('topic','bDefTopicText')">套用主題</button>
+    <input type="text" id="bDefCategory" placeholder="分類…" style="width:130px">
+    <button class="btn sm" type="button" onclick="applyBatchText('category','bDefCategory')">套用分類</button>
     <select id="bDefRisk" style="width:auto" onchange="applyBatchDefault('risk',this.value);this.value=''"><option value="">風險等級…</option></select>
     <select id="bDefMode" style="width:auto" onchange="applyBatchDefault('closeMode',this.value);this.value=''"><option value="">結案方式…</option></select>
     <span style="flex:1"></span>
-    <button class="btn" onclick="addBatchRows(5)">＋ 再加 5 列</button>
+    <input type="number" id="bAddN" value="5" min="1" max="300" style="width:66px;text-align:center" title="想再加幾列">
+    <button class="btn" onclick="addBatchRows(Math.max(1,Math.min(300,parseInt($('#bAddN').value,10)||5)))">＋ 再加列</button>
   </div>
   <div style="overflow:auto;border:1px solid var(--line);border-radius:8px;max-height:64vh">
     <table class="bt"><thead><tr>
@@ -724,6 +730,15 @@ function delDef(i){
   renderDefs();updateCounts();
 }
 function setTopic(i,v){collect();cur.defs[i].topic=v;if(v!=="其他")cur.defs[i].topicOther="";renderDefs();updateCounts();}
+/* 檢查種類填錯了，直接改這筆缺失所屬的種類（例如誤放進「主題檢查」，其實應該是「訪船」）。
+   只能改到已勾選的種類；換了種類後主題選項不同，一併清空避免殘留不屬於新種類的主題。 */
+function setDefType(i,newType){
+  collect();
+  const d=cur.defs[i];if(!d||d.type===newType)return;
+  d.type=newType;d.topic="";d.topicOther="";
+  activeTab=newType;defOpen=i;defFilter="";
+  renderDefs();updateCounts();
+}
 function setD(i,f,v){cur.defs[i][f]=v;if(f==="topic")updateCounts();}
 function setIcCat(i,v){const d=cur.defs[i];d.icCategory=v;if(!isEquipFault(v))d.icEquip="";collect();renderDefs();}
 function toggleDept(i,name,on){const a=cur.defs[i].icDepts,ix=a.indexOf(name);if(on&&ix<0)a.push(name);if(!on&&ix>=0)a.splice(ix,1);const box=document.querySelector(`#def-${i} [data-f="icDepts"]`);if(box)box.classList.remove("bad");}
@@ -790,10 +805,14 @@ function renderDefs(){
     const d=cur.defs[i],m=modeOf(d.closeMode);
     const topicCtl=td&&td.topics?`<label>${esc(td.topicLabel)}（選填）<select data-f="topic" onchange="setTopic(${i},this.value)"><option value="">（不特別標註）</option>${td.topics.map(t=>`<option ${d.topic===t?"selected":""}>${esc(t)}</option>`).join("")}</select>${d.topic==="其他"?`<input type="text" data-f="topicOther" value="${esc(d.topicOther||"")}" placeholder="請說明是哪一類" oninput="setD(${i},'topicOther',this.value)">`:""}</label>`
       :`<label>主題（選填）<input type="text" data-f="topic" value="${esc(d.topic)}" placeholder="例：靜態航行評估" oninput="setD(${i},'topic',this.value)"></label>`;
+    // 檢查種類填錯了可以直接改，不用刪掉重建；只能改到「① 檢查基本資料」已勾選的種類，
+    // 換了種類主題選項也會跟著換，所以順便把主題清空避免選到不屬於新種類的選項。
+    const typeCtl=cur.types.length>1?`<label>檢查種類 Audit Type<select onchange="setDefType(${i},this.value)">${cur.types.map(k=>{const tt=typeDef(k)||{label:k};return `<option value="${esc(k)}" ${d.type===k?"selected":""}>${esc(tt.label)}</option>`;}).join("")}</select><span class="hint" style="font-weight:400">填錯種類可直接在這裡改，不用刪掉重填</span></label>`:"";
     $("#defList").innerHTML=`<div class="item ${m?"m-"+m.cls:""}" id="def-${i}">
       <div class="ih"><button class="btn sm" type="button" onclick="backDef()">← 返回清單</button>　${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
       <div class="drow">
         <div class="c1">
+          ${typeCtl}
           ${topicCtl}
           <label>分類 Category <span class="req">*</span><input type="text" data-f="category" value="${esc(d.category)}" placeholder="例：防火門、IMO標誌" oninput="setD(${i},'category',this.value)"></label>
           <label>風險等級 Risk Level <span class="req">*</span><select data-f="risk" onchange="setD(${i},'risk',this.value)"><option value="">— 請選擇 —</option>${RISKS.map(s=>`<option ${d.risk===s?"selected":""}>${s}</option>`).join("")}</select></label>
@@ -835,7 +854,21 @@ function openBatch(){
   $("#bThTopic").textContent=td.topicLabel||"主題（選填）";
   $("#bDefRisk").innerHTML='<option value="">風險等級…</option>'+RISKS.map(s=>`<option>${s}</option>`).join("");
   $("#bDefMode").innerHTML='<option value="">結案方式…</option>'+MODES.map(m=>`<option value="${m.k}">${esc(m.label)}</option>`).join("");
+  // 主題有固定選項的種類（訪船／內稽／隨船）用下拉套用；沒有固定選項的（交叉訪船／主題檢查）主題是自由輸入，改用文字＋按鈕套用
+  const hasTopics=!!(td.topics);
+  $("#bDefTopic").style.display=hasTopics?"":"none";
+  $("#bDefTopicText").style.display=hasTopics?"none":"";
+  $("#bDefTopicTextBtn").style.display=hasTopics?"none":"";
+  if(hasTopics)$("#bDefTopic").innerHTML='<option value="">主題…</option>'+td.topics.map(t=>`<option>${esc(t)}</option>`).join("");
+  else $("#bDefTopicText").value="";
+  $("#bDefCategory").value="";
   renderBatch();$("#batchModal").style.display="flex";
+}
+/* 分類、主題（無固定選項時）是自由輸入，套用到尚未填的列用文字框＋按鈕，跟風險/結案方式的下拉分開處理 */
+function applyBatchText(f,inputId){
+  const el=$("#"+inputId);const v=(el.value||"").trim();if(!v)return;
+  applyBatchDefault(f,v);
+  el.value="";
 }
 function setBTopic(i,v){batch.rows[i].topic=v;if(v!=="其他")batch.rows[i].topicOther="";renderBatch();}
 async function addBatchPhotos(i,input){
