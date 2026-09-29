@@ -336,11 +336,20 @@ const Store={
       this.mode="cloud";this.rows=(rows||[]).map(r=>Object.assign({},r.payload,{id:r.id}));
       this.srvOf={};rows.forEach(r=>{this.srvOf[r.id]=r.updated_at;});
     }catch(e){
-      this.mode="local";
+      this.mode="local";this._loadErr=e&&e.message||String(e);
       try{this.rows=JSON.parse(localStorage.getItem(LOCAL_KEY)||"[]");}catch(e2){this.rows=[];}
     }
     const b=$("#modeBanner");
-    if(this.mode==="local"){b.style.display="";b.innerHTML="⚠ 雲端資料表 <b>intaudit_records</b> 尚未建立（請維護者在 Supabase SQL Editor 執行 <b>intaudit_setup.sql</b> 一次）。<b>目前資料只暫存在這台電腦的瀏覽器，不會給別人看到，也不能匯入主系統。</b>";}
+    if(this.mode==="local"){
+      b.style.display="";
+      // ⚠ 之前不管實際失敗原因一律顯示「資料表尚未建立」，結果真正原因是網路／權限等其他問題時
+      // 誤導維護者去重跑 SQL（資料表其實早就有、主系統那邊也讀得到）。這裡先看錯誤內容像不像
+      // 「資料表真的不存在」，像才顯示那句提示，其餘情況把實際錯誤訊息秀出來方便對照排查。
+      const missingTable=/does not exist|PGRST205|42P01/i.test(this._loadErr||"");
+      b.innerHTML=missingTable
+        ?"⚠ 雲端資料表 <b>intaudit_records</b> 尚未建立（請維護者在 Supabase SQL Editor 執行 <b>intaudit_setup.sql</b> 一次）。<b>目前資料只暫存在這台電腦的瀏覽器，不會給別人看到，也不能匯入主系統。</b>"
+        :`⚠ 讀取雲端資料失敗：${esc(this._loadErr||"未知錯誤")}（資料表應該是存在的，請先確認網路後重新整理頁面再試一次）。<b>目前資料只暫存在這台電腦的瀏覽器，不會給別人看到，也不能匯入主系統。</b>`;
+    }
     else b.style.display="none";
   },
   /* 樂觀鎖：expectedSrv＝這台裝置上次讀到這筆的 updated_at（新登錄單傳 null，跳過檢查）。
@@ -484,7 +493,7 @@ async function issueOrder(id){
   const r=Store.rows.find(x=>x.id===id);if(!r||r.draft)return;
   const n=(r.defs||[]).filter(d=>d.closeMode!=="FLOW").length;
   if(!n){toast("⚠ 這張登錄單沒有需要船上改善的缺失（都是 FLOW）",true);return;}
-  if(Store.mode!=="cloud"){alert("⚠ 雲端資料表尚未建立（請先執行 intaudit_setup.sql），改善單連結目前無法給船上使用。");return;}
+  if(Store.mode!=="cloud"){alert("⚠ 目前連不上雲端資料表，改善單連結暫時無法給船上使用。\n\n"+(Store._loadErr?"錯誤訊息："+Store._loadErr+"\n\n":"")+"請按「🔄 重新整理」後再試；若一直失敗，才需要請維護者確認 Supabase 是否已執行過 intaudit_setup.sql。");return;}
   const text=`內部檢查改善單：${r.ship} ${dateText(r)} ${(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、")}，共 ${n} 項待改善 連結:${replyUrl(r)}`;
   const shipUrl=replyUrl(r).replace(/\?rid=.*/,"?ship="+encodeURIComponent(r.ship));
   const textFull=text+"\n（本船歷次改善單清單，固定連結："+shipUrl+"）";
