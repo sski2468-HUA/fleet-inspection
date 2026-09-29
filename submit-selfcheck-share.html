@@ -39,9 +39,12 @@ textarea,input[type=text],select{padding:9px 10px;border:1px solid var(--line-2)
 .statusbtn{flex:1;min-width:140px;border:1.5px solid var(--line-2);background:#fff;color:var(--ink-2);padding:12px;border-radius:8px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:var(--sans)}
 .statusbtn.on.ok{background:#eaf5ee;border-color:var(--ok);color:var(--ok)}
 .statusbtn.on.similar{background:#fff4e8;border-color:var(--warn);color:var(--warn)}
+.statusbtn.on.self{background:#e9edf7;border-color:var(--navy-3);color:var(--navy-3)}
 .statusbtn.on.na{background:#eef0f4;border-color:var(--ink-3);color:var(--ink-2)}
 .detailwrap{display:none;margin-top:10px}
 .detailwrap.show{display:block}
+.nawrap{display:none;margin-top:10px}
+.nawrap.show{display:block}
 label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px 0 4px}
 .closedrow{display:flex;align-items:center;gap:8px;margin-top:10px;background:#fdf2e0;border:1px solid #f0dba9;border-radius:8px;padding:10px 12px}
 .modebar{display:flex;gap:8px;flex-wrap:wrap}
@@ -255,7 +258,7 @@ function fillShipSelect(){
   if(!opts.length&&scope)opts=scope.map(code=>({code,name:code}));
   // ⚠ 當事船（缺失來源船）不會整艘船被排除在船名選單之外——合併分享時，當事船本來就可能
   // 還要自查「其他船」的缺失，整艘藏起來會連這些一起漏掉。排除只發生在「單筆題目」層級，
-  // 見 loadOrCreateResponse()：當事船打開後，自己那幾筆會被自動標記「不適用本船」。
+  // 見 loadOrCreateResponse()：當事船打開後，自己那幾筆會被自動標記「🚩 當事船」。
   const last=(function(){try{return localStorage.getItem(LASTSHIP_KEY)||"";}catch(e){return "";}})();
   sel.innerHTML='<option value="">請選擇本船船名</option>'+opts.map(s=>`<option value="${esc(s.code)}"${s.code===last?" selected":""}>${esc(s.code)} ${esc(s.name)}</option>`).join("");
 }
@@ -425,11 +428,12 @@ const srcShipOf=it=>String(it&&it.src||"").trim().split(/\s+/)[0]||"";
 async function loadOrCreateResponse(ship){
   const rows=await api(`${RESPONSE_TABLE}?campaign_id=eq.${encodeURIComponent(CID)}&ship=eq.${encodeURIComponent(ship)}&limit=1`);
   if(rows&&rows.length)return rows[0];
-  // 當事船不用自查自己這幾筆：新建填答時，來源船代碼＝本船的題目直接預填「不適用本船」（autoNa 記錄下來，
-  // 只用來在畫面上加一句提示，實際上仍可改選其他答案）；其餘題目（含合併分享時「其他船」的題目）正常待答。
+  // 當事船不用自查自己這幾筆：新建填答時，來源船代碼＝本船的題目直接預填「🚩 當事船」（跟「➖ 不適用」
+  // 是兩回事——不適用是船型/配備不同這類客觀不相關，當事船是「這本來就是我被抓到的缺失」）；
+  // 其餘題目（含合併分享時「其他船」的題目）正常待答，仍可改選其他答案。
   const items=(campaign.items||[]).map(it=>{
     const selfSrc=srcShipOf(it)===ship;
-    return {...it,status:selfSrc?"na":"pending",note:"",actual:"",closed:false,checkedAt:"",checkedBy:"",autoNa:selfSrc};
+    return {...it,status:selfSrc?"self":"pending",note:"",actual:"",naNote:"",closed:false,checkedAt:"",checkedBy:""};
   });
   const body=[{id:Date.now()+Math.floor(Math.random()*1000),campaign_id:+CID,ship,checker_name:getCheckerName(),checker_title:getCheckerTitle(),items,submit_count:0,history:[],updated_at:Date.now()}];
   const created=await api(RESPONSE_TABLE,{method:"POST",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(body)});
@@ -444,7 +448,7 @@ function updateProgress(){
   document.getElementById("hdr-note").textContent=`${draft.ship}　已作答 ${done} / ${items.length} 題（${pct}%）`;
 }
 
-const ST_LABEL_DL={ok:"沒有",similar:"有，需處理",na:"不適用本船",pending:"未作答"};
+const ST_LABEL_DL={ok:"沒有",similar:"有，需處理",self:"當事船（本船缺失來源）",na:"不適用",pending:"未作答"};
 /* 下載 Excel／PDF 用的共用資料組裝：基本資料＋逐題明細，兩邊都要用同一份，
    避免各自兜一次資料、以後改欄位要改兩個地方又漏掉一個。 */
 function collectExportData(){
@@ -484,7 +488,7 @@ async function exportExcel(){
   XLSX.utils.book_append_sheet(wb,wsBase,"基本資料");
   const rows=[["編號","CODE","來源檢查","缺失內容","實際情況（來源）","本船查核結果","本船實際狀況","打算怎麼處理","是否結案","回答人","回答日期"]];
   d.items.forEach((it,i)=>{
-    rows.push([i+1,it.code||"",fmtSrc(it.src),it.detail||"",it.actual2||"",ST_LABEL_DL[it.status||"pending"],it.note||"",it.actual||"",it.status==="similar"?(it.closed?"已結案":"未結案"):"",it.checkedBy||"",it.checkedAt||""]);
+    rows.push([i+1,it.code||"",fmtSrc(it.src),it.detail||"",it.actual2||"",ST_LABEL_DL[it.status||"pending"],it.note||it.naNote||"",it.actual||"",it.status==="similar"?(it.closed?"已結案":"未結案"):"",it.checkedBy||"",it.checkedAt||""]);
   });
   const wsDef=XLSX.utils.aoa_to_sheet(rows);
   wsDef["!cols"]=[{wch:6},{wch:12},{wch:22},{wch:40},{wch:40},{wch:14},{wch:30},{wch:30},{wch:10},{wch:10},{wch:12}];
@@ -508,7 +512,7 @@ function preparePrint(){
       ${it.actual2?`<div class="pdet" style="color:#555">實際情況：${esc(it.actual2)}</div>`:""}
     </td>
     <td class="pst">${ST_LABEL_DL[it.status||"pending"]}${it.status==="similar"?(it.closed?"（已結案）":"（未結案）"):""}</td>
-    <td>${esc(it.note||"")}</td>
+    <td>${esc(it.note||it.naNote||"")}</td>
     <td>${esc(it.actual||"")}</td>
   </tr>`;
   document.getElementById("printArea").innerHTML=`
@@ -534,13 +538,14 @@ function itemCardHtml(it,i){
     <div class="itemcard gh" data-idx="${i}" id="item-${i}">
       <div><span class="num">#${i+1}</span><b>${esc(it.code?("CODE "+it.code):"")}</b>${srcTag(it)}</div>
       ${renderRef(it)}
-      ${it.autoNa?`<p class="hint" style="color:var(--ink-2);background:#eef0f4;border-radius:6px;padding:6px 10px">🛈 本船是這筆缺失的來源船，系統已自動標記為「不適用本船」，不用重複處理；若仍有其他狀況，可自行改選其他選項。</p>`:""}
       <p style="font-weight:700;margin:10px 0 4px">❓ 本船目前有同樣或類似的情形嗎？</p>
       <div class="statusrow">
         <button type="button" class="statusbtn ${it.status==='ok'?'on ok':''}" onclick="setStatus(${i},'ok')">✅ 沒有</button>
         <button type="button" class="statusbtn ${it.status==='similar'?'on similar':''}" onclick="setStatus(${i},'similar')">⚠️ 有，需處理</button>
-        <button type="button" class="statusbtn ${it.status==='na'?'on na':''}" onclick="setStatus(${i},'na')">➖ 不適用本船</button>
+        <button type="button" class="statusbtn ${it.status==='self'?'on self':''}" onclick="setStatus(${i},'self')">🚩 當事船</button>
+        <button type="button" class="statusbtn ${it.status==='na'?'on na':''}" onclick="setStatus(${i},'na')">➖ 不適用</button>
       </div>
+      <p class="hint selfnote" style="color:var(--ink-2);background:#eef0f4;border-radius:6px;padding:6px 10px;display:${it.status==="self"?"":"none"}">🚩 本船是這筆缺失的來源船，不用再自查一次；若仍有其他狀況要補充，可改選其他選項。</p>
       <div class="detailwrap ${it.status==='similar'?'show':''}" id="detail-${i}">
         <label>本船的實際狀況</label>
         <textarea data-idx="${i}" data-field="note" oninput="onFieldInput(this)">${esc(it.note||"")}</textarea>
@@ -550,6 +555,10 @@ function itemCardHtml(it,i){
           <input type="checkbox" id="closed-${i}" ${it.closed?"checked":""} onchange="onClosedChange(${i},this.checked)" style="width:18px;height:18px">
           <label for="closed-${i}" style="margin:0">✓ 已完成改善（結案）</label>
         </div>
+      </div>
+      <div class="nawrap ${it.status==='na'?'show':''}" id="na-${i}">
+        <label>不適用原因（選填，例如：船型不同、無此設備）</label>
+        <input type="text" data-idx="${i}" data-field="naNote" value="${esc(it.naNote||"")}" oninput="onFieldInput(this)" placeholder="例：本船為散裝船，不適用此油輪項目">
       </div>
       <p class="hint" style="margin-top:8px">${it.checkedBy?`最後回答：${esc(it.checkedBy)}　${esc(it.checkedAt||"")}`:""}</p>
     </div>
@@ -640,14 +649,17 @@ function setStatus(i,status){
   const items=draft.items||[];
   const it=items[i];if(!it)return;
   it.status=status;
-  it.autoNa=false; // 使用者自己改過答案（包含重新選回「不適用本船」），就不是系統自動判斷了，提示文字不用再顯示
   if(status!=="similar")it.closed=false;
   it.checkedAt=new Date().toISOString().slice(0,10);
   it.checkedBy=getCheckerName()||it.checkedBy||"";
   const dw=document.getElementById("detail-"+i);
   if(dw)dw.classList.toggle("show",status==="similar");
-  document.querySelectorAll(`.itemcard[data-idx="${i}"] .statusbtn`).forEach(b=>b.classList.remove("on","ok","similar","na"));
-  const btnMap={ok:0,similar:1,na:2};
+  const nw=document.getElementById("na-"+i);
+  if(nw)nw.classList.toggle("show",status==="na");
+  const selfNote=document.querySelector(`.itemcard[data-idx="${i}"] .selfnote`);
+  if(selfNote)selfNote.style.display=status==="self"?"":"none";
+  document.querySelectorAll(`.itemcard[data-idx="${i}"] .statusbtn`).forEach(b=>b.classList.remove("on","ok","similar","self","na"));
+  const btnMap={ok:0,similar:1,self:2,na:3};
   const btns=document.querySelectorAll(`.itemcard[data-idx="${i}"] .statusbtn`);
   if(btns[btnMap[status]])btns[btnMap[status]].classList.add("on",status);
   updateProgress();
