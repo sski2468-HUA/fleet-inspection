@@ -108,6 +108,8 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
 .bt input,.bt select,.bt textarea{font-size:15px;padding:9px 10px}
 .bt textarea{min-height:92px}
 .item>.fld.fw{margin-top:12px}
+.cmnote{margin-top:8px;font-size:12px;line-height:1.7;color:var(--navy);background:var(--teal-l);border:1px solid #bfdde0;border-radius:6px;padding:8px 10px}
+.cmnote.hint{color:var(--ink-2);background:#f7f9fb;border-color:var(--line)}
 @media(max-width:1000px){.drow{grid-template-columns:1fr}}
 @media(max-width:900px){.fgrid,.fgrid.c4{grid-template-columns:1fr 1fr}.crew-row{grid-template-columns:1fr}}
 @media(max-width:560px){.fgrid,.fgrid.c4{grid-template-columns:1fr}}
@@ -429,6 +431,7 @@ function renderList(){
         <button class="btn sm" onclick="editRec(${r.id})">✎ 編輯</button>
         <button class="btn sm" onclick="openExport(${r.id})" title="Word／JSON／內控 Excel／內控 JSON">⬇ 匯出</button>
         <button class="btn sm" ${(r.draft||!(r.defs||[]).some(d=>d.closeMode!=="FLOW"))?"disabled":""} onclick="issueOrder(${r.id})" title="把「內控／系統內結案」的缺失做成改善單，給船上填改善回報">📨 發改善單${r.issuedAt?"（已發）":""}</button>
+        ${r.issuedAt?`<a class="btn sm" href="${replyUrl(r)}" target="_blank" title="直接開啟船上填寫的改善單頁面（跟複製給船上的連結是同一個）">🔗 開啟船上頁</a>`:""}
         <button class="btn sm dark" onclick="importPreview(${r.id})" title="預覽匯入主系統時會建立哪些紀錄">➜ 匯入主系統</button>
         <button class="btn sm danger" onclick="delRec(${r.id})">🗑</button></span></div></td></tr>`;
     if(open)html+=ds.map(d=>{
@@ -687,6 +690,14 @@ function setTopic(i,v){collect();cur.defs[i].topic=v;if(v!=="其他")cur.defs[i]
 function setD(i,f,v){cur.defs[i][f]=v;if(f==="topic")updateCounts();}
 function setIcCat(i,v){const d=cur.defs[i];d.icCategory=v;if(!isEquipFault(v))d.icEquip="";collect();renderDefs();}
 function toggleDept(i,name,on){const a=cur.defs[i].icDepts,ix=a.indexOf(name);if(on&&ix<0)a.push(name);if(!on&&ix>=0)a.splice(ix,1);const box=document.querySelector(`#def-${i} [data-f="icDepts"]`);if(box)box.classList.remove("bad");}
+/* 結案方式說明：督導選了哪個，底下就顯示該方式後續的處理流程（未選時列出三種讓督導比較） */
+const CLOSE_MODE_NOTE={
+  FLOW:"📋 <b>船隊需至 FLOW 系統建立 DMP-FM01</b>，立案並在 FLOW 系統內完成結案；本系統僅留這筆紀錄備查，<b>不會</b>發改善單給船上，也不會在這裡追蹤結案進度。",
+  內控:"📋 <b>須至內控系統（船舶動態與早會待辦系統）進行管控</b>；本系統會發改善單給船隊填寫矯正措施、附上證據，海技審核結案後，請再匯出「內控 Excel／JSON」匯入內控系統立案。",
+  系統內結案:"📋 <b>在本系統內發改善單給船隊</b>，由船隊填寫矯正措施並附上證據，海技審核後即可結案，不需要登記到其他系統。"
+};
+const cmNoteHtml=k=>k?`<div class="cmnote">${CLOSE_MODE_NOTE[k]}</div>`
+  :`<div class="cmnote hint">尚未選擇：${Object.entries(CLOSE_MODE_NOTE).map(([k,v])=>`<div style="margin-top:4px">${v}</div>`).join("")}</div>`;
 function setMode(i,k){
   setTimeout(renderDefNav,0);
   const was=cur.defs[i].closeMode;
@@ -696,7 +707,8 @@ function setMode(i,k){
     collect();renderDefs();updateCounts();return;
   }
   const el=$("#def-"+i);
-  if(el){el.classList.remove("m-flow","m-ic","m-sys");const m=modeOf(k);if(m)el.classList.add("m-"+m.cls);const rw=el.querySelector('[data-f="closeMode"]');if(rw)rw.classList.remove("bad");}
+  if(el){el.classList.remove("m-flow","m-ic","m-sys");const m=modeOf(k);if(m)el.classList.add("m-"+m.cls);const rw=el.querySelector('[data-f="closeMode"]');if(rw)rw.classList.remove("bad");
+    const nb=el.querySelector(".cmnote-box");if(nb)nb.innerHTML=cmNoteHtml(k);}
   updateCounts();
 }
 /* 缺失明細上方：結案方式快捷篩選（哪些進 FLOW／內控／系統內結案）＋缺失號碼跳轉標籤 */
@@ -743,6 +755,7 @@ function renderDefs(){
         <div class="c3">
           <div class="fld">結案方式 <span class="req">*</span>（單選）
             <div class="radios v" data-f="closeMode">${MODES.map(mm=>`<label><input type="radio" name="cm-${i}" ${d.closeMode===mm.k?"checked":""} onchange="setMode(${i},'${mm.k}')"> ${esc(mm.label)}</label>`).join("")}</div>
+            <div class="cmnote-box">${cmNoteHtml(d.closeMode)}</div>
           </div>
         </div>
       </div>
