@@ -5825,6 +5825,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="mh"><h3>📤 建立分享自查連結</h3><button class="x" onclick="Air.closeShareCheckWizard()">✕</button></div>
     <div class="mb">
       <p class="hint" style="margin-bottom:10px">將本筆填單的缺失（<span id="air-sw-count"></span> 項）做成自查 Checklist，建立成「一條連結發全船隊」的分享自查活動——船上打開連結後自行選擇本船船名即可開始填答，不用逐艘船各別發送連結。建立後不影響本筆填單原本的內容或轉入狀態。</p>
+      <p class="hint" id="air-sw-src-note" style="margin-bottom:10px"></p>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="air-sw-limit" onchange="Air.toggleShareLimitShips()"> 限定只開放特定船舶填答（不勾＝全船隊都能選）</label>
       <div class="msel" id="ms-air-sw-ship" style="display:none;margin-top:8px"></div>
     </div>
@@ -22611,6 +22612,11 @@ const Air={
     $("#air-sw-limit").checked=false;
     $("#ms-air-sw-ship").style.display="none";
     $("#air-sw-count").textContent=rows.length;
+    // 「當事船」＝這次分享的缺失所屬的船，不需要自查自己這幾筆——這裡只是提示，實際排除是每一題各自比對
+    // 「題目的來源船」動態算的（填答頁 loadOrCreateResponse），不是整個活動擋掉那艘船：因為合併分享時，
+    // 當事船很可能還要自查「其他船」的缺失，整艘船排除掉會漏掉這些。
+    const srcShips=[...new Set((this._shareAirIds||[]).map(id=>{const d=App.air.find(x=>x.id===id);return d&&d.ship;}).filter(Boolean))];
+    $("#air-sw-src-note").innerHTML=srcShips.length?`📋 來源船（<b>${esc(srcShips.join("、"))}</b>）開啟後，自己那幾筆缺失會自動標記為「不適用本船」，不用重複處理；其餘缺失仍會照常列出讓它自查（合併分享時尤其重要，不會整艘船被排除在外）。`:"";
     $("#airShareCheckModal").classList.add("show");
   },
   closeShareCheckWizard(){$("#airShareCheckModal").classList.remove("show");},

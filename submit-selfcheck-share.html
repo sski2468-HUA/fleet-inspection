@@ -253,6 +253,9 @@ function fillShipSelect(){
     opts=scope.map(code=>{const hit=SHIP_OPTS.find(s=>s.code===code);return hit||{code,name:code};});
   }
   if(!opts.length&&scope)opts=scope.map(code=>({code,name:code}));
+  // ⚠ 當事船（缺失來源船）不會整艘船被排除在船名選單之外——合併分享時，當事船本來就可能
+  // 還要自查「其他船」的缺失，整艘藏起來會連這些一起漏掉。排除只發生在「單筆題目」層級，
+  // 見 loadOrCreateResponse()：當事船打開後，自己那幾筆會被自動標記「不適用本船」。
   const last=(function(){try{return localStorage.getItem(LASTSHIP_KEY)||"";}catch(e){return "";}})();
   sel.innerHTML='<option value="">請選擇本船船名</option>'+opts.map(s=>`<option value="${esc(s.code)}"${s.code===last?" selected":""}>${esc(s.code)} ${esc(s.name)}</option>`).join("");
 }
@@ -417,10 +420,17 @@ function switchShip(){
 
 /* 找不到這艘船在這個活動下的填答列就建立一份新的：從活動範本複製一份題目，
    每艘船各自獨立一列（campaign_id, ship 唯一），互不影響、互不覆蓋。 */
+/* 題目的來源船代碼：src 存的是「船代碼 檢查來源 日期」，第一段就是船代碼（船代碼本身不含空白） */
+const srcShipOf=it=>String(it&&it.src||"").trim().split(/\s+/)[0]||"";
 async function loadOrCreateResponse(ship){
   const rows=await api(`${RESPONSE_TABLE}?campaign_id=eq.${encodeURIComponent(CID)}&ship=eq.${encodeURIComponent(ship)}&limit=1`);
   if(rows&&rows.length)return rows[0];
-  const items=(campaign.items||[]).map(it=>({...it,status:"pending",note:"",actual:"",closed:false,checkedAt:"",checkedBy:""}));
+  // 當事船不用自查自己這幾筆：新建填答時，來源船代碼＝本船的題目直接預填「不適用本船」（autoNa 記錄下來，
+  // 只用來在畫面上加一句提示，實際上仍可改選其他答案）；其餘題目（含合併分享時「其他船」的題目）正常待答。
+  const items=(campaign.items||[]).map(it=>{
+    const selfSrc=srcShipOf(it)===ship;
+    return {...it,status:selfSrc?"na":"pending",note:"",actual:"",closed:false,checkedAt:"",checkedBy:"",autoNa:selfSrc};
+  });
   const body=[{id:Date.now()+Math.floor(Math.random()*1000),campaign_id:+CID,ship,checker_name:getCheckerName(),checker_title:getCheckerTitle(),items,submit_count:0,history:[],updated_at:Date.now()}];
   const created=await api(RESPONSE_TABLE,{method:"POST",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(body)});
   return created[0];
@@ -524,6 +534,7 @@ function itemCardHtml(it,i){
     <div class="itemcard gh" data-idx="${i}" id="item-${i}">
       <div><span class="num">#${i+1}</span><b>${esc(it.code?("CODE "+it.code):"")}</b>${srcTag(it)}</div>
       ${renderRef(it)}
+      ${it.autoNa?`<p class="hint" style="color:var(--ink-2);background:#eef0f4;border-radius:6px;padding:6px 10px">🛈 本船是這筆缺失的來源船，系統已自動標記為「不適用本船」，不用重複處理；若仍有其他狀況，可自行改選其他選項。</p>`:""}
       <p style="font-weight:700;margin:10px 0 4px">❓ 本船目前有同樣或類似的情形嗎？</p>
       <div class="statusrow">
         <button type="button" class="statusbtn ${it.status==='ok'?'on ok':''}" onclick="setStatus(${i},'ok')">✅ 沒有</button>
@@ -629,6 +640,7 @@ function setStatus(i,status){
   const items=draft.items||[];
   const it=items[i];if(!it)return;
   it.status=status;
+  it.autoNa=false; // 使用者自己改過答案（包含重新選回「不適用本船」），就不是系統自動判斷了，提示文字不用再顯示
   if(status!=="similar")it.closed=false;
   it.checkedAt=new Date().toISOString().slice(0,10);
   it.checkedBy=getCheckerName()||it.checkedBy||"";
