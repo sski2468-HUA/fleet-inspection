@@ -139,6 +139,7 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
         <input type="text" id="fQ" placeholder="🔍 搜尋船名／檢查人／分類／缺失描述…" oninput="renderList()" style="flex:1;min-width:220px;max-width:420px">
         <button class="btn sm" onclick="clearFilters()">清除篩選</button>
         <button class="btn sm" onclick="expandAll(true)">▾ 全部展開</button><button class="btn sm" onclick="expandAll(false)">▸ 全部收合</button>
+        <button class="btn sm" onclick="reloadList()">🔄 重新整理</button>
         <span class="hint" id="listStat"></span>
       </div>
     </div>
@@ -307,7 +308,7 @@ async function loadLists(){
 /* ══════ 資料存取：優先寫雲端資料表 intaudit_records；資料表還沒建立時退回本機瀏覽器暫存並提示 ══════ */
 const LOCAL_KEY="vsm_intaudit_local_v1";
 const Store={
-  mode:"cloud",rows:[],replies:{},
+  mode:"cloud",rows:[],replies:{},srvOf:{},
   async loadReplies(){
     this.replies={};
     if(this.mode!=="cloud")return;
@@ -315,8 +316,9 @@ const Store={
   },
   async load(){
     try{
-      const rows=await api(`${TABLE}?select=id,payload&order=id.desc&limit=1000`);
+      const rows=await api(`${TABLE}?select=id,payload,updated_at&order=id.desc&limit=1000`);
       this.mode="cloud";this.rows=(rows||[]).map(r=>Object.assign({},r.payload,{id:r.id}));
+      this.srvOf={};rows.forEach(r=>{this.srvOf[r.id]=r.updated_at;});
     }catch(e){
       this.mode="local";
       try{this.rows=JSON.parse(localStorage.getItem(LOCAL_KEY)||"[]");}catch(e2){this.rows=[];}
@@ -325,16 +327,29 @@ const Store={
     if(this.mode==="local"){b.style.display="";b.innerHTML="⚠ 雲端資料表 <b>intaudit_records</b> 尚未建立（請維護者在 Supabase SQL Editor 執行 <b>intaudit_setup.sql</b> 一次）。<b>目前資料只暫存在這台電腦的瀏覽器，不會給別人看到，也不能匯入主系統。</b>";}
     else b.style.display="none";
   },
-  async save(rec){
+  /* 樂觀鎖：expectedSrv＝這台裝置上次讀到這筆的 updated_at（新登錄單傳 null，跳過檢查）。
+     存檔前先問一次雲端目前的 updated_at，若跟 expectedSrv 對不上，代表這段編輯期間別人已經存過檔，
+     回傳 {conflict:true}，不覆蓋別人的內容；force=true 可跳過檢查（使用者確認要覆蓋時用）。
+     這只擋得住「兩人同時編輯同一張登錄單」；三人各自新增各自的單完全不受影響（各自不同 id）。 */
+  async save(rec,expectedSrv,force){
     if(this.mode==="cloud"){
+      if(expectedSrv!=null&&!force){
+        try{
+          const chk=await api(`${TABLE}?id=eq.${rec.id}&select=updated_at`);
+          const serverAt=chk&&chk[0]&&chk[0].updated_at;
+          if(serverAt!=null&&Number(serverAt)!==Number(expectedSrv))return {conflict:true,serverAt};
+        }catch(e){/* 版本檢查失敗（例如離線）不擋存檔，避免完全卡住 */}
+      }
+      const now=Date.now();
       try{
-        await api(`${TABLE}?on_conflict=id`,{method:"POST",headers:H({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify([{id:rec.id,payload:rec,updated_at:Date.now()}])});
-      }catch(e){toast("⚠ 儲存到雲端失敗："+e.message,true);return false;}
+        await api(`${TABLE}?on_conflict=id`,{method:"POST",headers:H({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify([{id:rec.id,payload:rec,updated_at:now}])});
+      }catch(e){toast("⚠ 儲存到雲端失敗："+e.message,true);return {ok:false};}
+      this.srvOf[rec.id]=now;
     }
     const ix=this.rows.findIndex(r=>r.id===rec.id);
     if(ix>=0)this.rows[ix]=rec;else this.rows.unshift(rec);
-    if(this.mode==="local")try{localStorage.setItem(LOCAL_KEY,JSON.stringify(this.rows));}catch(e){toast("⚠ 本機空間不足（照片太多），請減少照片後再試",true);return false;}
-    return true;
+    if(this.mode==="local")try{localStorage.setItem(LOCAL_KEY,JSON.stringify(this.rows));}catch(e){toast("⚠ 本機空間不足（照片太多），請減少照片後再試",true);return {ok:false};}
+    return {ok:true,srv:this.srvOf[rec.id]};
   },
   async remove(id){
     if(this.mode==="cloud"){try{await api(`${TABLE}?id=eq.${id}`,{method:"DELETE"});}catch(e){toast("⚠ 刪除失敗："+e.message,true);return;}}
@@ -367,6 +382,7 @@ function showList(){
   renderList();
 }
 function clearFilters(){$("#fShip").value="";$("#fMode").value="";$("#fStatus").value="";$("#fQ").value="";renderList();}
+async function reloadList(){await Store.load();await Store.loadReplies();renderList();toast("✓ 已重新整理");}
 const expanded=new Set(); // 已展開缺失明細的登錄單 id（預設全部收合）；篩選／搜尋中一律展開
 function toggleRec(id){if(expanded.has(id))expanded.delete(id);else expanded.add(id);renderList();}
 function expandAll(on){expanded.clear();if(on)Store.rows.forEach(r=>expanded.add(r.id));renderList();}
@@ -383,7 +399,9 @@ async function delDefFromList(rid,i){
   const warn=(rp?"\n\n⚠ 船上已對這筆缺失回報過，回報內容會一併失去關聯。":"")+(r.imported?"\n\n⚠ 這張登錄單已匯入主系統，主系統裡的缺失紀錄不會被刪除。":"");
   if(!confirm(`刪除這筆缺失？\n\n${d.category||""}：${String(d.finding||"").slice(0,60)}${warn}\n\n此動作無法復原。`))return;
   const rec=JSON.parse(JSON.stringify(r));rec.defs.splice(i,1);rec.updatedAt=Date.now();
-  if(await Store.save(rec)){toast("✓ 已刪除該筆缺失");renderList();}
+  const res=await Store.save(rec,Store.srvOf[rid]);
+  if(res.conflict){toast("⚠ 這張登錄單剛被其他人更新過，請按「🔄 重新整理」後再試一次",true);return;}
+  if(res.ok){toast("✓ 已刪除該筆缺失");renderList();}
 }
 function renderList(){
   const rows=Store.rows,all=[];rows.forEach(r=>(r.defs||[]).forEach(d=>all.push(d)));
@@ -456,7 +474,10 @@ async function issueOrder(id){
   if(r.issuedAt&&!confirm("這張登錄單已發過改善單，要再複製一次連結嗎？（連結不變，船上先前的回報不會消失）"))return;
   try{await navigator.clipboard.writeText(textFull);}catch(e){}
   (r.defs||[]).forEach(d=>{if(!d.uid)d.uid=newUid();}); // 舊登錄單的缺失補上固定 id，船上回報才對得回這一筆
-  r.issuedAt=Date.now();await Store.save(r);renderList();
+  r.issuedAt=Date.now();
+  const res=await Store.save(r,Store.srvOf[id]);
+  if(res.conflict){toast("⚠ 這張登錄單剛被其他人更新過，請按「🔄 重新整理」後再重新發改善單",true);return;}
+  renderList();
   alert("已複製下列內容，可貼入郵件發給船上：\n\n"+textFull+"\n\n船上打開連結後，會看到這張單的待改善缺失，填寫改善說明、完成日期並上傳改善後照片回報。");
 }
 /* 內控 Excel：欄位、順序與船舶動態與早會待辦系統「內控異常清單」匯出檔一致（16 欄，HTML 格式 .xls，Excel 可直接開） */
@@ -504,14 +525,14 @@ function importPreview(id){
 }
 
 /* ══════ 表單 ══════ */
-let cur=null,activeTab=null;
+let cur=null,activeTab=null,curSrv=null; // curSrv：這台裝置上次讀到「目前這張登錄單」的雲端 updated_at，用於存檔前的衝突偵測
 const newUid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const blankDef=type=>({uid:newUid(),type,topic:"",category:"",risk:"",reported:cur&&cur.dateTo?cur.dateTo:(cur&&cur.dateFrom)||todayIso(),finding:"",photos:[],
   closeMode:"",status:"",icLevel:"",icCategory:"",icEquip:"",icDepts:[],icDue:"",icAware:false,icKey:false});
 const blank=()=>({id:null,ship:"",dateFrom:todayIso(),dateTo:"",inspector:"",psn:"",types:[],master:"",co:"",ce:"",e2:"",overall:"",
   top4:{photos:[],cap:""},goodCrew:[],poorCrew:[],best:[],defs:[],sugg:[],draft:true});
-function newForm(){cur=blank();activeTab=null;openForm();}
-function editRec(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;cur=JSON.parse(JSON.stringify(r));activeTab=(cur.types||[])[0]||null;openForm();}
+function newForm(){cur=blank();activeTab=null;curSrv=null;openForm();}
+function editRec(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;cur=JSON.parse(JSON.stringify(r));curSrv=Store.srvOf[id]!=null?Store.srvOf[id]:null;activeTab=(cur.types||[])[0]||null;openForm();}
 /* ②～⑤ 分頁：一次只開一個區塊來編輯 */
 let secTab="basic";
 const SECS=[["basic","① 基本資料"],["overall","② 總體評價"],["best","③ 優良案例"],["defs","④ 缺失明細"],["sugg","⑤ 船舶訴求／建議"]];
@@ -551,9 +572,14 @@ async function autoSave(){
   const s=snapNow();if(!s||s===lastSnap)return;
   if(!cur.ship&&!cur.inspector&&!cur.overall&&!cur.defs.length&&!cur.best.length&&!cur.sugg.length)return;
   autoBusy=true;
-  const ok=await persist(true);
+  const res=await persist(true,{silent:true});
   autoBusy=false;
-  if(ok){lastSnap=snapNow();const d=new Date();setAutoState(`✓ 資料已自動儲存（${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}）`);}
+  if(res&&res.conflict){
+    stopAutoSave();
+    setAutoState(`⚠ 這張單已被其他人更新（對方時間 ${new Date(res.serverAt).toLocaleString("zh-TW",{hour12:false})}），自動儲存已暫停。請先自行複製目前畫面內容備份，再按「取消」回登錄紀錄重新開啟最新版本`,true);
+    return;
+  }
+  if(res){lastSnap=snapNow();const d=new Date();setAutoState(`✓ 資料已自動儲存（${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}）`);}
   else setAutoState("⚠ 自動儲存失敗，請按「儲存草稿」",true);
 }
 function collect(){
@@ -832,7 +858,8 @@ function showErrors(errs){
   errs.forEach(e=>{if(e.tab&&e.tab!==activeTab)return;const el=e.sel&&document.querySelector(e.sel);if(el)el.classList.add("bad");});
   const el=first.sel&&document.querySelector(first.sel);(el||box).scrollIntoView({behavior:"smooth",block:"center"});
 }
-async function persist(draft){
+async function persist(draft,opts){
+  opts=opts||{};
   cur.defs.forEach(d=>{if(!d.uid)d.uid=newUid();}); // 每筆缺失要有固定 id，船上回報才對得回這一筆
   const c=JSON.parse(JSON.stringify(cur));
   c.draft=draft;
@@ -843,7 +870,16 @@ async function persist(draft){
   });
   if(!c.id)c.id=Date.now();
   c.createdBy=c.createdBy||c.inspector||"";c.createdAt=c.createdAt||todayIso().replace(/-/g,"/");c.updatedAt=Date.now();
-  const ok=await Store.save(c);if(ok)cur.id=c.id;return ok;
+  const res=await Store.save(c,curSrv,opts.force);
+  if(res.conflict){
+    if(opts.silent)return {ok:false,conflict:true,serverAt:res.serverAt};
+    const overwrite=confirm(`⚠ 這張登錄單自您開啟編輯後，已被其他人更新過（對方最後更新時間：${new Date(res.serverAt).toLocaleString("zh-TW",{hour12:false})}）。\n\n直接儲存會覆蓋對方剛剛的修改。\n\n按「確定」＝仍要用您目前畫面上的內容覆蓋（請先確認彼此改的不是同一部分，以免互相蓋掉）\n按「取消」＝不儲存，請按上方「取消」回登錄紀錄，重新開啟這張單取得對方最新版本後再繼續填寫`);
+    if(!overwrite)return false;
+    return persist(draft,{force:true});
+  }
+  if(!res.ok)return false;
+  cur.id=c.id;curSrv=res.srv;
+  return true;
 }
 async function saveDraft(){collect();if(!cur.ship&&!cur.inspector&&!cur.defs.length){toast("⚠ 還沒有填寫任何內容",true);return;}if(await persist(true)){lastSnap=snapNow();toast("💾 已儲存草稿"+(Store.mode==="local"?"（暫存於本機瀏覽器）":""));}}
 async function submitForm(){
