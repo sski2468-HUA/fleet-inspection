@@ -95,6 +95,7 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
 .qnav a{cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--navy);background:#eef3f6;border:1px solid var(--line-2);border-radius:5px;padding:2px 8px;text-decoration:none}
 .qnav a:hover{background:var(--navy);color:#fff}
 .qnav a.m-flow{border-color:#8195a0;background:#eceff1}.qnav a.m-ic{border-color:var(--signal);background:#fdeedf}.qnav a.m-sys{border-color:var(--teal);background:var(--teal-l)}.qnav a.m-none{border-style:dashed;background:#fff;color:var(--ink-3)}
+.qnav a.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .fchip{border:1px solid var(--line-2);background:#fff;border-radius:999px;padding:5px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans);color:var(--ink-2)}
 .fchip b{font-family:var(--mono);margin-left:6px;color:var(--navy)}
 .fchip.flow{border-left:4px solid #8195a0}.fchip.ic{border-left:4px solid var(--signal)}.fchip.sys{border-left:4px solid var(--teal)}.fchip.none{border-left:4px dashed var(--line-2)}
@@ -108,6 +109,13 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
 .bt input,.bt select,.bt textarea{font-size:15px;padding:9px 10px}
 .bt textarea{min-height:92px}
 .item>.fld.fw{margin-top:12px}
+.blist{display:flex;flex-direction:column;gap:6px}
+.blrow{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer}
+.blrow:hover{border-color:var(--teal);background:var(--teal-l)}
+.blrow b{color:var(--navy);font-family:var(--mono);flex:none;width:34px}
+.blrow .blcat{font-weight:700;flex:none;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.blrow .blbrief{color:var(--ink-2);font-size:12.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.blrow .blbtns{flex:none;display:flex;gap:6px}
 .cmnote{margin-top:8px;font-size:12px;line-height:1.7;color:var(--navy);background:var(--teal-l);border:1px solid #bfdde0;border-radius:6px;padding:8px 10px}
 .cmnote.hint{color:var(--ink-2);background:#f7f9fb;border-color:var(--line)}
 @media(max-width:1000px){.drow{grid-template-columns:1fr}}
@@ -391,9 +399,9 @@ function expandAll(on){expanded.clear();if(on)Store.rows.forEach(r=>expanded.add
 function jumpTo(id){const el=document.getElementById(id);if(!el)return;el.scrollIntoView({behavior:"smooth",block:"start"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash");}
 function editDef(rid,i){
   const r=Store.rows.find(x=>x.id===rid);if(!r||!r.defs[i])return;
-  cur=JSON.parse(JSON.stringify(r));activeTab=cur.defs[i].type;
+  cur=JSON.parse(JSON.stringify(r));activeTab=cur.defs[i].type;bestOpen=null;defOpen=i;defFilter=""; // 清掉舊的結案方式篩選，避免這筆缺失剛好被篩掉、又退回清單模式
   if(!cur.types.includes(activeTab))cur.types.push(activeTab);
-  openForm("defs");setTimeout(()=>jumpTo("def-"+i),120);
+  openForm("defs");
 }
 async function delDefFromList(rid,i){
   const r=Store.rows.find(x=>x.id===rid);if(!r||!r.defs[i])return;
@@ -534,8 +542,8 @@ const blankDef=type=>({uid:newUid(),type,topic:"",category:"",risk:"",reported:c
   closeMode:"",status:"",icLevel:"",icCategory:"",icEquip:"",icDepts:[],icDue:"",icAware:false,icKey:false});
 const blank=()=>({id:null,ship:"",dateFrom:todayIso(),dateTo:"",inspector:"",psn:"",types:[],master:"",co:"",ce:"",e2:"",overall:"",
   top4:{photos:[],cap:""},goodCrew:[],poorCrew:[],best:[],defs:[],sugg:[],draft:true});
-function newForm(){cur=blank();activeTab=null;curSrv=null;openForm();}
-function editRec(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;cur=JSON.parse(JSON.stringify(r));curSrv=Store.srvOf[id]!=null?Store.srvOf[id]:null;activeTab=(cur.types||[])[0]||null;openForm();}
+function newForm(){cur=blank();activeTab=null;curSrv=null;bestOpen=null;defOpen=null;openForm();}
+function editRec(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;cur=JSON.parse(JSON.stringify(r));curSrv=Store.srvOf[id]!=null?Store.srvOf[id]:null;activeTab=(cur.types||[])[0]||null;bestOpen=null;defOpen=null;openForm();}
 /* ②～⑤ 分頁：一次只開一個區塊來編輯 */
 let secTab="basic";
 const SECS=[["basic","① 基本資料"],["overall","② 總體評價"],["best","③ 優良案例"],["defs","④ 缺失明細"],["sugg","⑤ 船舶訴求／建議"]];
@@ -637,24 +645,47 @@ function renderCrew(w){
     <button class="btn sm danger" type="button" onclick="delCrew('${w}',${i})">🗑</button></div>`).join(""):`<span class="hint" style="font-weight:400">${w==="good"?"尚未新增":"無則不必填（N/A）"}</span>`;
 }
 /* 優良案例 */
-function addBest(){collect();cur.best.push({category:"",persons:[{name:"",rank:""}],people:"",rank:"",brief:"",photos:[]});renderBest();updateCounts();}
+let bestOpen=null; // null＝清單模式；數字＝正在展開編輯的優良案例索引
+function openBest(i){collect();bestOpen=i;renderBest();}
+function backBest(){collect();bestOpen=null;renderBest();}
+function addBest(){collect();cur.best.push({category:"",persons:[{name:"",rank:""}],people:"",rank:"",brief:"",photos:[]});bestOpen=cur.best.length-1;renderBest();updateCounts();}
 /* 涉及人員：可有多位（姓名＋職務）；people／rank 兩個字串欄位由 persons 自動彙整，匯入主系統與舊資料沿用 */
 function bestPersons(x){if(!x.persons)x.persons=(x.people||x.rank)?[{name:x.people||"",rank:x.rank||""}]:[{name:"",rank:""}];return x.persons;}
 function syncBest(i){const x=cur.best[i],ps=bestPersons(x);x.people=ps.map(p=>p.name.trim()).filter(Boolean).join("、");x.rank=[...new Set(ps.map(p=>p.rank).filter(Boolean))].join("、");}
 function setBP(i,j,f,v){bestPersons(cur.best[i])[j][f]=v;syncBest(i);}
 function addBP(i){collect();bestPersons(cur.best[i]).push({name:"",rank:""});syncBest(i);renderBest();}
 function delBP(i,j){collect();const ps=bestPersons(cur.best[i]);ps.splice(j,1);if(!ps.length)ps.push({name:"",rank:""});syncBest(i);renderBest();}
-function delBest(i){if(!confirm("刪除這筆優良案例？"))return;collect();cur.best.splice(i,1);renderBest();updateCounts();}
+function delBest(i){
+  if(!confirm("刪除這筆優良案例？"))return;collect();cur.best.splice(i,1);
+  if(bestOpen===i)bestOpen=null;else if(bestOpen!=null&&bestOpen>i)bestOpen--;
+  renderBest();updateCounts();
+}
 function setB(i,f,v){cur.best[i][f]=v;}
+/* 清單列一行的摘要：分類、描述前段（＋可選的徽章，如風險/結案方式），點了或按「✎ 編輯」才展開完整表單 */
+function blistRow(i,x,onOpen,onDel,badges){
+  return `<div class="blrow" onclick="${onOpen}(${i})">
+    <b>#${i+1}</b>
+    <span class="blcat">${esc(x.category||"（未填分類）")}</span>
+    <span class="blbrief">${esc((x.finding||"").slice(0,60))}${(x.finding||"").length>60?"…":""}</span>
+    ${badges||""}
+    <span class="blbtns"><button class="btn sm" type="button" onclick="event.stopPropagation();${onOpen}(${i})">✎ 編輯</button><button class="btn sm danger" type="button" onclick="event.stopPropagation();${onDel}(${i})">🗑</button></span>
+  </div>`;
+}
 function renderBest(){
-  $("#bestNav").innerHTML=cur.best.map((x,i)=>`<a onclick="jumpTo('best-${i}')" title="${esc(x.category||"")}">#${i+1}</a>`).join("");
-  $("#bestList").innerHTML=cur.best.length?cur.best.map((x,i)=>`<div class="item" id="best-${i}"><div class="ih">優良案例 No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
+  $("#bestNav").innerHTML=cur.best.map((x,i)=>`<a class="${bestOpen===i?"on":""}" onclick="openBest(${i})" title="${esc(x.category||"")}">#${i+1}</a>`).join("");
+  if(!cur.best.length){$("#bestList").innerHTML=`<p class="hint">尚無優良案例；這些會匯入系統的「正面評價／優秀案例」。</p>`;return;}
+  if(bestOpen==null||!cur.best[bestOpen]){
+    $("#bestList").innerHTML=`<div class="blist">${cur.best.map((x,i)=>blistRow(i,{category:x.category,finding:x.brief},"openBest","delBest",x.people?`<span class="hint">${esc(x.people)}</span>`:"")).join("")}</div>`;
+    return;
+  }
+  const i=bestOpen,x=cur.best[i];
+  $("#bestList").innerHTML=`<div class="item" id="best-${i}"><div class="ih"><button class="btn sm" type="button" onclick="backBest()">← 返回清單</button>　優良案例 No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
     <div class="fgrid"><label>分類 Category<input type="text" value="${esc(x.category)}" placeholder="例：作業記錄、壓載水記錄" oninput="setB(${i},'category',this.value)"></label>
     <div class="fld" style="grid-column:span 2">涉及人員（姓名／職務）
       ${bestPersons(x).map((p,j)=>`<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:6px"><input type="text" value="${esc(p.name)}" placeholder="姓名" oninput="setBP(${i},${j},'name',this.value)">${rankSelect(p.rank,`setBP(${i},${j},'rank',this.value)`)}<button class="btn sm danger" type="button" title="移除這位人員" onclick="delBP(${i},${j})">×</button></div>`).join("")}
       <div><button class="btn sm" type="button" onclick="addBP(${i})">＋ 新增人員</button></div></div>
     <label class="fw">描述 Brief<textarea oninput="setB(${i},'brief',this.value)">${esc(x.brief)}</textarea></label>
-    <div class="fld fw">案例照片 Photos${phHtml("best",i,0)}</div></div></div>`).join(""):`<p class="hint">尚無優良案例；這些會匯入系統的「正面評價／優秀案例」。</p>`;
+    <div class="fld fw">案例照片 Photos${phHtml("best",i,0)}</div></div></div>`;
 }
 /* 缺失明細：依檢查種類分頁 */
 /* 已填項目摘要：優良案例、各檢查種類缺失（有主題的列出各主題筆數）、船舶訴求／建議 */
@@ -679,13 +710,19 @@ function updateCounts(){
   const ds=cur.defs,n=k=>ds.filter(d=>d.closeMode===k).length;
   $("#cFlow").textContent=n("FLOW");$("#cIc").textContent=n("內控");$("#cSys").textContent=n("系統內結案");$("#cNone").textContent=ds.filter(d=>!d.closeMode).length;
 }
-function setTab(k){collect();activeTab=k;renderDefs();}
+let defOpen=null; // null＝清單模式；數字＝正在展開編輯的缺失（cur.defs 的全域索引）
+function setTab(k){collect();activeTab=k;defOpen=null;renderDefs();}
+function openDef(i){collect();defOpen=i;renderDefs();}
+function backDef(){collect();defOpen=null;renderDefs();}
 function addDef(){
   if(!activeTab){toast("⚠ 請先在「① 檢查基本資料」勾選檢查種類",true);return;}
-  collect();cur.defs.push(blankDef(activeTab));renderDefs();updateCounts();
-  setTimeout(()=>{const el=$("#def-"+(cur.defs.length-1));if(el)el.scrollIntoView({behavior:"smooth",block:"center"});},50);
+  collect();cur.defs.push(blankDef(activeTab));defOpen=cur.defs.length-1;renderDefs();updateCounts();
 }
-function delDef(i){if(!confirm("刪除這筆缺失？"))return;collect();cur.defs.splice(i,1);renderDefs();updateCounts();}
+function delDef(i){
+  if(!confirm("刪除這筆缺失？"))return;collect();cur.defs.splice(i,1);
+  if(defOpen===i)defOpen=null;else if(defOpen!=null&&defOpen>i)defOpen--;
+  renderDefs();updateCounts();
+}
 function setTopic(i,v){collect();cur.defs[i].topic=v;if(v!=="其他")cur.defs[i].topicOther="";renderDefs();updateCounts();}
 function setD(i,f,v){cur.defs[i][f]=v;if(f==="topic")updateCounts();}
 function setIcCat(i,v){const d=cur.defs[i];d.icCategory=v;if(!isEquipFault(v))d.icEquip="";collect();renderDefs();}
@@ -713,7 +750,7 @@ function setMode(i,k){
 }
 /* 缺失明細上方：結案方式快捷篩選（哪些進 FLOW／內控／系統內結案）＋缺失號碼跳轉標籤 */
 let defFilter="";
-function setDefFilter(k){collect();defFilter=(defFilter===k?"":k);renderDefs();}
+function setDefFilter(k){collect();defFilter=(defFilter===k?"":k);defOpen=null;renderDefs();}
 function renderDefNav(){
   const box=$("#defNav");if(!box)return;
   if(!activeTab){box.innerHTML="";return;}
@@ -725,7 +762,7 @@ function renderDefNav(){
   box.innerHTML=`<div class="cchips" style="margin-bottom:8px"><span class="hint" style="font-weight:700">結案方式篩選</span>
     <button type="button" class="fchip ${defFilter===""?"on":""}" onclick="setDefFilter('')">全部<b>${idxs.length}</b></button>
     ${chip("FLOW","FLOW 系統","flow")}${chip("內控","內控","ic")}${chip("系統內結案","系統內結案","sys")}${chip("none","尚未選擇","none")}</div>
-    <div class="qnav" style="margin:0">${shown.map(i=>{const d=cur.defs[i],m=modeOf(d.closeMode);return `<a class="${m?"m-"+m.cls:"m-none"}" title="${esc((d.category||"")+" "+(m?m.label:"尚未選結案方式"))}" onclick="jumpTo('def-${i}')">#${idxs.indexOf(i)+1}</a>`;}).join("")}</div>`;
+    <div class="qnav" style="margin:0">${shown.map(i=>{const d=cur.defs[i],m=modeOf(d.closeMode);return `<a class="${m?"m-"+m.cls:"m-none"} ${defOpen===i?"on":""}" title="${esc((d.category||"")+" "+(m?m.label:"尚未選結案方式"))}" onclick="openDef(${i})">#${idxs.indexOf(i)+1}</a>`;}).join("")}</div>`;
 }
 function renderDefs(){
   const tabs=cur.types;
@@ -735,12 +772,26 @@ function renderDefs(){
   const allIdxs=cur.defs.map((d,i)=>i).filter(i=>cur.defs[i].type===activeTab);
   const idxs=allIdxs.filter(i=>!defFilter||(defFilter==="none"?!cur.defs[i].closeMode:cur.defs[i].closeMode===defFilter));
   renderDefNav();
-  $("#defList").innerHTML=idxs.length?idxs.map(i=>{const seq=allIdxs.indexOf(i);
+  if(!idxs.length){
+    $("#defList").innerHTML=activeTab?`<p class="hint">這個分頁還沒有缺失，請按右上「＋ 新增一筆缺失」。</p>`:"";
+    return;
+  }
+  if(defOpen==null||!idxs.includes(defOpen)){
+    // 清單模式：一行一筆，點了或按「✎ 編輯」才展開完整表單
+    $("#defList").innerHTML=`<div class="blist">${idxs.map(i=>{
+      const d=cur.defs[i],m=modeOf(d.closeMode);
+      const badges=`${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">${esc(d.risk)}</span>`:""}${m?`<span class="mode ${m.cls}">${esc(m.label)}</span>`:'<span class="hint">未選結案方式</span>'}`;
+      return blistRow(i,d,"openDef","delDef",badges);
+    }).join("")}</div>`;
+    return;
+  }
+  {
+    const i=defOpen,seq=allIdxs.indexOf(i);
     const d=cur.defs[i],m=modeOf(d.closeMode);
     const topicCtl=td&&td.topics?`<label>${esc(td.topicLabel)}（選填）<select data-f="topic" onchange="setTopic(${i},this.value)"><option value="">（不特別標註）</option>${td.topics.map(t=>`<option ${d.topic===t?"selected":""}>${esc(t)}</option>`).join("")}</select>${d.topic==="其他"?`<input type="text" data-f="topicOther" value="${esc(d.topicOther||"")}" placeholder="請說明是哪一類" oninput="setD(${i},'topicOther',this.value)">`:""}</label>`
       :`<label>主題（選填）<input type="text" data-f="topic" value="${esc(d.topic)}" placeholder="例：靜態航行評估" oninput="setD(${i},'topic',this.value)"></label>`;
-    return `<div class="item ${m?"m-"+m.cls:""}" id="def-${i}">
-      <div class="ih">${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
+    $("#defList").innerHTML=`<div class="item ${m?"m-"+m.cls:""}" id="def-${i}">
+      <div class="ih"><button class="btn sm" type="button" onclick="backDef()">← 返回清單</button>　${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
       <div class="drow">
         <div class="c1">
           ${topicCtl}
@@ -768,7 +819,8 @@ function renderDefs(){
             <div class="checks" style="align-self:end;margin-bottom:6px"><label><input type="checkbox" ${d.icAware?"checked":""} onchange="setD(${i},'icAware',this.checked)"> 標記為知曉事項</label><label><input type="checkbox" ${d.icKey?"checked":""} onchange="setD(${i},'icKey',this.checked)"> 同步到要事</label></div>
             <div class="fld fw">涉及部門 <span class="req">*</span><div class="checks" data-f="icDepts">${IC_DEPTS.map(n=>`<label><input type="checkbox" ${(d.icDepts||[]).includes(n)?"checked":""} onchange="toggleDept(${i},'${n}',this.checked)"> ${n}</label>`).join("")}</div></div>
           </div></div>`:""}
-      </div>`;}).join(""):(activeTab?`<p class="hint">這個分頁還沒有缺失，請按右上「＋ 新增一筆缺失」。</p>`:"");
+      </div>`;
+  }
 }
 /* ══════ 批量新增缺失：大表格一列一筆，填完一次加入目前分頁的檢查種類 ══════ */
 let batch=null;
@@ -824,7 +876,7 @@ function confirmBatch(){
     if(r.closeMode==="內控")d.icLevel=r.risk||"";
     cur.defs.push(d);
   });
-  closeBatch();renderDefs();updateCounts();
+  closeBatch();defOpen=null;renderDefs();updateCounts();
   const nIc=rows.filter(r=>r.closeMode==="內控").length;
   toast(`✓ 已加入 ${rows.length} 筆缺失`+(missing?`；其中 ${missing} 筆還有必填欄位沒填，送出前會提醒`:"")+(nIc?`；${nIc} 筆「內控」記得補內控欄位`:""));
 }
@@ -865,8 +917,14 @@ function showErrors(errs){
   const box=$("#errBox");
   if(!errs.length){box.style.display="none";return;}
   box.innerHTML=`<b>送出前檢查：共 ${errs.length} 個項目需要補齊</b><br>${errs.map(e=>"・"+esc(e.msg)).join("<br>")}`;box.style.display="";
-  // 錯誤分散在不同檢查種類分頁時，只標示目前分頁看得到的欄位；點到有錯誤的分頁就會看到紅框
-  const first=errs[0];if(first.tab&&first.tab!==activeTab){activeTab=first.tab;renderDefs();}
+  // 錯誤分散在不同檢查種類分頁、或缺失清單目前收合著時，只標示「目前展開看得到」的欄位；
+  // 這裡先把第一個錯誤所屬的分頁／項目切換／展開好，才看得到紅框（其餘錯誤要修完第一個、
+  // 重新送出後才會依序展開，逐筆修比較不會眼花，錯誤清單本身仍會一次列出全部）。
+  const first=errs[0];let needRender=false;
+  if(first.tab&&first.tab!==activeTab){activeTab=first.tab;defOpen=null;needRender=true;}
+  const dm=first.sel&&first.sel.match(/^#def-(\d+)/);
+  if(dm&&defOpen!==+dm[1]){defOpen=+dm[1];defFilter="";needRender=true;}
+  if(needRender)renderDefs();
   if(first.sel){const want=/^#(def-|defTabs)/.test(first.sel)?"defs":/^#(fShipSel|fDateFrom|fInspector|fPsn|typeBox)$/.test(first.sel)?"basic":null;if(want&&secTab!==want)setSec(want);}
   errs.forEach(e=>{if(e.tab&&e.tab!==activeTab)return;const el=e.sel&&document.querySelector(e.sel);if(el)el.classList.add("bad");});
   const el=first.sel&&document.querySelector(first.sel);(el||box).scrollIntoView({behavior:"smooth",block:"center"});
