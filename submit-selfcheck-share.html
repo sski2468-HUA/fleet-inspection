@@ -45,6 +45,8 @@ textarea,input[type=text],select{padding:9px 10px;border:1px solid var(--line-2)
 .detailwrap.show{display:block}
 .nawrap{display:none;margin-top:10px}
 .nawrap.show{display:block}
+.closewrap{display:none;margin-top:8px}
+.closewrap.show{display:block}
 label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px 0 4px}
 .closedrow{display:flex;align-items:center;gap:8px;margin-top:10px;background:#fdf2e0;border:1px solid #f0dba9;border-radius:8px;padding:10px 12px}
 .modebar{display:flex;gap:8px;flex-wrap:wrap}
@@ -433,7 +435,7 @@ async function loadOrCreateResponse(ship){
   // 其餘題目（含合併分享時「其他船」的題目）正常待答，仍可改選其他答案。
   const items=(campaign.items||[]).map(it=>{
     const selfSrc=srcShipOf(it)===ship;
-    return {...it,status:selfSrc?"self":"pending",note:"",actual:"",naNote:"",closed:false,checkedAt:"",checkedBy:""};
+    return {...it,status:selfSrc?"self":"pending",note:"",actual:"",naNote:"",closed:false,closeNote:"",closedAt:"",checkedAt:"",checkedBy:""};
   });
   const body=[{id:Date.now()+Math.floor(Math.random()*1000),campaign_id:+CID,ship,checker_name:getCheckerName(),checker_title:getCheckerTitle(),items,submit_count:0,history:[],updated_at:Date.now()}];
   const created=await api(RESPONSE_TABLE,{method:"POST",headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(body)});
@@ -486,12 +488,12 @@ async function exportExcel(){
   ]);
   wsBase["!cols"]=[{wch:22},{wch:50}];
   XLSX.utils.book_append_sheet(wb,wsBase,"基本資料");
-  const rows=[["編號","CODE","來源檢查","缺失內容","實際情況（來源）","本船查核結果","本船實際狀況","打算怎麼處理","是否結案","回答人","回答日期"]];
+  const rows=[["編號","CODE","來源檢查","缺失內容","實際情況（來源）","本船查核結果","本船實際狀況","打算怎麼處理","是否結案","改善情形說明","結案日期","追蹤期限","回答人","回答日期"]];
   d.items.forEach((it,i)=>{
-    rows.push([i+1,it.code||"",fmtSrc(it.src),it.detail||"",it.actual2||"",ST_LABEL_DL[it.status||"pending"],it.note||it.naNote||"",it.actual||"",it.status==="similar"?(it.closed?"已結案":"未結案"):"",it.checkedBy||"",it.checkedAt||""]);
+    rows.push([i+1,it.code||"",fmtSrc(it.src),it.detail||"",it.actual2||"",ST_LABEL_DL[it.status||"pending"],it.note||it.naNote||"",it.actual||"",it.status==="similar"?(it.closed?"已結案":"未結案"):"",it.closeNote||"",it.closedAt||"",it.trackDue||"",it.checkedBy||"",it.checkedAt||""]);
   });
   const wsDef=XLSX.utils.aoa_to_sheet(rows);
-  wsDef["!cols"]=[{wch:6},{wch:12},{wch:22},{wch:40},{wch:40},{wch:14},{wch:30},{wch:30},{wch:10},{wch:10},{wch:12}];
+  wsDef["!cols"]=[{wch:6},{wch:12},{wch:22},{wch:40},{wch:40},{wch:14},{wch:30},{wch:30},{wch:10},{wch:30},{wch:12},{wch:12},{wch:10},{wch:12}];
   XLSX.utils.book_append_sheet(wb,wsDef,"缺失明細");
   const fname=`分享自查_${d.ship}_${(d.title||"").replace(/[\\/:*?"<>|]/g,"_")}_${todayStr()}.xlsx`;
   XLSX.writeFile(wb,fname);
@@ -538,6 +540,7 @@ function itemCardHtml(it,i){
     <div class="itemcard gh" data-idx="${i}" id="item-${i}">
       <div><span class="num">#${i+1}</span><b>${esc(it.code?("CODE "+it.code):"")}</b>${srcTag(it)}</div>
       ${renderRef(it)}
+      ${it.trackDue?`<div class="hint" style="color:var(--warn)">🗓 督導設定的追蹤期限：${esc(it.trackDue)}</div>`:""}
       <p style="font-weight:700;margin:10px 0 4px">❓ 本船目前有同樣或類似的情形嗎？</p>
       <div class="statusrow">
         <button type="button" class="statusbtn ${it.status==='ok'?'on ok':''}" onclick="setStatus(${i},'ok')">✅ 沒有</button>
@@ -554,6 +557,12 @@ function itemCardHtml(it,i){
         <div class="closedrow">
           <input type="checkbox" id="closed-${i}" ${it.closed?"checked":""} onchange="onClosedChange(${i},this.checked)" style="width:18px;height:18px">
           <label for="closed-${i}" style="margin:0">✓ 已完成改善（結案）</label>
+        </div>
+        <div class="closewrap ${it.closed?'show':''}" id="closewrap-${i}">
+          <label>改善情形說明</label>
+          <textarea data-idx="${i}" data-field="closeNote" oninput="onFieldInput(this)">${esc(it.closeNote||"")}</textarea>
+          <label>結案日期</label>
+          <input type="date" data-idx="${i}" data-field="closedAt" value="${esc(it.closedAt||"")}" onchange="onFieldInput(this)">
         </div>
       </div>
       <div class="nawrap ${it.status==='na'?'show':''}" id="na-${i}">
@@ -684,9 +693,13 @@ function onFieldInput(ta){
 function onClosedChange(i,checked){
   const it=(draft.items||[])[i];if(!it)return;
   it.closed=checked;
+  if(checked&&!it.closedAt)it.closedAt=todayIsoDate(); // 勾結案當下沒填過日期就先帶今天，仍可自行改
+  const cw=document.getElementById("closewrap-"+i);
+  if(cw){cw.classList.toggle("show",checked);const d=cw.querySelector('input[type="date"]');if(d)d.value=it.closedAt||"";}
   scheduleAutoSave();
   renderWrapup();
 }
+function todayIsoDate(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
 
 function scheduleAutoSave(){
   dirty=true;

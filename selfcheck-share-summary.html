@@ -53,6 +53,10 @@ tr.done td{background:#eaf5ee}
 .kpi{background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
 .kpi .v{font-size:20px;font-weight:700;color:var(--navy)}
 .kpi .l{font-size:11px;color:var(--ink-3)}
+.modal-bg{position:fixed;inset:0;background:rgba(15,30,45,.45);display:none;align-items:center;justify-content:center;z-index:200;padding:16px}
+.modal-bg.show{display:flex}
+.modal-box{background:#fff;border-radius:10px;max-width:560px;width:100%;padding:18px;max-height:86vh;display:flex;flex-direction:column}
+.modal-box textarea{flex:1;min-height:260px;font-family:var(--sans);font-size:13px;padding:10px;border:1px solid var(--line-2);border-radius:8px;resize:vertical;line-height:1.6}
 #printArea{display:none}
 @media print{
   #mainWrap,#toast{display:none!important}
@@ -122,6 +126,23 @@ tr.done td{background:#eaf5ee}
           <tbody id="tbody"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- 提醒追蹤：內容可自行編輯，編輯完按「複製內容」貼到 Email／通訊軟體發給船上 -->
+<div class="modal-bg" id="trackModal">
+  <div class="modal-box">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <b style="font-size:15px;color:var(--navy)">🔔 提醒追蹤（<span id="trackModalShip"></span>）</b>
+      <span style="flex:1"></span>
+      <button class="btn sm" onclick="closeTrackReminder()">✕</button>
+    </div>
+    <p class="hint" style="margin:0 0 8px">內容可自行編輯，編輯後按「複製內容」貼到 Email／通訊軟體發給船上。</p>
+    <textarea id="trackModalText"></textarea>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn" onclick="closeTrackReminder()">取消</button>
+      <button class="btn primary" onclick="copyTrackReminder()">📋 複製內容</button>
     </div>
   </div>
 </div>
@@ -351,6 +372,7 @@ function renderTable(){
         <td style="white-space:nowrap">
           ${resp?`<button class="btn sm" onclick="toggleDetail('${esc(s.code)}')">📄 明細</button>`:""}
           <a class="btn sm" href="${editUrl}" target="_blank" rel="noopener">✎ 填答</a>
+          ${st.openTrack?`<button class="btn sm" style="border-color:var(--warn);color:#a05a10" onclick="openTrackReminder('${esc(s.code)}')" title="編輯內容後複製，發給船上追蹤這幾項是否已改善">🔔 提醒追蹤</button>`:""}
           ${resp?`<button class="btn sm" style="color:var(--bad);border-color:var(--bad)" onclick="deleteResponse('${esc(s.code)}')" title="刪除這艘船在本活動的填答內容">🗑</button>`:""}
         </td>
       </tr>
@@ -393,7 +415,7 @@ function collectReport(){
       needN:similar.length,openN:similar.filter(it=>!it.closed).length});
     similar.forEach(it=>issues.push({code:s.code,name:s.name||"",checker:resp.checker_name||"",title:resp.checker_title||"",
       itemCode:it.code||"",src:it.src||"",detail:it.detail||"",actual2:it.actual2||"",note:it.note||"",handle:it.actual||"",
-      closed:it.closed?"已結案":"未結案"}));
+      closed:it.closed?"已結案":"未結案",closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
   });
   return {status,issues};
 }
@@ -405,8 +427,8 @@ function exportExcel(){
   const ws1=XLSX.utils.json_to_sheet(status.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"填答進度":r.progress,"狀態":r.state,"送出次數":r.submitCount,"最後送出":r.submittedAt,"需處理項數":r.needN,"未結案數":r.openN})));
   ws1["!cols"]=[8,14,12,12,10,9,8,20,10,9].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws1,"船隊完成狀況");
-  const ws2=XLSX.utils.json_to_sheet(issues.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"CODE":r.itemCode,"來源檢查":fmtSrc(r.src),"缺失內容":r.detail,"來源實際情況":r.actual2,"本船實際狀況":r.note,"處理情況":r.handle,"結案狀態":r.closed})));
-  ws2["!cols"]=[8,14,12,12,10,20,40,36,36,36,9].map(w=>({wch:w}));
+  const ws2=XLSX.utils.json_to_sheet(issues.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"CODE":r.itemCode,"來源檢查":fmtSrc(r.src),"缺失內容":r.detail,"來源實際情況":r.actual2,"本船實際狀況":r.note,"處理情況":r.handle,"結案狀態":r.closed,"改善情形說明":r.closeNote,"結案日期":r.closedAt,"追蹤期限":r.trackDue})));
+  ws2["!cols"]=[8,14,12,12,10,20,40,36,36,36,9,36,12,12].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws2,"需處理項目");
   XLSX.writeFile(wb,`分享自查彙整_${(curCampaign.title||curCampaign.id).replace(/[\\/:*?"<>|]/g,"_")}_${new Date().toISOString().slice(0,10)}.xlsx`);
   notify(`✓ 已下載 Excel（${status.length} 艘船、${issues.length} 項需處理）`,"ok2");
@@ -448,12 +470,48 @@ function toggleDetail(ship){
           ${it.note?`<div style="margin-top:2px"><b>本船實際狀況：</b>${esc(it.note)}</div>`:""}
           ${it.naNote?`<div style="margin-top:2px"><b>不適用原因：</b>${esc(it.naNote)}</div>`:""}
           ${it.actual?`<div><b>打算怎麼處理：</b>${esc(it.actual)}</div>`:""}
+          ${it.closeNote?`<div style="margin-top:2px"><b>改善情形說明：</b>${esc(it.closeNote)}</div>`:""}
+          ${it.closed&&it.closedAt?`<div class="hint">結案日期：${esc(it.closedAt)}</div>`:""}
+          ${it.status==="similar"?`<div style="margin-top:6px;display:flex;align-items:center;gap:6px">
+            <label class="hint" style="margin:0">🗓 追蹤期限：</label>
+            <input type="date" value="${esc(it.trackDue||"")}" onchange="setTrackDue('${esc(ship)}',${i},this.value)" style="width:150px;padding:4px 6px;font-size:12px;border:1px solid var(--line-2);border-radius:6px">
+          </div>`:""}
           ${it.checkedBy?`<div class="hint">最後回答：${esc(it.checkedBy)}　${esc(it.checkedAt||"")}</div>`:""}
         </div>
       `).join("")}
     </div>
   `;
   row.classList.add("show");
+}
+/* 追蹤期限：督導／海技在這裡直接設定或修改，寫回這艘船的填答（items 是整包 jsonb，改單一題就整包存回）。
+   船上那邊看得到但不能改，只是提醒用，真正的期限由這裡掌握。 */
+async function setTrackDue(ship,i,val){
+  const resp=responses.find(r=>r.ship===ship);if(!resp)return;
+  const items=resp.items||[];if(!items[i])return;
+  items[i].trackDue=val;
+  try{
+    await api(`${RESPONSE_TABLE}?id=eq.${resp.id}`,{method:"PATCH",headers:authHeaders({"Prefer":"return=minimal"}),body:JSON.stringify({items,updated_at:Date.now()})});
+    notify(val?"✓ 已設定追蹤期限":"✓ 已清除追蹤期限","ok2");
+    const ar=allResponses.find(r=>r.id===resp.id);if(ar)ar.items=items;
+  }catch(e){notify("⚠ 更新失敗："+e.message,"err");}
+}
+/* 提醒追蹤：把這艘船目前「有，需處理」且未結案的項目整理成一段訊息（含填答連結），
+   內容可在跳出的視窗裡自行編輯，編輯後按「複製內容」貼到 Email／通訊軟體發給船上。 */
+function buildReminderText(ship){
+  const resp=responses.find(r=>r.ship===ship);
+  const open=((resp&&resp.items)||[]).map((it,i)=>({it,i})).filter(x=>x.it.status==="similar"&&!x.it.closed);
+  const url=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(ship)}`;
+  const lines=open.map(({it,i})=>`#${i+1}　${it.code?"CODE "+it.code+"　":""}${it.detail||""}${it.trackDue?`（追蹤期限：${it.trackDue}）`:""}`);
+  return `【自查案件追蹤】${curCampaign.title||""}\n\n${ship} 您好，請查此自查項目類似情形是否已改善：\n\n${lines.join("\n\n")}\n\n若已改善，請點選下方連結進入，勾選「已完成改善（結案）」並說明改善情形、填上結案日期後送出；尚未改善的也請先填寫目前處理進度。\n\n連結：${url}`;
+}
+function openTrackReminder(ship){
+  document.getElementById("trackModalShip").textContent=ship;
+  document.getElementById("trackModalText").value=buildReminderText(ship);
+  document.getElementById("trackModal").classList.add("show");
+}
+function closeTrackReminder(){document.getElementById("trackModal").classList.remove("show");}
+function copyTrackReminder(){
+  safeCopyText(document.getElementById("trackModalText").value,"✓ 已複製，請貼到 Email／通訊軟體發送");
 }
 
 loadCampaignList();
