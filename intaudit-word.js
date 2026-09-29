@@ -6,7 +6,8 @@ const TYPE_DEFS=[
   {k:"Internal audit",label:"內稽",en:"Internal Audit",section:"內稽缺失",topicLabel:"內稽區域／類別",topics:["甲板","機艙","ISM","MLC","ISPS","其他"]},
   {k:"ACCOMPANYING SHIP",label:"隨船",en:"On-Voyage Audit",section:"隨船缺失",topicLabel:"隨船主題評估表",
    topics:["SAR-FM21 動態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表","其他"]},
-  {k:"Cross ship visit",label:"交叉訪船",en:"Cross Visit",section:"交叉訪船缺失",topicLabel:"",topics:null},
+  {k:"Cross ship visit",label:"交叉訪船",en:"Cross Visit",section:"交叉訪船缺失",topicLabel:"訪船主題評估表",
+   topics:["SAR-FM20 靜態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表","其他"]},
   {k:"主題檢查",label:"主題檢查",en:"Topic Audit",section:"主題檢查缺失",topicLabel:"",topics:null}
 ];
 /* 主題顯示文字：選「其他」時附上使用者輸入的說明 */
