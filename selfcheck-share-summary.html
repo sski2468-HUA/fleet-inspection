@@ -31,6 +31,9 @@ input[type=text],input[type=password],select{padding:9px 10px;border:1px solid v
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
 th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2);position:sticky;top:0}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{background:#e4e9ec}
+th.sortable.sorted{color:var(--navy);background:#e4e9ec}
 tr.track td{background:#fff4e8}
 tr.done td{background:#eaf5ee}
 .pill{display:inline-block;border-radius:20px;padding:1px 9px;font-size:11px;font-weight:700}
@@ -252,13 +255,36 @@ function showListView(){
   document.getElementById("detailView").style.display="none";
   renderListView();
 }
+/* 活動列表排序：點表頭切排序欄位，同一欄再點一次反轉方向。排序只影響顯示順序，
+   不影響資料本身；每次重新整理（loadCampaignList）沿用上次選的排序條件。 */
+let listSort={key:"created_at",dir:-1};
+const LIST_SORT_COLS={
+  title:{label:"活動",get:(c,st)=>c.title||("活動 #"+c.id)},
+  created_at:{label:"建立",get:(c,st)=>c.created_at||0},
+  active:{label:"狀態",get:(c,st)=>c.active===false?0:1},
+  started:{label:"已開始/應填",get:(c,st)=>st.total?st.started/st.total:st.started},
+  submitted:{label:"已送出",get:(c,st)=>st.submitted},
+  track:{label:"需追蹤",get:(c,st)=>st.track}
+};
+function sortListBy(key){
+  if(listSort.key===key)listSort.dir=-listSort.dir;
+  else listSort={key,dir:key==="title"?1:-1}; // 文字欄位預設 A→Z，數字／日期欄位預設由大到小
+  renderListView();
+}
 function renderListView(){
   document.getElementById("campaignCount").textContent=campaigns.length;
   const box=document.getElementById("campaignList");
   if(!campaigns.length){ box.innerHTML=`<p class="hint" style="text-align:center;padding:20px">目前沒有任何分享自查活動，請在填單審核頁按「📤 建立分享自查連結」建立一個。</p>`; return; }
-  box.innerHTML=`<table><thead><tr><th>活動</th><th style="width:150px">建立</th><th style="width:74px">狀態</th><th style="width:100px">已開始/應填</th><th style="width:64px">已送出</th><th style="width:110px">需追蹤</th><th style="width:380px">操作</th></tr></thead><tbody>
-    ${campaigns.map(c=>{
-      const st=campaignStats(c);
+  const withStats=campaigns.map(c=>({c,st:campaignStats(c)}));
+  const col=LIST_SORT_COLS[listSort.key]||LIST_SORT_COLS.created_at;
+  withStats.sort((a,b)=>{
+    const va=col.get(a.c,a.st),vb=col.get(b.c,b.st);
+    const cmp=typeof va==="string"?va.localeCompare(vb,"zh-Hant"):va-vb;
+    return cmp*listSort.dir;
+  });
+  const th=(key,label,style)=>{const on=listSort.key===key;return `<th${style?` style="${style}"`:""} class="sortable${on?" sorted":""}" onclick="sortListBy('${key}')">${label}${on?(listSort.dir>0?" ▲":" ▼"):""}</th>`;};
+  box.innerHTML=`<table><thead><tr>${th("title","活動")}${th("created_at","建立","width:150px")}${th("active","狀態","width:74px")}${th("started","已開始/應填","width:100px")}${th("submitted","已送出","width:64px")}${th("track","需追蹤","width:110px")}<th style="width:380px">操作</th></tr></thead><tbody>
+    ${withStats.map(({c,st})=>{
       const ended=c.active===false;
       return `<tr class="${st.track?'track':''}">
         <td><b>${esc(c.title||("活動 #"+c.id))}</b><div class="hint">共 ${(c.items||[]).length} 項查核項目</div></td>
