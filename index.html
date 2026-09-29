@@ -13661,6 +13661,19 @@ const Defs={
       const n=(d.photosBefore||[]).length+(d.photosAfter||[]).length;
       return `<td class="col-narrow">${n?photoStripHtml(d,"defsgrid_"+d.id):`<span class="hint">—</span>`}</td>`;
     }},
+    /* 內部檢查缺失登錄匯入的這幾筆才會有值：結案方式（FLOW／內控／系統內結案，登錄單當時選的）、
+       是否已由海技審核船上回報結案。FLOW 的缺失沒有回報流程，這裡固定顯示「FLOW，船上自行填單」。 */
+    {k:"intAuditCloseMode",t:"內部檢查-結案方式",sort:true,def:false,cell:d=>{
+      if(!d.intAuditId)return `<td class="col-narrow"><span class="hint">—</span></td>`;
+      const m=d.intAuditCloseMode;
+      return `<td class="col-narrow">${m?`<span class="st ${m==="FLOW"?"st-none":m==="內控"?"st-md":"st-lo"}">${esc(m)}</span>`:'<span class="hint">—</span>'}</td>`;
+    }},
+    {k:"intAuditStatus",t:"內部檢查-結案狀態",sort:true,def:false,cell:d=>{
+      if(!d.intAuditId)return `<td class="col-narrow"><span class="hint">—</span></td>`;
+      if(d.intAuditCloseMode==="FLOW")return `<td class="col-narrow"><span class="hint">FLOW，船上自行填單</span></td>`;
+      if(d.intAuditStatus==="已結案")return `<td class="col-narrow"><span class="st st-lo">✓ 已結案 ${esc(d.intAuditCorrectedDate||"")}</span><div class="hint">${esc(d.intAuditReplyBy||"")}</div></td>`;
+      return `<td class="col-narrow"><span class="st st-md">待船上回報／審核</span></td>`;
+    }},
   ],
   VISKEY:"vsm_defcols_vis_v3",
   visible:null,
