@@ -438,7 +438,7 @@ function expandAll(on){expanded.clear();if(on)Store.rows.forEach(r=>expanded.add
 function jumpTo(id){const el=document.getElementById(id);if(!el)return;el.scrollIntoView({behavior:"smooth",block:"start"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash");}
 function editDef(rid,i){
   const r=Store.rows.find(x=>x.id===rid);if(!r||!r.defs[i])return;
-  cur=JSON.parse(JSON.stringify(r));activeTab=cur.defs[i].type;bestOpen=null;defOpen=[i];defFilter=""; // 清掉舊的結案方式篩選，避免這筆缺失剛好被篩掉、又退回清單模式
+  cur=JSON.parse(JSON.stringify(r));activeTab=cur.defs[i].type;bestOpen=[];defOpen=[i];defFilter=""; // 清掉舊的結案方式篩選，避免這筆缺失剛好被篩掉、又退回清單模式
   if(!cur.types.includes(activeTab))cur.types.push(activeTab);
   openForm("defs");
 }
@@ -581,8 +581,8 @@ const blankDef=type=>({uid:newUid(),type,topic:"",category:"",risk:"",reported:c
   closeMode:"",status:"",icLevel:"",icCategory:"",icEquip:"",icDepts:[],icDue:"",icAware:false,icKey:false});
 const blank=()=>({id:null,ship:"",dateFrom:todayIso(),dateTo:"",inspector:"",psn:"",types:[],master:"",co:"",ce:"",e2:"",overall:"",
   top4:{photos:[],cap:""},goodCrew:[],poorCrew:[],best:[],defs:[],sugg:[],draft:true,specialSarForm:""});
-function newForm(){cur=blank();activeTab=null;curSrv=null;bestOpen=null;defOpen=[];openForm();}
-function editRec(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;cur=JSON.parse(JSON.stringify(r));curSrv=Store.srvOf[id]!=null?Store.srvOf[id]:null;activeTab=(cur.types||[])[0]||null;bestOpen=null;defOpen=[];openForm();}
+function newForm(){cur=blank();activeTab=null;curSrv=null;bestOpen=[];defOpen=[];openForm();}
+function editRec(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;cur=JSON.parse(JSON.stringify(r));curSrv=Store.srvOf[id]!=null?Store.srvOf[id]:null;activeTab=(cur.types||[])[0]||null;bestOpen=[];defOpen=[];openForm();}
 /* ②～⑤ 分頁：一次只開一個區塊來編輯 */
 let secTab="basic";
 const SECS=[["basic","① 基本資料"],["overall","② 總體評價"],["best","③ 優良案例"],["defs","④ 缺失明細"],["sugg","⑤ 船舶訴求／建議"]];
@@ -738,11 +738,17 @@ function renderCrew(w){
     <textarea style="min-height:40px" placeholder="簡述" oninput="setCrew('${w}',${i},'brief',this.value)">${esc(x.brief)}</textarea>
     <button class="btn sm danger" type="button" onclick="delCrew('${w}',${i})">🗑</button></div>`).join(""):`<span class="hint" style="font-weight:400">${w==="good"?"尚未新增":"無則不必填（N/A）"}</span>`;
 }
-/* 優良案例 */
-let bestOpen=null; // null＝清單模式；數字＝正在展開編輯的優良案例索引
-function openBest(i){collect();bestOpen=i;renderBest();}
-function backBest(){collect();bestOpen=null;renderBest();}
-function addBest(){collect();cur.best.push({category:"",persons:[{name:"",rank:""}],people:"",rank:"",brief:"",photos:[]});bestOpen=cur.best.length-1;renderBest();updateCounts();}
+/* 優良案例：跟缺失明細同一套模式——空陣列＝清單模式，陣列裡放展開中的索引，
+   按「＋新增下一筆」接在目前已展開的下面繼續往下疊，跟缺失明細一致。 */
+let bestOpen=[];
+function openBest(i){collect();bestOpen=[i];renderBest();}
+function backBest(){collect();bestOpen=[];renderBest();}
+function addBest(){
+  collect();cur.best.push({category:"",persons:[{name:"",rank:""}],people:"",rank:"",brief:"",photos:[]});
+  const newIdx=cur.best.length-1;
+  bestOpen=(bestOpen&&bestOpen.length)?[...bestOpen,newIdx]:[newIdx];
+  renderBest();updateCounts();
+}
 /* 涉及人員：可有多位（姓名＋職務）；people／rank 兩個字串欄位由 persons 自動彙整，匯入主系統與舊資料沿用 */
 function bestPersons(x){if(!x.persons)x.persons=(x.people||x.rank)?[{name:x.people||"",rank:x.rank||""}]:[{name:"",rank:""}];return x.persons;}
 function syncBest(i){const x=cur.best[i],ps=bestPersons(x);x.people=ps.map(p=>p.name.trim()).filter(Boolean).join("、");x.rank=[...new Set(ps.map(p=>p.rank).filter(Boolean))].join("、");}
@@ -751,7 +757,7 @@ function addBP(i){collect();bestPersons(cur.best[i]).push({name:"",rank:""});syn
 function delBP(i,j){collect();const ps=bestPersons(cur.best[i]);ps.splice(j,1);if(!ps.length)ps.push({name:"",rank:""});syncBest(i);renderBest();}
 function delBest(i){
   if(!confirm("刪除這筆優良案例？"))return;collect();cur.best.splice(i,1);
-  if(bestOpen===i)bestOpen=null;else if(bestOpen!=null&&bestOpen>i)bestOpen--;
+  bestOpen=(bestOpen||[]).filter(x=>x!==i).map(x=>x>i?x-1:x);
   renderBest();updateCounts();
 }
 function setB(i,f,v){cur.best[i][f]=v;}
@@ -766,14 +772,19 @@ function blistRow(i,x,onOpen,onDel,badges,seq){
   </div>`;
 }
 function renderBest(){
-  $("#bestNav").innerHTML=cur.best.map((x,i)=>`<a class="${bestOpen===i?"on":""}" onclick="openBest(${i})" title="${esc(x.category||"")}">#${i+1}</a>`).join("");
+  const openIdxsNav=bestOpen||[];
+  $("#bestNav").innerHTML=cur.best.length?`<a class="${openIdxsNav.length?"":"on"}" title="列出所有優良案例（清單模式）" onclick="backBest()">📋 列表</a>`+cur.best.map((x,i)=>`<a class="${openIdxsNav.includes(i)?"on":""}" onclick="openBest(${i})" title="${esc(x.category||"")}">#${i+1}</a>`).join(""):"";
   if(!cur.best.length){$("#bestList").innerHTML=`<p class="hint">尚無優良案例；這些會匯入系統的「正面評價／優秀案例」。</p>`;return;}
-  if(bestOpen==null||!cur.best[bestOpen]){
+  const openIdxs=(bestOpen||[]).filter(i=>cur.best[i]);
+  if(!openIdxs.length){
     $("#bestList").innerHTML=`<div class="blist">${cur.best.map((x,i)=>blistRow(i,{category:x.category,finding:x.brief},"openBest","delBest",x.people?`<span class="hint">${esc(x.people)}</span>`:"")).join("")}</div>`;
     return;
   }
-  const i=bestOpen,x=cur.best[i];
-  $("#bestList").innerHTML=`<div class="item" id="best-${i}"><div class="ih"><button class="btn sm" type="button" onclick="backBest()">← 返回清單</button>　優良案例 No.${i+1}<span class="sp"></span><button class="btn sm primary" type="button" onclick="addBest()" title="儲存這筆目前的內容，直接新增下一筆繼續填">＋ 新增下一筆</button><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
+  $("#bestList").innerHTML=openIdxs.map(i=>bestCardHtml(i)).join("");
+}
+function bestCardHtml(i){
+  const x=cur.best[i];
+  return `<div class="item" id="best-${i}"><div class="ih"><button class="btn sm" type="button" onclick="backBest()">← 返回清單</button>　優良案例 No.${i+1}<span class="sp"></span><button class="btn sm primary" type="button" onclick="addBest()" title="直接新增下一筆繼續填，接在下面顯示">＋ 新增下一筆</button><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
     <div class="fgrid"><label>分類 Category<input type="text" value="${esc(x.category)}" placeholder="例：作業記錄、壓載水記錄" oninput="setB(${i},'category',this.value)"></label>
     <div class="fld" style="grid-column:span 2">涉及人員（姓名／職務）
       ${bestPersons(x).map((p,j)=>`<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:6px"><input type="text" value="${esc(p.name)}" placeholder="姓名" oninput="setBP(${i},${j},'name',this.value)">${rankSelect(p.rank,`setBP(${i},${j},'rank',this.value)`)}<button class="btn sm danger" type="button" title="移除這位人員" onclick="delBP(${i},${j})">×</button></div>`).join("")}
@@ -845,12 +856,8 @@ const cmNoteHtml=k=>k?`<div class="cmnote">${CLOSE_MODE_NOTE[k]}</div>`
   :`<div class="cmnote hint">尚未選擇：${Object.entries(CLOSE_MODE_NOTE).map(([k,v])=>`<div style="margin-top:4px">${v}</div>`).join("")}</div>`;
 function setMode(i,k){
   setTimeout(renderDefNav,0);
-  const was=cur.defs[i].closeMode;
   cur.defs[i].closeMode=k;
-  if(k==="內控"||was==="內控"){ // 內控才有「內控異常登錄資料」區塊，切換時重畫；關注程度預設帶入風險等級
-    if(k==="內控"&&!cur.defs[i].icLevel)cur.defs[i].icLevel=cur.defs[i].risk||"";
-    collect();renderDefs();updateCounts();return;
-  }
+  if(k==="內控"&&!cur.defs[i].icLevel)cur.defs[i].icLevel=cur.defs[i].risk||""; // 關注程度預設帶入風險等級，供之後匯入內控系統用；欄位本身不在這裡顯示
   const el=$("#def-"+i);
   if(el){el.classList.remove("m-flow","m-ic","m-sys");const m=modeOf(k);if(m)el.classList.add("m-"+m.cls);const rw=el.querySelector('[data-f="closeMode"]');if(rw)rw.classList.remove("bad");
     const nb=el.querySelector(".cmnote-box");if(nb)nb.innerHTML=cmNoteHtml(k);}
@@ -928,15 +935,6 @@ function defCardHtml(i,td,allIdxs){
           </div>
         </div>
       </div>
-        ${d.closeMode==="內控"?`<div class="fld fw" style="border:1px dashed var(--signal);border-radius:8px;padding:12px;background:#fffaf5"><b style="color:var(--navy)">內控異常登錄資料（船舶動態與早會待辦系統的欄位）</b>
-          <div class="fgrid" style="margin-top:8px">
-            <label>關注程度（選填，可等匯入內控系統後再選）<select data-f="icLevel" onchange="setD(${i},'icLevel',this.value)"><option value="">— 請選擇 —</option>${IC_LEVELS.map(s=>`<option ${d.icLevel===s?"selected":""}>${s}</option>`).join("")}</select></label>
-            <label>事件分類（選填，可等匯入內控系統後再選）<select data-f="icCategory" onchange="setIcCat(${i},this.value)"><option value="">— 請選擇 —</option>${IC_CATEGORIES.map(s=>`<option ${d.icCategory===s?"selected":""}>${esc(s)}</option>`).join("")}</select></label>
-            <label>設備故障細項<select data-f="icEquip" ${isEquipFault(d.icCategory)?"":"disabled"} onchange="setD(${i},'icEquip',this.value)"><option value="">${isEquipFault(d.icCategory)?"請選擇":"不適用"}</option>${IC_EQUIP.map(s=>`<option ${d.icEquip===s?"selected":""}>${esc(s)}</option>`).join("")}</select></label>
-            <label>期望完成日期／DL（選填）<input type="date" value="${esc(d.icDue)}" onchange="setD(${i},'icDue',this.value)"></label>
-            <div class="checks" style="align-self:end;margin-bottom:6px"><label><input type="checkbox" ${d.icAware?"checked":""} onchange="setD(${i},'icAware',this.checked)"> 標記為知曉事項</label><label><input type="checkbox" ${d.icKey?"checked":""} onchange="setD(${i},'icKey',this.checked)"> 同步到要事</label></div>
-            <div class="fld fw">涉及部門（選填，可等匯入內控系統後再選）<div class="checks" data-f="icDepts">${IC_DEPTS.map(n=>`<label><input type="checkbox" ${(d.icDepts||[]).includes(n)?"checked":""} onchange="toggleDept(${i},'${n}',this.checked)"> ${n}</label>`).join("")}</div></div>
-          </div></div>`:""}
       </div>`;
 }
 /* ══════ 批量新增缺失：大表格一列一筆，填完一次加入目前分頁的檢查種類 ══════ */
