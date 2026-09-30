@@ -19248,6 +19248,9 @@ const AuditDash={
     {k:"defCount",t:"缺失數"},{k:"closedOut",t:"結案"},{k:"cso",t:"CSO"},{k:"auditor",t:"稽核員"},{k:"remark",t:"備註"}
   ],
   ms:{},sortKey:"schedMonth",sortAsc:true,
+  schedAsc:true,unschedAsc:true, // 分區檢視「已進入排程／未排程」各自獨立的排序方向，不跟全域 sortKey 共用
+  sortSched(){this.schedAsc=!this.schedAsc;this.render();},
+  sortUnsched(){this.unschedAsc=!this.unschedAsc;this.render();},
   _nextIdCache:null,_remarkRowId:null,_dateRowId:null,_dateField:null,
   updatedAt:null,
   nextId(){
@@ -19723,9 +19726,11 @@ const AuditDash={
     const box=$("#ad-groupedview");if(!box)return;
     const groups={scheduled:[],unscheduled:[],done_open:[],done_closed:[]};
     rows.forEach(r=>groups[this.schedStatus(r)].push(r));
-    // 「已進入排程」「未排程」這兩區是實際要盯進度用的工作清單，固定用各自最有意義的日期
-    // 排序（不跟著上面表頭點選的全域排序欄位走）：已排程＝依計畫檢查日由近到遠（越快到的越上面）；
-    // 未排程＝依上次稽核日由近到遠（最近才查過的在上面、隔最久沒查的在下面）。沒有日期的排最後。
+    // 「已進入排程」「未排程」這兩區是實際要盯進度用的工作清單，各自固定用最有意義的日期欄位
+    // 排序，不跟著上面表頭點選的全域排序欄位走；但各自那個日期欄位的表頭仍可點選切換方向
+    // （AuditDash.sortSched()／sortUnsched()，各自獨立，不影響對方或其他兩區）。
+    // 已排程＝預設依計畫檢查日由近到遠（越快到的越上面）；未排程＝預設依上次稽核日由舊到新
+    // （隔最久沒查的排最上面最需要注意、最近才查過的排最下面）。沒有日期的一律排最後。
     const byDate=(field,asc)=>(a,b)=>{
       const av=a[field]||"",bv=b[field]||"";
       if(!av&&!bv)return 0;
@@ -19733,14 +19738,21 @@ const AuditDash={
       if(!bv)return -1;
       return (av<bv?-1:av>bv?1:0)*(asc?1:-1);
     };
-    groups.scheduled.sort(byDate("plannedDate",true));
-    groups.unscheduled.sort(byDate("lastAuditDate",false));
+    groups.scheduled.sort(byDate("plannedDate",this.schedAsc));
+    groups.unscheduled.sort(byDate("lastAuditDate",this.unschedAsc));
     const theadHtml=this.COLS.map(c=>`<th class="sort" onclick="AuditDash.sort('${c.k}')" style="cursor:pointer;white-space:nowrap" title="點選依「${esc(c.t)}」排序">${esc(c.t)} ${this.sortKey===c.k?(this.sortAsc?"▲":"▼"):"⇅"}</th>`).join("")+`<th>操作</th>`;
+    const theadSched=this.COLS.map(c=>c.k==="plannedDate"
+      ?`<th class="sort" onclick="AuditDash.sortSched()" style="cursor:pointer;white-space:nowrap" title="點選切換排序方向">${esc(c.t)} ${this.schedAsc?"▲":"▼"}</th>`
+      :`<th style="white-space:nowrap">${esc(c.t)}</th>`).join("")+`<th>操作</th>`;
+    const theadUnsched=this.COLS.map(c=>c.k==="lastAuditDate"
+      ?`<th class="sort" onclick="AuditDash.sortUnsched()" style="cursor:pointer;white-space:nowrap" title="點選切換排序方向">${esc(c.t)} ${this.unschedAsc?"▲":"▼"}</th>`
+      :`<th style="white-space:nowrap">${esc(c.t)}</th>`).join("")+`<th>操作</th>`;
+    const theadByKey={scheduled:theadSched,unscheduled:theadUnsched,done_open:theadHtml,done_closed:theadHtml};
     box.innerHTML=["scheduled","unscheduled","done_open","done_closed"].map(key=>{
       const meta=this.GROUP_META[key],list=groups[key];
       const collapsed=this.collapsedGroups.has(key);
       const body=collapsed?"":(list.length
-        ?`<div style="overflow-x:auto;margin-top:8px"><table class="tbl ad-tbl"><thead><tr>${theadHtml}</tr></thead><tbody>${list.map(r=>this.rowHtml(r,canEdit,dis)).join("")}</tbody></table></div>`
+        ?`<div style="overflow-x:auto;margin-top:8px"><table class="tbl ad-tbl"><thead><tr>${theadByKey[key]}</tr></thead><tbody>${list.map(r=>this.rowHtml(r,canEdit,dis)).join("")}</tbody></table></div>`
         :`<p class="hint" style="margin-top:8px">目前沒有符合此區塊的船舶</p>`);
       return `<div class="card" style="margin-bottom:14px;border-left:4px solid ${meta.tone}">
         <h4 style="margin:0;cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none" onclick="AuditDash.toggleGroup('${key}')" title="點選收合／展開">
