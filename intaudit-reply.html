@@ -29,6 +29,7 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
 .ih{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-weight:700;color:var(--navy)}
 .pill{display:inline-block;font-size:11.5px;font-weight:700;border-radius:10px;padding:1px 9px}
 .pill.ic{background:#fdeedf;color:#b5610f}.pill.sys{background:var(--teal-l);color:var(--teal)}
+.pill.type{background:#eef0f4;color:#52656f}
 .risk{display:inline-block;font-size:11.5px;font-weight:700;border-radius:3px;padding:1px 8px}
 .risk.h{background:#fde8e6;color:#c0392b}.risk.m{background:#fff3cd;color:#7a5a10}.risk.l{background:#e2f3e8;color:#2e8b57}
 .finding{white-space:pre-line;border-left:3px solid var(--line-2);padding:4px 0 4px 10px;margin:8px 0;line-height:1.65}
@@ -251,9 +252,18 @@ async function addPhotos(uid,input){
 }
 function delPhoto(uid,k){dr(byUid(uid)).photos.splice(k,1);saveDrafts();rerow(uid);}
 function setF(uid,f,v){dr(byUid(uid))[f]=v;saveDrafts();paintStatus(uid);updateBar();}
+/* 檢查種類 Audit Type 標籤：訪船/內稽/隨船/交叉訪船/專項檢查（含指定的 SAR 表單），
+   船上回報單原本只看得到結案方式（內控／系統內結案），看不出這筆缺失是哪種檢查來的，
+   跟上方「本船改善單清單」列表、督導端 intaudit.html 一樣補上這個標籤。 */
+function typeBadge(d){
+  const t=typeDef(d.type);if(!t)return "";
+  const lbl=t.label+(t.sarForm?"："+t.sarForm:"");
+  return `<span class="pill type">${esc(lbl)}</span>`;
+}
 function rowHtml(d,seq){
   const st=stOf(d),rp=rpOf(d),x=val(d);
   const left=`<div class="ih">No.${seq}　${esc(d.category||"")}
+      ${typeBadge(d)}
       <span class="pill ${d.closeMode==="內控"?"ic":"sys"}">${esc(d.closeMode==="內控"?"內控":"系統內結案")}</span>
       ${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">風險 ${esc(d.risk)}</span>`:""}</div>
       ${d.topic?`<div class="hint">${esc(d.topic)}</div>`:""}
@@ -312,7 +322,7 @@ function renderRows(){
   if(modeFlt==="FLOW"){
     $("#bar").style.display="none";$("#errBox").style.display="none";$("#submitBar").style.display="none";$("#flowNote").innerHTML="";
     $("#defList").innerHTML=flows.length?flows.map((d,i)=>`<div class="row info"><div class="rl">
-      <div class="ih">No.${i+1}　${esc(d.category||"")}<span class="pill" style="background:#eceff1;color:#52656f">FLOW</span>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">風險 ${esc(d.risk)}</span>`:""}</div>
+      <div class="ih">No.${i+1}　${esc(d.category||"")}${typeBadge(d)}<span class="pill" style="background:#eceff1;color:#52656f">FLOW</span>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">風險 ${esc(d.risk)}</span>`:""}</div>
       ${d.topic?`<div class="hint">${esc(d.topic)}</div>`:""}<div class="finding">${esc(d.finding||"")}</div>
       ${(d.photos||[]).length?`<div class="phs">${d.photos.map(p=>`<div class="ph"><img src="${p.dataUrl}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:""}</div></div>`).join(""):`<div class="banner" style="margin:0">這張改善單沒有 FLOW 類的缺失。</div>`;
     return;
