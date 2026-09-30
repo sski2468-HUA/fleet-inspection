@@ -438,7 +438,7 @@ function expandAll(on){expanded.clear();if(on)Store.rows.forEach(r=>expanded.add
 function jumpTo(id){const el=document.getElementById(id);if(!el)return;el.scrollIntoView({behavior:"smooth",block:"start"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash");}
 function editDef(rid,i){
   const r=Store.rows.find(x=>x.id===rid);if(!r||!r.defs[i])return;
-  cur=JSON.parse(JSON.stringify(r));activeTab=cur.defs[i].type;bestOpen=null;defOpen=i;defFilter=""; // 清掉舊的結案方式篩選，避免這筆缺失剛好被篩掉、又退回清單模式
+  cur=JSON.parse(JSON.stringify(r));activeTab=cur.defs[i].type;bestOpen=null;defOpen=[i];defFilter=""; // 清掉舊的結案方式篩選，避免這筆缺失剛好被篩掉、又退回清單模式
   if(!cur.types.includes(activeTab))cur.types.push(activeTab);
   openForm("defs");
 }
@@ -581,8 +581,8 @@ const blankDef=type=>({uid:newUid(),type,topic:"",category:"",risk:"",reported:c
   closeMode:"",status:"",icLevel:"",icCategory:"",icEquip:"",icDepts:[],icDue:"",icAware:false,icKey:false});
 const blank=()=>({id:null,ship:"",dateFrom:todayIso(),dateTo:"",inspector:"",psn:"",types:[],master:"",co:"",ce:"",e2:"",overall:"",
   top4:{photos:[],cap:""},goodCrew:[],poorCrew:[],best:[],defs:[],sugg:[],draft:true,specialSarForm:""});
-function newForm(){cur=blank();activeTab=null;curSrv=null;bestOpen=null;defOpen=null;openForm();}
-function editRec(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;cur=JSON.parse(JSON.stringify(r));curSrv=Store.srvOf[id]!=null?Store.srvOf[id]:null;activeTab=(cur.types||[])[0]||null;bestOpen=null;defOpen=null;openForm();}
+function newForm(){cur=blank();activeTab=null;curSrv=null;bestOpen=null;defOpen=[];openForm();}
+function editRec(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;cur=JSON.parse(JSON.stringify(r));curSrv=Store.srvOf[id]!=null?Store.srvOf[id]:null;activeTab=(cur.types||[])[0]||null;bestOpen=null;defOpen=[];openForm();}
 /* ②～⑤ 分頁：一次只開一個區塊來編輯 */
 let secTab="basic";
 const SECS=[["basic","① 基本資料"],["overall","② 總體評價"],["best","③ 優良案例"],["defs","④ 缺失明細"],["sugg","⑤ 船舶訴求／建議"]];
@@ -783,17 +783,22 @@ function updateCounts(){
   const ds=cur.defs,n=k=>ds.filter(d=>d.closeMode===k).length;
   $("#cFlow").textContent=n("FLOW");$("#cIc").textContent=n("內控");$("#cSys").textContent=n("系統內結案");$("#cNone").textContent=ds.filter(d=>!d.closeMode).length;
 }
-let defOpen=null; // null＝清單模式；數字＝正在展開編輯的缺失（cur.defs 的全域索引）
-function setTab(k){collect();activeTab=k;defOpen=null;renderDefs();}
-function openDef(i){collect();defOpen=i;renderDefs();}
-function backDef(){collect();defOpen=null;renderDefs();}
+let defOpen=[]; // 空陣列＝清單模式；陣列裡放的是正在展開編輯的缺失（cur.defs 的全域索引），
+// 依加入順序由上往下堆疊顯示——按「＋新增下一筆」時新的一筆會接在目前已展開的下面，
+// 之前展開的那幾筆仍留在畫面上，方便督導直接往上滑改剛剛填的內容，不用先「返回清單」再重開。
+function setTab(k){collect();activeTab=k;defOpen=[];renderDefs();}
+function openDef(i){collect();defOpen=[i];renderDefs();} // 從清單／導覽點進來：換成單筆展開，取代原本的堆疊
+function backDef(){collect();defOpen=[];renderDefs();}
 function addDef(){
   if(!activeTab){toast("⚠ 請先在「① 檢查基本資料」勾選檢查種類",true);return;}
-  collect();cur.defs.push(blankDef(activeTab));defOpen=cur.defs.length-1;renderDefs();updateCounts();
+  collect();cur.defs.push(blankDef(activeTab));
+  const newIdx=cur.defs.length-1;
+  defOpen=(defOpen&&defOpen.length)?[...defOpen,newIdx]:[newIdx]; // 已經展開著就接在下面堆疊；否則（從清單模式按「＋新增一筆」）單筆展開
+  renderDefs();updateCounts();
 }
 function delDef(i){
   if(!confirm("刪除這筆缺失？"))return;collect();cur.defs.splice(i,1);
-  if(defOpen===i)defOpen=null;else if(defOpen!=null&&defOpen>i)defOpen--;
+  defOpen=(defOpen||[]).filter(x=>x!==i).map(x=>x>i?x-1:x);
   renderDefs();updateCounts();
 }
 function setTopic(i,v){collect();cur.defs[i].topic=v;if(v!=="其他")cur.defs[i].topicOther="";renderDefs();updateCounts();}
@@ -803,7 +808,7 @@ function setDefType(i,newType){
   collect();
   const d=cur.defs[i];if(!d||d.type===newType)return;
   d.type=newType;d.topic="";d.topicOther="";
-  activeTab=newType;defOpen=i;defFilter="";
+  activeTab=newType;defOpen=[i];defFilter="";
   renderDefs();updateCounts();
 }
 function setD(i,f,v){cur.defs[i][f]=v;if(f==="topic")updateCounts();}
@@ -832,7 +837,7 @@ function setMode(i,k){
 }
 /* 缺失明細上方：結案方式快捷篩選（哪些進 FLOW／內控／系統內結案）＋缺失號碼跳轉標籤 */
 let defFilter="";
-function setDefFilter(k){collect();defFilter=(defFilter===k?"":k);defOpen=null;renderDefs();}
+function setDefFilter(k){collect();defFilter=(defFilter===k?"":k);defOpen=[];renderDefs();}
 function renderDefNav(){
   const box=$("#defNav");if(!box)return;
   if(!activeTab){box.innerHTML="";return;}
@@ -844,7 +849,7 @@ function renderDefNav(){
   box.innerHTML=`<div class="cchips" style="margin-bottom:8px"><span class="hint" style="font-weight:700">結案方式篩選</span>
     <button type="button" class="fchip ${defFilter===""?"on":""}" onclick="setDefFilter('')">全部<b>${idxs.length}</b></button>
     ${chip("FLOW","FLOW 系統","flow")}${chip("內控","內控","ic")}${chip("系統內結案","系統內結案","sys")}${chip("none","尚未選擇","none")}</div>
-    <div class="qnav" style="margin:0">${shown.map(i=>{const d=cur.defs[i],m=modeOf(d.closeMode);return `<a class="${m?"m-"+m.cls:"m-none"} ${defOpen===i?"on":""}" title="${esc((d.category||"")+" "+(m?m.label:"尚未選結案方式"))}" onclick="openDef(${i})">#${idxs.indexOf(i)+1}</a>`;}).join("")}</div>`;
+    <div class="qnav" style="margin:0">${shown.map(i=>{const d=cur.defs[i],m=modeOf(d.closeMode);return `<a class="${m?"m-"+m.cls:"m-none"} ${(defOpen||[]).includes(i)?"on":""}" title="${esc((d.category||"")+" "+(m?m.label:"尚未選結案方式"))}" onclick="openDef(${i})">#${idxs.indexOf(i)+1}</a>`;}).join("")}</div>`;
 }
 function renderDefs(){
   const tabs=cur.types;
@@ -858,7 +863,8 @@ function renderDefs(){
     $("#defList").innerHTML=activeTab?`<p class="hint">這個分頁還沒有缺失，請按右上「＋ 新增一筆缺失」。</p>`:"";
     return;
   }
-  if(defOpen==null||!idxs.includes(defOpen)){
+  const openIdxs=(defOpen||[]).filter(i=>idxs.includes(i));
+  if(!openIdxs.length){
     // 清單模式：一行一筆，點了或按「✎ 編輯」才展開完整表單
     $("#defList").innerHTML=`<div class="blist">${idxs.map(i=>{
       const d=cur.defs[i],m=modeOf(d.closeMode);
@@ -867,15 +873,18 @@ function renderDefs(){
     }).join("")}</div>`;
     return;
   }
-  {
-    const i=defOpen,seq=allIdxs.indexOf(i);
+  // 展開模式：可能同時堆疊顯示多筆（見 addDef 內的說明），依 openIdxs 的加入順序由上往下排列
+  $("#defList").innerHTML=openIdxs.map(i=>defCardHtml(i,td,allIdxs)).join("");
+}
+function defCardHtml(i,td,allIdxs){
+    const seq=allIdxs.indexOf(i);
     const d=cur.defs[i],m=modeOf(d.closeMode);
     const topicCtl=td&&td.topics?`<label>${esc(td.topicLabel)}（選填）<select data-f="topic" onchange="setTopic(${i},this.value)"><option value="">（不特別標註）</option>${td.topics.map(t=>`<option ${d.topic===t?"selected":""}>${esc(t)}</option>`).join("")}</select>${d.topic==="其他"?`<input type="text" data-f="topicOther" value="${esc(d.topicOther||"")}" placeholder="請說明是哪一類" oninput="setD(${i},'topicOther',this.value)">`:""}</label>`
       :`<label>主題（選填）<input type="text" data-f="topic" value="${esc(d.topic)}" placeholder="例：靜態航行評估" oninput="setD(${i},'topic',this.value)"></label>`;
     // 檢查種類填錯了可以直接改，不用刪掉重建；只能改到「① 檢查基本資料」已勾選的種類，
     // 換了種類主題選項也會跟著換，所以順便把主題清空避免選到不屬於新種類的選項。
     const typeCtl=cur.types.length>1?`<label>檢查種類 Audit Type<select onchange="setDefType(${i},this.value)">${cur.types.map(k=>{const tt=typeDef(k)||{label:k};return `<option value="${esc(k)}" ${d.type===k?"selected":""}>${esc(tt.label)}</option>`;}).join("")}</select><span class="hint" style="font-weight:400">填錯種類可直接在這裡改，不用刪掉重填</span></label>`:"";
-    $("#defList").innerHTML=`<div class="item ${m?"m-"+m.cls:""}" id="def-${i}">
+    return `<div class="item ${m?"m-"+m.cls:""}" id="def-${i}">
       <div class="ih"><button class="btn sm" type="button" onclick="backDef()">← 返回清單</button>　${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm primary" type="button" onclick="addDef()" title="直接新增下一筆同種類的缺失繼續填">＋ 新增下一筆</button><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
       <div class="drow">
         <div class="c1">
@@ -906,7 +915,6 @@ function renderDefs(){
             <div class="fld fw">涉及部門 <span class="req">*</span><div class="checks" data-f="icDepts">${IC_DEPTS.map(n=>`<label><input type="checkbox" ${(d.icDepts||[]).includes(n)?"checked":""} onchange="toggleDept(${i},'${n}',this.checked)"> ${n}</label>`).join("")}</div></div>
           </div></div>`:""}
       </div>`;
-  }
 }
 /* ══════ 批量新增缺失：大表格一列一筆，填完一次加入目前分頁的檢查種類 ══════ */
 let batch=null;
@@ -921,7 +929,7 @@ function openBatch(){
   $("#bThTopic").textContent=td.topicLabel||"主題（選填）";
   $("#bDefRisk").innerHTML='<option value="">風險等級…</option>'+RISKS.map(s=>`<option>${s}</option>`).join("");
   $("#bDefMode").innerHTML='<option value="">結案方式…</option>'+MODES.map(m=>`<option value="${m.k}">${esc(m.label)}</option>`).join("");
-  // 主題有固定選項的種類（訪船／內稽／隨船）用下拉套用；沒有固定選項的（交叉訪船／主題檢查）主題是自由輸入，改用文字＋按鈕套用
+  // 主題有固定選項的種類（內稽／專項檢查）用下拉套用；沒有固定選項的（訪船／隨船／交叉訪船）主題是自由輸入，改用文字＋按鈕套用
   const hasTopics=!!(td.topics);
   $("#bDefTopic").style.display=hasTopics?"":"none";
   $("#bDefTopicText").style.display=hasTopics?"none":"";
@@ -976,7 +984,7 @@ function confirmBatch(){
     if(r.closeMode==="內控")d.icLevel=r.risk||"";
     cur.defs.push(d);
   });
-  closeBatch();defOpen=null;renderDefs();updateCounts();
+  closeBatch();defOpen=[];renderDefs();updateCounts();
   const nIc=rows.filter(r=>r.closeMode==="內控").length;
   toast(`✓ 已加入 ${rows.length} 筆缺失`+(missing?`；其中 ${missing} 筆還有必填欄位沒填，送出前會提醒`:"")+(nIc?`；${nIc} 筆「內控」記得補內控欄位`:""));
 }
@@ -1021,9 +1029,9 @@ function showErrors(errs){
   // 這裡先把第一個錯誤所屬的分頁／項目切換／展開好，才看得到紅框（其餘錯誤要修完第一個、
   // 重新送出後才會依序展開，逐筆修比較不會眼花，錯誤清單本身仍會一次列出全部）。
   const first=errs[0];let needRender=false;
-  if(first.tab&&first.tab!==activeTab){activeTab=first.tab;defOpen=null;needRender=true;}
+  if(first.tab&&first.tab!==activeTab){activeTab=first.tab;defOpen=[];needRender=true;}
   const dm=first.sel&&first.sel.match(/^#def-(\d+)/);
-  if(dm&&defOpen!==+dm[1]){defOpen=+dm[1];defFilter="";needRender=true;}
+  if(dm&&!(defOpen||[]).includes(+dm[1])){defOpen=[+dm[1]];defFilter="";needRender=true;}
   if(needRender)renderDefs();
   if(first.sel){const want=/^#(def-|defTabs)/.test(first.sel)?"defs":/^#(fShipSel|fDateFrom|fInspector|fPsn|typeBox)$/.test(first.sel)?"basic":null;if(want&&secTab!==want)setSec(want);}
   errs.forEach(e=>{if(e.tab&&e.tab!==activeTab)return;const el=e.sel&&document.querySelector(e.sel);if(el)el.classList.add("bad");});
