@@ -605,6 +605,10 @@ body.locked #sidebar,body.locked #main{display:none}
 .nav-item.active{background:var(--navy-2);border-left-color:var(--signal);color:#fff;font-weight:600}
 .nav-item.active .num{color:var(--signal)}
 .nav-item-adminonly{opacity:.55}
+/* 會跳離主系統、開新分頁的項目（外部獨立網頁），用不同顏色跟站內分頁區分，
+   一眼就看得出點下去會離開這個系統，不是切換內部分頁。 */
+.nav-item[data-external]{color:#7fd4c9}
+.nav-item[data-external]:hover{background:var(--navy-2);color:#a9e6dd}
 #syncFailBanner.show{display:flex!important}
 .nav-item-adminonly::after{content:"🔒";font-size:10px;margin-left:auto;opacity:.8}
 .nav-quickload{display:flex;align-items:center;gap:8px;padding:6.5px 18px;cursor:pointer;border-left:3px solid transparent;color:#a8d8c8;font-size:13px;line-height:1.3;transition:background .15s;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:2px;padding-bottom:7px}
@@ -675,6 +679,7 @@ header.topbar .spacer{flex:1}
 .btn.danger{color:var(--bad);border-color:#e3b8b1}
 .btn.danger:hover{background:var(--bad-l)}
 .btn.sm{padding:4px 9px;font-size:12px}
+.btn.lg{padding:10px 20px;font-size:15px;box-shadow:0 2px 8px rgba(232,132,44,.35)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 select,input[type=text],input[type=date],input[type=number],textarea{border:1px solid var(--line-2);border-radius:4px;padding:7px 9px;font-size:13px;font-family:var(--sans);background:#fff;color:var(--ink)}
 select:focus,input:focus,textarea:focus{outline:2px solid rgba(232,132,44,.35);border-color:var(--signal)}
@@ -2113,11 +2118,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="nav-group" data-group="forms">
       <div class="nav-group-label">填單</div>
       <div class="nav-item" data-tab="air"><span class="num">📝</span>填單紀錄</div>
-      <div class="nav-item" data-tab="intaudit"><span class="num">🛠</span>內部檢查缺失登錄<span id="air-ia-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:auto"></span></div>
-      <div class="nav-item" data-external="__intaudit_new__"><span class="num">🛠</span>前往新增內部檢查記錄（督導／稽核員用） <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
-      <div class="nav-item" data-tab="self"><span class="num">4</span>專案自查</div>
-      <div class="nav-item" data-external="__selfcheck_share_summary__"><span class="num">🔗</span>分享自查彙整清單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
       <div class="nav-item" data-external="__air_intake__"><span class="num">🔗</span>前往線上填單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
+      <div class="nav-item" data-tab="intaudit"><span class="num">🛠</span>內部檢查缺失登錄審查（海技）<span id="air-ia-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:auto"></span></div>
+      <div class="nav-item" data-external="__intaudit_new__"><span class="num">🛠</span>前往新增內部檢查紀錄（督導／稽核員用） <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
+      <div class="nav-item" data-external="__selfcheck_share_summary__"><span class="num">🔗</span>前往分享自查彙整清單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
+      <div class="nav-item" data-tab="self"><span class="num">4</span>專案自查清單</div>
 
     </div>
     <div class="nav-group" data-group="tools">
@@ -4606,8 +4611,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <button class="btn sm" id="air-ia-tab-all" onclick="IntAuditQueue.setView('all')">登錄清單</button>
             <button class="btn sm" id="air-ia-tab-replies" onclick="IntAuditQueue.setView('replies')">船上回報待審</button>
             <button class="btn sm" onclick="IntAuditQueue.refresh()">🔄 重新整理</button>
-            <button class="btn sm dark" onclick="IntAuditQueue.openForm()" title="開啟督導填寫的登錄網頁（新增或編輯登錄單）">＋ 前往登錄頁</button>
-            <button class="btn sm" onclick="IntAuditQueue.copyLink()" title="複製連結給督導：開啟後輸入系統密碼、選擇身分，登入後直接進入這一頁">🔗 複製督導連結</button>
+            <button class="btn lg primary" onclick="IntAuditQueue.openForm()" title="開啟督導填寫的登錄網頁（新增或編輯登錄單）">＋ 前往登錄頁</button>
           </span>
         </h3>
         <div class="toolbar" id="ia-filterbar" style="margin:0 0 10px">
@@ -19719,6 +19723,18 @@ const AuditDash={
     const box=$("#ad-groupedview");if(!box)return;
     const groups={scheduled:[],unscheduled:[],done_open:[],done_closed:[]};
     rows.forEach(r=>groups[this.schedStatus(r)].push(r));
+    // 「已進入排程」「未排程」這兩區是實際要盯進度用的工作清單，固定用各自最有意義的日期
+    // 排序（不跟著上面表頭點選的全域排序欄位走）：已排程＝依計畫檢查日由近到遠（越快到的越上面）；
+    // 未排程＝依上次稽核日由近到遠（最近才查過的在上面、隔最久沒查的在下面）。沒有日期的排最後。
+    const byDate=(field,asc)=>(a,b)=>{
+      const av=a[field]||"",bv=b[field]||"";
+      if(!av&&!bv)return 0;
+      if(!av)return 1;
+      if(!bv)return -1;
+      return (av<bv?-1:av>bv?1:0)*(asc?1:-1);
+    };
+    groups.scheduled.sort(byDate("plannedDate",true));
+    groups.unscheduled.sort(byDate("lastAuditDate",false));
     const theadHtml=this.COLS.map(c=>`<th class="sort" onclick="AuditDash.sort('${c.k}')" style="cursor:pointer;white-space:nowrap" title="點選依「${esc(c.t)}」排序">${esc(c.t)} ${this.sortKey===c.k?(this.sortAsc?"▲":"▼"):"⇅"}</th>`).join("")+`<th>操作</th>`;
     box.innerHTML=["scheduled","unscheduled","done_open","done_closed"].map(key=>{
       const meta=this.GROUP_META[key],list=groups[key];
@@ -24556,7 +24572,7 @@ const AirQueue={
           <button class="btn sm" onclick="AirQueue.rejectRow(${r.id})">✕ 拒絕</button>`;
       return `<div class="card" style="margin-bottom:10px;background:#fafbfc">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <b>${esc(b.ship||"（未填船名）")}</b>
+          <b>${esc(b.ship?shipFullLabel(b.ship):"（未填船名）")}</b>
           <span class="hint">${esc(b.itype||"")} ・ ${esc(b.date||"")} ・ ${esc(b.place||"")}</span>
           <span class="hint">缺失 ${defs.length} 筆・正面評論 ${pos.length} 筆</span>
           <span class="hint">送出時間 ${r.created_at?esc(new Date(r.created_at).toLocaleString("zh-TW",{hour12:false})):""}</span>
@@ -24631,7 +24647,7 @@ const AirQueue={
     const r=this.rows.find(x=>x.id===id);if(!r)return;
     const b=(r.payload||{}).basic||{};
     if(!b.ship||!b.date){toast("⚠ 這筆資料缺少船名或日期，無法匯入");return;}
-    if(!confirm(`這筆先前已標記為「已匯入」（${b.ship||""} ${b.date||""}）。\n\n如果是因為多人同時操作、存檔互相覆蓋導致實際上沒進到系統，才需要重新匯入補一筆；\n如果原本其實已經匯入成功，重新匯入會多出一筆重複紀錄，之後要自己去「線上填單記錄」手動刪掉多的那筆。\n\n請先確認「線上填單記錄」裡真的找不到這筆（船名／日期），確定後再繼續。\n\n要繼續重新匯入嗎？`))return;
+    if(!confirm(`這筆先前已標記為「已匯入」（${shipFullLabel(b.ship)} ${b.date||""}）。\n\n如果是因為多人同時操作、存檔互相覆蓋導致實際上沒進到系統，才需要重新匯入補一筆；\n如果原本其實已經匯入成功，重新匯入會多出一筆重複紀錄，之後要自己去「線上填單記錄」手動刪掉多的那筆。\n\n請先確認「線上填單記錄」裡真的找不到這筆（船名／日期），確定後再繼續。\n\n要繼續重新匯入嗎？`))return;
     const rec=this.buildAirRecFromQueueRow(r);
     App.air.push(rec);
     App.saveAll();if(App.refreshMeta)App.refreshMeta();
@@ -24700,11 +24716,6 @@ const IntAuditQueue={
     this.view=this.view==="replies"?"replies":"all";this.refresh();},
   folder(){return (typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";},
   openForm(){window.open(this.folder()+"intaudit.html","_blank");},
-  /* 複製給督導的連結：開啟後先輸入系統密碼、選擇身分，登入完成就直接進到這一頁 */
-  copyLink(){
-    const url=this.folder()+"index.html?go=intaudit";
-    safeCopyText(`內部檢查缺失登錄（請先輸入系統密碼並選擇身分，登入後會直接進入此頁）\n${url}`,"✓ 已複製督導連結");
-  },
   async refresh(){
     const box=$("#air-ia-list");if(!box)return;
     box.innerHTML=`<p class="hint">讀取中…</p>`;
@@ -24725,7 +24736,7 @@ const IntAuditQueue={
     const pend=this.all.filter(r=>!r.draft&&!r.imported).length+repPend;
     const bd=$("#air-ia-badge");if(bd){if(pend&&this.isAdm()){bd.textContent=pend;bd.style.display="";}else bd.style.display="none";}
     const sel=$("#ia-f-ship");
-    if(sel){const cur=sel.value;sel.innerHTML='<option value="">全部船舶</option>'+[...new Set(this.all.map(r=>r.ship).filter(Boolean))].sort().map(c=>`<option ${c===cur?"selected":""}>${esc(c)}</option>`).join("");}
+    if(sel){const cur=sel.value;sel.innerHTML='<option value="">全部船舶</option>'+[...new Set(this.all.map(r=>r.ship).filter(Boolean))].sort().map(c=>`<option value="${esc(c)}" ${c===cur?"selected":""}>${esc(shipFullLabel(c))}</option>`).join("");}
     if(this.view==="replies"){this.rows=[];this.renderReplies();return;}
     this.rows=this.all;
     this.render();
@@ -24784,7 +24795,7 @@ const IntAuditQueue={
         const btn=(!adm||r.draft)?"":`<button class="btn sm dark" onclick="IntAuditQueue.importRow(${r.id})">${r.imported?"🔁 重新匯入（更新）":"✓ 匯入主系統"}</button>`;
         const head=`<tr><td colspan="6" style="background:#eef3f6;padding:9px 10px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           ${filtering?"":`<button class="btn sm" onclick="IntAuditQueue.toggleRow(${r.id})">${open?"▾ 收合":"▸ 展開"}（${ds.length}）</button>`}
-          <b style="font-size:14px">${esc(r.ship||"（未填船名）")}</b><span>${esc(r.dateFrom||"")}${r.dateTo&&r.dateTo!==r.dateFrom?"～"+esc(r.dateTo):""}</span>
+          <b style="font-size:14px">${esc(r.ship?shipFullLabel(r.ship):"（未填船名）")}</b><span>${esc(r.dateFrom||"")}${r.dateTo&&r.dateTo!==r.dateFrom?"～"+esc(r.dateTo):""}</span>
           <span class="hint">${esc((r.types||[]).map(k=>this.tl(k)).join("、"))}　檢查人：${esc(r.inspector||"")}　地點：${esc(r.psn||"")}</span>
           <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${issue} ${imp} ${btn}</span></div>
           <div class="hint" style="margin-top:4px">${esc(this.counts(r))}</div></td></tr>`;
@@ -24820,7 +24831,7 @@ const IntAuditQueue={
       return `<div class="card" style="margin-bottom:10px;background:#fafbfc">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           ${adm?`<input type="checkbox" ${this.replySel.has(x.id)?"checked":""} onchange="IntAuditQueue.toggleReplySel('${esc(x.id)}',this.checked)">`:""}
-          <b>${esc(r.ship||"")}</b><span class="hint">${esc(r.dateFrom||"")} ・ ${esc(this.tl(d.type))}${d.topic?"・"+esc(d.topic):""} ・ ${esc(d.closeMode||"")}</span>
+          <b>${esc(shipFullLabel(r.ship))}</b><span class="hint">${esc(r.dateFrom||"")} ・ ${esc(this.tl(d.type))}${d.topic?"・"+esc(d.topic):""} ・ ${esc(d.closeMode||"")}</span>
           <span class="hint">回報人：${esc(p.by||"")}（${esc(p.title||"")}）${p.at?esc(new Date(p.at).toLocaleString("zh-TW",{hour12:false})):""}</span>
           <span style="margin-left:auto;display:flex;gap:6px">${adm?`<button class="btn sm dark" onclick="IntAuditQueue.closeReply('${esc(x.id)}')">✓ 審核結案</button>
             <button class="btn sm" onclick="IntAuditQueue.returnReply('${esc(x.id)}')">↩ 退回</button>`:`<span class="hint">審核限維護者</span>`}</span></div>
@@ -24941,7 +24952,7 @@ const IntAuditQueue={
     const nDef=(r.defs||[]).length,nBest=(r.best||[]).length;
     if(!confirm(again
       ?`這張登錄單先前已匯入過。\n\n重新匯入會依上次的對應關係「更新」原本那幾筆紀錄（找不到的視為新增），不會產生重複。\n要繼續嗎？`
-      :`確定匯入「${r.ship} ${r.dateFrom}」？\n\n將建立：檢查紀錄 ${(r.types||[]).length} 筆、缺失紀錄 ${nDef} 筆、正面評價 ${nBest} 筆。`))return;
+      :`確定匯入「${shipFullLabel(r.ship)} ${r.dateFrom}」？\n\n將建立：檢查紀錄 ${(r.types||[]).length} 筆、缺失紀錄 ${nDef} 筆、正面評價 ${nBest} 筆。`))return;
     const by=(typeof Audit!=="undefined")?Audit.user():"",now=Date.now();
     const date=normDateSlash(r.dateFrom),ym=ymOf(date);
     const vt=((typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(s=>s.code===r.ship)||{}).vtype||"";
