@@ -8890,7 +8890,7 @@ const Classify={
     {icat:"第三方檢查",match:["cdi","sire","rightship","terminal","租家檢查","flag","the mcc group","p&i","其他-第三方檢查"]},
     {icat:"公司",match:["內稽","internal audit","訪船","onboard visit","交叉訪船","cross ship visit","isps內稽","isps audit","隨船","accompanying ship","accompanying shiop","accompanying visit"]},
     {icat:"業界案例",match:["業界案例"]},
-    {icat:"專項檢查",match:["sar-fm","專項檢查"]},
+    {icat:"專項檢查",match:["sar-fm","專項檢查","其他："]},
   ],
   internalKw:[],icatRules:[],open:false,
   toggle(){
@@ -8911,15 +8911,20 @@ const Classify={
     this._ensureIcatDefaults();
   },
   /* 既有帳號的 icatRules 是早就存過的舊版本，不會自動套用 DEFAULT_ICAT 新增的規則
-     （_loadLocal 讀到舊值就直接用，不會拿新的 DEFAULT_ICAT 蓋過去）。這裡開機時補兩個
+     （_loadLocal 讀到舊值就直接用，不會拿新的 DEFAULT_ICAT 蓋過去）。這裡開機時補幾個
      2026-09-30 新增的東西：① 交叉訪船匯入時存的英文「Cross ship visit」原本沒被
-     「公司」規則吃到（規則只有中文「交叉訪船」）；② 專項檢查（依 SAR 表單分類）的新規則。
+     「公司」規則吃到（規則只有中文「交叉訪船」）；② 專項檢查（依 SAR 表單分類）的新規則；
+     ③ 專項檢查選「其他」時，匯入的檢查來源是「其他：xxx」（見 intaudit.html
+     confirmSpecialSar()），不含「sar-fm」也不含「專項檢查」四個字，原本的規則吃不到，
+     會變成未分類，補上「其他：」這個前綴讓它也能正確歸類到「專項檢查」。
      只補在本機快取，不主動推回雲端，避免蓋掉其他人在雲端上另外調整過的設定。 */
   _ensureIcatDefaults(){
     let changed=false;
     const co=this.icatRules.find(r=>r.icat==="公司");
     if(co&&!co.match.includes("cross ship visit")){co.match.push("cross ship visit");changed=true;}
-    if(!this.icatRules.some(r=>r.icat==="專項檢查")){this.icatRules.push({icat:"專項檢查",match:["sar-fm","專項檢查"]});changed=true;}
+    const sp=this.icatRules.find(r=>r.icat==="專項檢查");
+    if(!sp){this.icatRules.push({icat:"專項檢查",match:["sar-fm","專項檢查","其他："]});changed=true;}
+    else if(!sp.match.includes("其他：")){sp.match.push("其他：");changed=true;}
     if(changed)this._saveLocal();
   },
   async loadCloud(){
@@ -11094,7 +11099,7 @@ const Ov={
       if(!rows.length)return `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:12.5px;font-family:Calibri,Arial,sans-serif"><tr>${["No.","船名","船型","日期","地點","缺失數","是否扣船"].map(th).join("")}</tr><tr><td colspan="7" style="padding:8px;border:1px solid #999;text-align:center">（無）</td></tr></table>`;
       return `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:12.5px;font-family:Calibri,Arial,sans-serif">
         <tr>${["No.","船名","船型","日期","地點","缺失數","是否扣船"].map(th).join("")}</tr>
-        ${rows.map((r,i)=>`<tr>${td(i+1)}${td(esc(r.ship))}${td(esc(r.vtype||vtypeOfCode(r.ship)))}${td(esc(r.date))}${td(esc(r.loc||""))}${td(esc(r.ndef??""))}${td(esc(r.detain==="Y"?"是":"否"))}</tr>`).join("")}
+        ${rows.map((r,i)=>`<tr>${td(i+1)}${td(esc(shipFullLabel(r.ship)))}${td(esc(r.vtype||vtypeOfCode(r.ship)))}${td(esc(r.date))}${td(esc(r.loc||""))}${td(esc(r.ndef??""))}${td(esc(r.detain==="Y"?"是":"否"))}</tr>`).join("")}
       </table>`;
     };
     const html=`<h2 style="text-align:center;font-family:Calibri,Arial,sans-serif;text-decoration:underline">航運處 ${todayStr().replace(/-/g,"")} 報告</h2>
