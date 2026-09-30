@@ -491,9 +491,12 @@ let saveTimer=null;
 function scheduleAutoSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveDraft, 600); }
 
 /* ── 船名下拉 ── */
+function shipOptLabel(s){
+  return [s.zh,s.name].filter(Boolean).join(" ")||s.code;
+}
 function fillShipOpts(sel){
   const el=document.getElementById("f-ship");
-  el.innerHTML='<option value="">請選擇</option>'+SHIP_OPTS.map(s=>`<option value="${esc(s.code)}"${sel===s.code?" selected":""}>${esc(s.code)} ${esc(s.name)}</option>`).join("");
+  el.innerHTML='<option value="">請選擇</option>'+SHIP_OPTS.map(s=>`<option value="${esc(s.code)}"${sel===s.code?" selected":""}>${esc(shipOptLabel(s))}</option>`).join("");
 }
 fillShipOpts("");
 
@@ -508,7 +511,7 @@ async function loadShipsFromCloud(){
     const list = rows && rows[0] && Array.isArray(rows[0].payload) ? rows[0].payload : null;
     if(!list || !list.length) return;
     SHIP_OPTS.length = 0;
-    list.forEach(s=>SHIP_OPTS.push({code:s.code, name:s.zh||s.name||s.code, vtype:s.vtype||""}));
+    list.forEach(s=>SHIP_OPTS.push({code:s.code, zh:s.zh||"", name:s.name||"", vtype:s.vtype||""}));
     const cur = document.getElementById("f-ship").value;
     fillShipOpts(cur);
     if(cur){
@@ -1376,7 +1379,7 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
   const err = validatePayload(payload);
   if(err){ notify(err, "err"); return; }
   const shipObj = SHIP_OPTS.find(s=>s.code===payload.basic.ship);
-  const shipLabel = shipObj ? `${shipObj.code}　${shipObj.name}` : payload.basic.ship;
+  const shipLabel = shipObj ? shipOptLabel(shipObj) : payload.basic.ship;
   const icCount = payload.defects.filter(d=>d.internalControl).length;
   const focusCount = payload.defects.filter(d=>d.ncFocus==="是").length;
   const highRiskCount = payload.defects.filter(d=>d.risk==="3").length;

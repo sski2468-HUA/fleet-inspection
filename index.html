@@ -10314,8 +10314,9 @@ function bindDatePicker(elOrId){
   inp.addEventListener("focus",openBox);
 }
 
-function MSel(elId,label,getOptions,onChange){
+function MSel(elId,label,getOptions,onChange,getLabel){
   const root=document.getElementById(elId);
+  const lbl=o=>getLabel?getLabel(o):o;
   const st={sel:new Set(),q:"",composing:false};
   if(!root){
     // 容器還沒被畫出來（通常是使用者尚未切換到那個分頁，該分頁內容還沒渲染），
@@ -10328,13 +10329,13 @@ function MSel(elId,label,getOptions,onChange){
   }
   function btnHtml(){return `<button type="button">${label}${st.sel.size?` <span class="cnt">${st.sel.size}</span>`:""} <span class="car">▼</span></button><div class="panel"></div>`;}
   function renderPanel(){
-    const opts=getOptions().filter(o=>!st.q||String(o).toLowerCase().includes(st.q));
+    const opts=getOptions().filter(o=>!st.q||String(o).toLowerCase().includes(st.q)||String(lbl(o)).toLowerCase().includes(st.q));
     const p=root.querySelector(".panel");
     p.innerHTML=`<input class="srch" placeholder="搜尋…" value="${esc(st.q)}">
       <div class="chips">
         <span class="chip op" data-op="all">✓ 一鍵全選${st.q?"(顯示中)":""}</span>
         <span class="chip op" data-op="none">✕ 清除</span>
-        ${opts.map(o=>`<span class="chip ${st.sel.has(o)?"on":""}" data-v="${esc(o)}">${esc(o)||"(空白)"}</span>`).join("")}
+        ${opts.map(o=>`<span class="chip ${st.sel.has(o)?"on":""}" data-v="${esc(o)}">${esc(lbl(o))||"(空白)"}</span>`).join("")}
       </div>`;
     const srch=p.querySelector(".srch");
     // 中文（或日韓）輸入法在組字（尚未選字確定）過程中會持續觸發 input 事件；
@@ -10880,7 +10881,7 @@ const Ov={
   scopePass(t){return this.scope==="all"||(this.scope==="int")===isInternal(t);},
   init(){
     this.populateYm();
-    this.ms.ship=MSel("ms-o-ship","船舶",()=>TagLists.withExtras("ship",App.insp.map(i=>i.ship)),()=>this.render());
+    this.ms.ship=MSel("ms-o-ship","船舶",()=>TagLists.withExtras("ship",App.insp.map(i=>i.ship)),()=>this.render(),shipFullLabel);
     this.ms.vtype=MSel("ms-o-vtype","船型",()=>TagLists.withExtras("vtype",App.insp.map(i=>i.vtype)),()=>this.render());
     this.ms.icat=MSel("ms-o-icat","檢查類型",()=>ICAT_LIST.slice(),()=>this.render());
     this.ms.itype=MSel("ms-o-itype","檢查來源",()=>TagLists.withExtras("itype",App.insp.map(i=>i.itype).filter(t=>this.scopePass(t))),()=>this.render());
@@ -11303,7 +11304,7 @@ function rankOptionsHtml(cur){
 function shipFullLabel(code){
   const s=SHIPINFO.find(x=>x.code===code);
   if(!s)return code||"";
-  return [s.code,s.zh,s.name].filter(Boolean).join(" ");
+  return [s.zh,s.name].filter(Boolean).join(" ");
 }
 function shipEnName(code){
   const s=SHIPINFO.find(x=>x.code===code);
@@ -11403,7 +11404,7 @@ const Sp={
   },
   init(){
     this.ms.vtype=MSel("ms-s2-vtype","船型",()=>[...new Set(SHIPINFO.map(s=>s.vtype))].filter(Boolean).sort(),()=>this.render());
-    this.ms.ship=MSel("ms-s2-ship","船名",()=>SHIPINFO.map(s=>s.code).sort(),()=>this.render());
+    this.ms.ship=MSel("ms-s2-ship","船名",()=>SHIPINFO.map(s=>s.code).sort(),()=>this.render(),shipFullLabel);
     this.ms.operator=MSel("ms-s2-operator","Operator",()=>[...new Set(SHIPINFO.map(s=>s.operator))].filter(Boolean).sort(),()=>this.render());
     const opOpts=[...new Set(SHIPINFO.map(s=>s.operator))].filter(Boolean);
     if(opOpts.includes("FPMC"))this.ms.operator.set(["FPMC"]); // 預設只顯示FPMC自營船隊
@@ -11787,7 +11788,7 @@ const PscChap={
   init(){
     const rerun=()=>this.render();
     this.ms.ym=MSel("ms-psc-ym","年月",()=>[...new Set(this.basePSC().map(d=>d.ym||ymOf(d.date)))].filter(Boolean).sort().reverse(),rerun);
-    this.ms.ship=MSel("ms-psc-ship","船舶",()=>[...new Set(this.basePSC().map(d=>d.ship))].filter(Boolean).sort(),rerun);
+    this.ms.ship=MSel("ms-psc-ship","船舶",()=>[...new Set(this.basePSC().map(d=>d.ship))].filter(Boolean).sort(),rerun,shipFullLabel);
     this.ms.vtype=MSel("ms-psc-vtype","船型",()=>[...new Set(this.basePSC().map(d=>d.vtype))].filter(Boolean).sort(),rerun);
     this.ms.chap=MSel("ms-psc-chap","章節",()=>{
       const keys=[...new Set(this.basePSC().map(d=>this.chapterKey(d.code)))];
@@ -11958,7 +11959,7 @@ const PscZone={
 const Dash={
   ms:{},sortKey:"date",sortAsc:false,page:1,PER:50,charts:{},
   init(){
-    this.ms.ship=MSel("ms-d-ship","船舶",()=>[...new Set(App.insp.map(i=>i.ship))].sort(),()=>{this.page=1;this.render();});
+    this.ms.ship=MSel("ms-d-ship","船舶",()=>[...new Set(App.insp.map(i=>i.ship))].sort(),()=>{this.page=1;this.render();},shipFullLabel);
     this.ms.itype=MSel("ms-d-itype","檢查類型",()=>[...new Set(App.insp.map(i=>i.itype))].sort(),()=>{this.page=1;this.render();});
     this.ms.year=MSel("ms-d-year","年度",()=>[...new Set(App.insp.map(i=>yearOf(i.date)))].filter(Boolean).sort(),()=>{this.page=1;this.render();});
     this.ms.vtype=MSel("ms-d-vtype","船型",()=>[...new Set(App.insp.map(i=>i.vtype))].filter(Boolean).sort(),()=>{this.page=1;this.render();});
@@ -13964,7 +13965,7 @@ const Defs={
     this.refreshEditTabVisibility();
     const rerun=()=>{this.page=1;this.render();};
     this.populateYm();
-    this.ms.ship=MSel("ms-f-ship","船名",()=>TagLists.withExtras("ship",App.defs.map(d=>d.ship)),rerun);
+    this.ms.ship=MSel("ms-f-ship","船名",()=>TagLists.withExtras("ship",App.defs.map(d=>d.ship)),rerun,shipFullLabel);
     this.ms.vtype=MSel("ms-f-vtype","船型",()=>TagLists.withExtras("vtype",App.defs.map(d=>d.vtype)),rerun);
     this.ms.place=MSel("ms-f-place","檢查地點",()=>TagLists.withExtras("place",App.defs.map(d=>d.place)),rerun);
     this.ms.itype=MSel("ms-f-itype","檢查來源",()=>TagLists.withExtras("itype",App.defs.map(d=>d.itype)),rerun);
@@ -15932,7 +15933,7 @@ const SirePos={
     const rerun=()=>{this.page=1;this.render();};
     this.populateYm();
     this.ms.ym=MSel("ms-sire-ym","年月",()=>[...new Set(App.sirePos.map(d=>d.ym||ymOf(d.date)))].filter(Boolean).sort().reverse(),rerun);
-    this.ms.ship=MSel("ms-sire-ship","船舶",()=>[...new Set(App.sirePos.map(d=>d.ship))].filter(Boolean).sort(),rerun);
+    this.ms.ship=MSel("ms-sire-ship","船舶",()=>[...new Set(App.sirePos.map(d=>d.ship))].filter(Boolean).sort(),rerun,shipFullLabel);
     this.ms.rank=MSel("ms-sire-rank","職稱",()=>[...new Set(App.sirePos.map(d=>d.rank))].filter(Boolean).sort(),rerun);
     this.ms.person=MSel("ms-sire-person","人名",()=>[...new Set(App.sirePos.map(d=>d.person))].filter(Boolean).sort(),rerun);
     this.render();
@@ -16490,7 +16491,7 @@ const EnhAuditLog={
   init(){
     this._inited=true;
     const rerun=()=>{this.page=1;this.render();};
-    this.ms.ship=MSel("ms-el-ship","船舶",()=>[...new Set((App.enhAuditLog||[]).map(d=>d.ship))].filter(Boolean).sort(),rerun);
+    this.ms.ship=MSel("ms-el-ship","船舶",()=>[...new Set((App.enhAuditLog||[]).map(d=>d.ship))].filter(Boolean).sort(),rerun,shipFullLabel);
     this.ms.itype=MSel("ms-el-itype","檢查項目",()=>[...new Set((App.enhAuditLog||[]).map(d=>d.itype))].filter(Boolean).sort(),rerun);
     this.ms.status=MSel("ms-el-event","狀態",()=>["🔺 加強中","✓ 已解除"],rerun);
     this.render();
@@ -16675,7 +16676,7 @@ const InspCtrl={
     if($("#ic-yellow"))$("#ic-yellow").value=t.yellow;
     if($("#ic-red"))$("#ic-red").value=t.red;
     const rerun=()=>{this.page=1;this.render();};
-    this.ms.ship=MSel("ms-ic-ship","船舶",()=>[...new Set(App.inspCtrl.map(d=>d.ship))].filter(Boolean).sort(),rerun);
+    this.ms.ship=MSel("ms-ic-ship","船舶",()=>[...new Set(App.inspCtrl.map(d=>d.ship))].filter(Boolean).sort(),rerun,shipFullLabel);
     // 船舶帳號登入時，這裡預設只篩出自己船的項目，不用每次進來都手動選一次；其他角色維持顯示全部船隊。
     if(typeof Role!=="undefined"&&Role.cur&&Role.cur.tier==="op2"){
       const myShip=(typeof resolveShipCode==="function")?(resolveShipCode(Role.cur.name)||Role.cur.name):Role.cur.name;
@@ -21370,7 +21371,7 @@ const Air={
   },
   init(){
     this.refreshAdminOnlyVisibility();
-    this.ms.ship=MSel("ms-air-ship","船舶",()=>[...new Set(App.air.map(d=>d.ship))].filter(Boolean).sort(),()=>{this.page=1;this.renderList();});
+    this.ms.ship=MSel("ms-air-ship","船舶",()=>[...new Set(App.air.map(d=>d.ship))].filter(Boolean).sort(),()=>{this.page=1;this.renderList();},shipFullLabel);
     this.ms.itype=MSel("ms-air-itype","檢查來源",()=>[...new Set(App.air.map(d=>d.itype))].filter(Boolean).sort(),()=>{this.page=1;this.renderList();});
     this.ms.status=MSel("ms-air-status","狀態",()=>{
       // ⚠ statusText() 現在會明確列出「已轉檢查紀錄、缺失紀錄」這種組合，不再只有籠統的
@@ -22694,7 +22695,7 @@ const Air={
   },
   _showShareWizard(rows){
     this._pendingShareRows=rows;
-    this.ms.swShip=MSel("ms-air-sw-ship","限定船舶",()=>SHIPINFO.filter(s=>s.operator==="FPMC").map(s=>s.code).sort(),()=>{});
+    this.ms.swShip=MSel("ms-air-sw-ship","限定船舶",()=>SHIPINFO.filter(s=>s.operator==="FPMC").map(s=>s.code).sort(),()=>{},shipFullLabel);
     this.ms.swShip.clear&&this.ms.swShip.clear();
     $("#air-sw-limit").checked=false;
     $("#ms-air-sw-ship").style.display="none";
@@ -25036,7 +25037,7 @@ const IntAuditQueue={
 const Recur={
   ms:{},sortKey:"count",sortAsc:false,rows:[],sel:new Set(),open:new Set(),
   init(){
-    this.ms.ship=MSel("ms-rc-ship","船舶",()=>[...new Set(App.defs.map(d=>d.ship))].filter(Boolean).sort(),()=>this.render());
+    this.ms.ship=MSel("ms-rc-ship","船舶",()=>[...new Set(App.defs.map(d=>d.ship))].filter(Boolean).sort(),()=>this.render(),shipFullLabel);
     this.ms.vtype=MSel("ms-rc-vtype","船型",()=>[...new Set(App.defs.map(d=>d.vtype))].filter(Boolean).sort(),()=>this.render());
     this.ms.place=MSel("ms-rc-place","檢查地點",()=>[...new Set(App.defs.map(d=>d.place))].filter(Boolean).sort(),()=>this.render());
     this.ms.insp=MSel("ms-rc-insp","檢查員",()=>[...new Set(App.defs.map(d=>d.inspector))].filter(Boolean).sort(),()=>this.render());
@@ -25456,7 +25457,7 @@ const Ref={
     this.ms.factor=MSel("ms-ref-factor","根因",()=>{const cat=(typeof NCTree!=="undefined"?NCTree.list.rootCause:[])||[];const names=cat.map(x=>x[0]);return names.length?names:[...new Set(App.defs.map(d=>ncFactorSplit(d.ncRoot)).flat())].filter(Boolean).sort();},()=>this.render());
     this.ms.ncimp=MSel("ms-ref-ncimp","重要程度",()=>[...new Set(App.defs.map(d=>d.ncImp||""))].filter(Boolean).sort(),()=>this.render());
     this.ms.ncfocus=MSel("ms-ref-ncfocus","重要關注",()=>["是","否"],()=>this.render());
-    this.ms.ship=MSel("ms-ref-ship","船舶",()=>[...new Set(App.defs.map(d=>d.ship))].filter(Boolean).sort(),()=>this.render());
+    this.ms.ship=MSel("ms-ref-ship","船舶",()=>[...new Set(App.defs.map(d=>d.ship))].filter(Boolean).sort(),()=>this.render(),shipFullLabel);
     this.ms.vtype=MSel("ms-ref-vtype","船型",()=>[...new Set(App.defs.map(d=>d.vtype))].filter(Boolean).sort(),()=>this.render());
     this.ms.place=MSel("ms-ref-place","檢查地點",()=>[...new Set(App.defs.map(d=>d.place))].filter(Boolean).sort(),()=>this.render());
     this.ms.insp=MSel("ms-ref-insp","檢查員",()=>[...new Set(App.defs.map(d=>d.inspector))].filter(Boolean).sort(),()=>this.render());
@@ -30211,7 +30212,7 @@ const DefsProj={
     this.ms.ncmain=MSel("ms-dfp-ncmain","大類",()=>ncMainsForProbs(this.ms.ncprob.sel).sort(),rerun);
     this.ms.ncleaf=MSel("ms-dfp-ncleaf","具體名稱",()=>ncLeavesForProbsMains(this.ms.ncprob.sel,this.ms.ncmain.sel).sort(),rerun);
     this.ms.itype=MSel("ms-dfp-itype","檢查來源",()=>TagLists.withExtras("itype",App.defs.map(d=>d.itype)),rerun);
-    this.ms.ship=MSel("ms-dfp-ship","船名",()=>TagLists.withExtras("ship",App.defs.map(d=>d.ship)),rerun);
+    this.ms.ship=MSel("ms-dfp-ship","船名",()=>TagLists.withExtras("ship",App.defs.map(d=>d.ship)),rerun,shipFullLabel);
     this.ms.vtype=MSel("ms-dfp-vtype","船型",()=>TagLists.withExtras("vtype",App.defs.map(d=>d.vtype)),rerun);
     Object.values(this.ms).forEach(m=>m.clear&&m.clear());
     $("#dfp-c-name").value="";$("#dfp-c-kw").value="";$("#dfp-c-preview").textContent="";
@@ -30501,7 +30502,7 @@ const DefsProj={
   openTaskWizard(){
     const p=this.getProject(this.curId);if(!p)return;
     if(!p.checklist||!p.checklist.length){toast("⚠ 此專案尚無 Checklist 項目");return;}
-    this.ms.twShip=MSel("ms-dfp-tw-ship","船舶",()=>SHIPINFO.filter(s=>s.operator==="FPMC").map(s=>s.code).sort(),()=>{});
+    this.ms.twShip=MSel("ms-dfp-tw-ship","船舶",()=>SHIPINFO.filter(s=>s.operator==="FPMC").map(s=>s.code).sort(),()=>{},shipFullLabel);
     this.ms.twShip.clear&&this.ms.twShip.clear();
     $("#dfp-tw-all").checked=false;
     $("#dfp-tw-count").textContent=p.checklist.length;
@@ -30767,13 +30768,13 @@ const SelfCheck={
   cur(){return App.tasks.find(t=>t.id===App.curTaskId)||null;},
   init(){
     const wc=()=>this.wizCount();
-    this.msW.ship=MSel("ms-w-ship","來源船舶",()=>[...new Set(App.defs.map(d=>d.ship))].sort(),wc);
+    this.msW.ship=MSel("ms-w-ship","來源船舶",()=>[...new Set(App.defs.map(d=>d.ship))].sort(),wc,shipFullLabel);
     this.msW.itype=MSel("ms-w-itype","檢查類型",()=>[...new Set(App.defs.map(d=>d.itype))].filter(Boolean).sort(),wc);
     this.msW.ncmain=MSel("ms-w-tm","大類",()=>[...new Set(App.defs.map(d=>d.ncMain||"(未分類)"))].filter(Boolean).sort(),wc);
     this.msW.year=MSel("ms-w-year","年份",()=>[...new Set(App.defs.map(d=>(d.ym||ymOf(d.date)||"").slice(0,4)))].filter(Boolean).sort().reverse(),wc);
     this.msW.ym=MSel("ms-w-ym","年月",()=>[...new Set(App.defs.map(d=>d.ym||ymOf(d.date)))].filter(Boolean).filter(m=>this.msW.year.pass(m.slice(0,4))).sort().reverse(),wc);
-    this.msTgt=MSel("ms-w-ships","自查船舶",()=>[...new Set([...App.defs.map(d=>d.ship),...App.insp.map(i=>i.ship)])].sort(),()=>{});
-    this.msT.ship=MSel("ms-t-ship","自查船舶",()=>[...new Set(App.tasks.map(t=>t.ship))].filter(Boolean).sort(),()=>this.renderTasks());
+    this.msTgt=MSel("ms-w-ships","自查船舶",()=>[...new Set([...App.defs.map(d=>d.ship),...App.insp.map(i=>i.ship)])].sort(),()=>{},shipFullLabel);
+    this.msT.ship=MSel("ms-t-ship","自查船舶",()=>[...new Set(App.tasks.map(t=>t.ship))].filter(Boolean).sort(),()=>this.renderTasks(),shipFullLabel);
     this.msT.ym=MSel("ms-t-ym","自查年月",()=>[...new Set(App.tasks.map(t=>(t.date||"").slice(0,7)))].filter(Boolean).sort().reverse(),()=>this.renderTasks());
     this.msT.sup=MSel("ms-t-sup","督導確認",()=>["✅ 已確認","⬜ 未確認"],()=>this.renderTasks());
     $("#tw-ship").innerHTML=`<option value=""></option>`+[...new Set([...App.defs.map(d=>d.ship),...App.insp.map(i=>i.ship)])].sort().map(s=>`<option value="${esc(s)}">${esc(shipFullLabel(s))}</option>`).join("");

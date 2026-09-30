@@ -328,9 +328,10 @@ const PORTS=["Aarhus, Denmark", "Abbot Point, Australia", "Abidjan, Ivory Coast"
 
 /* ══════ 雲端清單：船舶／督導名冊（讀不到時提示，不擋填單） ══════ */
 let SHIPS=[],SUPERVISORS=[];
+function shipLabel(code){const s=SHIPS.find(x=>x.code===code);return s?s.label:(code||"");}
 async function getKey(k){const r=await withTimeout(api(`app_db?select=payload&k=eq.${encodeURIComponent(k)}`),8000);return r&&r[0]?r[0].payload:null;}
 async function loadLists(){
-  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,type1:s.type1||""}));}catch(e){}
+  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,type1:s.type1||"",label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));}catch(e){}
   /* 檢查人 Auditor 名單：優先採用主系統「內部檢查人 Auditor 名單」（可含督導/海技/管理層等
      任一部門，由 Owner 在系統管理頁直接挑人維護）；尚未設定過（陣列為空／讀取失敗）時，
      退回舊規則：自動抓名冊部門＝「督導」或「海技組」的人，向後相容既有安裝。 */
@@ -346,7 +347,7 @@ async function loadLists(){
   $("#dlPorts").innerHTML=PORTS.concat(["At Sea"]).map(p=>`<option value="${esc(p)}">`).join("");
   if(!SHIPS.length)toast("⚠ 船舶清單讀取失敗，請確認網路後重新整理頁面",true);
   if(!SUPERVISORS.length)toast("⚠ 檢查人名單讀取失敗，請確認網路後重新整理頁面",true);
-  $("#fShip").innerHTML='<option value="">全部船舶</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}">${esc(s.code)} ${esc(s.name)}</option>`).join("");
+  $("#fShip").innerHTML='<option value="">全部船舶</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}">${esc(s.label)}</option>`).join("");
 }
 
 /* ══════ 資料存取：優先寫雲端資料表 intaudit_records；資料表還沒建立時退回本機瀏覽器暫存並提示 ══════ */
@@ -475,7 +476,7 @@ function renderList(){
     const filtering=!!(fm||fst||q),open=filtering||expanded.has(r.id);
     html+=`<tr class="rec"><td colspan="8"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       ${filtering?"":`<button class="btn sm" onclick="toggleRec(${r.id})" title="展開／收合這張登錄單的缺失明細">${open?"▾ 收合":"▸ 展開"}（${(r.defs||[]).length}）</button>`}
-      <span style="font-size:14px">${esc(r.ship)}</span><span>${esc(dateText(r))}</span><span class="hint">${esc(types)}${r.draft?" ・<b style='color:#b5610f'>草稿</b>":""}</span>
+      <span style="font-size:14px">${esc(shipLabel(r.ship))}</span><span>${esc(dateText(r))}</span><span class="hint">${esc(types)}${r.draft?" ・<b style='color:#b5610f'>草稿</b>":""}</span>
       <span class="hint">檢查人：${esc(r.inspector)}　地點：${esc(r.psn)}</span>
       <span class="hint" style="flex-basis:100%;font-weight:400">${esc(summaryText(r))}</span>
       <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
@@ -505,7 +506,7 @@ async function delRec(id){if(!confirm("確定刪除這張登錄單？此動作�
 function openExport(id){
   const r=Store.rows.find(x=>x.id===id);if(!r)return;
   const nIc=(r.defs||[]).filter(d=>d.closeMode==="內控").length;
-  $("#exportSub").innerHTML=`${esc(r.ship)}　${esc(dateText(r))}　檔名：<span style="font-family:var(--mono)">${esc(exportBaseName(r))}</span>`;
+  $("#exportSub").innerHTML=`${esc(shipLabel(r.ship))}　${esc(dateText(r))}　檔名：<span style="font-family:var(--mono)">${esc(exportBaseName(r))}</span>`;
   const row=(fn,label,desc,dis)=>`<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)"><button class="btn primary" style="min-width:150px" ${dis?"disabled":""} onclick="${fn}(${id})">${label}</button><div class="hint" style="font-size:12.5px">${desc}</div></div>`;
   $("#exportRows").innerHTML=
     row("exportWord","⬇ Word（.docx）","檢查缺失具體項目記錄表：含照片，若船上已回報，改善措施／完成日期／證據照片也會一併帶入；每條缺失獨立一頁",false)+
@@ -522,7 +523,7 @@ async function issueOrder(id){
   const n=(r.defs||[]).filter(d=>d.closeMode!=="FLOW").length;
   if(!n){toast("⚠ 這張登錄單沒有需要船上改善的缺失（都是 FLOW）",true);return;}
   if(Store.mode!=="cloud"){alert("⚠ 目前連不上雲端資料表，改善單連結暫時無法給船上使用。\n\n"+(Store._loadErr?"錯誤訊息："+Store._loadErr+"\n\n":"")+"請按「🔄 重新整理」後再試；若一直失敗，才需要請維護者確認 Supabase 是否已執行過 intaudit_setup.sql。");return;}
-  const text=`內部檢查改善單：${r.ship} ${dateText(r)} ${(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、")}，共 ${n} 項待改善 連結:${replyUrl(r)}`;
+  const text=`內部檢查改善單：${shipLabel(r.ship)} ${dateText(r)} ${(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、")}，共 ${n} 項待改善 連結:${replyUrl(r)}`;
   const shipUrl=replyUrl(r).replace(/\?rid=.*/,"?ship="+encodeURIComponent(r.ship));
   const textFull=text+"\n（本船歷次改善單清單，固定連結："+shipUrl+"）";
   if(r.issuedAt&&!confirm("這張登錄單已發過改善單，要再複製一次連結嗎？（連結不變，船上先前的回報不會消失）"))return;
@@ -600,7 +601,7 @@ function openForm(sec){
   secTab=sec||"basic";defFilter="";
   $("#listPage").style.display="none";$("#formPage").style.display="";
   $("#btnList").classList.remove("primary");$("#btnNew").classList.add("primary");$("#errBox").style.display="none";
-  $("#fShipSel").innerHTML='<option value="">— 請選擇船舶 —</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}" ${cur.ship===s.code?"selected":""}>${esc(s.code)} ${esc(s.name)}</option>`).join("");
+  $("#fShipSel").innerHTML='<option value="">— 請選擇船舶 —</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}" ${cur.ship===s.code?"selected":""}>${esc(s.label)}</option>`).join("");
   const insp=SUPERVISORS.slice();if(cur.inspector&&!insp.includes(cur.inspector))insp.unshift(cur.inspector);
   $("#fInspector").innerHTML='<option value="">— 請選擇檢查人 —</option>'+insp.map(n=>`<option ${cur.inspector===n?"selected":""}>${esc(n)}</option>`).join("");
   $("#fDateFrom").value=cur.dateFrom||"";$("#fDateTo").value=cur.dateTo||"";$("#fPsn").value=cur.psn||"";

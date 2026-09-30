@@ -242,11 +242,12 @@ function onCheckerTitleInput(v){
 
 const EXCLUDED_SHIPS=["F25","F26","PH","PI"]; // 不參與分享自查的船舶（預設排除）
 let SHIP_OPTS=[];
+function shipLabel(code){const s=SHIP_OPTS.find(x=>x.code===code);return s?(s.label||s.name):(code||"");}
 async function loadShipOpts(){
   try{
     const rows=await api("app_db?select=payload&k=eq.ships");
     const list=rows&&rows[0]&&Array.isArray(rows[0].payload)?rows[0].payload:[];
-    SHIP_OPTS=list.filter(s=>!EXCLUDED_SHIPS.includes(s.code)).map(s=>({code:s.code,name:s.zh||s.name||s.code}));
+    SHIP_OPTS=list.filter(s=>!EXCLUDED_SHIPS.includes(s.code)).map(s=>({code:s.code,name:s.zh||s.name||s.code,label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));
   }catch(e){ /* 離線或抓取失敗，維持空清單，下面 fillShipSelect 會用活動範本裡限定的船舶代碼頂著用 */ }
 }
 function fillShipSelect(){
@@ -255,14 +256,14 @@ function fillShipSelect(){
   let opts=SHIP_OPTS;
   if(scope){
     // 活動有限定船舶清單：只列出限定的那幾艘；找不到船名對照就直接用代碼顯示
-    opts=scope.map(code=>{const hit=SHIP_OPTS.find(s=>s.code===code);return hit||{code,name:code};});
+    opts=scope.map(code=>{const hit=SHIP_OPTS.find(s=>s.code===code);return hit||{code,name:code,label:code};});
   }
-  if(!opts.length&&scope)opts=scope.map(code=>({code,name:code}));
+  if(!opts.length&&scope)opts=scope.map(code=>({code,name:code,label:code}));
   // ⚠ 當事船（缺失來源船）不會整艘船被排除在船名選單之外——合併分享時，當事船本來就可能
   // 還要自查「其他船」的缺失，整艘藏起來會連這些一起漏掉。排除只發生在「單筆題目」層級，
   // 見 loadOrCreateResponse()：當事船打開後，自己那幾筆會被自動標記「🚩 當事船」。
   const last=(function(){try{return localStorage.getItem(LASTSHIP_KEY)||"";}catch(e){return "";}})();
-  sel.innerHTML='<option value="">請選擇本船船名</option>'+opts.map(s=>`<option value="${esc(s.code)}"${s.code===last?" selected":""}>${esc(s.code)} ${esc(s.name)}</option>`).join("");
+  sel.innerHTML='<option value="">請選擇本船船名</option>'+opts.map(s=>`<option value="${esc(s.code)}"${s.code===last?" selected":""}>${esc(s.label||s.name)}</option>`).join("");
 }
 
 async function init(){
@@ -357,7 +358,7 @@ async function enterAsShip(){
   document.getElementById("body").style.display="";
   document.getElementById("gateProgressWrap").style.display="";
   document.getElementById("taskTitle").textContent=campaign.title||"";
-  document.getElementById("taskMeta").textContent=`船舶：${draft.ship||""}　已送出 ${draft.submit_count||0} 次${draft.submitted_at?"　最後送出："+new Date(draft.submitted_at).toLocaleString("zh-TW",{hour12:false}):""}`;
+  document.getElementById("taskMeta").textContent=`船舶：${shipLabel(draft.ship)}　已送出 ${draft.submit_count||0} 次${draft.submitted_at?"　最後送出："+new Date(draft.submitted_at).toLocaleString("zh-TW",{hour12:false}):""}`;
   const bc=document.getElementById("bodyChecker");if(bc)bc.value=getCheckerName();
   const bt=document.getElementById("bodyCheckerTitle");if(bt)bt.value=draft.checker_title||getCheckerTitle();
   renderItems();
@@ -389,7 +390,7 @@ async function enterMyList(){
     return;
   }
   const visible=allCampaigns.filter(c=>!(c.ship_scope&&c.ship_scope.length)||c.ship_scope.includes(ship));
-  document.getElementById("hdr-note").textContent=`${ship}　本船分享自查記錄`;
+  document.getElementById("hdr-note").textContent=`${shipLabel(ship)}　本船分享自查記錄`;
   document.getElementById("gate").style.display="none";
   const box=document.getElementById("myListBody");
   if(!visible.length){
@@ -447,7 +448,7 @@ function updateProgress(){
   const done=items.filter(it=>it.status&&it.status!=="pending").length;
   const pct=items.length?Math.round(done/items.length*100):0;
   document.getElementById("progressFill").style.width=pct+"%";
-  document.getElementById("hdr-note").textContent=`${draft.ship}　已作答 ${done} / ${items.length} 題（${pct}%）`;
+  document.getElementById("hdr-note").textContent=`${shipLabel(draft.ship)}　已作答 ${done} / ${items.length} 題（${pct}%）`;
 }
 
 const ST_LABEL_DL={ok:"沒有",similar:"有，需處理",self:"當事船（本船缺失來源）",na:"不適用",pending:"未作答"};
@@ -461,6 +462,7 @@ function collectExportData(){
   return {
     title:campaign?campaign.title||"":"",
     ship:draft.ship||"",
+    shipTxt:shipLabel(draft.ship),
     checker:nameNow,checkerTitle:titleNow,
     total:items.length,needN,
     submitCount:draft.submit_count||0,
@@ -477,7 +479,7 @@ async function exportExcel(){
   const wsBase=XLSX.utils.aoa_to_sheet([
     ["分享自查基本資料"],
     ["活動主題",d.title],
-    ["船舶",d.ship],
+    ["船舶",d.shipTxt],
     ["填寫人姓名",d.checker],
     ["填寫人職稱",d.checkerTitle],
     ["查核項目數（缺失數）",d.total],
@@ -519,14 +521,14 @@ function preparePrint(){
   </tr>`;
   document.getElementById("printArea").innerHTML=`
     <h2>船隊分享自查　${esc(d.title)}</h2>
-    <div class="pmeta">船舶：${esc(d.ship)}　填寫人：${esc(d.checker)}（${esc(d.checkerTitle)}）　查核項目數：${d.total}　其中需處理：${d.needN}　已送出 ${d.submitCount} 次　最後送出：${esc(d.submittedAt)}　匯出時間：${esc(d.exportedAt)}</div>
+    <div class="pmeta">船舶：${esc(d.shipTxt)}　填寫人：${esc(d.checker)}（${esc(d.checkerTitle)}）　查核項目數：${d.total}　其中需處理：${d.needN}　已送出 ${d.submitCount} 次　最後送出：${esc(d.submittedAt)}　匯出時間：${esc(d.exportedAt)}</div>
     <table><thead><tr><th class="pnum">#</th><th>查核項目（缺失內容／實際情況）</th><th class="pst">本船查核結果</th><th>本船實際狀況</th><th>打算怎麼處理</th></tr></thead>
     <tbody>${d.items.map(rowHtml).join("")}</tbody></table>`;
   setTimeout(()=>window.print(),50);
 }
 
 /* 來源檢查（船名 檢查來源 日期）：標在 CODE 後面，讓填答的人知道這項缺失是哪條船、哪次檢查發現的 */
-function fmtSrc(s){const p=String(s||"").trim().split(/\s+/);return p.length>=3?`${p[0]}・${p.slice(1,-1).join(" ")}・${p[p.length-1]}`:String(s||"");}
+function fmtSrc(s){const p=String(s||"").trim().split(/\s+/);return p.length>=3?`${shipLabel(p[0])}・${p.slice(1,-1).join(" ")}・${p[p.length-1]}`:String(s||"");}
 const srcTag=it=>it.src?`<span style="margin-left:8px;font-size:12px;font-weight:700;color:#1e7f8c;background:#e4f1f2;border-radius:10px;padding:1px 10px;white-space:nowrap">${esc(fmtSrc(it.src))}</span>`:"";
 function renderRef(it){
   return `<div class="refbox">
@@ -754,7 +756,7 @@ async function submitAll(){
     dirty=false;
     clearLocalCache();
     draft.submitted_at=now; draft.submit_count=(draft.submit_count||0)+1;
-    document.getElementById("taskMeta").textContent=`船舶：${draft.ship||""}　已送出 ${draft.submit_count} 次　最後送出：${new Date(now).toLocaleString("zh-TW",{hour12:false})}`;
+    document.getElementById("taskMeta").textContent=`船舶：${shipLabel(draft.ship)}　已送出 ${draft.submit_count} 次　最後送出：${new Date(now).toLocaleString("zh-TW",{hour12:false})}`;
     notify("✓ 已送出，公司端可以查看到這次結果了","ok2");
   }catch(e){
     notify("送出失敗，內容已安全存在本機，恢復連線後重新打開此頁會自動重送："+e.message,"err");

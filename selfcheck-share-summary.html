@@ -201,7 +201,7 @@ function copyMailText(id){
 }
 
 /* 受檢船・檢查來源・日期（來源字串格式「船名 檢查來源 日期」），跟船上填單頁的顯示一致 */
-function fmtSrc(s){const p=String(s||"").trim().split(/\s+/);return p.length>=3?`${p[0]}・${p.slice(1,-1).join(" ")}・${p[p.length-1]}`:String(s||"");}
+function fmtSrc(s){const p=String(s||"").trim().split(/\s+/);return p.length>=3?`${shipLabel(p[0])}・${p.slice(1,-1).join(" ")}・${p[p.length-1]}`:String(s||"");}
 const srcTag=it=>it.src?`<span style="margin-left:8px;font-size:12px;font-weight:700;color:#1e7f8c;background:#e4f1f2;border-radius:10px;padding:1px 10px;white-space:nowrap">${esc(fmtSrc(it.src))}</span>`:"";
 let toastTimer;
 function notify(msg,tone){
@@ -229,7 +229,7 @@ async function loadShipOpts(){
   try{
     const rows=await api("app_db?select=payload&k=eq.ships");
     const list=rows&&rows[0]&&Array.isArray(rows[0].payload)?rows[0].payload:[];
-    shipOpts=list.filter(s=>!EXCLUDED_SHIPS.includes(s.code)).map(s=>({code:s.code,name:s.zh||s.name||s.code}));
+    shipOpts=list.filter(s=>!EXCLUDED_SHIPS.includes(s.code)).map(s=>({code:s.code,name:s.zh||s.name||s.code,label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));
   }catch(e){}
 }
 async function loadCampaignList(){
@@ -351,10 +351,11 @@ async function loadCampaign(id){
 
 /* 這個活動的「應填船舶清單」：有限定就用限定清單，沒限定就用全船舶清單
    （沒填答的船仍要列出來，才看得出「還有誰沒填」，不能只顯示已經有回應的船）。 */
+function shipLabel(code){const s=shipOpts.find(x=>x.code===code);return s?s.label:(code||"");}
 function targetShips(){
   const scope=(curCampaign.ship_scope&&curCampaign.ship_scope.length)?curCampaign.ship_scope:null;
-  if(scope)return scope.map(code=>{const hit=shipOpts.find(s=>s.code===code);return {code,name:hit?hit.name:code};});
-  return shipOpts.length?shipOpts:responses.map(r=>({code:r.ship,name:r.ship}));
+  if(scope)return scope.map(code=>{const hit=shipOpts.find(s=>s.code===code);return {code,name:hit?hit.name:code,label:hit?hit.label:code};});
+  return shipOpts.length?shipOpts:responses.map(r=>({code:r.ship,name:r.ship,label:r.ship}));
 }
 
 function rowStat(resp){
@@ -372,7 +373,7 @@ function renderTable(){
   const kw=(document.getElementById("shipSearch").value||"").trim().toLowerCase();
   const byShip=new Map(responses.map(r=>[r.ship,r]));
   let ships=targetShips();
-  if(kw)ships=ships.filter(s=>s.code.toLowerCase().includes(kw)||(s.name||"").toLowerCase().includes(kw));
+  if(kw)ships=ships.filter(s=>s.code.toLowerCase().includes(kw)||(s.name||"").toLowerCase().includes(kw)||(s.label||"").toLowerCase().includes(kw));
   const rowsHtml=[];
   let nSubmitted=0,nTrackOpen=0,nDone=0;
   ships.forEach(s=>{
@@ -390,7 +391,7 @@ function renderTable(){
     const editUrl=`submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(s.code)}`;
     rowsHtml.push(`
       <tr class="${st.openTrack?'track':(submitted&&st.total&&st.done===st.total?'done':'')}" data-ship="${esc(s.code)}">
-        <td><b>${esc(s.code)}</b><div class="hint">${esc(s.name||"")}</div></td>
+        <td>${esc(s.label||s.name||"")}</td>
         <td>${resp?esc(resp.checker_name||"—")+(resp.checker_title?`<div class="hint">${esc(resp.checker_title)}</div>`:""):"<span class='hint'>尚未開始</span>"}</td>
         <td>${resp?`${st.done} / ${st.total}（${pct}%）`:"<span class='hint'>0 / "+(curCampaign.items||[]).length+"</span>"}</td>
         <td>${trackPill}</td>
@@ -417,7 +418,7 @@ function renderTable(){
 
 async function deleteResponse(ship){
   const resp=responses.find(r=>r.ship===ship);if(!resp)return;
-  if(!confirm(`確定要刪除「${ship}」這艘船在本活動的填答內容？此動作無法復原，該船之後重新打開連結會視為第一次填答。`))return;
+  if(!confirm(`確定要刪除「${shipLabel(ship)}」這艘船在本活動的填答內容？此動作無法復原，該船之後重新打開連結會視為第一次填答。`))return;
   try{
     await api(`${RESPONSE_TABLE}?id=eq.${resp.id}`,{method:"DELETE",headers:authHeaders()});
     responses=responses.filter(r=>r.id!==resp.id);
@@ -435,12 +436,12 @@ function collectReport(){
   targetShips().forEach(s=>{
     const resp=byShip.get(s.code),st=rowStat(resp);
     const similar=resp?(resp.items||[]).filter(it=>it.status==="similar"):[];
-    status.push({code:s.code,name:s.name||"",checker:resp?(resp.checker_name||""):"",title:resp?(resp.checker_title||""):"",
+    status.push({code:s.code,name:s.label||s.name||"",checker:resp?(resp.checker_name||""):"",title:resp?(resp.checker_title||""):"",
       progress:resp?`${st.done} / ${st.total}`:`0 / ${(curCampaign.items||[]).length}`,
       state:!resp?"尚未開始":(resp.submitted_at?"已送出":"填答中"),
       submitCount:resp?(resp.submit_count||0):0,submittedAt:resp?fmt(resp.submitted_at):"",
       needN:similar.length,openN:similar.filter(it=>!it.closed).length});
-    similar.forEach(it=>issues.push({code:s.code,name:s.name||"",checker:resp.checker_name||"",title:resp.checker_title||"",
+    similar.forEach(it=>issues.push({code:s.code,name:s.label||s.name||"",checker:resp.checker_name||"",title:resp.checker_title||"",
       itemCode:it.code||"",src:it.src||"",detail:it.detail||"",actual2:it.actual2||"",note:it.note||"",handle:it.actual||"",
       closed:it.closed?"已結案":"未結案",closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
   });
@@ -471,12 +472,12 @@ function collectReportFor(c){
   targetShipsFor(c,resp).forEach(s=>{
     const r=byShip.get(s.code),st=rowStatFor(r,totalItems);
     const similar=r?(r.items||[]).filter(it=>it.status==="similar"):[];
-    status.push({campaign:label,code:s.code,name:s.name||"",checker:r?(r.checker_name||""):"",title:r?(r.checker_title||""):"",
+    status.push({campaign:label,code:s.code,name:s.label||s.name||"",checker:r?(r.checker_name||""):"",title:r?(r.checker_title||""):"",
       progress:r?`${st.done} / ${st.total}`:`0 / ${totalItems}`,
       state:!r?"尚未開始":(r.submitted_at?"已送出":"填答中"),
       submitCount:r?(r.submit_count||0):0,submittedAt:r?fmt(r.submitted_at):"",
       needN:similar.length,openN:similar.filter(it=>!it.closed).length});
-    similar.forEach(it=>issues.push({campaign:label,code:s.code,name:s.name||"",checker:r.checker_name||"",title:r.checker_title||"",
+    similar.forEach(it=>issues.push({campaign:label,code:s.code,name:s.label||s.name||"",checker:r.checker_name||"",title:r.checker_title||"",
       itemCode:it.code||"",src:it.src||"",detail:it.detail||"",actual2:it.actual2||"",note:it.note||"",handle:it.actual||"",
       closed:it.closed?"已結案":"未結案",closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
   });
@@ -526,10 +527,10 @@ function exportPdf(){
     <div>產出日期：${new Date().toLocaleString("zh-TW",{hour12:false})}　查核項目 ${(curCampaign.items||[]).length} 項　已送出 ${status.filter(r=>r.state==="已送出").length} / ${status.length} 艘　需處理 ${issues.length} 項（未結案 ${issues.filter(r=>r.closed==="未結案").length}）</div>
     <h2>一、船隊完成狀況</h2>
     <table><thead><tr><th>船舶</th><th>填寫人</th><th>進度</th><th>狀態</th><th>最後送出</th><th>需處理</th><th>未結案</th></tr></thead><tbody>
-    ${status.map(r=>`<tr><td>${c(r.code)} ${c(r.name)}</td><td>${c(r.checker)}${r.title?"（"+c(r.title)+"）":""}</td><td>${c(r.progress)}</td><td>${r.state}</td><td>${c(r.submittedAt)}</td><td>${r.needN}</td><td>${r.openN}</td></tr>`).join("")}</tbody></table>
+    ${status.map(r=>`<tr><td>${c(r.name)}</td><td>${c(r.checker)}${r.title?"（"+c(r.title)+"）":""}</td><td>${c(r.progress)}</td><td>${r.state}</td><td>${c(r.submittedAt)}</td><td>${r.needN}</td><td>${r.openN}</td></tr>`).join("")}</tbody></table>
     <h2>二、有類似情形、需處理項目（${issues.length} 項）</h2>
     ${issues.length?`<table><thead><tr><th style="width:11%">船舶</th><th style="width:26%">缺失內容</th><th style="width:20%">本船實際狀況</th><th style="width:29%">處理情況</th><th style="width:8%">結案</th></tr></thead><tbody>
-    ${issues.map(r=>`<tr><td>${c(r.code)}<br>${c(r.name)}</td><td>${c(r.detail)}${r.actual2?"<br><i>實際情況："+c(r.actual2)+"</i>":""}</td><td>${c(r.note)}</td><td>${c(r.handle)}</td><td>${r.closed}</td></tr>`).join("")}</tbody></table>`:"<div>目前沒有需處理項目。</div>"}`;
+    ${issues.map(r=>`<tr><td>${c(r.name)}</td><td>${c(r.detail)}${r.actual2?"<br><i>實際情況："+c(r.actual2)+"</i>":""}</td><td>${c(r.note)}</td><td>${c(r.handle)}</td><td>${r.closed}</td></tr>`).join("")}</tbody></table>`:"<div>目前沒有需處理項目。</div>"}`;
   window.print();
 }
 
@@ -586,10 +587,10 @@ function buildReminderText(ship){
   const open=((resp&&resp.items)||[]).map((it,i)=>({it,i})).filter(x=>x.it.status==="similar"&&!x.it.closed);
   const url=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(ship)}`;
   const lines=open.map(({it,i})=>`#${i+1}　${it.code?"CODE "+it.code+"　":""}${it.detail||""}${it.trackDue?`（追蹤期限：${it.trackDue}）`:""}`);
-  return `【自查案件追蹤】${curCampaign.title||""}\n\n${ship} 您好，請查此自查項目類似情形是否已改善：\n\n${lines.join("\n\n")}\n\n若已改善，請點選下方連結進入，勾選「已完成改善（結案）」並說明改善情形、填上結案日期後送出；尚未改善的也請先填寫目前處理進度。\n\n連結：${url}`;
+  return `【自查案件追蹤】${curCampaign.title||""}\n\n${shipLabel(ship)} 您好，請查此自查項目類似情形是否已改善：\n\n${lines.join("\n\n")}\n\n若已改善，請點選下方連結進入，勾選「已完成改善（結案）」並說明改善情形、填上結案日期後送出；尚未改善的也請先填寫目前處理進度。\n\n連結：${url}`;
 }
 function openTrackReminder(ship){
-  document.getElementById("trackModalShip").textContent=ship;
+  document.getElementById("trackModalShip").textContent=shipLabel(ship);
   document.getElementById("trackModalText").value=buildReminderText(ship);
   document.getElementById("trackModal").classList.add("show");
 }

@@ -63,7 +63,7 @@ const MODE_SUFFIX={"FLOW":"需要登記到DMP-FM01中","內控":"需要登記內
 const SECTION_HEAD={"onboard visit":"訪船缺失 Ship Visit","Internal audit":"內稽缺失 Internal Audit","ACCOMPANYING SHIP":"隨船缺失 On-Voyage Audit","Cross ship visit":"交叉訪船缺失 Cross Visit","主題檢查":"專項檢查缺失 Special Inspection"};
 async function buildDocBody(r,ctx,replyOf){
   const P=buildDocx_photos(ctx),W=14678;
-  const ship=SHIPS.find(s=>s.code===r.ship),shipTxt=ship?`${ship.code} ${ship.name}`:r.ship;
+  const ship=SHIPS.find(s=>s.code===r.ship),shipTxt=ship?(ship.label||ship.name):r.ship;
   let b="";
   b+=wPara(wRun("檢查缺失具體項目記錄表 Audit N/C / Deficiency Items Details Records",{sz:28}),{jc:"center",after:120});
   const specialKeysInR=(r.types||[]).filter(k=>typeof k==="string"&&(k===SPECIAL_TYPE_K||k.startsWith(SPECIAL_PREFIX)));

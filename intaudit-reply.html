@@ -141,14 +141,15 @@ const typeLabels=r=>(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("�
 function download(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);}
 const fname=(r,ext)=>exportBaseName(r)+ext;
 function openLightbox(u){$("#lightboxImg").src=u;$("#lightbox").style.display="flex";}
-async function loadShips(){try{const r=await api("app_db?select=payload&k=eq.ships");const p=r&&r[0]&&r[0].payload;if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code}));}catch(e){}}
+async function loadShips(){try{const r=await api("app_db?select=payload&k=eq.ships");const p=r&&r[0]&&r[0].payload;if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));}catch(e){}}
+function shipLabel(code){const s=SHIPS.find(x=>x.code===code);return s?s.label:(code||"");}
 const nonFlow=r=>(r.defs||[]).filter(d=>d.closeMode!=="FLOW"&&d.uid);
 const bad=(msg)=>{$("#msgBox").innerHTML=`<div class="banner">${msg}</div>`;};
 
 /* ══════════ 本船改善單清單 ══════════ */
 let shipRows=[],shipTab="open";
 async function initShip(){
-  $("#hdrTitle").textContent=`🛠 ${SHIP} 內部檢查改善單清單`;
+  $("#hdrTitle").textContent=`🛠 ${shipLabel(SHIP)} 內部檢查改善單清單`;
   let rows;
   try{
     rows=await api(`intaudit_records?payload->>ship=eq.${encodeURIComponent(SHIP)}&select=id,payload&order=id.desc&limit=200`);
@@ -161,7 +162,7 @@ async function initShip(){
       return {r,n:ds.length,c,closed:c.reviewed===ds.length};
     });
   }catch(e){$("#hdrSub").textContent="讀取失敗";bad(`讀取失敗：${esc(e.message)}<br>請確認網路後重新整理，或聯絡海技。`);return;}
-  $("#hdrSub").textContent=`${SHIP} 歷次改善單（依檢查日期由新到舊）`;
+  $("#hdrSub").textContent=`${shipLabel(SHIP)} 歷次改善單（依檢查日期由新到舊）`;
   $("#shipPage").style.display="";renderShip();
 }
 function setShipTab(k){shipTab=k;renderShip();}
@@ -171,7 +172,7 @@ function renderShip(){
   const list=shipTab==="open"?open:closed;
   $("#shipList").innerHTML=list.length?list.map(({r,n,c,closed})=>{
     const todo=c.none+c.returned;
-    return `<div class="card ocard"><div class="info"><div style="font-weight:700;color:var(--navy);font-size:16px">${esc(r.ship)}　${esc(dateText(r))}　${esc(typeLabels(r))}</div>
+    return `<div class="card ocard"><div class="info"><div style="font-weight:700;color:var(--navy);font-size:16px">${esc(shipLabel(r.ship))}　${esc(dateText(r))}　${esc(typeLabels(r))}</div>
       <div class="hint">檢查人：${esc(r.inspector||"")}　地點：${esc(r.psn||"")}　需船上改善 ${n} 項</div>
       <div>${todo?`<span class="cnt" style="background:#fde8e6;color:#c0392b">待填寫 ${todo}</span>`:""}${c.submitted?`<span class="cnt" style="background:#e3ecf1;color:#1c3a5e">已回報待審核 ${c.submitted}</span>`:""}${c.reviewed?`<span class="cnt" style="background:#dff2e6;color:#20703f">已結案 ${c.reviewed}</span>`:""}</div></div>
       <a class="btn ${closed?"":"primary"}" style="${closed?"":"font-size:15px;padding:10px 18px"}" href="?rid=${r.id}">${closed?"查看":"開啟填寫"}</a>
@@ -226,7 +227,7 @@ async function initRec(){
     await reloadReplies();
   }catch(e){$("#hdrSub").textContent="讀取失敗";bad(`讀取失敗：${esc(e.message)}<br>請確認網路後重新整理，或聯絡海技。`);return;}
   if(rec.draft){$("#hdrSub").textContent="這張改善單尚未發出";bad("這張登錄單督導還沒有送出，請稍後再試。");return;}
-  $("#hdrSub").innerHTML=`${esc(rec.ship)}　${esc(dateText(rec))}　${esc(typeLabels(rec))}　檢查人：${esc(rec.inspector||"")}　地點：${esc(rec.psn||"")}　<a href="?ship=${encodeURIComponent(rec.ship)}">← 本船改善單清單</a>`;
+  $("#hdrSub").innerHTML=`${esc(shipLabel(rec.ship))}　${esc(dateText(rec))}　${esc(typeLabels(rec))}　檢查人：${esc(rec.inspector||"")}　地點：${esc(rec.psn||"")}　<a href="?ship=${encodeURIComponent(rec.ship)}">← 本船改善單清單</a>`;
   loadDrafts();
   const w=who();$("#fName").value=w.name||"";
   $("#fTitle").innerHTML='<option value="">— 請選擇職稱 —</option>'+RANK_OPTIONS.map(r=>`<option ${w.title===r?"selected":""}>${esc(r)}</option>`).join("");
