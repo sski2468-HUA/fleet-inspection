@@ -188,7 +188,7 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
         <label>訪問船舶 Ship Visited <span class="req">*</span><select id="fShipSel"></select></label>
         <label>檢查日期（起）<span class="req">*</span><input type="date" id="fDateFrom" onchange="onDateChange()"></label>
         <label>檢查日期（迄）<span class="hint" style="font-weight:400">單日檢查可不填</span><input type="date" id="fDateTo"></label>
-        <label>檢查人 Auditor <span class="req">*</span><select id="fInspector"></select><span class="hint" style="font-weight:400">名單來自系統名冊的督導與海技人員；找不到請洽海技新增</span></label>
+        <label>檢查人 Auditor <span class="req">*</span><select id="fInspector"></select><span class="hint" style="font-weight:400">名單由主系統「系統管理→內部檢查人 Auditor 名單」維護；找不到請洽 Owner 新增</span></label>
         <label>地點 Ship's PSN <span class="req">*</span><input type="text" id="fPsn" list="dlPorts" placeholder="請用英文打幾個字選港口，例：Kaohsiung" autocomplete="off"><datalist id="dlPorts"></datalist></label>
         <div></div>
         <div class="fld fw">檢查種類 Audit Type <span class="req">*</span>（可複選；缺失明細會依所選種類分頁）
@@ -327,7 +327,18 @@ let SHIPS=[],SUPERVISORS=[];
 async function getKey(k){const r=await withTimeout(api(`app_db?select=payload&k=eq.${encodeURIComponent(k)}`),8000);return r&&r[0]?r[0].payload:null;}
 async function loadLists(){
   try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,type1:s.type1||""}));}catch(e){}
-  try{const p=await getKey("roster");if(Array.isArray(p))SUPERVISORS=[...new Set(p.filter(r=>r.dept==="督導"||r.dept==="海技組").map(r=>r.name))].filter(Boolean).sort();}catch(e){}
+  /* 檢查人 Auditor 名單：優先採用主系統「內部檢查人 Auditor 名單」（可含督導/海技/管理層等
+     任一部門，由 Owner 在系統管理頁直接挑人維護）；尚未設定過（陣列為空／讀取失敗）時，
+     退回舊規則：自動抓名冊部門＝「督導」或「海技組」的人，向後相容既有安裝。 */
+  try{
+    const iai=await getKey("intAuditInspectors");
+    if(Array.isArray(iai)&&iai.length){
+      SUPERVISORS=[...new Set(iai)].filter(Boolean).sort();
+    }else{
+      const p=await getKey("roster");
+      if(Array.isArray(p))SUPERVISORS=[...new Set(p.filter(r=>r.dept==="督導"||r.dept==="海技組").map(r=>r.name))].filter(Boolean).sort();
+    }
+  }catch(e){}
   $("#dlPorts").innerHTML=PORTS.concat(["At Sea"]).map(p=>`<option value="${esc(p)}">`).join("");
   if(!SHIPS.length)toast("⚠ 船舶清單讀取失敗，請確認網路後重新整理頁面",true);
   if(!SUPERVISORS.length)toast("⚠ 檢查人名單讀取失敗，請確認網路後重新整理頁面",true);

@@ -90,6 +90,7 @@ tr.done td{background:#eaf5ee}
       <div class="toolbar">
         <span style="font-weight:700;color:var(--ink-3);font-size:12px">共 <span id="campaignCount">0</span> 個活動</span>
         <button class="btn sm" onclick="loadCampaignList()">🔄 重新整理</button>
+        <button class="btn sm" onclick="exportAllCampaigns()" title="彙整所有活動、所有船舶的檢查結果與明細成一份 Excel，供督導長期追蹤">⬇ 匯出全部活動明細</button>
       </div>
       <div style="overflow-x:auto" id="campaignList"></div>
     </div>
@@ -444,6 +445,63 @@ function collectReport(){
       closed:it.closed?"已結案":"未結案",closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
   });
   return {status,issues};
+}
+/* 目標船舶清單（可指定活動，用於跨活動彙整；不傳則用目前活動） */
+function targetShipsFor(c,resp){
+  const scope=(c.ship_scope&&c.ship_scope.length)?c.ship_scope:null;
+  if(scope)return scope.map(code=>{const hit=shipOpts.find(s=>s.code===code);return {code,name:hit?hit.name:code};});
+  return shipOpts.length?shipOpts:resp.map(r=>({code:r.ship,name:r.ship}));
+}
+function rowStatFor(resp,totalItems){
+  if(!resp)return {done:0,total:totalItems,openTrack:0,closedTrack:0};
+  const items=resp.items||[];
+  const done=items.filter(it=>it.status&&it.status!=="pending").length;
+  const openTrack=items.filter(it=>it.status==="similar"&&!it.closed).length;
+  const closedTrack=items.filter(it=>it.status==="similar"&&it.closed).length;
+  return {done,total:items.length,openTrack,closedTrack};
+}
+/* 單一活動的彙整（跨活動匯出用），邏輯跟 collectReport() 一致，但不依賴 curCampaign/responses 全域變數 */
+function collectReportFor(c){
+  const resp=allResponses.filter(r=>String(r.campaign_id)===String(c.id));
+  const byShip=new Map(resp.map(r=>[r.ship,r]));
+  const totalItems=(c.items||[]).length;
+  const fmt=t=>t?new Date(t).toLocaleString("zh-TW",{hour12:false}):"";
+  const status=[],issues=[];
+  const label=c.title||("活動 #"+c.id);
+  targetShipsFor(c,resp).forEach(s=>{
+    const r=byShip.get(s.code),st=rowStatFor(r,totalItems);
+    const similar=r?(r.items||[]).filter(it=>it.status==="similar"):[];
+    status.push({campaign:label,code:s.code,name:s.name||"",checker:r?(r.checker_name||""):"",title:r?(r.checker_title||""):"",
+      progress:r?`${st.done} / ${st.total}`:`0 / ${totalItems}`,
+      state:!r?"尚未開始":(r.submitted_at?"已送出":"填答中"),
+      submitCount:r?(r.submit_count||0):0,submittedAt:r?fmt(r.submitted_at):"",
+      needN:similar.length,openN:similar.filter(it=>!it.closed).length});
+    similar.forEach(it=>issues.push({campaign:label,code:s.code,name:s.name||"",checker:r.checker_name||"",title:r.checker_title||"",
+      itemCode:it.code||"",src:it.src||"",detail:it.detail||"",actual2:it.actual2||"",note:it.note||"",handle:it.actual||"",
+      closed:it.closed?"已結案":"未結案",closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
+  });
+  return {status,issues};
+}
+/* 匯出全部活動明細：一次把所有活動、所有船舶的檢查結果與需處理明細彙整成一份 Excel，
+   供督導不用一個個活動點進去看，直接在這份總表上長期追蹤。 */
+function exportAllCampaigns(){
+  if(typeof XLSX==="undefined"){notify("⚠ Excel 元件載入失敗，請確認網路後重新整理頁面","err");return;}
+  if(!campaigns.length){notify("⚠ 目前沒有任何活動","err");return;}
+  const allStatus=[],allIssues=[];
+  campaigns.forEach(c=>{
+    const {status,issues}=collectReportFor(c);
+    allStatus.push(...status);
+    allIssues.push(...issues);
+  });
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.json_to_sheet(allStatus.map(r=>({"活動":r.campaign,"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"填答進度":r.progress,"狀態":r.state,"送出次數":r.submitCount,"最後送出":r.submittedAt,"需處理項數":r.needN,"未結案數":r.openN})));
+  ws1["!cols"]=[22,8,14,12,12,10,9,8,20,10,9].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws1,"各活動船隊狀況");
+  const ws2=XLSX.utils.json_to_sheet(allIssues.map(r=>({"活動":r.campaign,"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"CODE":r.itemCode,"來源檢查":fmtSrc(r.src),"缺失內容":r.detail,"來源實際情況":r.actual2,"本船實際狀況":r.note,"處理情況":r.handle,"結案狀態":r.closed,"改善情形說明":r.closeNote,"結案日期":r.closedAt,"追蹤期限":r.trackDue})));
+  ws2["!cols"]=[22,8,14,12,12,10,20,40,36,36,36,9,36,12,12].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws2,"各活動需處理明細");
+  XLSX.writeFile(wb,`分享自查_全部活動彙整_${new Date().toISOString().slice(0,10)}.xlsx`);
+  notify(`✓ 已下載 Excel（共 ${campaigns.length} 個活動、${allIssues.length} 項需處理）`,"ok2");
 }
 function exportExcel(){
   if(!curCampaign){notify("⚠ 請先進入某個活動","err");return;}

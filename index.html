@@ -4856,6 +4856,23 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             </div>
           </div>
           <div class="card">
+            <h3>🛠 內部檢查／稽核「檢查人 Auditor」名單（Owner）</h3>
+            <p class="hint" style="margin-bottom:10px;line-height:1.7">內部檢查缺失登錄（intaudit.html）新增檢查記錄時，①基本資料「檢查人 Auditor」下拉選單即依此名單產生，可從人員名冊任一部門挑選（含督導、海技、管理層等），督導人選異動時自行增減即可，不受名冊部門欄位文字限制。未設定（名單為空）時，intaudit.html 會沿用舊規則：自動抓名冊部門＝「督導」或「海技組」的人。此設定為全公司統一設定，儲存後同步給所有人。</p>
+            <div class="toolbar">
+              <label style="font-size:12.5px;color:var(--ink-2)">部門：</label>
+              <select id="iai-dept-select" style="max-width:160px" onchange="IntAuditInspectors.onDeptChange()"></select>
+              <label style="font-size:12.5px;color:var(--ink-2)">人員：</label>
+              <select id="iai-person-select" style="max-width:200px"></select>
+              <button class="btn primary" onclick="IntAuditInspectors.addPerson()">＋ 加入</button>
+            </div>
+            <div id="iai-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+            <input type="hidden" id="iai-input">
+            <div class="toolbar" style="margin-top:10px">
+              <button class="btn primary" onclick="IntAuditInspectors.save()">💾 儲存</button>
+            </div>
+            <p class="hint" id="iai-cur" style="margin-top:8px"></p>
+          </div>
+          <div class="card">
             <h3>📅 內稽動態／年度計畫暨執行情形 — 編輯權限（Owner）</h3>
             <p class="hint" style="margin-bottom:10px;line-height:1.7">「內稽動態表」與「年度計畫暨執行情形」這兩個頁面共用同一組編輯權限設定：預設<b>僅指定一人可編輯</b>（其他人皆為唯讀查看），避免多人同時操作互相覆蓋。Owner 不受此限制、隨時可編輯。此設定為全公司統一設定，儲存後同步給所有人。</p>
             <div class="toolbar">
@@ -9267,8 +9284,8 @@ function applyTM(rec){ // 補齊單筆紀錄的TM欄位
 
 /* ───── 資料層 ───── */
 const App={
-  insp:[], defs:[], tasks:[], curTaskId:null, sirePos:[], air:[], chapterOverrides:{}, chapterCustomCodes:{}, chapterDeleted:{}, chapterGroups:[], inspCtrl:[], refDocs:[], refDocs2:[], annualPlan:[], auditDash:[], defsProjects:[], projectMembers:[], drillRecords:[], drillRecordEditors:[], defsGridEditors:[], taskCreators:[], exporters:[], defsEditMembers:[], deletedTaskGids:[], recycleBin:[], airHaijiConfirmers:[], enhAuditLog:[],
-  LSK:{i:"vsm_insp_v8",d:"vsm_defs_v8",s:"vsm_tasks_v2",sp:"vsm_sirepos_v1",air:"vsm_air_v1",ch:"vsm_chapter_overrides_v1",ic:"vsm_inspctrl_v1",rd:"vsm_refdocs_v1",rd2:"vsm_refdocs2_v1",ap:"vsm_annualplan_v1",ad:"vsm_auditdash_v1",dp:"vsm_defsprojects_v1",pm:"vsm_projectmembers_v1",dr:"vsm_drillrecords_v1",dre:"vsm_drillrecordeditors_v1",dge:"vsm_defsgrideditors_v1",tcr:"vsm_taskcreators_v1",exp:"vsm_exporters_v1",dem:"vsm_defseditmembers_v1",dtg:"vsm_deletedtaskgids_v1",rb:"vsm_recyclebin_v1",ahc:"vsm_air_haiji_confirmers_v1",el:"vsm_enhauditlog_v1"},
+  insp:[], defs:[], tasks:[], curTaskId:null, sirePos:[], air:[], chapterOverrides:{}, chapterCustomCodes:{}, chapterDeleted:{}, chapterGroups:[], inspCtrl:[], refDocs:[], refDocs2:[], annualPlan:[], auditDash:[], defsProjects:[], projectMembers:[], drillRecords:[], drillRecordEditors:[], defsGridEditors:[], taskCreators:[], exporters:[], defsEditMembers:[], deletedTaskGids:[], recycleBin:[], airHaijiConfirmers:[], enhAuditLog:[], intAuditInspectors:[],
+  LSK:{i:"vsm_insp_v8",d:"vsm_defs_v8",s:"vsm_tasks_v2",sp:"vsm_sirepos_v1",air:"vsm_air_v1",ch:"vsm_chapter_overrides_v1",ic:"vsm_inspctrl_v1",rd:"vsm_refdocs_v1",rd2:"vsm_refdocs2_v1",ap:"vsm_annualplan_v1",ad:"vsm_auditdash_v1",dp:"vsm_defsprojects_v1",pm:"vsm_projectmembers_v1",dr:"vsm_drillrecords_v1",dre:"vsm_drillrecordeditors_v1",dge:"vsm_defsgrideditors_v1",tcr:"vsm_taskcreators_v1",exp:"vsm_exporters_v1",dem:"vsm_defseditmembers_v1",dtg:"vsm_deletedtaskgids_v1",rb:"vsm_recyclebin_v1",ahc:"vsm_air_haiji_confirmers_v1",el:"vsm_enhauditlog_v1",iai:"vsm_intauditinspectors_v1"},
   /* 一次性資料修補：把 2026/7/1 CSO 名單併入現有船舶資料的 CSO 欄位，只在該船 cso 欄位目前是空的時候才帶入，
      不會覆蓋任何已存在的資料；只執行一次（用 localStorage flag 記錄），之後有異動一律以「船舶資料」頁面手動維護為準。*/
   migrateCsoData(){
@@ -9398,6 +9415,7 @@ const App={
       const lad=LZGet(this.LSK.ad);this.auditDash=lad?JSON.parse(lad):[];
       const ldp=LZGet(this.LSK.dp);this.defsProjects=ldp?JSON.parse(ldp):[];
       const lpm=LZGet(this.LSK.pm);this.projectMembers=lpm?JSON.parse(lpm):[];
+      const liai=LZGet(this.LSK.iai);this.intAuditInspectors=liai?JSON.parse(liai):[];
       // 舊格式(每船一筆物件, key=船代碼)升級成新格式(陣列, 可同一艘船多列, 支援加強稽核一年兩次的情況)
       if(this.auditDash&&!Array.isArray(this.auditDash)){
         const old=this.auditDash,arr=[];let aid=1;
@@ -9514,7 +9532,8 @@ const App={
         [this.LSK.ap,()=>JSON.stringify(this.annualPlan),"annualPlan"],
         [this.LSK.ad,()=>JSON.stringify(this.auditDash),"auditDash"],
         [this.LSK.dp,()=>JSON.stringify(this.defsProjects),"defsProjects"],
-        [this.LSK.pm,()=>JSON.stringify(this.projectMembers),null]
+        [this.LSK.pm,()=>JSON.stringify(this.projectMembers),null],
+        [this.LSK.iai,()=>JSON.stringify(this.intAuditInspectors),null]
       ];
       const changed=new Set();
       jobs.forEach(([key,serialize,pubKey])=>{
@@ -10742,7 +10761,7 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
   if(n.dataset.tab==="ref")Ref.render();
   if(n.dataset.tab==="trend"&&typeof Trend!=="undefined")Trend.render();
   if(n.dataset.tab==="self"){SelfCheck.render();SelfCheck.autoSync();}
-  if(n.dataset.tab==="data"){App.refreshMeta();if(typeof AnnualPlan!=="undefined")AnnualPlan.refreshEditorUI();if(typeof DefsProj!=="undefined")DefsProj.refreshMembersUI();}
+  if(n.dataset.tab==="data"){App.refreshMeta();if(typeof AnnualPlan!=="undefined")AnnualPlan.refreshEditorUI();if(typeof DefsProj!=="undefined")DefsProj.refreshMembersUI();if(typeof IntAuditInspectors!=="undefined")IntAuditInspectors.refreshUI();}
   if(n.dataset.tab==="sirepos")SirePos.render();
   if(n.dataset.tab==="air")Air.showList();
   if(n.dataset.tab==="intaudit")IntAuditQueue.showPage();
@@ -27234,6 +27253,7 @@ const DM={
         auditDash:App.auditDash,
         defsProjects:App.defsProjects,
         projectMembers:App.projectMembers,
+        intAuditInspectors:App.intAuditInspectors,
         ships:(typeof SHIPINFO!=="undefined"?SHIPINFO:[]),
         roster:(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[]),
         voyCatalog:(typeof VoyRecv!=="undefined"?VoyRecv.cat:[]),
@@ -27381,7 +27401,7 @@ const DM={
       settingHtml+=ImportDiff.arrayDiffSummaryHtml("分類階層-作業",ImportDiff.diffArrayList(NCTree.list.ops,nt.ops,x=>Array.isArray(x)?x.slice(0,2).join("／"):x));
     }
     [["defsGridEditors","快速分類編輯者"],["taskCreators","自查任務建立者"],["exporters","匯出權限名單"],
-     ["defsEditMembers","編輯模式/責任人紀錄指定人員"],["airHaijiConfirmers","海技確認人員"],["projectMembers","專案分析指定人員"]]
+     ["defsEditMembers","編輯模式/責任人紀錄指定人員"],["airHaijiConfirmers","海技確認人員"],["projectMembers","專案分析指定人員"],["intAuditInspectors","內部檢查人 Auditor 名單"]]
       .forEach(([key,label])=>{if(Array.isArray(d[key]))settingHtml+=ImportDiff.arrayDiffSummaryHtml(label,ImportDiff.diffArrayList(App[key],d[key]));});
 
     $("#fr-record-summary").innerHTML=recordHtml||'<p class="hint">此備份未含紀錄類資料。</p>';
@@ -27399,7 +27419,7 @@ const DM={
         voy:Array.isArray(d.voyCatalog)||Array.isArray(d.voySubmissions),
         refs:[d.refDocs,d.refDocs2].some(Array.isArray)||!!d.chapterOverrides,
         classify:!!d.ncTreeList,tags:!!d.tagListExtras,
-        perms:["defsGridEditors","taskCreators","exporters","defsEditMembers","airHaijiConfirmers"].some(k=>Array.isArray(d[k])),
+        perms:["defsGridEditors","taskCreators","exporters","defsEditMembers","airHaijiConfirmers","intAuditInspectors"].some(k=>Array.isArray(d[k])),
         enh:Array.isArray(d.enhAuditLog),
         cloudsettings:!!(bundle.cloudRaw&&Array.isArray(bundle.cloudRaw.app_db)&&bundle.cloudRaw.app_db.length),
         airqueue:!!(bundle.cloudRaw&&Array.isArray(bundle.cloudRaw.air_submissions)&&bundle.cloudRaw.air_submissions.length),
@@ -27493,7 +27513,7 @@ const DM={
     }},
     {cat:"perms",label:"各項權限指定名單",run(d){
       let hit=false;
-      ["defsGridEditors","taskCreators","exporters","defsEditMembers","airHaijiConfirmers"].forEach(k=>{
+      ["defsGridEditors","taskCreators","exporters","defsEditMembers","airHaijiConfirmers","intAuditInspectors"].forEach(k=>{
         if(Array.isArray(d[k])){App[k]=d[k];hit=true;}
       });
       return hit;
@@ -27552,7 +27572,7 @@ const DM={
         insp:App.insp,defs:App.defs,sirePos:App.sirePos,air:App.air,tasks:App.tasks,curTaskId:App.curTaskId,
         chapterOverrides:App.chapterOverrides,chapterCustomCodes:App.chapterCustomCodes,chapterDeleted:App.chapterDeleted,chapterGroups:App.chapterGroups,inspCtrl:App.inspCtrl,refDocs:App.refDocs,refDocs2:App.refDocs2,
         drillRecords:App.drillRecords,drillRecordEditors:App.drillRecordEditors,annualPlan:App.annualPlan,
-        auditDash:App.auditDash,defsProjects:App.defsProjects,projectMembers:App.projectMembers,
+        auditDash:App.auditDash,defsProjects:App.defsProjects,projectMembers:App.projectMembers,intAuditInspectors:App.intAuditInspectors,
         defsGridEditors:App.defsGridEditors,taskCreators:App.taskCreators,exporters:App.exporters,
         defsEditMembers:App.defsEditMembers,airHaijiConfirmers:App.airHaijiConfirmers,enhAuditLog:App.enhAuditLog,
         ships:(typeof SHIPINFO!=="undefined"?SHIPINFO:[]),roster:(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[]),
@@ -27592,7 +27612,7 @@ const DM={
     App.insp=s.insp||[];App.defs=s.defs||[];App.sirePos=s.sirePos||[];App.air=s.air||[];App.tasks=s.tasks||[];App.curTaskId=s.curTaskId||null;
     App.chapterOverrides=s.chapterOverrides||{};App.chapterCustomCodes=s.chapterCustomCodes||{};App.chapterDeleted=s.chapterDeleted||{};App.chapterGroups=s.chapterGroups||[];App.inspCtrl=s.inspCtrl||[];App.refDocs=s.refDocs||[];App.refDocs2=s.refDocs2||[];
     App.drillRecords=s.drillRecords||[];App.drillRecordEditors=s.drillRecordEditors||[];App.annualPlan=s.annualPlan||[];
-    App.auditDash=s.auditDash||[];App.defsProjects=s.defsProjects||[];App.projectMembers=s.projectMembers||[];
+    App.auditDash=s.auditDash||[];App.defsProjects=s.defsProjects||[];App.projectMembers=s.projectMembers||[];App.intAuditInspectors=s.intAuditInspectors||[];
     App.defsGridEditors=s.defsGridEditors||[];App.taskCreators=s.taskCreators||[];App.exporters=s.exporters||[];
     App.defsEditMembers=s.defsEditMembers||[];App.airHaijiConfirmers=s.airHaijiConfirmers||[];App.enhAuditLog=s.enhAuditLog||[];
     if(typeof SHIPINFO!=="undefined"&&s.ships){SHIPINFO.length=0;s.ships.forEach(x=>SHIPINFO.push(x));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}}
@@ -29485,6 +29505,7 @@ const Cloud={
       ()=>typeof AnnualPlan!=="undefined"&&AnnualPlan.pullEditorCloud(),
       ()=>typeof Defs!=="undefined"&&Defs.pullViewFieldsCloud(),
       ()=>typeof DefsProj!=="undefined"&&DefsProj.pullMembersCloud(),
+      ()=>typeof IntAuditInspectors!=="undefined"&&IntAuditInspectors.pullCloud(),
       ()=>typeof DrillRecord!=="undefined"&&DrillRecord.pullEditorsCloud(),
       ()=>typeof EditorList!=="undefined"&&EditorList.pullCloud(),
       ()=>typeof Perms!=="undefined"&&Perms.pullCloud(),
@@ -30470,6 +30491,85 @@ const DefsProj={
         `專案盤查_${p.name}_${created.length}艘.json`);
     }
     this.renderDetail();
+  }
+};
+
+/* 內部檢查／稽核「檢查人 Auditor」名單：獨立於人員名冊部門欄位之外，由 Owner 直接從
+   完整名冊裡挑選要出現在 intaudit.html 檢查人下拉選單的人（可包含督導、海技、管理層等
+   任何部門），督導人選異動時可自行增減，不受名冊部門文字是否寫成「督導」/「海技組」限制。
+   intaudit.html 端：此清單若已設定就直接採用；尚未設定過（陣列為空）時，維持舊有
+   「部門＝督導或海技組」的自動判斷，向後相容既有安裝。 */
+const IntAuditInspectors={
+  CLOUD_KEY:"intAuditInspectors",
+  async pullCloud(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api("app_db?select=payload&k=eq."+this.CLOUD_KEY);
+      const p=rows&&rows[0]&&rows[0].payload;
+      if(p&&Array.isArray(p)){App.intAuditInspectors=p;try{LZSet(App.LSK.iai,JSON.stringify(p));}catch(e){}}
+    }catch(e){/* 離線或讀取失敗：維持本機快取值 */}
+    this.refreshUI();
+  },
+  refreshUI(){
+    const el=$("#iai-cur");if(el)el.textContent="目前名單："+((App.intAuditInspectors||[]).length?App.intAuditInspectors.join("、"):"（尚未設定，intaudit.html 會沿用「部門＝督導／海技組」自動判斷）");
+    const inp=$("#iai-input");if(inp)inp.value=(App.intAuditInspectors||[]).join("、");
+    this.renderChips();
+    this.populateDeptSelect();
+  },
+  renderChips(){
+    const box=$("#iai-chips");if(!box)return;
+    const list=App.intAuditInspectors||[];
+    box.innerHTML=list.length?list.map(n=>`<span style="display:inline-flex;align-items:center;gap:6px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:4px 10px;font-size:12.5px">${esc(n)}<span style="cursor:pointer;color:var(--bad);font-weight:700" onclick="IntAuditInspectors.removePerson('${esc(n).replace(/'/g,"\\'")}')">✕</span></span>`).join(""):`<span class="hint">（尚未指定人員）</span>`;
+  },
+  populateDeptSelect(){
+    const sel=$("#iai-dept-select");if(!sel)return;
+    const roster=(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[])||[];
+    // 排除船舶帳號（tier=op2，部門即船名）：檢查人設定僅適用於岸上人員（含督導、海技、管理層）
+    const depts=[...new Set(roster.filter(r=>r.tier!=="op2").map(r=>r.dept).filter(Boolean))].sort();
+    const keep=sel.value;
+    sel.innerHTML=depts.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join("");
+    if(depts.includes(keep))sel.value=keep;
+    this.populatePersonSelect();
+  },
+  populatePersonSelect(){
+    const deptSel=$("#iai-dept-select"),personSel=$("#iai-person-select");if(!deptSel||!personSel)return;
+    const roster=(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[])||[];
+    const dept=deptSel.value;
+    const names=roster.filter(r=>r.dept===dept&&r.tier!=="op2").map(r=>r.name).filter(Boolean);
+    personSel.innerHTML=names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")||`<option value="">（此部門無人員）</option>`;
+  },
+  onDeptChange(){this.populatePersonSelect();},
+  addPerson(){
+    const personSel=$("#iai-person-select");
+    const name=personSel?personSel.value:"";
+    if(!name){toast("⚠ 請先選擇人員");return;}
+    const list=App.intAuditInspectors||[];
+    if(list.includes(name)){toast("⚠ 此人員已在名單中");return;}
+    list.push(name);
+    App.intAuditInspectors=list;
+    const inp=$("#iai-input");if(inp)inp.value=list.join("、");
+    this.renderChips();
+  },
+  removePerson(name){
+    App.intAuditInspectors=(App.intAuditInspectors||[]).filter(n=>n!==name);
+    const inp=$("#iai-input");if(inp)inp.value=App.intAuditInspectors.join("、");
+    this.renderChips();
+  },
+  async save(){
+    if(typeof Role!=="undefined"&&!Role.isOwner()){toast("⚠ 僅 Owner 可調整此設定");return;}
+    const v=($("#iai-input")?$("#iai-input").value:"").trim();
+    const list=v?v.split(/[、,，\s]+/).filter(Boolean):[];
+    App.intAuditInspectors=list;
+    try{LZSet(App.LSK.iai,JSON.stringify(list));}catch(e){}
+    this.refreshUI();
+    if(typeof Audit!=="undefined")Audit.log("編輯","內部檢查人Auditor名單",`名單改為：${list.join("、")||"（無，改回沿用部門自動判斷）"}`);
+    if(typeof Cloud!=="undefined"&&Cloud.enabled()){
+      try{
+        const usr=(typeof Audit!=="undefined")?Audit.user():"";
+        await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.CLOUD_KEY,updated:Date.now(),by:usr,payload:list}])});
+        toast("✓ 已更新內部檢查人 Auditor 名單，已同步給所有人（含 intaudit.html）");
+      }catch(e){toast("⚠ 已儲存本機，但同步雲端失敗："+e.message);}
+    }else toast("✓ 已更新名單（單機模式，僅本機）");
   }
 };
 
