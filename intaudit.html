@@ -743,6 +743,8 @@ function renderCrew(w){
 let bestOpen=[];
 function openBest(i){collect();bestOpen=[i];renderBest();}
 function backBest(){collect();bestOpen=[];renderBest();}
+/* 「📋 列表」：把所有優良案例一次全部展開成完整表單、依序往下排列，可直接上下捲動逐筆查看／編輯。 */
+function showAllBest(){collect();bestOpen=cur.best.map((x,i)=>i);renderBest();}
 function addBest(){
   collect();cur.best.push({category:"",persons:[{name:"",rank:""}],people:"",rank:"",brief:"",photos:[]});
   const newIdx=cur.best.length-1;
@@ -773,7 +775,7 @@ function blistRow(i,x,onOpen,onDel,badges,seq){
 }
 function renderBest(){
   const openIdxsNav=bestOpen||[];
-  $("#bestNav").innerHTML=cur.best.length?`<a class="${openIdxsNav.length?"":"on"}" title="列出所有優良案例（清單模式）" onclick="backBest()">📋 列表</a>`+cur.best.map((x,i)=>`<a class="${openIdxsNav.includes(i)?"on":""}" onclick="openBest(${i})" title="${esc(x.category||"")}">#${i+1}</a>`).join(""):"";
+  $("#bestNav").innerHTML=cur.best.length?`<a class="${cur.best.length&&cur.best.every((x,i)=>openIdxsNav.includes(i))?"on":""}" title="把所有優良案例都展開成完整表單，接續往下排列，可直接上下捲動逐筆查看／編輯" onclick="showAllBest()">📋 列表</a>`+cur.best.map((x,i)=>`<a class="${openIdxsNav.includes(i)?"on":""}" onclick="openBest(${i})" title="${esc(x.category||"")}">#${i+1}</a>`).join(""):"";
   if(!cur.best.length){$("#bestList").innerHTML=`<p class="hint">尚無優良案例；這些會匯入系統的「正面評價／優秀案例」。</p>`;return;}
   const openIdxs=(bestOpen||[]).filter(i=>cur.best[i]);
   if(!openIdxs.length){
@@ -821,6 +823,15 @@ let defOpen=[]; // 空陣列＝清單模式；陣列裡放的是正在展開編�
 function setTab(k){collect();activeTab=k;defOpen=[];renderDefs();}
 function openDef(i){collect();defOpen=[i];renderDefs();} // 從清單／導覽點進來：換成單筆展開，取代原本的堆疊
 function backDef(){collect();defOpen=[];renderDefs();}
+/* 「📋 列表」：把目前分頁（依結案方式篩選後）的所有缺失一次全部展開成完整表單、依序往下排列，
+   不是壓縮成一行一筆的摘要——督導要看的是整頁可以直接上下捲動逐筆查看／編輯，不用一筆筆點開。 */
+function showAllDef(){
+  collect();
+  if(!activeTab)return;
+  const idxs=cur.defs.map((d,i)=>i).filter(i=>cur.defs[i].type===activeTab&&(!defFilter||(defFilter==="none"?!cur.defs[i].closeMode:cur.defs[i].closeMode===defFilter)));
+  defOpen=idxs;
+  renderDefs();
+}
 function addDef(){
   if(!activeTab){toast("⚠ 請先在「① 檢查基本資料」勾選檢查種類",true);return;}
   collect();cur.defs.push(blankDef(activeTab));
@@ -877,9 +888,19 @@ function renderDefNav(){
   box.innerHTML=`<div class="cchips" style="margin-bottom:8px"><span class="hint" style="font-weight:700">結案方式篩選</span>
     <button type="button" class="fchip ${defFilter===""?"on":""}" onclick="setDefFilter('')">全部<b>${idxs.length}</b></button>
     ${chip("FLOW","FLOW 系統","flow")}${chip("內控","內控","ic")}${chip("系統內結案","系統內結案","sys")}${chip("none","尚未選擇","none")}</div>
-    <div class="qnav" style="margin:0"><a class="m-none ${(defOpen||[]).length?"":"on"}" title="列出這個分頁目前篩選出的所有缺失（清單模式）" onclick="backDef()">📋 列表</a>${shown.map(i=>{const d=cur.defs[i],m=modeOf(d.closeMode);return `<a class="${m?"m-"+m.cls:"m-none"} ${(defOpen||[]).includes(i)?"on":""}" title="${esc((d.category||"")+" "+(m?m.label:"尚未選結案方式"))}" onclick="openDef(${i})">#${idxs.indexOf(i)+1}</a>`;}).join("")}</div>`;
+    <div class="qnav" style="margin:0"><a class="m-none ${shown.length&&shown.every(i=>(defOpen||[]).includes(i))?"on":""}" title="把這個分頁目前篩選出的所有缺失都展開成完整表單，接續往下排列，可直接上下捲動逐筆查看／編輯" onclick="showAllDef()">📋 列表</a>${shown.map(i=>{const d=cur.defs[i],m=modeOf(d.closeMode);return `<a class="${m?"m-"+m.cls:"m-none"} ${(defOpen||[]).includes(i)?"on":""}" title="${esc((d.category||"")+" "+(m?m.label:"尚未選結案方式"))}" onclick="openDef(${i})">#${idxs.indexOf(i)+1}</a>`;}).join("")}</div>`;
+}
+/* 舊格式相容用的「主題檢查」（沒有指定 SAR 表單的籠統專項檢查）一旦底下缺失清空，
+   就沒有存在的意義了（新架構下新增專項檢查一定會指定 SAR 表單），自動從檢查種類移除，
+   分頁列不會留著一個空的「專項檢查缺失 0」卡在那裡。 */
+function pruneEmptyLegacySpecial(){
+  if(cur.types.includes(SPECIAL_TYPE_K)&&!cur.defs.some(d=>d.type===SPECIAL_TYPE_K)){
+    cur.types=cur.types.filter(k=>k!==SPECIAL_TYPE_K);
+    if(activeTab===SPECIAL_TYPE_K)activeTab=cur.types[0]||null;
+  }
 }
 function renderDefs(){
+  pruneEmptyLegacySpecial();
   const tabs=cur.types;
   $("#defTabs").innerHTML=tabs.length?tabs.map(k=>{const t=typeDef(k)||{label:k};const lbl=t.label+(t.sarForm?"："+t.sarForm:"");const n=cur.defs.filter(d=>d.type===k).length;return `<button type="button" class="${k===activeTab?"on":""}" onclick="setTab('${k}')">${esc(lbl)}缺失<span class="n">${n}</span></button>`;}).join(""):`<span class="hint">請先在「① 檢查基本資料」勾選檢查種類（可複選）。</span>`;
   const td=typeDef(activeTab);

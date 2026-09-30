@@ -10969,7 +10969,7 @@ const Ov={
       const idx=App.insp.indexOf(r);
       return `<tr class="${this.selRows.has(String(r.id))?'sel':''}">
       <td><input type="checkbox" ${this.selRows.has(String(r.id))?"checked":""} onchange="Ov.toggleSelRow('${r.id}',this.checked)"></td>
-      <td><b>${esc(r.ship)}</b></td><td>${esc(r.vtype)}</td><td>${itypeChip(r.itype)}<span class="io-chip ${isInternal(r.itype)?"io-int":"io-ext"}">${isInternal(r.itype)?"內":"外"}</span></td>
+      <td><b>${esc(shipFullLabel(r.ship))}</b></td><td>${esc(r.vtype)}</td><td>${itypeChip(r.itype)}<span class="io-chip ${isInternal(r.itype)?"io-int":"io-ext"}">${isInternal(r.itype)?"內":"外"}</span></td>
       <td>${icatChip(icatOf(r.itype))}</td>
       <td style="font-family:var(--mono)">${esc(normDateSlash(r.date))}</td><td>${esc(r.loc)}</td><td>${esc(r.inspector)}</td><td>${esc(r.unit)}</td>
       <td style="text-align:center;font-family:var(--mono);${(+r.ndef||0)>=4?"color:var(--bad);font-weight:700":""}">${esc(r.ndef||"0")}</td>
@@ -11001,7 +11001,7 @@ const Ov={
     if(!hasXLSX())return;
     const sel=this.sel;
     const rows=this.filteredRows().filter(i=>!sel.size||sel.has(ymOf(i.date)))
-      .map(r=>({船名:r.ship,船型:r.vtype,檢查來源:r.itype,檢查類型:icatOf(r.itype)||"",檢查日期:r.date,檢查地點:r.loc,檢查員:r.inspector,"檢查單位/油公司":r.unit,缺失數:r.ndef,正面評論數:r.npos,FLAG項目:r.flagType,扣船:r.detain}));
+      .map(r=>({船名:shipFullLabel(r.ship),船型:r.vtype,檢查來源:r.itype,檢查類型:icatOf(r.itype)||"",檢查日期:r.date,檢查地點:r.loc,檢查員:r.inspector,"檢查單位/油公司":r.unit,缺失數:r.ndef,正面評論數:r.npos,FLAG項目:r.flagType,扣船:r.detain}));
     const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"檢查紀錄");
     XLSX.writeFile(wb,`檢查紀錄_${todayStr()}.xlsx`);
@@ -11087,7 +11087,7 @@ const Ov={
       if(!rows.length)return `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:12.5px;font-family:Calibri,Arial,sans-serif"><tr>${["No.","船名","船型","檢查種類","日期","地點",noteFn.label].map(th).join("")}</tr><tr><td colspan="7" style="padding:8px;border:1px solid #999;text-align:center">（無）</td></tr></table>`;
       return `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:12.5px;font-family:Calibri,Arial,sans-serif">
         <tr>${["No.","船名","船型","檢查種類","日期","地點",noteFn.label].map(th).join("")}</tr>
-        ${rows.map((r,i)=>`<tr>${td(i+1)}${td(esc(r.ship))}${td(esc(r.vtype||vtypeOfCode(r.ship)))}${td(esc(r.itype))}${td(esc(r.date||r.schedDate))}${td(esc(r.loc||""))}${td(nl2br(noteFn(r)))}</tr>`).join("")}
+        ${rows.map((r,i)=>`<tr>${td(i+1)}${td(esc(shipFullLabel(r.ship)))}${td(esc(r.vtype||vtypeOfCode(r.ship)))}${td(esc(r.itype))}${td(esc(r.date||r.schedDate))}${td(esc(r.loc||""))}${td(nl2br(noteFn(r)))}</tr>`).join("")}
       </table>`;
     };
     const pscTable=rows=>{
@@ -11288,10 +11288,22 @@ function rankOptionsHtml(cur){
   if(v&&!RANK_OPTIONS.includes(v)){opts+=`<option value="${esc(v)}" selected>${esc(v)}（舊資料，建議改選正式選項）</option>`;}
   return opts;
 }
+/* 船名標準化顯示：寬版面（表格欄位、匯出、對話框等有空間的地方）一律顯示「代碼＋中文簡稱＋完整
+   英文船名」；窄版面（篩選器小標籤 chip 等欄寬有限的地方）改用完整英文船名。找不到船舶資料
+   （例如已不在船舶清單的舊代碼）時退回代碼本身，不讓畫面開天窗。 */
+function shipFullLabel(code){
+  const s=SHIPINFO.find(x=>x.code===code);
+  if(!s)return code||"";
+  return [s.code,s.zh,s.name].filter(Boolean).join(" ");
+}
+function shipEnName(code){
+  const s=SHIPINFO.find(x=>x.code===code);
+  return (s&&s.name)?s.name:(code||"");
+}
 function shipOptionsHtml(cur){
   const codes=SHIPINFO.map(s=>s.code);
   let opts=`<option value="">— 請選擇船舶 —</option>`;
-  opts+=SHIPINFO.slice().sort((a,b)=>a.code.localeCompare(b.code)).map(s=>`<option value="${esc(s.code)}" ${cur===s.code?"selected":""}>${esc(s.code)}${s.zh?" "+esc(s.zh):(s.name?" "+esc(s.name):"")}</option>`).join("");
+  opts+=SHIPINFO.slice().sort((a,b)=>a.code.localeCompare(b.code)).map(s=>`<option value="${esc(s.code)}" ${cur===s.code?"selected":""}>${esc(shipFullLabel(s.code))}</option>`).join("");
   if(cur&&!codes.includes(cur)){opts+=`<option value="${esc(cur)}" selected>${esc(cur)}（已不在船舶清單）</option>`;}
   return opts;
 }
@@ -20778,7 +20790,7 @@ const Air={
     // 清單上已勾選特定幾筆就只帶出勾選的，未勾選任何一筆則匯出全部。
     const scope=Array.isArray(onlyIds)?App.air.filter(d=>onlyIds.includes(d.id)):
       (this.selected&&this.selected.size?App.air.filter(d=>this.selected.has(String(d.id))):App.air);
-    const baseRows=scope.map((d,i)=>({序號:i+1,船名:d.ship,船型:d.vtype,檢查來源:d.itype,檢查日期:d.date,檢查地點:d.place,"檢查單位/油公司":d.oilco,檢查員:d.inspector,缺失數:d.ndef??0,正面評論數:d.npos??0,督導確認:d.reviewed?"已確認":"尚未確認",已轉檢查紀錄:d.usedInsp?"是":"否",已轉缺失紀錄:d.usedDef?"是":"否",已轉正向評論:d.usedPos?"是":"否"}));
+    const baseRows=scope.map((d,i)=>({序號:i+1,船名:shipFullLabel(d.ship),船型:d.vtype,檢查來源:d.itype,檢查日期:d.date,檢查地點:d.place,"檢查單位/油公司":d.oilco,檢查員:d.inspector,缺失數:d.ndef??0,正面評論數:d.npos??0,督導確認:d.reviewed?"已確認":"尚未確認",已轉檢查紀錄:d.usedInsp?"是":"否",已轉缺失紀錄:d.usedDef?"是":"否",已轉正向評論:d.usedPos?"是":"否"}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(baseRows),"基本資料");
     const defRows=[];
     scope.forEach((d,i)=>{(d.defects||[]).forEach((df,di)=>{const rp=(d.reply&&d.reply.items&&d.reply.items[di])||{};defRows.push({
@@ -20833,7 +20845,7 @@ const Air={
       body+=`<p style="font-size:8pt;color:#bbb;margin:0">===RECORD ${ri+1}===</p>
         <p style="font-family:Calibri,Arial,sans-serif;font-size:16pt;font-weight:bold;margin-bottom:2px">線上填單 AfterInspectionReview</p>
         <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%;margin-bottom:14px">
-          ${fieldRow("船名",d.ship)}${fieldRow("船型",d.vtype)}${fieldRow("檢查來源",d.itype)}${fieldRow("檢查日期",d.date)}
+          ${fieldRow("船名",shipFullLabel(d.ship))}${fieldRow("船型",d.vtype)}${fieldRow("檢查來源",d.itype)}${fieldRow("檢查日期",d.date)}
           ${fieldRow("檢查地點",d.place)}${fieldRow("檢查單位/油公司",d.oilco)}${fieldRow("檢查員",d.inspector)}
         </table>`;
       (d.defects||[]).forEach((df,di)=>{
@@ -21474,7 +21486,7 @@ const Air={
       </tr></thead><tbody>
       ${rows.map(r=>`<tr style="border-bottom:1px solid var(--line)">
         <td style="padding:8px">${r.status==="closed"?`<span style="color:#1f6b4a;font-weight:700">✅ 已結案</span>`:`<span style="color:#a0631f;font-weight:700">🔖 追蹤中</span>`}</td>
-        <td style="padding:8px;font-weight:700">${esc(r.ship)}</td>
+        <td style="padding:8px;font-weight:700">${esc(shipFullLabel(r.ship))}</td>
         <td style="padding:8px">${esc(r.date)}</td>
         <td style="padding:8px">${esc(r.code)}</td>
         <td style="padding:8px;max-width:280px">${esc((r.detail||"").slice(0,50))}${r.detail.length>50?"…":""}</td>
@@ -22452,7 +22464,7 @@ const Air={
       const diffFields=["ship","vtype","itype","date","loc","inspector","unit","ndef","npos","flagType"];
       const diffs=ImportDiff.diffFields(existing,payload,diffFields);
       if(!diffs.length){toast("此筆內容與現有檢查紀錄完全一致，無需更新");return;}
-      const ok=await ImportDiff.showFieldDiffModal(`轉入檢查紀錄 — 差異預覽（${d.ship} ${d.date}）`,diffs);
+      const ok=await ImportDiff.showFieldDiffModal(`轉入檢查紀錄 — 差異預覽（${shipFullLabel(d.ship)} ${d.date}）`,diffs);
       if(!ok)return;
       Object.assign(existing,payload);
       d.pushedInspId=existing.id;
@@ -22593,7 +22605,7 @@ const Air={
           "opCommentReply","immediateCauseReply","correctiveReply","rootCauseReply","preventiveReply"];
         const diffs=ImportDiff.diffFields(existing,safePayload,CONTENT_KEYS);
         if(diffs.length){
-          const ok=await ImportDiff.showFieldDiffModal(`轉入缺失紀錄 — 差異預覽（${d.ship} ${r.code||""}）`,diffs);
+          const ok=await ImportDiff.showFieldDiffModal(`轉入缺失紀錄 — 差異預覽（${shipFullLabel(d.ship)} ${r.code||""}）`,diffs);
           if(!ok){skipped++;continue;}
         }
         Object.assign(existing,safePayload); // 保留原本的 id／attn（注意）等未列在payload內的欄位
@@ -22640,7 +22652,7 @@ const Air={
     const recs=App.air.filter(x=>this.selected.has(String(x.id)));
     if(recs.length<2){toast("⚠ 請先在清單勾選 2 筆以上的填單再按「合併分享」（單筆請按該列的「分」）");return;}
     const rows=[];
-    recs.forEach(d=>(d.defects||[]).filter(r=>r.detail||r.actual).forEach(r=>rows.push(Object.assign({},r,{_src:`${d.ship} ${d.itype||""} ${d.date}`.replace(/\s+/g," ").trim()}))));
+    recs.forEach(d=>(d.defects||[]).filter(r=>r.detail||r.actual).forEach(r=>rows.push(Object.assign({},r,{_src:`${shipFullLabel(d.ship)} ${d.itype||""} ${d.date}`.replace(/\s+/g," ").trim()}))));
     if(!rows.length){toast("⚠ 勾選的填單裡沒有可分享的缺失明細");return;}
     if(recs.some(d=>this._shareCount(d)>0)&&!confirm("勾選的填單中有已建立過分享自查的，確定要再建立？"))return;
     this._shareAirIds=recs.map(d=>d.id);
@@ -22657,7 +22669,7 @@ const Air={
     // 「題目的來源船」動態算的（填答頁 loadOrCreateResponse），不是整個活動擋掉那艘船：因為合併分享時，
     // 當事船很可能還要自查「其他船」的缺失，整艘船排除掉會漏掉這些。
     const srcShips=[...new Set((this._shareAirIds||[]).map(id=>{const d=App.air.find(x=>x.id===id);return d&&d.ship;}).filter(Boolean))];
-    $("#air-sw-src-note").innerHTML=srcShips.length?`📋 來源船（<b>${esc(srcShips.join("、"))}</b>）開啟後，自己那幾筆缺失會自動標記為「不適用本船」，不用重複處理；其餘缺失仍會照常列出讓它自查（合併分享時尤其重要，不會整艘船被排除在外）。`:"";
+    $("#air-sw-src-note").innerHTML=srcShips.length?`📋 來源船（<b>${esc(srcShips.map(shipFullLabel).join("、"))}</b>）開啟後，自己那幾筆缺失會自動標記為「不適用本船」，不用重複處理；其餘缺失仍會照常列出讓它自查（合併分享時尤其重要，不會整艘船被排除在外）。`:"";
     $("#airShareCheckModal").classList.add("show");
   },
   closeShareCheckWizard(){$("#airShareCheckModal").classList.remove("show");},
@@ -22681,7 +22693,7 @@ const Air={
     // 兩個是完全不同的東西，撞名會被船員填的內容蓋掉，所以來源的「實際情況」另外取名。
     const items=rows.map(r=>({
       code:r.code||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",
-      detail:r.detail||"",actual2:r.actual||"",src:r._src||(recs.length===1?`${d.ship} ${d.itype||""} ${d.date}`.replace(/\s+/g," ").trim():"")
+      detail:r.detail||"",actual2:r.actual||"",src:r._src||(recs.length===1?`${shipFullLabel(d.ship)} ${d.itype||""} ${d.date}`.replace(/\s+/g," ").trim():"")
     }));
     const campaignId=Date.now();
     // 活動名稱：缺失自查：PSC-B108(2026/9/15)、BI(2026/9/15)，SIRE-SS(2026/9/20)（依檢查來源分組，日期不補零）
@@ -22882,7 +22894,7 @@ const Air={
         </td>
         <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${(this._shareCount(d)>0)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${this._shareCount(d)>1?" ×"+this._shareCount(d):""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span></div>`:""}</td>
         <td>${d.reviewed?'<span style="font-size:11.5px;font-weight:700;color:var(--ok)">✅ 已確認</span>':'<span style="font-size:11.5px;color:var(--ink-3)">⬜ 尚未確認</span>'}</td>
-        <td><b>${esc(d.ship)}</b></td>
+        <td><b>${esc(shipFullLabel(d.ship))}</b></td>
         <td style="font-family:var(--mono);white-space:nowrap">${esc(normDateSlash(d.date))}</td>
         <td>${itypeChip(d.itype)}</td>
         <td class="col-narrow">${esc(d.place)}</td>
@@ -22984,7 +22996,7 @@ const Air={
           const defects=(d.defects&&d.defects.length)?d.defects:[];
           defects.forEach((df,i)=>{
             const missing=reqFields.filter(k=>!String(df[k]||"").trim()).map(k=>{const f=AirDefReq.FIELDS.find(x=>x[0]===k);return f?f[1]:k;});
-            if(missing.length)problems.push(`${d.ship||""} ${d.date||""} 第 ${i+1} 筆缺：${missing.join("、")}`);
+            if(missing.length)problems.push(`${shipFullLabel(d.ship)} ${d.date||""} 第 ${i+1} 筆缺：${missing.join("、")}`);
           });
         });
         if(problems.length){
@@ -23228,7 +23240,7 @@ const Air={
     this.activeDefectIdx=0;
     this._replyDirty=false;
     if(this._replySaveTimer){clearTimeout(this._replySaveTimer);this._replySaveTimer=null;}
-    $("#air-reply-context").textContent=`${d.ship}｜${d.date}｜${d.itype}${d.place?"｜"+d.place:""}`;
+    $("#air-reply-context").textContent=`${shipFullLabel(d.ship)}｜${d.date}｜${d.itype}${d.place?"｜"+d.place:""}`;
     this.renderReplySaveStatus();
     const pe=$("#air-prompt-editor");if(pe)pe.style.display="none";
     const pi=$("#air-paste-import");if(pi)pi.style.display="none";
@@ -23894,7 +23906,7 @@ const Air={
         // 新建一個案件。如果已經有草稿了（之前已經建過案），代表使用者只是要回來繼續編輯，
         // 屬於低風險動作，不需要每次都跳確認視窗打斷操作。
         if(!existingRows||!existingRows.length){
-          const okNew=confirm(`即將為「${d.ship}」的 ${d.itype||"（未填檢查來源）"} 建立一筆對外回覆案件。\n\n如果這個檢查來源通常不需要對外回覆（例如非 PSC/CDI/SIRE），請按「取消」，避免多建立不必要的案件。\n\n確定要建立嗎？`);
+          const okNew=confirm(`即將為「${shipFullLabel(d.ship)}」的 ${d.itype||"（未填檢查來源）"} 建立一筆對外回覆案件。\n\n如果這個檢查來源通常不需要對外回覆（例如非 PSC/CDI/SIRE），請按「取消」，避免多建立不必要的案件。\n\n確定要建立嗎？`);
           if(!okNew)return;
           if(this._extIds)this._extIds.add(String(this.replyId));
         }
@@ -24294,7 +24306,7 @@ const Air={
     if(!d){toast("⚠ 找不到資料");return;}
     const rows=[
       ["序號","船名","船型","檢查來源","檢查類型","檢查日期","檢查地點","油公司/單位","檢查員","缺失數","正面評論數","督導確認","確認人","確認時間"],
-      [1,d.ship,d.vtype,d.itype,icatOf(d.itype)||"",d.date,d.place,d.oilco,d.inspector,d.ndef??0,d.npos??0,
+      [1,shipFullLabel(d.ship),d.vtype,d.itype,icatOf(d.itype)||"",d.date,d.place,d.oilco,d.inspector,d.ndef??0,d.npos??0,
        d.reviewed?"已確認":"尚未確認",d.reviewedBy||"",d.reviewedAt?new Date(d.reviewedAt).toLocaleString():""],
       [],
       ["序號","缺失#","缺失詳情","責任人職位","責任人姓名","矯正措施(中)","矯正措施(英)","Immediate Cause(中)","Immediate Cause(英)","根本原因(中)","根本原因(英)","Initial Operator Comment(中)","Initial Operator Comment(英)","預防措施(中)","預防措施(英)","是否有證據"]
@@ -24319,9 +24331,9 @@ const Air={
     const d=App.air.find(x=>x.id===id);
     if(!d){toast("⚠ 找不到資料");return;}
     const nl2br=s=>esc(s||"").replace(/\n/g,"<br/>");
-    let html=`<h2 style="font-family:Calibri,Arial,sans-serif">填單 — ${esc(d.ship)} ${esc(d.date)}</h2>
+    let html=`<h2 style="font-family:Calibri,Arial,sans-serif">填單 — ${esc(shipFullLabel(d.ship))} ${esc(d.date)}</h2>
       <table border="1" cellspacing="0" cellpadding="5" style="border-collapse:collapse;width:100%;font-size:13px;font-family:Calibri,Arial,sans-serif">
-        <tr><td width="120"><b>船名</b></td><td>${esc(d.ship)}</td><td width="120"><b>船型</b></td><td>${esc(d.vtype)}</td></tr>
+        <tr><td width="120"><b>船名</b></td><td>${esc(shipFullLabel(d.ship))}</td><td width="120"><b>船型</b></td><td>${esc(d.vtype)}</td></tr>
         <tr><td><b>檢查來源</b></td><td>${esc(d.itype)}</td><td><b>檢查類型</b></td><td>${esc(icatOf(d.itype)||"")}</td></tr>
         <tr><td><b>檢查日期</b></td><td>${esc(d.date)}</td><td><b>檢查地點</b></td><td>${esc(d.place)}</td></tr>
         <tr><td><b>油公司/單位</b></td><td>${esc(d.oilco)}</td><td><b>檢查員</b></td><td>${esc(d.inspector)}</td></tr>
@@ -24375,9 +24387,9 @@ const Air={
       const imgs=list.map(p=>`<img src="${p.url||p.dataUrl}" style="width:150px;height:150px;object-fit:cover;margin:3px;border:1px solid #ccc" alt="${esc(p.name||"")}">`).join("");
       return `<div style="margin-top:6px"><b>${label}：</b><br/>${imgs}</div>`;
     };
-    let body=`<h1 style="text-align:center">線上填單報告 — ${esc(d.ship)} ${esc(d.date)}</h1>
+    let body=`<h1 style="text-align:center">線上填單報告 — ${esc(shipFullLabel(d.ship))} ${esc(d.date)}</h1>
       <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px" border="1" cellpadding="6">
-        <tr><td width="15%"><b>船名</b></td><td width="35%">${esc(d.ship)}</td><td width="15%"><b>船型</b></td><td width="35%">${esc(d.vtype)}</td></tr>
+        <tr><td width="15%"><b>船名</b></td><td width="35%">${esc(shipFullLabel(d.ship))}</td><td width="15%"><b>船型</b></td><td width="35%">${esc(d.vtype)}</td></tr>
         <tr><td><b>檢查來源</b></td><td>${esc(d.itype)}</td><td><b>檢查地點</b></td><td>${esc(d.place)}</td></tr>
         <tr><td><b>油公司/單位</b></td><td>${esc(d.oilco)}</td><td><b>檢查員</b></td><td>${esc(d.inspector)}</td></tr>
         <tr><td><b>缺失數</b></td><td>${d.ndef??0}</td><td><b>正面評論數</b></td><td>${d.npos??0}</td></tr>
