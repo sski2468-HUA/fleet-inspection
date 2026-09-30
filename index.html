@@ -4864,6 +4864,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <label style="font-size:12.5px;color:var(--ink-2)">人員：</label>
               <select id="iai-person-select" style="max-width:200px"></select>
               <button class="btn primary" onclick="IntAuditInspectors.addPerson()">＋ 加入</button>
+              <button class="btn" onclick="IntAuditInspectors.addDept()" title="把目前選的部門裡所有人一次加進名單">＋ 加入整個部門</button>
             </div>
             <div id="iai-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
             <input type="hidden" id="iai-input">
@@ -24664,7 +24665,14 @@ const IntAuditQueue={
   TABLE:"intaudit_records",rows:[],view:"pending",expandedId:null,
   TYPE_LABEL:{"onboard visit":"訪船","Internal audit":"內稽","ACCOMPANYING SHIP":"隨船","Cross ship visit":"交叉訪船","主題檢查":"專項檢查","其他":"其他事項"},
   RISK:{"高":"3","中":"2","低":"1"},
-  tl(k){return this.TYPE_LABEL[k]||k;},
+  SPECIAL_PREFIX:"主題檢查::", // 專項檢查依 SAR 表單各自新增一筆檢查種類時用的複合 key 前綴，見 intaudit.html renderTypes()
+  /* 匯入主系統時實際要用的「檢查來源」：專項檢查的複合 key 直接拆出 SAR 表單名稱本身
+     （不是籠統的「專項檢查」字），其餘種類原樣使用。 */
+  effItype(k){return (typeof k==="string"&&k.startsWith(this.SPECIAL_PREFIX))?k.slice(this.SPECIAL_PREFIX.length):k;},
+  tl(k){
+    if(typeof k==="string"&&k.startsWith(this.SPECIAL_PREFIX))return "專項檢查："+k.slice(this.SPECIAL_PREFIX.length);
+    return this.TYPE_LABEL[k]||k;
+  },
   setView(v){this.view=v;this.refresh();},
   openSet:new Set(),   // 已展開缺失明細的登錄單
   isAdm(){return typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();},
@@ -24899,7 +24907,7 @@ const IntAuditQueue={
     const ds=r.defs||[];
     const lines=(r.types||[]).map(k=>{
       const n=ds.filter(d=>d.type===k).length;
-      return `<li>檢查紀錄 1 筆：<b>${esc(this.tl(k))}</b>（檢查來源 <code>${esc(k)}</code>）　→　缺失紀錄 ${n} 筆</li>`;
+      return `<li>檢查紀錄 1 筆：<b>${esc(this.tl(k))}</b>（檢查來源 <code>${esc(this.effItype(k))}</code>）　→　缺失紀錄 ${n} 筆</li>`;
     }).join("");
     return `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;font-size:12.5px">
       <p><b>匯入後會建立：</b></p><ul style="margin:4px 0 8px 18px;line-height:1.9">${lines}<li>正面評價／優秀案例 ${(r.best||[]).length} 筆</li></ul>
@@ -24921,9 +24929,9 @@ const IntAuditQueue={
     const vt=((typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(s=>s.code===r.ship)||{}).vtype||"";
     const meta={_impAt:now,_impBy:by,intAuditId:r.id};
     // 檢查紀錄：每個檢查種類一筆；找得到同船同檢查來源同日期的既有紀錄就更新，不重複新增
-    // ⚠ 「專項檢查」不能直接拿內部 key（"主題檢查"）當檢查來源——督導在①基本資料選過是哪張 SAR
-    // 表單（r.specialSarForm），匯入後的檢查來源要用那張表單的名稱，不是籠統的「專項檢查」字樣。
-    const effItype=k=>k==="主題檢查"?(r.specialSarForm||"專項檢查"):k;
+    // ⚠ 「專項檢查」不能直接拿複合 key（"主題檢查::<SAR表單>"）當檢查來源——匯入後的檢查來源
+    // 要用該複合 key 拆出來的表單名稱本身，不是籠統的「專項檢查」字樣，見 this.effItype()。
+    const effItype=k=>this.effItype(k);
     const inspIds=Object.assign({},(r.imported||{}).inspIds||{});
     (r.types||[]).forEach((k,ti)=>{
       const itype=effItype(k);
@@ -30549,6 +30557,22 @@ const IntAuditInspectors={
     App.intAuditInspectors=list;
     const inp=$("#iai-input");if(inp)inp.value=list.join("、");
     this.renderChips();
+  },
+  /* 一次把目前選的部門裡所有人加進名單（略過已經在名單中的），不用一個個挑 */
+  addDept(){
+    const deptSel=$("#iai-dept-select");
+    const dept=deptSel?deptSel.value:"";
+    if(!dept){toast("⚠ 請先選擇部門");return;}
+    const roster=(typeof GateIdentity!=="undefined"?GateIdentity.loadRoster():[])||[];
+    const names=roster.filter(r=>r.dept===dept&&r.tier!=="op2").map(r=>r.name).filter(Boolean);
+    if(!names.length){toast("⚠ 此部門目前沒有人員");return;}
+    const list=App.intAuditInspectors||[];
+    let added=0;
+    names.forEach(n=>{if(!list.includes(n)){list.push(n);added++;}});
+    App.intAuditInspectors=list;
+    const inp=$("#iai-input");if(inp)inp.value=list.join("、");
+    this.renderChips();
+    toast(added?`✓ 已加入「${dept}」共 ${added} 位（${names.length-added} 位已在名單中）`:`⚠ 「${dept}」的人員都已經在名單中了`);
   },
   removePerson(name){
     App.intAuditInspectors=(App.intAuditInspectors||[]).filter(n=>n!==name);

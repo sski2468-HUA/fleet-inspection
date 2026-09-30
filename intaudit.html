@@ -466,7 +466,7 @@ function renderList(){
       (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,topicText(d)].join(" ").toLowerCase().includes(q)));
     if(!ds.length&&(fm||fst||q))return;
     n+=ds.length;
-    const types=(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、");
+    const types=(r.types||[]).map(k=>{const t=typeDef(k)||{label:k};return t.label+(t.sarForm?"："+t.sarForm:"");}).join("、");
     const hasIC=(r.defs||[]).some(d=>d.closeMode==="內控");
     const filtering=!!(fm||fst||q),open=filtering||expanded.has(r.id);
     html+=`<tr class="rec"><td colspan="8"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -639,20 +639,29 @@ function collect(){
   return cur;
 }
 function onDateChange(){const f=$("#fDateFrom").value,t=$("#fDateTo");if(t.value&&t.value<f)t.value=f;}
-/* 檢查種類（多選） */
+/* 檢查種類（多選）：固定種類（訪船／內稽／隨船／交叉訪船）是勾選框；「專項檢查」則可依 SAR
+   表單各自新增多筆獨立的種類實例（每張表單各自一個分頁），用「＋新增專項檢查」加入、
+   用每個項目旁的 ✕ 移除，不是單一勾選框。SPECIAL_TYPE_K／SPECIAL_PREFIX 定義在 intaudit-word.js
+   （督導端與船上端共用），這裡不重複宣告。 */
 function renderTypes(){
-  $("#typeBox").innerHTML=TYPE_DEFS.map(t=>{
-    const extra=t.k===SPECIAL_TYPE_K&&cur.types.includes(t.k)
-      ?`<span class="hint" style="font-weight:400;color:var(--teal)">（${esc(cur.specialSarForm||"")} <a onclick="event.preventDefault();openSpecialSarModal()" style="cursor:pointer;text-decoration:underline">更換</a>）</span>`:"";
-    return `<label><input type="checkbox" ${cur.types.includes(t.k)?"checked":""} onchange="toggleType('${t.k}',this.checked)"> ${esc(t.label)} <span class="hint" style="font-weight:400">${esc(t.en)}</span>${extra}</label>`;
+  const baseHtml=TYPE_DEFS.filter(t=>t.k!==SPECIAL_TYPE_K).map(t=>
+    `<label><input type="checkbox" ${cur.types.includes(t.k)?"checked":""} onchange="toggleType('${t.k}',this.checked)"> ${esc(t.label)} <span class="hint" style="font-weight:400">${esc(t.en)}</span></label>`
+  ).join("");
+  const specialKeys=cur.types.filter(k=>typeof k==="string"&&k.startsWith(SPECIAL_PREFIX));
+  const chips=specialKeys.map(k=>{
+    const form=k.slice(SPECIAL_PREFIX.length);
+    return `<span class="sarchip" style="display:inline-flex;align-items:center;gap:6px;background:#e4f1f2;color:#1e5158;border-radius:14px;padding:3px 10px;font-size:12.5px;margin:2px 6px 2px 0">${esc(form)}<a onclick="event.preventDefault();removeSpecialType('${esc(k).replace(/'/g,"\\'")}')" style="cursor:pointer;color:var(--bad);font-weight:700" title="移除">✕</a></span>`;
   }).join("");
+  const specialHtml=`<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">
+    <b>專項檢查</b> <span class="hint" style="font-weight:400">Special Inspection（依 SAR 表單各自新增，每張表單獨立成一個缺失分頁）</span>
+    <div style="margin-top:6px">${chips}<button type="button" class="btn sm" onclick="openSpecialSarModal()">＋ 新增專項檢查</button></div>
+  </div>`;
+  $("#typeBox").innerHTML=baseHtml+specialHtml;
 }
-const SPECIAL_TYPE_K="主題檢查"; // 專項檢查（沿用舊的內部 key，避免舊資料/已匯入紀錄的 d.type 對不起來）
 const SPECIAL_SAR_OPTS=["SAR-FM20 靜態航行檢查評估表","SAR-FM21 動態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表"];
 function toggleType(k,on){
   collect();
   if(on){
-    if(k===SPECIAL_TYPE_K){openSpecialSarModal();return;} // 先跳視窗選 SAR 表單，選定後才真的勾上（見 confirmSpecialSar）
     if(!cur.types.includes(k))cur.types.push(k);if(!activeTab)activeTab=k;
   }else{
     if(cur.defs.some(d=>d.type===k)){toast("⚠ 這個檢查種類底下已有缺失，請先刪除該分頁的缺失再取消勾選",true);renderTypes();return;}
@@ -660,29 +669,41 @@ function toggleType(k,on){
   }
   renderTypes();renderDefs();updateCounts();
 }
-/* 專項檢查：整張登錄單共用一個「這次是依據哪張 SAR 表單」的選擇（不是每筆缺失各自選），
-   匯入主系統時這幾筆缺失／這筆檢查紀錄的「檢查來源」就會直接用這裡選的表單名稱，
-   不會用「專項檢查」這個籠統的字。 */
+/* 移除一筆已新增的「專項檢查」（某張 SAR 表單）；底下已有缺失就先擋下，避免資料憑空消失。 */
+function removeSpecialType(k){
+  collect();
+  if(cur.defs.some(d=>d.type===k)){toast("⚠ 這個 SAR 表單底下已有缺失，請先刪除該分頁的缺失再移除",true);return;}
+  cur.types=cur.types.filter(x=>x!==k);if(activeTab===k)activeTab=cur.types[0]||null;
+  renderTypes();renderDefs();updateCounts();
+}
+/* 專項檢查：每按一次「＋新增專項檢查」就選一張 SAR 表單，新增成獨立的一個檢查種類
+   （key＝SPECIAL_PREFIX＋表單名稱），匯入主系統時這一種類底下的缺失／檢查紀錄的
+   「檢查來源」就直接是這張表單的名稱，不會用「專項檢查」這個籠統的字。
+   已經新增過的表單不會再出現在選單裡（避免重複新增同一張表單）。 */
 function openSpecialSarModal(){
   const sel=$("#specialSarSel");
-  const isOther=cur.specialSarForm&&!SPECIAL_SAR_OPTS.includes(cur.specialSarForm);
-  sel.innerHTML='<option value="">— 請選擇 —</option>'+SPECIAL_SAR_OPTS.map(t=>`<option ${cur.specialSarForm===t?"selected":""}>${esc(t)}</option>`).join("")+`<option value="其他" ${isOther?"selected":""}>其他</option>`;
-  $("#specialSarOther").style.display=isOther?"":"none";
-  $("#specialSarOther").value=isOther?cur.specialSarForm:"";
+  const already=new Set(cur.types.filter(k=>k.startsWith(SPECIAL_PREFIX)).map(k=>k.slice(SPECIAL_PREFIX.length)));
+  const avail=SPECIAL_SAR_OPTS.filter(t=>!already.has(t));
+  sel.innerHTML='<option value="">— 請選擇 —</option>'+avail.map(t=>`<option>${esc(t)}</option>`).join("")+`<option value="其他">其他</option>`;
+  $("#specialSarOther").style.display="none";
+  $("#specialSarOther").value="";
   $("#specialSarModal").style.display="flex";
 }
 function onSpecialSarSelChange(){
   $("#specialSarOther").style.display=$("#specialSarSel").value==="其他"?"":"none";
 }
-function cancelSpecialSar(){$("#specialSarModal").style.display="none";renderTypes();} // 取消就不勾選，重畫把勾勾退回去
+function cancelSpecialSar(){$("#specialSarModal").style.display="none";}
 function confirmSpecialSar(){
   const v=$("#specialSarSel").value;
   if(!v){toast("⚠ 請選擇是哪一張 SAR 表單（或選「其他」）",true);return;}
   const form=v==="其他"?($("#specialSarOther").value||"").trim():v;
   if(v==="其他"&&!form){toast("⚠ 選了「其他」請說明是哪一類",true);return;}
-  cur.specialSarForm=v==="其他"?"其他："+form:form;
-  if(!cur.types.includes(SPECIAL_TYPE_K))cur.types.push(SPECIAL_TYPE_K);
-  if(!activeTab)activeTab=SPECIAL_TYPE_K;
+  const finalForm=v==="其他"?"其他："+form:form;
+  const k=SPECIAL_PREFIX+finalForm;
+  collect();
+  if(cur.types.includes(k)){toast("⚠ 這張表單已經新增過了",true);$("#specialSarModal").style.display="none";return;}
+  cur.types.push(k);
+  if(!activeTab)activeTab=k;
   $("#specialSarModal").style.display="none";
   renderTypes();renderDefs();updateCounts();
 }
@@ -767,7 +788,7 @@ function summaryText(r){
   parts.push(`優良案例 ${(r.best||[]).length} 項`);
   (r.types||[]).forEach(k=>{
     const t=typeDef(k)||{label:k},ds=(r.defs||[]).filter(d=>d.type===k);
-    let s=`${t.label}缺失 ${ds.length} 項`;
+    let s=`${t.label+(t.sarForm?"："+t.sarForm:"")}缺失 ${ds.length} 項`;
     const by={};ds.forEach(d=>{if(d.topic){const key=/^SAR-FM\d+/.test(d.topic)?d.topic.match(/^SAR-FM\d+/)[0]:d.topic;by[key]=(by[key]||0)+1;}});
     const tp=Object.entries(by).map(([a,b])=>`${a} ${b} 項`);
     if(tp.length)s+=`（其中${tp.join("、")}）`;
@@ -849,13 +870,15 @@ function renderDefNav(){
   box.innerHTML=`<div class="cchips" style="margin-bottom:8px"><span class="hint" style="font-weight:700">結案方式篩選</span>
     <button type="button" class="fchip ${defFilter===""?"on":""}" onclick="setDefFilter('')">全部<b>${idxs.length}</b></button>
     ${chip("FLOW","FLOW 系統","flow")}${chip("內控","內控","ic")}${chip("系統內結案","系統內結案","sys")}${chip("none","尚未選擇","none")}</div>
-    <div class="qnav" style="margin:0">${shown.map(i=>{const d=cur.defs[i],m=modeOf(d.closeMode);return `<a class="${m?"m-"+m.cls:"m-none"} ${(defOpen||[]).includes(i)?"on":""}" title="${esc((d.category||"")+" "+(m?m.label:"尚未選結案方式"))}" onclick="openDef(${i})">#${idxs.indexOf(i)+1}</a>`;}).join("")}</div>`;
+    <div class="qnav" style="margin:0"><a class="m-none ${(defOpen||[]).length?"":"on"}" title="列出這個分頁目前篩選出的所有缺失（清單模式）" onclick="backDef()">📋 列表</a>${shown.map(i=>{const d=cur.defs[i],m=modeOf(d.closeMode);return `<a class="${m?"m-"+m.cls:"m-none"} ${(defOpen||[]).includes(i)?"on":""}" title="${esc((d.category||"")+" "+(m?m.label:"尚未選結案方式"))}" onclick="openDef(${i})">#${idxs.indexOf(i)+1}</a>`;}).join("")}</div>`;
 }
 function renderDefs(){
   const tabs=cur.types;
-  $("#defTabs").innerHTML=tabs.length?tabs.map(k=>{const t=typeDef(k)||{label:k};const n=cur.defs.filter(d=>d.type===k).length;return `<button type="button" class="${k===activeTab?"on":""}" onclick="setTab('${k}')">${esc(t.label)}缺失<span class="n">${n}</span></button>`;}).join(""):`<span class="hint">請先在「① 檢查基本資料」勾選檢查種類（可複選）。</span>`;
+  $("#defTabs").innerHTML=tabs.length?tabs.map(k=>{const t=typeDef(k)||{label:k};const lbl=t.label+(t.sarForm?"："+t.sarForm:"");const n=cur.defs.filter(d=>d.type===k).length;return `<button type="button" class="${k===activeTab?"on":""}" onclick="setTab('${k}')">${esc(lbl)}缺失<span class="n">${n}</span></button>`;}).join(""):`<span class="hint">請先在「① 檢查基本資料」勾選檢查種類（可複選）。</span>`;
   const td=typeDef(activeTab);
-  $("#defTabHead").innerHTML=activeTab?`<span class="hint">目前分頁：<b>${esc(td?td.label:activeTab)}</b>（${esc(td?td.section:"")}）——缺失會匯入系統，檢查來源＝<b>${esc(activeTab)}</b></span><span style="flex:1"></span><button class="btn primary" onclick="openBatch()" title="一次輸入多筆缺失：大表格逐列填寫">▦ 批量新增${esc(td?td.label:"")}缺失</button><button class="btn sm" onclick="addDef()">＋ 新增一筆</button>`:"";
+  const tdLbl=td?td.label+(td.sarForm?"："+td.sarForm:""):activeTab;
+  const tdItype=td&&td.sarForm?td.sarForm:activeTab;
+  $("#defTabHead").innerHTML=activeTab?`<span class="hint">目前分頁：<b>${esc(tdLbl)}</b>（${esc(td?td.section:"")}）——缺失會匯入系統，檢查來源＝<b>${esc(tdItype)}</b></span><span style="flex:1"></span><button class="btn primary" onclick="openBatch()" title="一次輸入多筆缺失：大表格逐列填寫">▦ 批量新增${esc(tdLbl)}缺失</button><button class="btn sm" onclick="addDef()">＋ 新增一筆</button>`:"";
   const allIdxs=cur.defs.map((d,i)=>i).filter(i=>cur.defs[i].type===activeTab);
   const idxs=allIdxs.filter(i=>!defFilter||(defFilter==="none"?!cur.defs[i].closeMode:cur.defs[i].closeMode===defFilter));
   renderDefNav();
@@ -883,7 +906,7 @@ function defCardHtml(i,td,allIdxs){
       :`<label>主題（選填）<input type="text" data-f="topic" value="${esc(d.topic)}" placeholder="例：靜態航行評估" oninput="setD(${i},'topic',this.value)"></label>`;
     // 檢查種類填錯了可以直接改，不用刪掉重建；只能改到「① 檢查基本資料」已勾選的種類，
     // 換了種類主題選項也會跟著換，所以順便把主題清空避免選到不屬於新種類的選項。
-    const typeCtl=cur.types.length>1?`<label>檢查種類 Audit Type<select onchange="setDefType(${i},this.value)">${cur.types.map(k=>{const tt=typeDef(k)||{label:k};return `<option value="${esc(k)}" ${d.type===k?"selected":""}>${esc(tt.label)}</option>`;}).join("")}</select><span class="hint" style="font-weight:400">填錯種類可直接在這裡改，不用刪掉重填</span></label>`:"";
+    const typeCtl=cur.types.length>1?`<label>檢查種類 Audit Type<select onchange="setDefType(${i},this.value)">${cur.types.map(k=>{const tt=typeDef(k)||{label:k};return `<option value="${esc(k)}" ${d.type===k?"selected":""}>${esc(tt.label+(tt.sarForm?"："+tt.sarForm:""))}</option>`;}).join("")}</select><span class="hint" style="font-weight:400">填錯種類可直接在這裡改，不用刪掉重填</span></label>`:"";
     return `<div class="item ${m?"m-"+m.cls:""}" id="def-${i}">
       <div class="ih"><button class="btn sm" type="button" onclick="backDef()">← 返回清單</button>　${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm primary" type="button" onclick="addDef()" title="直接新增下一筆同種類的缺失繼續填">＋ 新增下一筆</button><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
       <div class="drow">
@@ -907,12 +930,12 @@ function defCardHtml(i,td,allIdxs){
       </div>
         ${d.closeMode==="內控"?`<div class="fld fw" style="border:1px dashed var(--signal);border-radius:8px;padding:12px;background:#fffaf5"><b style="color:var(--navy)">內控異常登錄資料（船舶動態與早會待辦系統的欄位）</b>
           <div class="fgrid" style="margin-top:8px">
-            <label>關注程度 <span class="req">*</span><select data-f="icLevel" onchange="setD(${i},'icLevel',this.value)"><option value="">— 請選擇 —</option>${IC_LEVELS.map(s=>`<option ${d.icLevel===s?"selected":""}>${s}</option>`).join("")}</select></label>
-            <label>事件分類 <span class="req">*</span><select data-f="icCategory" onchange="setIcCat(${i},this.value)"><option value="">— 請選擇 —</option>${IC_CATEGORIES.map(s=>`<option ${d.icCategory===s?"selected":""}>${esc(s)}</option>`).join("")}</select></label>
+            <label>關注程度（選填，可等匯入內控系統後再選）<select data-f="icLevel" onchange="setD(${i},'icLevel',this.value)"><option value="">— 請選擇 —</option>${IC_LEVELS.map(s=>`<option ${d.icLevel===s?"selected":""}>${s}</option>`).join("")}</select></label>
+            <label>事件分類（選填，可等匯入內控系統後再選）<select data-f="icCategory" onchange="setIcCat(${i},this.value)"><option value="">— 請選擇 —</option>${IC_CATEGORIES.map(s=>`<option ${d.icCategory===s?"selected":""}>${esc(s)}</option>`).join("")}</select></label>
             <label>設備故障細項<select data-f="icEquip" ${isEquipFault(d.icCategory)?"":"disabled"} onchange="setD(${i},'icEquip',this.value)"><option value="">${isEquipFault(d.icCategory)?"請選擇":"不適用"}</option>${IC_EQUIP.map(s=>`<option ${d.icEquip===s?"selected":""}>${esc(s)}</option>`).join("")}</select></label>
             <label>期望完成日期／DL（選填）<input type="date" value="${esc(d.icDue)}" onchange="setD(${i},'icDue',this.value)"></label>
             <div class="checks" style="align-self:end;margin-bottom:6px"><label><input type="checkbox" ${d.icAware?"checked":""} onchange="setD(${i},'icAware',this.checked)"> 標記為知曉事項</label><label><input type="checkbox" ${d.icKey?"checked":""} onchange="setD(${i},'icKey',this.checked)"> 同步到要事</label></div>
-            <div class="fld fw">涉及部門 <span class="req">*</span><div class="checks" data-f="icDepts">${IC_DEPTS.map(n=>`<label><input type="checkbox" ${(d.icDepts||[]).includes(n)?"checked":""} onchange="toggleDept(${i},'${n}',this.checked)"> ${n}</label>`).join("")}</div></div>
+            <div class="fld fw">涉及部門（選填，可等匯入內控系統後再選）<div class="checks" data-f="icDepts">${IC_DEPTS.map(n=>`<label><input type="checkbox" ${(d.icDepts||[]).includes(n)?"checked":""} onchange="toggleDept(${i},'${n}',this.checked)"> ${n}</label>`).join("")}</div></div>
           </div></div>`:""}
       </div>`;
 }
@@ -1011,11 +1034,9 @@ function validate(){
       const d=cur.defs[i],n=`【${(typeDef(k)||{label:k}).label}】第 ${seq+1} 筆缺失`,q=f=>`#def-${i} [data-f="${f}"]`;
       [["category","分類 Category"],["risk","風險等級"],["reported","Reported @（發現日期）"],["finding","待改善描述"]].forEach(([f,l])=>{if(!String(d[f]||"").trim())errs.push({msg:`${n}：「${l}」未填`,sel:q(f),tab:k});});
       if(!d.closeMode)errs.push({msg:`${n}：「結案方式」未選擇（FLOW／內控／系統內結案，須擇一）`,sel:q("closeMode"),tab:k});
-      if(d.closeMode==="內控"){
-        if(!d.icLevel)errs.push({msg:`${n}：內控「關注程度」未選`,sel:q("icLevel"),tab:k});
-        if(!d.icCategory)errs.push({msg:`${n}：內控「事件分類」未選`,sel:q("icCategory"),tab:k});
-        if(!(d.icDepts||[]).length)errs.push({msg:`${n}：內控「涉及部門」至少勾選一個`,sel:q("icDepts"),tab:k});
-      }
+      // 內控異常登錄資料（關注程度／事件分類／涉及部門）不在這裡強制要求：
+      // 這邊只需要把「內控」缺失標記出來、匯出內控缺失清單即可，詳細分類等缺失實際匯入
+      // 內控系統（船舶動態與早會待辦系統）後，再由該系統那邊的人補填，不卡在這裡送出。
     });
   });
   return errs;

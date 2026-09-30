@@ -13,7 +13,19 @@ const TYPE_DEFS=[
 const topicText=d=>d.topic==="其他"&&d.topicOther?"其他："+d.topicOther:(d.topic||"");
 /* 匯出檔名（Word／JSON／內控檔共用）：船名-檢查日期-Audit NC Deficiency Items Details Records（檔名不能含斜線，N/C 寫成 NC） */
 const exportBaseName=r=>`${r.ship||"船名"}-${(dateText(r)||"檢查日期").replace(/\//g,"-").replace(/～/g,"~")}-Audit NC Deficiency Items Details Records`;
-const typeDef=k=>TYPE_DEFS.find(t=>t.k===k);
+/* 專項檢查：每張 SAR 表單可各自新增一筆「專項檢查」種類（例如同一張登錄單裡，FM20、FM22 各自
+   獨立成一個分頁），用複合 key「主題檢查::<SAR表單名稱>」表示，不佔用固定的 TYPE_DEFS 清單。
+   typeDef() 對這種複合 key 動態合成定義；找不到符合的固定 key 時才退回 TYPE_DEFS 查表
+   （舊資料若還是存純字串 "主題檢查"，仍會查到 TYPE_DEFS 裡那筆固定定義，向後相容）。 */
+const SPECIAL_TYPE_K="主題檢查";
+const SPECIAL_PREFIX=SPECIAL_TYPE_K+"::";
+const typeDef=k=>{
+  if(typeof k==="string"&&k.startsWith(SPECIAL_PREFIX)){
+    const form=k.slice(SPECIAL_PREFIX.length);
+    return {k,label:"專項檢查",en:"Special Inspection",section:"專項檢查缺失",sarForm:form,topicLabel:"",topics:null};
+  }
+  return TYPE_DEFS.find(t=>t.k===k);
+};
 const MODES=[{k:"FLOW",label:"FLOW 系統（DMP-FM01）",cls:"flow"},{k:"內控",label:"內控",cls:"ic"},{k:"系統內結案",label:"系統內結案",cls:"sys"}];
 const modeOf=k=>MODES.find(m=>m.k===k);
 const slash=s=>String(s||"").replace(/-/g,"/");
@@ -54,7 +66,10 @@ async function buildDocBody(r,ctx,replyOf){
   const ship=SHIPS.find(s=>s.code===r.ship),shipTxt=ship?`${ship.code} ${ship.name}`:r.ship;
   let b="";
   b+=wPara(wRun("檢查缺失具體項目記錄表 Audit N/C / Deficiency Items Details Records",{sz:28}),{jc:"center",after:120});
-  const typeChecks=TYPE_DEFS.map(t=>`${(r.types||[]).includes(t.k)?"☑":"☐"} ${t.label} ${t.en}`).join("　　");
+  const specialKeysInR=(r.types||[]).filter(k=>typeof k==="string"&&(k===SPECIAL_TYPE_K||k.startsWith(SPECIAL_PREFIX)));
+  const typeChecks=TYPE_DEFS.filter(t=>t.k!==SPECIAL_TYPE_K).map(t=>`${(r.types||[]).includes(t.k)?"☑":"☐"} ${t.label} ${t.en}`).join("　　")
+    +`　　${specialKeysInR.length?"☑":"☐"} 專項檢查 Special Inspection`
+    +(specialKeysInR.length?`（${specialKeysInR.map(k=>k===SPECIAL_TYPE_K?"":k.slice(SPECIAL_PREFIX.length)).filter(Boolean).join("、")}）`:"");
   b+=wTbl([2400,4939,2400,4939],[
     lblCell(2400,"訪問船舶 Ship Visited：")+txtCell(4939,shipTxt)+lblCell(2400,"日期 Date：")+txtCell(4939,dateText(r)),
     lblCell(2400,"檢查人 Auditor：")+txtCell(4939,r.inspector)+lblCell(2400,"地點 Ship's PSN：")+txtCell(4939,r.psn),
@@ -78,12 +93,12 @@ async function buildDocBody(r,ctx,replyOf){
     b+=heading("● 彙整 Summary（優良案例與缺失數量、結案方式）");
     const sumRows=[lblCell(4678,"項目")+lblCell(2500,"合計")+lblCell(2500,"FLOW 系統（DMP-FM01）")+lblCell(2500,"內控")+lblCell(2500,"系統內結案")];
     sumRows.push(txtCell(4678,"優良案例 Best Practice")+txtCell(2500,`${(r.best||[]).length} 項`)+txtCell(2500,"—")+txtCell(2500,"—")+txtCell(2500,"—"));
-    (r.types||[]).forEach(k=>{const t=typeDef(k)||{label:k};sumRows.push(txtCell(4678,`${t.label}缺失`)+txtCell(2500,`${cnt(k)} 項`)+txtCell(2500,`${cnt(k,"FLOW")}`)+txtCell(2500,`${cnt(k,"內控")}`)+txtCell(2500,`${cnt(k,"系統內結案")}`));});
+    (r.types||[]).forEach(k=>{const t=typeDef(k)||{label:k};const lbl=t.label+(t.sarForm?"："+t.sarForm:"");sumRows.push(txtCell(4678,`${lbl}缺失`)+txtCell(2500,`${cnt(k)} 項`)+txtCell(2500,`${cnt(k,"FLOW")}`)+txtCell(2500,`${cnt(k,"內控")}`)+txtCell(2500,`${cnt(k,"系統內結案")}`));});
     sumRows.push(wCell(4678,wPara(wRun("缺失合計",{b:true,sz:19}),{after:0}),{shd:LBL})+wCell(2500,wPara(wRun(`${defs.length} 項`,{b:true,sz:19}),{after:0}),{shd:LBL})+
       wCell(2500,wPara(wRun(`${defs.filter(d=>d.closeMode==="FLOW").length}`,{b:true,sz:19}),{after:0}),{shd:LBL})+wCell(2500,wPara(wRun(`${defs.filter(d=>d.closeMode==="內控").length}`,{b:true,sz:19}),{after:0}),{shd:LBL})+
       wCell(2500,wPara(wRun(`${defs.filter(d=>d.closeMode==="系統內結案").length}`,{b:true,sz:19}),{after:0}),{shd:LBL}));
     b+=wTbl([4678,2500,2500,2500,2500],sumRows)+tinyGap();
-    const kind=d=>{const t=typeDef(d.type)||{label:d.type};return t.label+(topicText(d)?"・"+topicText(d):"");};
+    const kind=d=>{const t=typeDef(d.type)||{label:d.type};return t.label+(t.sarForm?"："+t.sarForm:"")+(topicText(d)?"・"+topicText(d):"");};
     const listBlock=(title,items,withRemark)=>{
       const cols=withRemark?[700,2300,2000,6078,900,2700]:[700,2800,2400,7778,1000];
       const head=lblCell(cols[0],"No.")+lblCell(cols[1],"檢查種類／主題")+lblCell(cols[2],"分類 Category")+lblCell(cols[3],"缺失內容 Finding")+lblCell(cols[4],"風險")+(withRemark?lblCell(cols[5],"備註：結案方式"):"");
@@ -110,19 +125,31 @@ async function buildDocBody(r,ctx,replyOf){
       ])+wPara("",{after:60});
     }
   }
-  // 缺失：依「檢查種類（＋主題）＋結案方式」分組，各組一個標題，跟原記錄表的分區一致
-  const order=TYPE_DEFS.map(t=>t.k),modeOrder=MODES.map(m=>m.k),groups=new Map();
+  // 缺失：依「檢查種類（＋主題）＋結案方式」分組，各組一個標題，跟原記錄表的分區一致。
+  // 用 d.type 字串本身（不是查表位置）當分組鍵，不同 SAR 表單的專項檢查各自獨立成組，不會混在一起；
+  // 排序時固定種類維持 TYPE_DEFS 原順序，專項檢查各實例排在最後、依 r.types 裡新增的先後排列。
+  const baseOrder=TYPE_DEFS.filter(t=>t.k!==SPECIAL_TYPE_K).map(t=>t.k),modeOrder=MODES.map(m=>m.k),groups=new Map();
+  const typeRank=k=>{
+    const bi=baseOrder.indexOf(k);
+    if(bi>=0)return bi;
+    const si=(r.types||[]).indexOf(k);
+    return baseOrder.length+(si>=0?si:0);
+  };
+  const sectionHead=k=>(typeof k==="string"&&k.startsWith(SPECIAL_PREFIX))?`專項檢查缺失 Special Inspection（${k.slice(SPECIAL_PREFIX.length)}）`:(SECTION_HEAD[k]||k);
   (r.defs||[]).forEach(d=>{
     const t=typeDef(d.type),topic=t&&t.topics&&["Internal audit"].includes(d.type)&&["MLC","ISPS","ISM"].includes(d.topic)?d.topic:"";
-    const key=[order.indexOf(d.type),topic,modeOrder.indexOf(d.closeMode)].join("|");
+    const key=[d.type,topic,d.closeMode].join("\u0001");
     if(!groups.has(key))groups.set(key,{type:d.type,topic,mode:d.closeMode,items:[]});
     groups.get(key).items.push(d);
   });
   const cols=[900,2200,4400,3600,1800,1778];
   let defN=0; // 每一條缺失獨立一頁：第二條起（含換到下一個分區標題）都從新的一頁開始
-  for(const key of [...groups.keys()].sort((a,b)=>{const A=a.split("|").map(Number),B=b.split("|").map(Number);return A[0]-B[0]||String(a.split("|")[1]).localeCompare(b.split("|")[1])||A[2]-B[2];})){
+  for(const key of [...groups.keys()].sort((a,b)=>{
+    const ga=groups.get(a),gb=groups.get(b);
+    return typeRank(ga.type)-typeRank(gb.type)||String(ga.topic).localeCompare(gb.topic)||modeOrder.indexOf(ga.mode)-modeOrder.indexOf(gb.mode);
+  })){
     const g=groups.get(key);
-    b+=heading(`● ${SECTION_HEAD[g.type]||g.type}${g.topic?" - "+g.topic:""} - ${MODE_SUFFIX[g.mode]||""}`,defN>0);
+    b+=heading(`● ${sectionHead(g.type)}${g.topic?" - "+g.topic:""} - ${MODE_SUFFIX[g.mode]||""}`,defN>0);
     for(let i=0;i<g.items.length;i++){
       const d=g.items[i],mm=modeOf(d.closeMode),rp=(replyOf&&replyOf(d))||null;
       defN++;
