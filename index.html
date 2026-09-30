@@ -19252,6 +19252,17 @@ const AuditDash={
   schedAsc:true,unschedAsc:true, // 分區檢視「已進入排程／未排程」各自獨立的排序方向，不跟全域 sortKey 共用
   sortSched(){this.schedAsc=!this.schedAsc;this.render();},
   sortUnsched(){this.unschedAsc=!this.unschedAsc;this.render();},
+  /* 「已進入排程」「未排程」分區共用的日期排序邏輯：畫面上的分區檢視與列印匯出都要用同一套，
+     否則列印出來的順序會跟畫面上看到的對不起來（沒有日期的一律排最後）。 */
+  groupByDateCmp(field,asc){
+    return (a,b)=>{
+      const av=a[field]||"",bv=b[field]||"";
+      if(!av&&!bv)return 0;
+      if(!av)return 1;
+      if(!bv)return -1;
+      return (av<bv?-1:av>bv?1:0)*(asc?1:-1);
+    };
+  },
   _nextIdCache:null,_remarkRowId:null,_dateRowId:null,_dateField:null,
   updatedAt:null,
   nextId(){
@@ -19732,15 +19743,8 @@ const AuditDash={
     // （AuditDash.sortSched()／sortUnsched()，各自獨立，不影響對方或其他兩區）。
     // 已排程＝預設依計畫檢查日由近到遠（越快到的越上面）；未排程＝預設依上次稽核日由舊到新
     // （隔最久沒查的排最上面最需要注意、最近才查過的排最下面）。沒有日期的一律排最後。
-    const byDate=(field,asc)=>(a,b)=>{
-      const av=a[field]||"",bv=b[field]||"";
-      if(!av&&!bv)return 0;
-      if(!av)return 1;
-      if(!bv)return -1;
-      return (av<bv?-1:av>bv?1:0)*(asc?1:-1);
-    };
-    groups.scheduled.sort(byDate("plannedDate",this.schedAsc));
-    groups.unscheduled.sort(byDate("lastAuditDate",this.unschedAsc));
+    groups.scheduled.sort(this.groupByDateCmp("plannedDate",this.schedAsc));
+    groups.unscheduled.sort(this.groupByDateCmp("lastAuditDate",this.unschedAsc));
     const theadHtml=this.COLS.map(c=>`<th class="sort" onclick="AuditDash.sort('${c.k}')" style="cursor:pointer;white-space:nowrap" title="點選依「${esc(c.t)}」排序">${esc(c.t)} ${this.sortKey===c.k?(this.sortAsc?"▲":"▼"):"⇅"}</th>`).join("")+`<th>操作</th>`;
     const theadSched=this.COLS.map(c=>c.k==="plannedDate"
       ?`<th class="sort" onclick="AuditDash.sortSched()" style="cursor:pointer;white-space:nowrap" title="點選切換排序方向">${esc(c.t)} ${this.schedAsc?"▲":"▼"}</th>`
@@ -20267,6 +20271,11 @@ Principles for assigning ISM auditors are as follows:
     }
     const groups={scheduled:[],unscheduled:[],done_open:[],done_closed:[]};
     rows.forEach(r=>{const k=this.schedStatus(r);if(sectionSet.has(k))groups[k].push(r);});
+    // 「已進入排程」「未排程」列印時要跟畫面上的分區檢視同一套排序（各自依計畫檢查日／
+    // 上次稽核日，方向依畫面目前的 schedAsc／unschedAsc），不能沿用 filteredRows() 那個
+    // 全域排序欄位，否則列印出來的順序會跟畫面對不起來。
+    groups.scheduled.sort(this.groupByDateCmp("plannedDate",this.schedAsc));
+    groups.unscheduled.sort(this.groupByDateCmp("lastAuditDate",this.unschedAsc));
     const rowHtmlFull=r=>`<tr${r.enhanced?' style="background:#fff3e0"':""}>
       ${includeSchedMonth?`<td style="text-align:center">${esc(r.schedMonth)||"-"}</td>`:""}
       <td style="text-align:left">${r.enhanced?"⭐":""}${esc(r.vesselName)}</td>
@@ -25894,11 +25903,17 @@ const Ref={
     this._leafExplicit=false; // 這是①②整批帶入的，不是使用者自己挑的；讓下一次③④單點視為「只要這一項」
   },
   barToggleMain(m){
+    const turnedOn=!this.barSel.main.has(m);
     if(this.barSel.main.has(m))this.barSel.main.delete(m);else this.barSel.main.add(m);
     const probs=new Set();
     this.barSel.main.forEach(mm=>{ this.ncProbOfMain(mm).forEach(p=>probs.add(p)); });
     this.barSel.prob=probs;
     this.syncSelLeafFromBarSel();
+    // 點選②大類時，下方「分類清單」也要自動跳到同一個大類，不用使用者自己再去左側選一次。
+    if(turnedOn){
+      const p=[...this.ncProbOfMain(m)][0];
+      if(p)this.sel={prob:p,main:m};
+    }
     this.render();
   },
   /* ⚠ 之前這裡點選一個具體項目時，會把①②的 barSel.prob/main 直接收窄成這個項目
@@ -25908,14 +25923,23 @@ const Ref={
      資料範圍維持不變，點哪個就穩定亮哪個；①②的連動反白改用下面既有的
      impliedProbMain()（只提示、不過濾），效果一樣能看出這個具體項目屬於哪個問題別／大類。 */
   barLeafToggle(l){
+    let turnedOn;
     if(!this._leafExplicit){
       // selLeaf 目前若不是空的，代表是①②整批帶入的殘留（例如剛點過②大類，
       // 底下 74 項全被自動勾選）——使用者這時親自點某一項，意思是「我只要這一項」，
       // 不是要跟那 74 項做加減，所以直接整個換成只有這一項，不是 toggle。
       this.selLeaf=new Set([l]);
       this._leafExplicit=true;
+      turnedOn=true;
     }else{
+      turnedOn=!this.selLeaf.has(l);
       this.selLeaf.has(l)?this.selLeaf.delete(l):this.selLeaf.add(l);
+    }
+    // 點選③④具體名稱時，下方「分類清單」也要自動跳到這個具體名稱所屬的大類並顯示為已勾選，
+    // 不用使用者自己再去左側找一次、勾一次。
+    if(turnedOn){
+      const hit=ncFindProbMainByLeaf(l)[0];
+      if(hit)this.sel={prob:hit[0],main:hit[1]};
     }
     this.render();
   },

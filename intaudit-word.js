@@ -2,9 +2,10 @@
    依賴頁面全域：JSZip、SHIPS（船舶清單，可為空）、toast；需與 intaudit-template.docx 放在同一資料夾。 */
 const TYPE_DEFS=[
   {k:"onboard visit",label:"訪船",en:"Superintendent Visit",section:"訪船缺失",topicLabel:"",topics:null},
-  {k:"Internal audit",label:"內稽",en:"Internal Audit",section:"內稽缺失",topicLabel:"內稽區域／類別",topics:["甲板","機艙","ISM","MLC","ISPS","其他"]},
+  {k:"Internal audit",label:"內稽",en:"Internal Audit",section:"內稽缺失",topicLabel:"內稽區域／類別",topics:["甲板","機艙","ISM","MLC","其他"]},
   {k:"ACCOMPANYING SHIP",label:"隨船",en:"On-Voyage Audit",section:"隨船缺失",topicLabel:"",topics:null},
   {k:"Cross ship visit",label:"交叉訪船",en:"Cross Visit",section:"交叉訪船缺失",topicLabel:"",topics:null},
+  {k:"ISPS Audit",label:"ISPS",en:"ISPS Audit",section:"ISPS缺失",topicLabel:"",topics:null},
   /* SAR 表單只歸屬「專項檢查」這個檢查種類，訪船／隨船／交叉訪船不重複提供 SAR 選項（主題欄位改回自由輸入）。 */
   {k:"主題檢查",label:"專項檢查",en:"Special Inspection",section:"專項檢查缺失",topicLabel:"SAR表單／專項檢查主題",
    topics:["SAR-FM20 靜態航行檢查評估表","SAR-FM21 動態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表","其他"]}
@@ -60,7 +61,7 @@ function buildDocx_photos(ctx){
   };
 }
 const MODE_SUFFIX={"FLOW":"需要登記到DMP-FM01中","內控":"需要登記內控中（不用輸入DMP-FM01）","系統內結案":"無需輸入FLOW系統追蹤，本表改善即可"};
-const SECTION_HEAD={"onboard visit":"訪船缺失 Ship Visit","Internal audit":"內稽缺失 Internal Audit","ACCOMPANYING SHIP":"隨船缺失 On-Voyage Audit","Cross ship visit":"交叉訪船缺失 Cross Visit","主題檢查":"專項檢查缺失 Special Inspection"};
+const SECTION_HEAD={"onboard visit":"訪船缺失 Ship Visit","Internal audit":"內稽缺失 Internal Audit","ACCOMPANYING SHIP":"隨船缺失 On-Voyage Audit","Cross ship visit":"交叉訪船缺失 Cross Visit","ISPS Audit":"ISPS缺失 ISPS Audit","主題檢查":"專項檢查缺失 Special Inspection"};
 async function buildDocBody(r,ctx,replyOf){
   const P=buildDocx_photos(ctx),W=14678;
   const ship=SHIPS.find(s=>s.code===r.ship),shipTxt=ship?(ship.label||ship.name):r.ship;
