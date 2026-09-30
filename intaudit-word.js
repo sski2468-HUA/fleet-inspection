@@ -8,7 +8,7 @@ const TYPE_DEFS=[
    topics:["SAR-FM21 動態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表","其他"]},
   {k:"Cross ship visit",label:"交叉訪船",en:"Cross Visit",section:"交叉訪船缺失",topicLabel:"訪船主題評估表",
    topics:["SAR-FM20 靜態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表","其他"]},
-  {k:"主題檢查",label:"主題檢查",en:"Topic Audit",section:"主題檢查缺失",topicLabel:"",topics:null}
+  {k:"主題檢查",label:"專項檢查",en:"Special Inspection",section:"專項檢查缺失",topicLabel:"",topics:null}
 ];
 /* 主題顯示文字：選「其他」時附上使用者輸入的說明 */
 const topicText=d=>d.topic==="其他"&&d.topicOther?"其他："+d.topicOther:(d.topic||"");
@@ -49,7 +49,7 @@ function buildDocx_photos(ctx){
   };
 }
 const MODE_SUFFIX={"FLOW":"需要登記到DMP-FM01中","內控":"需要登記內控中（不用輸入DMP-FM01）","系統內結案":"無需輸入FLOW系統追蹤，本表改善即可"};
-const SECTION_HEAD={"onboard visit":"訪船缺失 Ship Visit","Internal audit":"內稽缺失 Internal Audit","ACCOMPANYING SHIP":"隨船缺失 On-Voyage Audit","Cross ship visit":"交叉訪船缺失 Cross Visit","主題檢查":"主題檢查缺失 Topic Inspection"};
+const SECTION_HEAD={"onboard visit":"訪船缺失 Ship Visit","Internal audit":"內稽缺失 Internal Audit","ACCOMPANYING SHIP":"隨船缺失 On-Voyage Audit","Cross ship visit":"交叉訪船缺失 Cross Visit","主題檢查":"專項檢查缺失 Special Inspection"};
 async function buildDocBody(r,ctx,replyOf){
   const P=buildDocx_photos(ctx),W=14678;
   const ship=SHIPS.find(s=>s.code===r.ship),shipTxt=ship?`${ship.code} ${ship.name}`:r.ship;

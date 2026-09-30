@@ -2114,6 +2114,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="nav-group-label">填單</div>
       <div class="nav-item" data-tab="air"><span class="num">📝</span>填單紀錄</div>
       <div class="nav-item" data-tab="intaudit"><span class="num">🛠</span>內部檢查缺失登錄<span id="air-ia-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:auto"></span></div>
+      <div class="nav-item" data-external="__intaudit_new__"><span class="num">🛠</span>前往新增內部檢查記錄（督導／稽核員用） <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
       <div class="nav-item" data-tab="self"><span class="num">4</span>專案自查</div>
       <div class="nav-item" data-external="__selfcheck_share_summary__"><span class="num">🔗</span>分享自查彙整清單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
       <div class="nav-item" data-external="__air_intake__"><span class="num">🔗</span>前往線上填單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
@@ -8842,7 +8843,7 @@ const ITYPE_COLORS={PSC:["#1e7f8c","#e3f1f3"],SIRE:["#7b4fa3","#f1eaf8"],FLAG:["
 function itypeChip(t){const c=ITYPE_COLORS[t]||["#52656f","#eef2f4"];return `<span class="itype-chip" style="color:${c[0]};background:${c[1]};border-color:${c[0]}44">${esc(t||"—")}</span>`;}
 
 /* ════════ 檢查類型(icat) ←→ 檢查來源(itype) 對應 ════════ */
-const ICAT_LIST=["PSC","第三方檢查","公司","業界案例"];
+const ICAT_LIST=["PSC","第三方檢查","公司","業界案例","專項檢查"];
 /* 固定可選的檢查來源選項(即使尚無歷史資料亦可於新增/編輯/批量新增時選用) */
 const ITYPE_EXTRA_OPTS=["The MCC Group","Cross Ship Visit"];
 /* 「線上填單」外部頁面用的乾淨官方清單基礎（不像 itypeOptions() 會把歷史上打過的各種
@@ -8869,8 +8870,9 @@ const Classify={
   DEFAULT_ICAT:[
     {icat:"PSC",match:["psc"]},
     {icat:"第三方檢查",match:["cdi","sire","rightship","terminal","租家檢查","flag","the mcc group","p&i","其他-第三方檢查"]},
-    {icat:"公司",match:["內稽","internal audit","訪船","onboard visit","交叉訪船","isps內稽","isps audit","隨船","accompanying ship","accompanying shiop","accompanying visit"]},
+    {icat:"公司",match:["內稽","internal audit","訪船","onboard visit","交叉訪船","cross ship visit","isps內稽","isps audit","隨船","accompanying ship","accompanying shiop","accompanying visit"]},
     {icat:"業界案例",match:["業界案例"]},
+    {icat:"專項檢查",match:["sar-fm","專項檢查"]},
   ],
   internalKw:[],icatRules:[],open:false,
   toggle(){
@@ -8888,6 +8890,19 @@ const Classify={
   init(){
     this.internalKw=this._loadLocal(this.KEY_INT,this.DEFAULT_INTERNAL);
     this.icatRules=this._loadLocal(this.KEY_ICAT,this.DEFAULT_ICAT);
+    this._ensureIcatDefaults();
+  },
+  /* 既有帳號的 icatRules 是早就存過的舊版本，不會自動套用 DEFAULT_ICAT 新增的規則
+     （_loadLocal 讀到舊值就直接用，不會拿新的 DEFAULT_ICAT 蓋過去）。這裡開機時補兩個
+     2026-09-30 新增的東西：① 交叉訪船匯入時存的英文「Cross ship visit」原本沒被
+     「公司」規則吃到（規則只有中文「交叉訪船」）；② 專項檢查（依 SAR 表單分類）的新規則。
+     只補在本機快取，不主動推回雲端，避免蓋掉其他人在雲端上另外調整過的設定。 */
+  _ensureIcatDefaults(){
+    let changed=false;
+    const co=this.icatRules.find(r=>r.icat==="公司");
+    if(co&&!co.match.includes("cross ship visit")){co.match.push("cross ship visit");changed=true;}
+    if(!this.icatRules.some(r=>r.icat==="專項檢查")){this.icatRules.push({icat:"專項檢查",match:["sar-fm","專項檢查"]});changed=true;}
+    if(changed)this._saveLocal();
   },
   async loadCloud(){
     if(typeof Cloud==="undefined"||!Cloud.enabled())return;
@@ -8897,6 +8912,7 @@ const Classify={
       if(p){
         if(Array.isArray(p.internalKw))this.internalKw=p.internalKw;
         if(Array.isArray(p.icatRules))this.icatRules=p.icatRules;
+        this._ensureIcatDefaults();
         this._saveLocal();
         this.render();
         this.refreshDependents();
@@ -10698,6 +10714,11 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
     else if(n.dataset.external==="__intaudit__"){
       const folderIA=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
       window.open(folderIA+"intaudit.html","_blank");
+    }
+    else if(n.dataset.external==="__intaudit_new__"){
+      // 直接開新分頁並停在「新增登錄」表單，不用先看清單再按一次
+      const folderIA=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
+      window.open(folderIA+"intaudit.html?new=1","_blank");
     }
     else if(n.dataset.external==="__selfcheck_share_summary__"){
       const folder=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
@@ -24622,7 +24643,7 @@ window.addEventListener("beforeunload",e=>{
    重新匯入會依上次記下的對應關係更新原本那幾筆，不會產生重複。 */
 const IntAuditQueue={
   TABLE:"intaudit_records",rows:[],view:"pending",expandedId:null,
-  TYPE_LABEL:{"onboard visit":"訪船","Internal audit":"內稽","ACCOMPANYING SHIP":"隨船","Cross ship visit":"交叉訪船","主題檢查":"主題檢查","其他":"其他事項"},
+  TYPE_LABEL:{"onboard visit":"訪船","Internal audit":"內稽","ACCOMPANYING SHIP":"隨船","Cross ship visit":"交叉訪船","主題檢查":"專項檢查","其他":"其他事項"},
   RISK:{"高":"3","中":"2","低":"1"},
   tl(k){return this.TYPE_LABEL[k]||k;},
   setView(v){this.view=v;this.refresh();},
@@ -24881,12 +24902,16 @@ const IntAuditQueue={
     const vt=((typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(s=>s.code===r.ship)||{}).vtype||"";
     const meta={_impAt:now,_impBy:by,intAuditId:r.id};
     // 檢查紀錄：每個檢查種類一筆；找得到同船同檢查來源同日期的既有紀錄就更新，不重複新增
+    // ⚠ 「專項檢查」不能直接拿內部 key（"主題檢查"）當檢查來源——督導在①基本資料選過是哪張 SAR
+    // 表單（r.specialSarForm），匯入後的檢查來源要用那張表單的名稱，不是籠統的「專項檢查」字樣。
+    const effItype=k=>k==="主題檢查"?(r.specialSarForm||"專項檢查"):k;
     const inspIds=Object.assign({},(r.imported||{}).inspIds||{});
     (r.types||[]).forEach((k,ti)=>{
-      const payload=Object.assign({ship:r.ship,vtype:vt,itype:k,date,loc:r.psn||"",inspector:r.inspector||"",unit:"",
+      const itype=effItype(k);
+      const payload=Object.assign({ship:r.ship,vtype:vt,itype,date,loc:r.psn||"",inspector:r.inspector||"",unit:"",
         ndef:(r.defs||[]).filter(d=>d.type===k).length,npos:ti===0?nBest:0,flagType:""},meta);
       let ex=inspIds[k]!=null?App.insp.find(x=>x.id===inspIds[k]):null;
-      if(!ex)ex=App.insp.find(x=>x.ship===r.ship&&x.itype===k&&x.date===date)||null;
+      if(!ex)ex=App.insp.find(x=>x.ship===r.ship&&x.itype===itype&&x.date===date)||null;
       if(ex){Object.assign(ex,payload);inspIds[k]=ex.id;}
       else{const nid=App.nextInspId();App.insp.push(Object.assign({id:nid},payload,{detain:""}));inspIds[k]=nid;}
     });
@@ -24894,7 +24919,7 @@ const IntAuditQueue={
     let dAdd=0,dUpd=0;
     (r.defs||[]).forEach(d=>{
       const ic=d.closeMode==="內控";
-      const payload=Object.assign({ship:r.ship,vtype:vt,itype:d.type,date,ym,place:r.psn||"",oilco:"",inspector:r.inspector||"",psc:"",
+      const payload=Object.assign({ship:r.ship,vtype:vt,itype:effItype(d.type),date,ym,place:r.psn||"",oilco:"",inspector:r.inspector||"",psc:"",
         code:d.category||"",detail:d.finding||"",actual:"",preventive:"",corrective:"",rootCause:"",opComment:"",immediateCause:"",
         needControl:ic,internalControl:ic,rank:"",person:"",risk:this.RISK[d.risk]||"",
         ncProb:"",ncMain:"",ncLeaf:"",ncRoot:"",ncFactor:"",ncImp:"",ncFocus:"",ncMethod:"",ncOpinion:"",

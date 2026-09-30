@@ -29,6 +29,8 @@ header p{margin:5px 0 0;font-size:12.5px;color:#b9c8d6;line-height:1.6}
 .btn.primary{background:var(--signal);border-color:var(--signal);color:#fff}
 .btn.dark{background:var(--navy);border-color:var(--navy);color:#fff}
 .btn.sm{padding:4px 10px;font-size:12px}
+.btn.lg{background:var(--signal);border-color:var(--signal);color:#fff;padding:11px 22px;font-size:15px;box-shadow:0 2px 8px rgba(232,132,44,.35)}
+.btn.lg:hover{background:var(--signal-d,#c96a14)}
 .btn.danger{color:var(--bad);border-color:#e3b3ab}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px}
 input[type=text],input[type=date],select,textarea{padding:8px 10px;border:1px solid var(--line-2);border-radius:7px;font-size:14px;font-family:var(--sans);width:100%;background:#fff}
@@ -133,7 +135,7 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
 
   <div class="toolbar">
     <button class="btn primary" id="btnList" onclick="showList()">📋 登錄紀錄</button>
-    <button class="btn" id="btnNew" onclick="newForm()">＋ 新增登錄</button>
+    <button class="btn lg" id="btnNew" onclick="newForm()">＋ 新增檢查記錄</button>
     <span style="flex:1"></span>
     <a class="btn sm" href="./" title="回到主系統">← 返回系統</a>
   </div>
@@ -244,6 +246,17 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
   <div class="hint" id="exportSub" style="margin-bottom:10px"></div>
   <div id="exportRows"></div>
   <div class="toolbar" style="justify-content:flex-end;margin:12px 0 0"><button class="btn" onclick="closeExport()">關閉</button></div>
+</div></div>
+<!-- 專項檢查：選 SAR 表單 -->
+<div class="modal" id="specialSarModal"><div class="box" style="max-width:480px">
+  <h3 style="margin:0 0 4px;font-size:17px;color:var(--navy)">專項檢查 Special Inspection</h3>
+  <p class="hint" style="margin:0 0 12px">請選擇本次專項檢查是依據哪一張 SAR 表單（整張登錄單只需選一次，之後這個分頁的缺失「檢查來源」都會用這裡選的表單）</p>
+  <label>SAR 表單<select id="specialSarSel" onchange="onSpecialSarSelChange()"></select></label>
+  <label id="specialSarOtherWrap" style="margin-top:8px"><input type="text" id="specialSarOther" placeholder="請說明是哪一類" style="display:none"></label>
+  <div class="toolbar" style="justify-content:flex-end;margin-top:10px">
+    <button class="btn" onclick="cancelSpecialSar()">取消</button>
+    <button class="btn primary" onclick="confirmSpecialSar()">確定</button>
+  </div>
 </div></div>
 <!-- 批量新增缺失 -->
 <div class="modal" id="batchModal"><div class="box">
@@ -556,7 +569,7 @@ const newUid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const blankDef=type=>({uid:newUid(),type,topic:"",category:"",risk:"",reported:cur&&cur.dateTo?cur.dateTo:(cur&&cur.dateFrom)||todayIso(),finding:"",photos:[],
   closeMode:"",status:"",icLevel:"",icCategory:"",icEquip:"",icDepts:[],icDue:"",icAware:false,icKey:false});
 const blank=()=>({id:null,ship:"",dateFrom:todayIso(),dateTo:"",inspector:"",psn:"",types:[],master:"",co:"",ce:"",e2:"",overall:"",
-  top4:{photos:[],cap:""},goodCrew:[],poorCrew:[],best:[],defs:[],sugg:[],draft:true});
+  top4:{photos:[],cap:""},goodCrew:[],poorCrew:[],best:[],defs:[],sugg:[],draft:true,specialSarForm:""});
 function newForm(){cur=blank();activeTab=null;curSrv=null;bestOpen=null;defOpen=null;openForm();}
 function editRec(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;cur=JSON.parse(JSON.stringify(r));curSrv=Store.srvOf[id]!=null?Store.srvOf[id]:null;activeTab=(cur.types||[])[0]||null;bestOpen=null;defOpen=null;openForm();}
 /* ②～⑤ 分頁：一次只開一個區塊來編輯 */
@@ -617,15 +630,49 @@ function collect(){
 function onDateChange(){const f=$("#fDateFrom").value,t=$("#fDateTo");if(t.value&&t.value<f)t.value=f;}
 /* 檢查種類（多選） */
 function renderTypes(){
-  $("#typeBox").innerHTML=TYPE_DEFS.map(t=>`<label><input type="checkbox" ${cur.types.includes(t.k)?"checked":""} onchange="toggleType('${t.k}',this.checked)"> ${esc(t.label)} <span class="hint" style="font-weight:400">${esc(t.en)}</span></label>`).join("");
+  $("#typeBox").innerHTML=TYPE_DEFS.map(t=>{
+    const extra=t.k===SPECIAL_TYPE_K&&cur.types.includes(t.k)
+      ?`<span class="hint" style="font-weight:400;color:var(--teal)">（${esc(cur.specialSarForm||"")} <a onclick="event.preventDefault();openSpecialSarModal()" style="cursor:pointer;text-decoration:underline">更換</a>）</span>`:"";
+    return `<label><input type="checkbox" ${cur.types.includes(t.k)?"checked":""} onchange="toggleType('${t.k}',this.checked)"> ${esc(t.label)} <span class="hint" style="font-weight:400">${esc(t.en)}</span>${extra}</label>`;
+  }).join("");
 }
+const SPECIAL_TYPE_K="主題檢查"; // 專項檢查（沿用舊的內部 key，避免舊資料/已匯入紀錄的 d.type 對不起來）
+const SPECIAL_SAR_OPTS=["SAR-FM20 靜態航行檢查評估表","SAR-FM21 動態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表"];
 function toggleType(k,on){
   collect();
-  if(on){if(!cur.types.includes(k))cur.types.push(k);if(!activeTab)activeTab=k;}
-  else{
+  if(on){
+    if(k===SPECIAL_TYPE_K){openSpecialSarModal();return;} // 先跳視窗選 SAR 表單，選定後才真的勾上（見 confirmSpecialSar）
+    if(!cur.types.includes(k))cur.types.push(k);if(!activeTab)activeTab=k;
+  }else{
     if(cur.defs.some(d=>d.type===k)){toast("⚠ 這個檢查種類底下已有缺失，請先刪除該分頁的缺失再取消勾選",true);renderTypes();return;}
     cur.types=cur.types.filter(x=>x!==k);if(activeTab===k)activeTab=cur.types[0]||null;
   }
+  renderTypes();renderDefs();updateCounts();
+}
+/* 專項檢查：整張登錄單共用一個「這次是依據哪張 SAR 表單」的選擇（不是每筆缺失各自選），
+   匯入主系統時這幾筆缺失／這筆檢查紀錄的「檢查來源」就會直接用這裡選的表單名稱，
+   不會用「專項檢查」這個籠統的字。 */
+function openSpecialSarModal(){
+  const sel=$("#specialSarSel");
+  const isOther=cur.specialSarForm&&!SPECIAL_SAR_OPTS.includes(cur.specialSarForm);
+  sel.innerHTML='<option value="">— 請選擇 —</option>'+SPECIAL_SAR_OPTS.map(t=>`<option ${cur.specialSarForm===t?"selected":""}>${esc(t)}</option>`).join("")+`<option value="其他" ${isOther?"selected":""}>其他</option>`;
+  $("#specialSarOther").style.display=isOther?"":"none";
+  $("#specialSarOther").value=isOther?cur.specialSarForm:"";
+  $("#specialSarModal").style.display="flex";
+}
+function onSpecialSarSelChange(){
+  $("#specialSarOther").style.display=$("#specialSarSel").value==="其他"?"":"none";
+}
+function cancelSpecialSar(){$("#specialSarModal").style.display="none";renderTypes();} // 取消就不勾選，重畫把勾勾退回去
+function confirmSpecialSar(){
+  const v=$("#specialSarSel").value;
+  if(!v){toast("⚠ 請選擇是哪一張 SAR 表單（或選「其他」）",true);return;}
+  const form=v==="其他"?($("#specialSarOther").value||"").trim():v;
+  if(v==="其他"&&!form){toast("⚠ 選了「其他」請說明是哪一類",true);return;}
+  cur.specialSarForm=v==="其他"?"其他："+form:form;
+  if(!cur.types.includes(SPECIAL_TYPE_K))cur.types.push(SPECIAL_TYPE_K);
+  if(!activeTab)activeTab=SPECIAL_TYPE_K;
+  $("#specialSarModal").style.display="none";
   renderTypes();renderDefs();updateCounts();
 }
 /* 照片：讀檔、縮圖（長邊 1280px）、預覽、刪除 */
@@ -694,7 +741,7 @@ function renderBest(){
     return;
   }
   const i=bestOpen,x=cur.best[i];
-  $("#bestList").innerHTML=`<div class="item" id="best-${i}"><div class="ih"><button class="btn sm" type="button" onclick="backBest()">← 返回清單</button>　優良案例 No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
+  $("#bestList").innerHTML=`<div class="item" id="best-${i}"><div class="ih"><button class="btn sm" type="button" onclick="backBest()">← 返回清單</button>　優良案例 No.${i+1}<span class="sp"></span><button class="btn sm primary" type="button" onclick="addBest()" title="儲存這筆目前的內容，直接新增下一筆繼續填">＋ 新增下一筆</button><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
     <div class="fgrid"><label>分類 Category<input type="text" value="${esc(x.category)}" placeholder="例：作業記錄、壓載水記錄" oninput="setB(${i},'category',this.value)"></label>
     <div class="fld" style="grid-column:span 2">涉及人員（姓名／職務）
       ${bestPersons(x).map((p,j)=>`<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:6px"><input type="text" value="${esc(p.name)}" placeholder="姓名" oninput="setBP(${i},${j},'name',this.value)">${rankSelect(p.rank,`setBP(${i},${j},'rank',this.value)`)}<button class="btn sm danger" type="button" title="移除這位人員" onclick="delBP(${i},${j})">×</button></div>`).join("")}
@@ -818,7 +865,7 @@ function renderDefs(){
     // 換了種類主題選項也會跟著換，所以順便把主題清空避免選到不屬於新種類的選項。
     const typeCtl=cur.types.length>1?`<label>檢查種類 Audit Type<select onchange="setDefType(${i},this.value)">${cur.types.map(k=>{const tt=typeDef(k)||{label:k};return `<option value="${esc(k)}" ${d.type===k?"selected":""}>${esc(tt.label)}</option>`;}).join("")}</select><span class="hint" style="font-weight:400">填錯種類可直接在這裡改，不用刪掉重填</span></label>`:"";
     $("#defList").innerHTML=`<div class="item ${m?"m-"+m.cls:""}" id="def-${i}">
-      <div class="ih"><button class="btn sm" type="button" onclick="backDef()">← 返回清單</button>　${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
+      <div class="ih"><button class="btn sm" type="button" onclick="backDef()">← 返回清單</button>　${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm primary" type="button" onclick="addDef()" title="直接新增下一筆同種類的缺失繼續填">＋ 新增下一筆</button><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
       <div class="drow">
         <div class="c1">
           ${typeCtl}
@@ -1005,7 +1052,10 @@ async function submitForm(){
 }
 
 (async function init(){
-  await loadLists();await Store.load();await Store.loadReplies();showList();
+  await loadLists();await Store.load();await Store.loadReplies();
+  // ?new=1（主系統左欄「前往新增內部檢查記錄」的快捷連結）：不看清單，直接開新增表單
+  if(new URLSearchParams(location.search).get("new")==="1"){try{history.replaceState(null,"",location.pathname);}catch(e){}newForm();}
+  else showList();
 })();
 </script>
 </body>
