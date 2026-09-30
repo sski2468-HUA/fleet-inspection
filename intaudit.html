@@ -53,6 +53,9 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
 .item.m-flow{border-left-color:#8195a0}.item.m-ic{border-left-color:var(--signal)}.item.m-sys{border-left-color:var(--teal)}
 .item .ih{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:700;color:var(--navy);font-size:13px}
 .item .ih .sp{flex:1}
+.item .ih-bottom{display:flex;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line-2)}
+#backTopBtn{position:fixed;right:18px;bottom:70px;z-index:80;width:46px;height:46px;border-radius:50%;background:var(--navy);color:#fff;border:none;box-shadow:0 3px 10px rgba(0,0,0,.25);font-size:20px;cursor:pointer;display:none;align-items:center;justify-content:center}
+#backTopBtn:hover{background:var(--navy-2)}
 .radios,.checks{display:flex;flex-wrap:wrap;gap:8px}
 .radios label,.checks label{flex-direction:row!important;align-items:center;gap:6px!important;border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer;background:#fafbfb;font-weight:600}
 .radios label:has(input:checked),.checks label:has(input:checked){border-color:var(--teal);background:var(--teal-l);color:var(--teal)}
@@ -290,6 +293,7 @@ th{background:#f0f3f5;font-size:11.5px;color:var(--ink-2)}
 </div></div>
 <div class="lightbox" id="lightbox" onclick="this.style.display='none'"><img id="lightboxImg" alt=""></div>
 <div id="toast"></div>
+<button id="backTopBtn" type="button" title="回到最上面" onclick="window.scrollTo({top:0,behavior:'smooth'})">⬆</button>
 
 <script>
 const CLOUD={url:"https://iqmbircjokdzdssouwkr.supabase.co",
@@ -775,7 +779,7 @@ function blistRow(i,x,onOpen,onDel,badges,seq){
 }
 function renderBest(){
   const openIdxsNav=bestOpen||[];
-  $("#bestNav").innerHTML=cur.best.length?`<a class="${cur.best.length&&cur.best.every((x,i)=>openIdxsNav.includes(i))?"on":""}" title="把所有優良案例都展開成完整表單，接續往下排列，可直接上下捲動逐筆查看／編輯" onclick="showAllBest()">📋 列表</a>`+cur.best.map((x,i)=>`<a class="${openIdxsNav.includes(i)?"on":""}" onclick="openBest(${i})" title="${esc(x.category||"")}">#${i+1}</a>`).join(""):"";
+  $("#bestNav").innerHTML=cur.best.length?`<a class="${cur.best.length&&cur.best.every((x,i)=>openIdxsNav.includes(i))?"on":""}" title="把所有優良案例都展開成完整表單，接續往下排列，可直接上下捲動逐筆查看／編輯" onclick="showAllBest()">📋 所有優良案例</a>`+cur.best.map((x,i)=>`<a class="${openIdxsNav.includes(i)?"on":""}" onclick="openBest(${i})" title="${esc(x.category||"")}">#${i+1}</a>`).join(""):"";
   if(!cur.best.length){$("#bestList").innerHTML=`<p class="hint">尚無優良案例；這些會匯入系統的「正面評價／優秀案例」。</p>`;return;}
   const openIdxs=(bestOpen||[]).filter(i=>cur.best[i]);
   if(!openIdxs.length){
@@ -786,13 +790,15 @@ function renderBest(){
 }
 function bestCardHtml(i){
   const x=cur.best[i];
-  return `<div class="item" id="best-${i}"><div class="ih"><button class="btn sm" type="button" onclick="backBest()">← 返回清單</button>　優良案例 No.${i+1}<span class="sp"></span><button class="btn sm primary" type="button" onclick="addBest()" title="直接新增下一筆繼續填，接在下面顯示">＋ 新增下一筆</button><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
+  return `<div class="item" id="best-${i}"><div class="ih"><button class="btn sm" type="button" onclick="backBest()">← 返回清單</button>　優良案例 No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
     <div class="fgrid"><label>分類 Category<input type="text" value="${esc(x.category)}" placeholder="例：作業記錄、壓載水記錄" oninput="setB(${i},'category',this.value)"></label>
     <div class="fld" style="grid-column:span 2">涉及人員（姓名／職務）
       ${bestPersons(x).map((p,j)=>`<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:6px"><input type="text" value="${esc(p.name)}" placeholder="姓名" oninput="setBP(${i},${j},'name',this.value)">${rankSelect(p.rank,`setBP(${i},${j},'rank',this.value)`)}<button class="btn sm danger" type="button" title="移除這位人員" onclick="delBP(${i},${j})">×</button></div>`).join("")}
       <div><button class="btn sm" type="button" onclick="addBP(${i})">＋ 新增人員</button></div></div>
     <label class="fw">描述 Brief<textarea oninput="setB(${i},'brief',this.value)">${esc(x.brief)}</textarea></label>
-    <div class="fld fw">案例照片 Photos${phHtml("best",i,0)}</div></div></div>`;
+    <div class="fld fw">案例照片 Photos${phHtml("best",i,0)}</div></div>
+    <div class="ih-bottom"><button class="btn lg primary" type="button" onclick="addBest()" title="直接新增下一筆繼續填，接在這筆下面顯示">＋ 新增下一筆</button></div>
+    </div>`;
 }
 /* 缺失明細：依檢查種類分頁 */
 /* 已填項目摘要：優良案例、各檢查種類缺失（有主題的列出各主題筆數）、船舶訴求／建議 */
@@ -886,9 +892,9 @@ function renderDefNav(){
   const chip=(k,l,c)=>`<button type="button" class="fchip ${c} ${defFilter===k?"on":""}" onclick="setDefFilter('${k}')">${l}<b>${n(k)}</b></button>`;
   const shown=idxs.filter(i=>!defFilter||(defFilter==="none"?!cur.defs[i].closeMode:cur.defs[i].closeMode===defFilter));
   box.innerHTML=`<div class="cchips" style="margin-bottom:8px"><span class="hint" style="font-weight:700">結案方式篩選</span>
-    <button type="button" class="fchip ${defFilter===""?"on":""}" onclick="setDefFilter('')">全部<b>${idxs.length}</b></button>
+    <button type="button" class="fchip ${defFilter===""?"on":""}" onclick="setDefFilter('')">全部列表<b>${idxs.length}</b></button>
     ${chip("FLOW","FLOW 系統","flow")}${chip("內控","內控","ic")}${chip("系統內結案","系統內結案","sys")}${chip("none","尚未選擇","none")}</div>
-    <div class="qnav" style="margin:0"><a class="m-none ${shown.length&&shown.every(i=>(defOpen||[]).includes(i))?"on":""}" title="把這個分頁目前篩選出的所有缺失都展開成完整表單，接續往下排列，可直接上下捲動逐筆查看／編輯" onclick="showAllDef()">📋 列表</a>${shown.map(i=>{const d=cur.defs[i],m=modeOf(d.closeMode);return `<a class="${m?"m-"+m.cls:"m-none"} ${(defOpen||[]).includes(i)?"on":""}" title="${esc((d.category||"")+" "+(m?m.label:"尚未選結案方式"))}" onclick="openDef(${i})">#${idxs.indexOf(i)+1}</a>`;}).join("")}</div>`;
+    <div class="qnav" style="margin:0"><a class="m-none ${shown.length&&shown.every(i=>(defOpen||[]).includes(i))?"on":""}" title="把這個分頁目前篩選出的所有缺失都展開成完整表單，接續往下排列，可直接上下捲動逐筆查看／編輯" onclick="showAllDef()">📋 所有缺失</a>${shown.map(i=>{const d=cur.defs[i],m=modeOf(d.closeMode);return `<a class="${m?"m-"+m.cls:"m-none"} ${(defOpen||[]).includes(i)?"on":""}" title="${esc((d.category||"")+" "+(m?m.label:"尚未選結案方式"))}" onclick="openDef(${i})">#${idxs.indexOf(i)+1}</a>`;}).join("")}</div>`;
 }
 /* 舊格式相容用的「主題檢查」（沒有指定 SAR 表單的籠統專項檢查）一旦底下缺失清空，
    就沒有存在的意義了（新架構下新增專項檢查一定會指定 SAR 表單），自動從檢查種類移除，
@@ -936,7 +942,7 @@ function defCardHtml(i,td,allIdxs){
     // 換了種類主題選項也會跟著換，所以順便把主題清空避免選到不屬於新種類的選項。
     const typeCtl=cur.types.length>1?`<label>檢查種類 Audit Type<select onchange="setDefType(${i},this.value)">${cur.types.map(k=>{const tt=typeDef(k)||{label:k};return `<option value="${esc(k)}" ${d.type===k?"selected":""}>${esc(tt.label+(tt.sarForm?"："+tt.sarForm:""))}</option>`;}).join("")}</select><span class="hint" style="font-weight:400">填錯種類可直接在這裡改，不用刪掉重填</span></label>`:"";
     return `<div class="item ${m?"m-"+m.cls:""}" id="def-${i}">
-      <div class="ih"><button class="btn sm" type="button" onclick="backDef()">← 返回清單</button>　${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm primary" type="button" onclick="addDef()" title="直接新增下一筆同種類的缺失繼續填">＋ 新增下一筆</button><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
+      <div class="ih"><button class="btn sm" type="button" onclick="backDef()">← 返回清單</button>　${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
       <div class="drow">
         <div class="c1">
           ${typeCtl}
@@ -956,6 +962,7 @@ function defCardHtml(i,td,allIdxs){
           </div>
         </div>
       </div>
+      <div class="ih-bottom"><button class="btn lg primary" type="button" onclick="addDef()" title="直接新增下一筆同種類的缺失繼續填，接在這筆下面顯示">＋ 新增下一筆缺失</button></div>
       </div>`;
 }
 /* ══════ 批量新增缺失：大表格一列一筆，填完一次加入目前分頁的檢查種類 ══════ */
@@ -1116,6 +1123,12 @@ async function submitForm(){
   if(new URLSearchParams(location.search).get("new")==="1"){try{history.replaceState(null,"",location.pathname);}catch(e){}newForm();}
   else showList();
 })();
+/* 表單頁通常很長（一筆一筆缺失往下疊），右下角浮一個「回到最上面」的圓鈕，往下捲超過一屏才出現，
+   避免填到後面想回頭改①基本資料或切分頁時要一路滑回最上面。 */
+window.addEventListener("scroll",()=>{
+  const btn=document.getElementById("backTopBtn");
+  if(btn)btn.style.display=window.scrollY>400?"flex":"none";
+});
 </script>
 </body>
 </html>
