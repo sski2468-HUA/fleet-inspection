@@ -1169,6 +1169,9 @@ body.dg-on td.dg-empty{background:rgba(232,132,44,.10)}   /* 未填：更明顯�
 .df-lc-classify{display:flex;flex-direction:column;gap:8px}
 .df-lc-classify .df-card-classifygrp+.df-card-classifygrp{padding-top:6px;border-top:1px dashed var(--line)}
 
+/* 列表模式（新版試用）「👁 欄位」顯示/隱藏面板 */
+.lcx-colpicker{position:absolute;right:0;top:calc(100% + 4px);z-index:60;background:#fff;border:1px solid var(--line-2);border-radius:6px;box-shadow:0 8px 24px rgba(12,36,51,.18);min-width:170px;padding:4px}
+.lcx-colpicker label:hover{background:var(--teal-l)}
 /* 列表模式（新版試用）操作欄：編輯鍵在上、展開鍵在下，直向堆疊 */
 .lcx-opbtns{display:flex;flex-direction:column;gap:4px}
 .lcx-opbtns .btn{width:100%}
@@ -2601,6 +2604,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <span class="spacer" style="flex:1"></span>
         <span class="statline" id="sire-stat"></span>
       </div>
+      <div class="toolbar" style="margin:0 0 12px">
+        <button type="button" class="btn lg df-tabbtn active" data-t="summary" onclick="SirePos.setSubTab('summary')">📊 統計排行</button>
+        <button type="button" class="btn lg df-tabbtn" data-t="list" onclick="SirePos.setSubTab('list')">📋 清單列表</button>
+      </div>
+      <div id="sire-sub-summary">
       <div class="grid2">
         <div class="card foldable" id="sire-card-rank"><h3>各職稱獲正向評論次數<span class="fold-btn" onclick="CardFold.toggle('sire-card-rank',()=>SirePos.render())">▾ 收合</span></h3><div class="card-body"><div class="chartbox"><canvas id="ch-sire-rank"></canvas></div></div></div>
         <div class="card foldable" id="sire-card-code"><h3>各章節獲正向評論次數<span class="fold-btn" onclick="CardFold.toggle('sire-card-code',()=>SirePos.render())">▾ 收合</span></h3><div class="card-body"><div class="chartbox"><canvas id="ch-sire-code"></canvas></div></div></div>
@@ -2614,6 +2622,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         </h3>
         <div class="card-body"><div class="tblwrap" style="max-height:420px"><table class="tbl"><thead><tr><th style="width:6%">排名</th><th style="width:10%">姓名</th><th style="width:10%">職稱</th><th style="width:8%">次數</th><th>評論內容</th></tr></thead><tbody id="sire-person-rank"></tbody></table></div></div>
       </div>
+      </div>
+      <div id="sire-sub-list" style="display:none">
       <div class="card">
         <h3>正向評論明細
           <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
@@ -2638,6 +2648,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           </tr></thead><tbody id="sire-tbody"></tbody></table>
         </div>
         <div class="pager" id="sire-pager"></div>
+      </div>
       </div>
     </section>
 
@@ -3376,9 +3387,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <button class="btn sm" onclick="Defs.clearSel()">☐ 清除選取</button>
             <button class="btn sm dark" onclick="Defs.openBatchEdit()">✎✎ 批量編輯（維護者）</button>
             <button class="btn sm" onclick="Defs.openDownloadModal()">⬇ 下載表單</button>
+            <span id="lc-colpicker-wrap" style="position:relative">
+              <button class="btn sm" onclick="Defs.toggleLcColPanel()" title="選擇要顯示哪些欄位">👁 欄位</button>
+              <div id="lc-colpicker-panel" class="lcx-colpicker" style="display:none"></div>
+            </span>
           </span>
         </h3>
-        <p class="hint" style="margin-bottom:8px">試用版面：船舶/日期、來源/CODE、優先序、缺失內容/實際情況、分類、檢查員/責任人、結案狀態、照片合併顯示，欄位固定不可自訂；篩選條件與左邊「列表模式」共用。點「操作」欄的展開鍵可展開該筆完整資訊（含對內/對外回覆等所有欄位）。</p>
+        <p class="hint" style="margin-bottom:8px">試用版面：船舶/日期、來源/CODE、優先序、缺失內容/實際情況、分類、檢查員/責任人、結案狀態、照片合併顯示；按「👁 欄位」可個別隱藏優先序/缺失內容/分類/檢查員責任人/結案狀態/照片這幾欄，集中看您要的內容（船舶/日期、來源/CODE、操作固定顯示）。篩選條件與左邊「列表模式」共用。點「操作」欄的展開鍵可展開該筆完整資訊（含對內/對外回覆等所有欄位）。</p>
         <div id="f2-selbar"></div>
         <div class="tblwrap" style="max-height:640px">
           <table class="tbl" id="f2-table"><thead><tr id="f2-thead"></tr></thead><tbody id="f2-tbody"></tbody></table>
@@ -9758,14 +9773,16 @@ const App={
         });
       }
       const kb=Math.round(((this._lastSaved[this.LSK.d]||"").length+(this._lastSaved[this.LSK.i]||"").length)/1024);
-      // ═ 容量監控：以常見 5MB 配額估算 localStorage 用量，70% 起提醒、85% 起紅色警示 ═
-      const used=this.lsUsageBytes(),pct=Math.min(999,Math.round(used/(5*1024*1024)*100));
+      // ═ 容量監控：主流瀏覽器 localStorage 實際上限多半有 10MB 以上，用 5MB 當分母太保守，
+      //   會讓大部分日常使用者長期停在「標紅超標」的狀態，造成不必要的焦慮——改以 10MB 估算，
+      //   80% 起提醒、95% 起紅色警示才比較接近真正需要處理的時機 ═
+      const used=this.lsUsageBytes(),pct=Math.min(999,Math.round(used/(10*1024*1024)*100));
       const st=$("#storeStat");
       if(st){
         st.textContent=`已自動儲存 · ${kb} KB · 空間約 ${pct}%`;
-        st.style.color=pct>=85?"var(--bad)":(pct>=70?"var(--warn)":"");
+        st.style.color=pct>=95?"var(--bad)":(pct>=80?"var(--warn)":"");
       }
-      if(pct>=70&&!this._quotaWarned){this._quotaWarned=true;toast(`⚠ 瀏覽器儲存空間已使用約 ${pct}%，建議按左下角「🧹 整理本機空間」釋放空間（只清這台裝置的暫存資料，不影響雲端），以免資料無法儲存`);}
+      if(pct>=80&&!this._quotaWarned){this._quotaWarned=true;toast(`⚠ 瀏覽器儲存空間已使用約 ${pct}%，建議按左下角「🧹 整理本機空間」釋放空間（只清這台裝置的暫存資料，不影響雲端），以免資料無法儲存`);}
       if(manual)toast("✓ 已儲存至本機");
     }catch(e){const st=$("#storeStat");if(st){st.textContent="⚠ 儲存空間不足";st.style.color="var(--bad)";}if(manual)toast("⚠ localStorage 空間不足，請以 JS 檔備份");}
   },
@@ -15201,26 +15218,74 @@ const Defs={
     </tr>`;}).join("")||`<tr><td colspan="${totalCols}"><div class="empty"><div class="big">⚓</div>無符合篩選條件之缺失紀錄</div></td></tr>`;
     $("#f-pager").innerHTML=pagerHtml(this.page,pages,total,"Defs","f");
   },
-  /* ── 列表模式（新版試用）：固定合併欄位版面，跟「列表模式」共用同一套篩選/分頁/勾選狀態，
-     欄位不可自訂，純粹讓使用者比較兩種版面哪個比較好用。line-clamp 一律包在內層 <div>，
-     不能直接放在 <td> 上（否則整張表格欄位會跑掉，Ov 模組曾經踩過這個坑）。 ── */
+  /* ── 列表模式（新版試用）：固定合併欄位版面，跟「列表模式」共用同一套篩選/分頁/勾選狀態。
+     欄位順序固定不可拖曳，但「優先序／缺失內容/實際情況／分類／檢查員/責任人／結案狀態／照片」
+     這幾個可個別隱藏（見 LC_TOGGLE_COLS／loadLcVisible），想集中看哪幾欄自己決定。
+     line-clamp 一律包在內層 <div>，不能直接放在 <td> 上（否則整張表格欄位會跑掉，
+     Ov 模組曾經踩過這個坑）。 ── */
+  LC_TOGGLE_COLS:[
+    {k:"prio",t:"優先序"},
+    {k:"content",t:"缺失內容 / 實際情況"},
+    {k:"classify",t:"分類"},
+    {k:"inspperson",t:"檢查員 / 責任人"},
+    {k:"close",t:"結案狀態"},
+    {k:"photo",t:"照片"}
+  ],
+  LC_VISKEY:"vsm_lc_colvis_v1",
+  lcVisible:null,
+  loadLcVisible(){
+    if(this.lcVisible)return this.lcVisible;
+    let vis=this.LC_TOGGLE_COLS.map(c=>c.k);
+    try{const s=localStorage.getItem(this.LC_VISKEY);if(s){const a=JSON.parse(s);if(Array.isArray(a))vis=a.filter(k=>this.LC_TOGGLE_COLS.some(c=>c.k===k));}}catch(e){}
+    this.lcVisible=vis;return vis;
+  },
+  saveLcVisible(){try{localStorage.setItem(this.LC_VISKEY,JSON.stringify(this.lcVisible||[]));}catch(e){}},
+  toggleLcCol(k){
+    const vis=this.loadLcVisible();
+    const i=vis.indexOf(k);
+    if(i>=0)vis.splice(i,1);else vis.push(k);
+    this.lcVisible=vis;this.saveLcVisible();
+    this.render();
+  },
+  lcColPickerHtml(){
+    const vis=new Set(this.loadLcVisible());
+    return this.LC_TOGGLE_COLS.map(c=>`<label style="display:flex;align-items:center;gap:7px;padding:6px 10px;cursor:pointer;font-size:12.5px;white-space:nowrap"><input type="checkbox" ${vis.has(c.k)?"checked":""} onchange="Defs.toggleLcCol('${c.k}')">${c.t}</label>`).join("");
+  },
+  _lcColPickerBound:false,
+  toggleLcColPanel(){
+    const p=$("#lc-colpicker-panel");
+    if(!p)return;
+    const show=p.style.display==="none";
+    p.style.display=show?"block":"none";
+    if(show&&!this._lcColPickerBound){
+      this._lcColPickerBound=true;
+      document.addEventListener("click",e=>{
+        const wrap=$("#lc-colpicker-wrap");
+        if(wrap&&!wrap.contains(e.target))$("#lc-colpicker-panel").style.display="none";
+      });
+    }
+  },
   renderListCompactMode(pg,total,pages){
     this.applyFontScale();
     const st=$("#f2-stat");if(st)st.innerHTML=`篩選結果 <b>${total}</b> 筆`;
+    const picker=$("#lc-colpicker-panel");if(picker)picker.innerHTML=this.lcColPickerHtml();
+    const vis=new Set(this.loadLcVisible());
+    const v=k=>vis.has(k);
     const clamp="display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;word-break:break-word;line-height:1.3";
     const cl=html=>`<div style="${clamp}">${html}</div>`;
     const allSel=total>0&&this.selected.size>=total;
-    $("#f2-thead").innerHTML=`<th style="width:28px"><input type="checkbox" id="f2-selall" ${allSel?"checked":""} title="全選／取消全選目前篩選的全部 ${total} 筆（不是只有這一頁）" onchange="this.checked?Defs.selectAllFiltered():Defs.clearSel()"></th>
-      <th>船舶 / 日期</th>
-      <th>來源 / CODE</th>
-      <th>優先序</th>
-      <th style="width:24%">缺失內容 / 實際情況</th>
-      <th style="width:16%">分類</th>
-      <th>檢查員 / 責任人</th>
-      <th>結案狀態</th>
-      <th>照片</th>
-      <th style="width:86px">操作</th>`;
-    const totalCols=10;
+    const heads=[`<th style="width:28px"><input type="checkbox" id="f2-selall" ${allSel?"checked":""} title="全選／取消全選目前篩選的全部 ${total} 筆（不是只有這一頁）" onchange="this.checked?Defs.selectAllFiltered():Defs.clearSel()"></th>`,
+      `<th>船舶 / 日期</th>`,
+      `<th>來源 / CODE</th>`];
+    if(v("prio"))heads.push(`<th>優先序</th>`);
+    if(v("content"))heads.push(`<th style="width:24%">缺失內容 / 實際情況</th>`);
+    if(v("classify"))heads.push(`<th style="width:16%">分類</th>`);
+    if(v("inspperson"))heads.push(`<th>檢查員 / 責任人</th>`);
+    if(v("close"))heads.push(`<th>結案狀態</th>`);
+    if(v("photo"))heads.push(`<th>照片</th>`);
+    heads.push(`<th style="width:86px">操作</th>`);
+    $("#f2-thead").innerHTML=heads.join("");
+    const totalCols=heads.length;
     $("#f2-tbody").innerHTML=pg.map(d=>{
       const cp=(typeof Defs!=="undefined")?Defs._classifyParts(d):null;
       const clsGroups=[];
@@ -15239,20 +15304,21 @@ const Defs={
         d.inspector?`<div><span class="df-card-field-l">檢查員</span>${esc(d.inspector)}</div>`:"",
         (d.rank||d.person)?`<div style="margin-top:3px"><span class="df-card-field-l">責任人</span>${esc(d.person||"")}${d.rank?`（${esc(d.rank)}）`:""}</div>`:""
       ].join("")||`<span class="hint">—</span>`;
-      return `<tr data-id="${d.id}" class="${this.selected.has(String(d.id))?"sel":""} ${d.attn?"attn-row":""}">
-      <td><input type="checkbox" ${this.selected.has(String(d.id))?"checked":""} onchange="Defs.toggleSel('${d.id}',this.checked)"></td>
-      <td>${cl(`<b>${esc(shipFullLabel(d.ship))}</b><div class="hint" style="font-family:var(--mono)">${esc(normDateSlash(d.date))}</div>`)}</td>
-      <td>${cl(`<span class="io-chip ${isInternal(d.itype)?"io-int":"io-ext"}" style="margin-left:0;margin-right:4px">${isInternal(d.itype)?"內":"外"}</span>${itypeChip(d.itype)}${d.code?`<div style="margin-top:3px"><span class="code-chip">${esc(d.code)}</span></div>`:""}`)}</td>
-      <td>${cl(`${d.risk?`<div><span class="st ${+d.risk>=3?"st-hi":+d.risk===2?"st-md":"st-lo"}">風險 ${esc(d.risk)}</span></div>`:""}${d.ncImp?`<div style="margin-top:3px"><span class="st ${d.ncImp==="高"?"st-hi":d.ncImp==="中"?"st-md":"st-lo"}">${esc(d.ncImp)}</span></div>`:""}`||`<span class="hint">—</span>`)}</td>
-      <td class="cell-wide">${cl(`${d.detail?`<div><span class="df-card-field-l">詳細內容</span>${esc(d.detail)}</div>`:""}${d.actual?`<div style="margin-top:4px"><span class="df-card-field-l">實際情況</span>${esc(d.actual)}</div>`:""}`)}</td>
-      <td>${cl(`<div class="df-lc-classify">${clsGroups.join("")||`<span class="hint">—</span>`}</div>`)}</td>
-      <td>${cl(inspPerson)}</td>
-      <td>${closeHtml}</td>
-      <td>${nPhoto?photoStripHtml(d,"deflc_"+d.id):`<span class="hint">—</span>`}</td>
-      <td><div class="lcx-opbtns">
+      const tds=[`<td><input type="checkbox" ${this.selected.has(String(d.id))?"checked":""} onchange="Defs.toggleSel('${d.id}',this.checked)"></td>`,
+        `<td>${cl(`<b>${esc(shipFullLabel(d.ship))}</b><div class="hint" style="font-family:var(--mono)">${esc(normDateSlash(d.date))}</div>`)}</td>`,
+        `<td>${cl(`<span class="io-chip ${isInternal(d.itype)?"io-int":"io-ext"}" style="margin-left:0;margin-right:4px">${isInternal(d.itype)?"內":"外"}</span>${itypeChip(d.itype)}${d.code?`<div style="margin-top:3px"><span class="code-chip">${esc(d.code)}</span></div>`:""}`)}</td>`];
+      if(v("prio"))tds.push(`<td>${cl(`${d.risk?`<div><span class="st ${+d.risk>=3?"st-hi":+d.risk===2?"st-md":"st-lo"}">風險 ${esc(d.risk)}</span></div>`:""}${d.ncImp?`<div style="margin-top:3px"><span class="st ${d.ncImp==="高"?"st-hi":d.ncImp==="中"?"st-md":"st-lo"}">${esc(d.ncImp)}</span></div>`:""}`||`<span class="hint">—</span>`)}</td>`);
+      if(v("content"))tds.push(`<td class="cell-wide">${cl(`${d.detail?`<div><span class="df-card-field-l">詳細內容</span>${esc(d.detail)}</div>`:""}${d.actual?`<div style="margin-top:4px"><span class="df-card-field-l">實際情況</span>${esc(d.actual)}</div>`:""}`)}</td>`);
+      if(v("classify"))tds.push(`<td>${cl(`<div class="df-lc-classify">${clsGroups.join("")||`<span class="hint">—</span>`}</div>`)}</td>`);
+      if(v("inspperson"))tds.push(`<td>${cl(inspPerson)}</td>`);
+      if(v("close"))tds.push(`<td>${closeHtml}</td>`);
+      if(v("photo"))tds.push(`<td>${nPhoto?photoStripHtml(d,"deflc_"+d.id):`<span class="hint">—</span>`}</td>`);
+      tds.push(`<td><div class="lcx-opbtns">
         <button class="btn sm" onclick="Defs.openEdit(${d.id})">✎ 編輯</button>
         <button class="btn sm lcx-expand-btn" onclick="Defs.toggleLcExpand('${d.id}')" title="展開完整資訊">展開</button>
-      </div></td>
+      </div></td>`);
+      return `<tr data-id="${d.id}" class="${this.selected.has(String(d.id))?"sel":""} ${d.attn?"attn-row":""}">
+      ${tds.join("")}
     </tr>
     <tr class="lcx-detail-row" data-detail-for="${d.id}" style="display:none"><td colspan="${totalCols}">${this.lcDetailHtml(d)}</td></tr>`;}).join("")||`<tr><td colspan="${totalCols}"><div class="empty"><div class="big">⚓</div>無符合篩選條件之缺失紀錄</div></td></tr>`;
     $("#f2-pager").innerHTML=pagerHtml(this.page,pages,total,"Defs","f2");
@@ -16339,6 +16405,15 @@ const INSP_COLS=[["ship","船名"],["vtype","船型"],["itype","檢查來源"],[
 /* ════════ 2.5 SIRE正向評論 ════════ */
 const SirePos={
   ms:{},editId:null,page:1,PER:30,chart:null,sortKey:null,sortDir:"asc",editGroup:[],_people:[],sel:new Set(),
+  subTab:"summary",
+  setSubTab(t){
+    this.subTab=t;
+    $$("#tab-sirepos .df-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
+    const sp=$("#sire-sub-summary"),lp=$("#sire-sub-list");
+    if(sp)sp.style.display=t==="summary"?"":"none";
+    if(lp)lp.style.display=t==="list"?"":"none";
+    this.render();
+  },
   init(){
     const rerun=()=>{this.page=1;this.render();};
     this.populateYm();
@@ -16422,10 +16497,8 @@ const SirePos={
     // openExportPick() 裡依權限決定要不要出現（不是整顆按鈕開關）。
     const isOperator=typeof Role!=="undefined"&&!Role.isAdmin();
     ["sire-btn-add","sire-btn-import"].forEach(id=>{const el=$("#"+id);if(el)el.style.display=isOperator?"none":"";});
-    this.renderChart(rows);
-    this.renderCodeChart(rows);
-    this.renderPersonRank(rows);
-    this.renderTable(rows);
+    if(this.subTab==="list")this.renderTable(rows);
+    else{this.renderChart(rows);this.renderCodeChart(rows);this.renderPersonRank(rows);}
   },
   renderChart(rows){
     const PAL=["#1e7f8c","#e8842c","#7b4fa3","#2e8b57","#c0392b","#d9a514","#8195a0","#4472c4","#aa6c39","#5b8c85"];
@@ -27592,12 +27665,12 @@ const DM={
   },
   lsRefreshStat(){ // 清理後重新計算左下角的容量顯示（不觸發儲存/發布流程）
     try{
-      const used=App.lsUsageBytes(),pct=Math.min(999,Math.round(used/(5*1024*1024)*100));
+      const used=App.lsUsageBytes(),pct=Math.min(999,Math.round(used/(10*1024*1024)*100));
       const st=$("#storeStat");
       if(st){
         const kb=Math.round(((LZGet(App.LSK.d)||"").length+(LZGet(App.LSK.i)||"").length)/1024);
         st.textContent=`已自動儲存 · ${kb} KB · 空間約 ${pct}%`;
-        st.style.color=pct>=85?"var(--bad)":(pct>=70?"var(--warn)":"");
+        st.style.color=pct>=95?"var(--bad)":(pct>=80?"var(--warn)":"");
       }
     }catch(e){}
   },
@@ -27699,14 +27772,14 @@ const DM={
     const total=rows.reduce((s,r)=>s+r.bytes,0);
     const lsTotal=lsRows.reduce((s,r)=>s+r.bytes,0);
     const idbTotal=idbRows.reduce((s,r)=>s+r.bytes,0);
-    const quotaPct=Math.min(999,Math.round(lsTotal/(5*1024*1024)*100)); // 只算 localStorage 的部分，IndexedDB 額度大很多，另外顯示
+    const quotaPct=Math.min(999,Math.round(lsTotal/(10*1024*1024)*100)); // 只算 localStorage 的部分，IndexedDB 額度大很多，另外顯示；估算基準同步左下角 lsRefreshStat()/saveAll() 改為 10MB
     const infos=rows.map(r=>({row:r,c:this.lsCleanableInfo(r.key)}));
     const freeable=infos.filter(x=>x.c&&x.c.type!=="snapshot"&&!x.row.idb).reduce((s,x)=>s+x.row.bytes,0);
     const snapRow=infos.find(x=>x.c&&x.c.type==="snapshot"&&!x.row.idb);
     const rbRow=lsRows.find(r=>r.key==="vsm_recyclebin_v1");
     const cloudOn=(typeof Cloud!=="undefined"&&Cloud.enabled());
     $("#ls-breakdown-info").innerHTML=`共 ${rows.length} 個儲存項目，總用量約 <b>${(total/1024).toFixed(0)} KB</b>`
-      +`<div style="margin-top:6px">・瀏覽器 localStorage：約 <b>${(lsTotal/1024).toFixed(0)} KB</b>（約 5MB 上限的 <b style="color:${quotaPct>=70?'var(--bad)':'inherit'}">${quotaPct}%</b>）</div>`
+      +`<div style="margin-top:6px">・瀏覽器 localStorage：約 <b>${(lsTotal/1024).toFixed(0)} KB</b>（約 10MB 上限的 <b style="color:${quotaPct>=95?'var(--bad)':quotaPct>=80?'var(--warn)':'inherit'}">${quotaPct}%</b>）</div>`
       +(idbTotal?`<div style="margin-top:2px">・IndexedDB（缺失/檢查/線上填單等大宗資料，額度通常幾百MB以上，這裡幾乎不用擔心占滿）：約 <b>${(idbTotal/1024).toFixed(0)} KB</b></div>`:"")
       +(rbRow&&lsTotal&&rbRow.bytes/lsTotal>0.3?`<div style="margin-top:8px">「資源回收桶」（已刪除但30天內可還原的項目）佔用約 <b>${(rbRow.bytes/1024).toFixed(0)} KB</b>，是目前最大宗；若不需要再還原這些項目，可到下方「資源回收桶」卡片按「🗑 清空回收桶」一次釋放（會先自動下載留存）。</div>`:"")
       +(freeable>0?`<div style="margin-top:8px">其中約 <b>${(freeable/1024).toFixed(0)} KB</b> 屬於舊版資料鍵或匯入前安全備份，可安全清除以釋放空間　<button class="btn sm danger" onclick="DM.lsCleanAllStale()">🧹 一鍵清理</button></div>`:"")
