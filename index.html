@@ -1156,7 +1156,10 @@ body.dg-on td.dg-empty{background:rgba(232,132,44,.10)}   /* 未填：更明顯�
 .df-card-chiprow{display:flex;gap:5px;flex-wrap:wrap;margin-top:0}
 .df-card-tagsside{display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left}
 .df-card-3col{display:grid;grid-template-columns:1fr 3fr auto;gap:14px;margin-top:6px}
+.df-card-4col{display:grid;grid-template-columns:1.1fr 1fr 2fr auto;gap:14px;margin-top:6px}
 .df-card-leftcol{display:flex;flex-direction:column;gap:8px}
+.df-card-classifycol{display:flex;flex-direction:column;gap:5px;min-width:0}
+.df-card-col-caption{font-size:10px;color:var(--ink-3);font-weight:700;letter-spacing:.4px}
 .df-card-photoscol{display:flex;flex-direction:column;gap:8px}
 .df-card-tag{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--teal-l);color:var(--teal)}
 .df-card-tag-eq{background:#e8eef7;color:#2c4a70}
@@ -15048,25 +15051,29 @@ const Defs={
       if(vis.has("closeMode")&&d.intAuditId&&d.intAuditCloseMode)chips.push(`<span class="st ${d.intAuditCloseMode==="FLOW"?"st-none":d.intAuditCloseMode==="內控"?"st-md":"st-lo"}">結案方式：${esc(d.intAuditCloseMode)}</span>`);
       if(vis.has("icTopic")&&d.intAuditId&&d.intAuditTopic)chips.push(`<span class="df-card-chip">內稽類別：${esc(d.intAuditTopic)}</span>`);
       const field=(k,label,val,full)=>vis.has(k)&&val?`<div class="df-card-field${full?" full":""}"><span class="df-card-field-l">${label}</span>${esc(val)}</div>`:"";
-      const tags=[];
-      if(vis.has("ncProb")&&d.ncProb)tags.push(`<span class="df-card-tag">問題分類：${esc(d.ncProb)}</span>`);
+      // 分類階層（問題分類／大類／具體名稱）跟根因／三要素分開放：前者是「這條缺失屬於哪一類」，
+      // 獨立成自己一欄；後者是「為什麼發生」，留在船舶資訊那一欄、放在重要程度／風險下面，
+      // 不要混在一起看不出主次。
+      const classifyTags=[];
+      if(vis.has("ncProb")&&d.ncProb)classifyTags.push(`<span class="df-card-tag">問題分類：${esc(d.ncProb)}</span>`);
       // 大類／具體名稱：設備跟作業各自的項目分開標，不要混在同一個「大類：」「具體：」裡看不出誰是誰。
       // 沿用 Defs._classifyParts() 這個既有的共用邏輯（分類彙總分析等其他地方也在用），
       // 不要自己另外寫一套判斷，確保跟系統其他地方的分類判斷結果一致。
       if((vis.has("ncMain")&&d.ncMain)||(vis.has("ncLeaf")&&d.ncLeaf)){
         const cp=(typeof Defs!=="undefined")?Defs._classifyParts(d):null;
         if(cp){
-          if(vis.has("ncMain")&&cp.eqMain)tags.push(`<span class="df-card-tag df-card-tag-eq">🔧 設備大類：${esc(cp.eqMain)}</span>`);
-          if(vis.has("ncMain")&&cp.opMain)tags.push(`<span class="df-card-tag df-card-tag-op">⚙️ 作業大類：${esc(cp.opMain)}</span>`);
-          if(vis.has("ncLeaf")&&cp.eqLeaves.length)tags.push(`<span class="df-card-tag df-card-tag-eq">🔧 設備具體：${esc(cp.eqLeaves.join("、"))}</span>`);
-          if(vis.has("ncLeaf")&&cp.opLeaves.length)tags.push(`<span class="df-card-tag df-card-tag-op">⚙️ 作業具體：${esc(cp.opLeaves.join("、"))}</span>`);
+          if(vis.has("ncMain")&&cp.eqMain)classifyTags.push(`<span class="df-card-tag df-card-tag-eq">🔧 設備大類：${esc(cp.eqMain)}</span>`);
+          if(vis.has("ncLeaf")&&cp.eqLeaves.length)classifyTags.push(`<span class="df-card-tag df-card-tag-eq">🔧 設備具體：${esc(cp.eqLeaves.join("、"))}</span>`);
+          if(vis.has("ncMain")&&cp.opMain)classifyTags.push(`<span class="df-card-tag df-card-tag-op">⚙️ 作業大類：${esc(cp.opMain)}</span>`);
+          if(vis.has("ncLeaf")&&cp.opLeaves.length)classifyTags.push(`<span class="df-card-tag df-card-tag-op">⚙️ 作業具體：${esc(cp.opLeaves.join("、"))}</span>`);
         }
       }
-      if(vis.has("ncRoot")&&d.ncRoot)tags.push(`<span class="df-card-tag">根因：${esc(d.ncRoot)}</span>`);
-      if(vis.has("ncFactor")&&d.ncFactor)tags.push(`<span class="df-card-tag">三要素：${esc(d.ncFactor)}</span>`);
+      const rootTags=[];
+      if(vis.has("ncRoot")&&d.ncRoot)rootTags.push(`<span class="df-card-tag">根因：${esc(d.ncRoot)}</span>`);
+      if(vis.has("ncFactor")&&d.ncFactor)rootTags.push(`<span class="df-card-tag">三要素：${esc(d.ncFactor)}</span>`);
       const hasPhotos=vis.has("photos")&&((d.photosBefore&&d.photosBefore.length)||(d.photosAfter&&d.photosAfter.length));
       return `<div class="df-card" onclick="Defs.openEdit(${d.id})" style="cursor:pointer" title="點選開啟編輯視窗">
-        <div class="df-card-3col">
+        <div class="df-card-4col">
           <div class="df-card-leftcol">
             <div class="df-card-top" style="flex-wrap:wrap">
               ${vis.has("ship")?`<b class="df-card-ship">🚢 ${esc(shipFullLabel(d.ship))}</b>`:""}
@@ -15076,7 +15083,11 @@ const Defs={
               ${vis.has("inspector")&&d.inspector?`<span class="hint">👤 ${esc(d.inspector)}</span>`:""}
             </div>
             ${chips.length?`<div class="df-card-chiprow">${chips.join("")}</div>`:""}
-            ${tags.length?`<div class="df-card-tagsside">${tags.join("")}</div>`:""}
+            ${rootTags.length?`<div class="df-card-tagsside" style="margin-top:4px">${rootTags.join("")}</div>`:""}
+          </div>
+          <div class="df-card-classifycol">
+            ${classifyTags.length?`<span class="df-card-col-caption">分類</span>`:""}
+            ${classifyTags.join("")}
           </div>
           <div class="df-card-body">
             ${field("detail","詳細內容",d.detail,true)}
