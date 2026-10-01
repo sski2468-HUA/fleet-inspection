@@ -1228,9 +1228,7 @@ table.ap-tbl tbody tr:hover td:first-child{background:#f3f8fa}
 .msel .panel .ops{display:flex;gap:6px;padding:4px 6px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .msel .panel .ops a{font-size:11px;color:var(--teal);cursor:pointer;text-decoration:underline}
 
-/* 篩選列：更多篩選（分組收合）*/
-.df-more-toggle{border:1px dashed var(--line-2);border-radius:14px;padding:6px 12px;font-size:12.5px;color:var(--ink-2);background:none;cursor:pointer}
-.df-more-toggle.on{border-style:solid;background:var(--teal-l);color:var(--teal);border-color:var(--teal)}
+/* 篩選列：分組顯示（基本資訊／分類／其他）*/
 .df-fgroups{border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;background:var(--paper);margin-top:6px}
 .df-fgroup{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
 .df-fgroup-label{font-size:11px;color:var(--navy-3);font-weight:700;letter-spacing:.3px;margin-bottom:8px;display:flex;align-items:center;gap:6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
@@ -3173,19 +3171,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <span>～</span>
         <select id="f-ymto" onchange="Defs.page=1;Defs.render()"></select>
         <div class="msel" id="ms-f-ym"></div>
-      </div>
-      <div class="toolbar" id="defs-filter-row2" style="flex-basis:100%;margin-top:6px">
-        <div class="msel" id="ms-f-ship"></div>
-        <div class="msel" id="ms-f-itype"></div>
-        <div class="msel" id="ms-f-ncprob"></div>
-        <button class="btn sm df-more-toggle" id="df-more-toggle-btn" onclick="Defs.toggleMoreFilters()">▾ 更多篩選</button>
         <span class="spacer" style="flex:1"></span>
         <button class="btn sm" onclick="Defs.clearFilters()">清除篩選</button>
       </div>
-      <div class="df-fgroups" id="defs-filter-more" style="display:none">
+      <div class="df-fgroups" style="margin-top:6px">
         <div class="df-fgroup">
           <div class="df-fgroup-label">🚢 基本資訊</div>
           <div class="df-fgroup-fields">
+            <div class="msel" id="ms-f-ship"></div>
+            <div class="msel" id="ms-f-itype"></div>
             <div class="msel" id="ms-f-vtype"></div>
             <div class="msel" id="ms-f-place"></div>
             <div class="msel" id="ms-f-insp"></div>
@@ -3196,6 +3190,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div class="df-fgroup">
           <div class="df-fgroup-label">🏷 分類</div>
           <div class="df-fgroup-fields">
+            <div class="msel" id="ms-f-ncprob"></div>
             <div class="msel" id="ms-f-ncmain"></div>
             <div class="msel" id="ms-f-ncleaf"></div>
             <div class="msel" id="ms-f-ncfactor"></div>
@@ -13859,8 +13854,22 @@ const Defs={
   loadVisible(){
     if(this.visible)return this.visible;
     let vis=this.defaultVisible();
-    try{const s=localStorage.getItem(this.VISKEY);if(s){const a=JSON.parse(s);if(Array.isArray(a))vis=a.filter(k=>this.ALL_COLS.some(c=>c.k===k));}}catch(e){}
+    let hadSaved=false;
+    try{const s=localStorage.getItem(this.VISKEY);if(s){const a=JSON.parse(s);if(Array.isArray(a)){vis=a.filter(k=>this.ALL_COLS.some(c=>c.k===k));hadSaved=true;}}}catch(e){}
     if(!vis.length)vis=this.defaultVisible();
+    /* 一次性回填：檢查員／責任人／改善措施對外版／照片／結案狀態這幾欄原本預設隱藏，
+       這次改成預設顯示——已經存過個人化欄位設定的舊瀏覽器不會自動套用新預設，
+       這裡補進去一次，之後使用者自己再隱藏就不會再被加回來。 */
+    try{
+      const BF_KEY="vsm_defcols_vis_backfill_20261001";
+      if(hadSaved&&!localStorage.getItem(BF_KEY)){
+        const addKeys=["inspector","rank","person","photos","correctiveReply","intAuditStatus"];
+        let changed=false;
+        addKeys.forEach(k=>{if(!vis.includes(k)){vis.push(k);changed=true;}});
+        if(changed)localStorage.setItem(this.VISKEY,JSON.stringify(vis));
+        localStorage.setItem(BF_KEY,"1");
+      }
+    }catch(e){}
     this.visible=vis;return vis;
   },
   saveVisible(){try{localStorage.setItem(this.VISKEY,JSON.stringify(this.visible));}catch(e){}},
@@ -14908,14 +14917,6 @@ const Defs={
     s1.innerHTML=opts;s2.innerHTML=opts;
   },
   clearFilters(){Object.values(this.ms).forEach(m=>m.clear());$("#f-kw").value="";$("#f-ymfrom").value="";$("#f-ymto").value="";if($("#f-hasphoto"))$("#f-hasphoto").value="";if(typeof DefsAdvFilter!=="undefined")DefsAdvFilter.clearAll(true);this.page=1;this.render();},
-  /* 篩選列「更多篩選」收合：基本資訊／分類／其他 三組次要欄位預設收起來，避免一次塞爆一排 */
-  toggleMoreFilters(){
-    const panel=$("#defs-filter-more"),btn=$("#df-more-toggle-btn");
-    if(!panel)return;
-    const show=panel.style.display==="none";
-    panel.style.display=show?"grid":"none";
-    if(btn){btn.classList.toggle("on",show);btn.textContent=(show?"▴":"▾")+" 更多篩選";}
-  },
   filtered(){
     ncPruneCascade(this.ms.ncprob,this.ms.ncmain,this.ms.ncleaf);
     this.populateYm();
