@@ -2413,16 +2413,26 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <button class="btn sm" onclick="Ov.openMgmtReportModal()">📄 匯出主管會 Word</button>
             </span>
           </h3>
-          <div class="toolbar" style="margin:0 0 10px;padding:0">
-            <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="ov-selall" onchange="Ov.toggleAllSel(this.checked)"> 本頁全選</label>
-            <span class="hint">排序：</span>
-            <select id="ov-sortkey" onchange="Ov.sort($('#ov-sortkey').value)" style="width:auto">
-              <option value="ship">船名</option><option value="itype">檢查來源</option><option value="date" selected>檢查日期</option>
-              <option value="ndef">缺失數</option><option value="npos">正面評論數</option>
-            </select>
-            <button class="btn sm" id="ov-sortdir-btn" onclick="Ov.sort(Ov.sortKey)" title="切換正序／倒序"></button>
-          </div>
-          <div id="ov-cardlist"></div>
+          <table class="tbl" style="table-layout:fixed;width:100%">
+            <colgroup>
+              <col style="width:30px"><col style="width:15%"><col style="width:6%"><col style="width:9%">
+              <col style="width:8%"><col style="width:7%"><col style="width:11%"><col style="width:9%">
+              <col style="width:8%"><col style="width:6%"><col style="width:6%"><col style="width:8%">
+              <col style="width:5%"><col style="width:52px">
+            </colgroup>
+            <thead><tr>
+              <th><input type="checkbox" id="ov-selall" onchange="Ov.toggleAllSel(this.checked)"></th>
+              <th class="sort" onclick="Ov.sort('ship')">船名 ⇅</th><th>船型</th>
+              <th class="sort" onclick="Ov.sort('itype')">檢查來源 ⇅</th>
+              <th>檢查類型</th>
+              <th class="sort" onclick="Ov.sort('date')">檢查日期 ⇅</th>
+              <th>檢查地點</th><th>檢查員</th><th>檢查單位/油公司</th>
+              <th class="sort" onclick="Ov.sort('ndef')">缺失數 ⇅</th>
+              <th class="sort" onclick="Ov.sort('npos')">正評數 ⇅</th>
+              <th>FLAG項目</th><th>扣船</th><th>操作</th>
+            </tr></thead>
+            <tbody id="ov-tbody"></tbody>
+          </table>
         </div>
         <div class="pager" id="ov-pager"></div>
       </div>
@@ -11013,35 +11023,28 @@ const Ov={
     this._pageRows=pg; // 供「本頁全選」checkbox使用：只勾選目前頁面顯示的列，不是全部931筆
     if($("#ov-selcount"))$("#ov-selcount").textContent=this.selRows.size?`已選 ${this.selRows.size} 筆`:"";
     if($("#ov-selall"))$("#ov-selall").checked=pg.length>0&&pg.every(r=>this.selRows.has(String(r.id)));
-    const skSel=$("#ov-sortkey");if(skSel&&skSel.value!==this.sortKey)skSel.value=this.sortKey;
-    const dirBtn=$("#ov-sortdir-btn");if(dirBtn)dirBtn.textContent=this.sortAsc?"▲ 正序":"▼ 倒序";
-    // 每筆檢查紀錄一張卡片，直向往下排列，不需要像表格那樣左右拖曳才看得到其他欄位。
-    $("#ov-cardlist").innerHTML=pg.map(r=>{
+    // 固定欄寬的表格＋每格超長內容省略號截斷（滑鼠移上去看完整內容），
+    // 欄位永遠對齊在同一條直線上，又不會把頁面撐寬到要左右拖曳。
+    const ell="overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+    $("#ov-tbody").innerHTML=pg.map(r=>{
       const idx=App.insp.indexOf(r);
       const breakdown=intAuditTopicBreakdown(r);
-      return `<div class="df-card" style="cursor:pointer" onclick="Ov.openEdit(${idx})" title="點選開啟編輯視窗">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <input type="checkbox" onclick="event.stopPropagation()" ${this.selRows.has(String(r.id))?"checked":""} onchange="Ov.toggleSelRow('${r.id}',this.checked)">
-          <b class="df-card-ship">🚢 ${esc(shipFullLabel(r.ship))}</b><span class="hint">${esc(r.vtype)}</span>
-          ${itypeChip(r.itype)}<span class="io-chip ${isInternal(r.itype)?"io-int":"io-ext"}">${isInternal(r.itype)?"內":"外"}</span>
-          ${icatChip(icatOf(r.itype))}
-          <span class="hint" style="font-family:var(--mono)">${esc(normDateSlash(r.date))}</span>
-          ${(r.detain||"").toUpperCase().startsWith("Y")?'<span class="st st-solid">⚑ 扣船</span>':""}
-          ${r._impAt?`<span title="轉入/匯入於 ${esc(new Date(r._impAt).toLocaleString("zh-TW",{hour12:false}))}${r._impBy?"，操作者："+esc(r._impBy):""}" style="cursor:help;color:var(--ink-3);font-size:12px">ℹ 匯入</span>`:""}
-          <span style="margin-left:auto"><button class="btn sm" onclick="event.stopPropagation();Ov.openEdit(${idx})">✎ 編輯</button></span>
-        </div>
-        <div class="df-card-chiprow" style="margin-top:6px">
-          <span class="df-card-chip">地點：${esc(r.loc||"—")}</span>
-          <span class="df-card-chip">檢查員：${esc(r.inspector||"—")}</span>
-          <span class="df-card-chip">單位：${esc(r.unit||"—")}</span>
-          ${r.flagType?`<span class="df-card-chip">FLAG：${esc(r.flagType)}</span>`:""}
-        </div>
-        <div class="df-card-chiprow" style="margin-top:6px">
-          <span class="df-card-chip" style="${(+r.ndef||0)>=4?"color:var(--bad);font-weight:700":""}">缺失數：${esc(r.ndef||"0")}${breakdown?`（${esc(breakdown)}）`:""}</span>
-          <span class="df-card-chip" style="color:var(--ok)">正面評論：${esc(r.npos||"0")}</span>
-        </div>
-      </div>`;
-    }).join("")||`<div class="empty">無符合資料</div>`;
+      return `<tr class="${this.selRows.has(String(r.id))?'sel':''}">
+      <td><input type="checkbox" ${this.selRows.has(String(r.id))?"checked":""} onchange="Ov.toggleSelRow('${r.id}',this.checked)"></td>
+      <td style="${ell}" title="${esc(shipFullLabel(r.ship))}"><b>${esc(shipFullLabel(r.ship))}</b></td>
+      <td style="${ell}">${esc(r.vtype)}</td>
+      <td style="${ell}">${itypeChip(r.itype)}<span class="io-chip ${isInternal(r.itype)?"io-int":"io-ext"}">${isInternal(r.itype)?"內":"外"}</span></td>
+      <td style="${ell}">${icatChip(icatOf(r.itype))}</td>
+      <td style="font-family:var(--mono);${ell}">${esc(normDateSlash(r.date))}</td>
+      <td style="${ell}" title="${esc(r.loc)}">${esc(r.loc)}</td>
+      <td style="${ell}" title="${esc(r.inspector)}">${esc(r.inspector)}</td>
+      <td style="${ell}" title="${esc(r.unit)}">${esc(r.unit)}</td>
+      <td style="text-align:center;font-family:var(--mono);${(+r.ndef||0)>=4?"color:var(--bad);font-weight:700":""}" title="${esc(breakdown)}">${esc(r.ndef||"0")}${breakdown?`<div class="hint" style="font-weight:400;font-size:9.5px;${ell}">${esc(breakdown)}</div>`:""}</td>
+      <td style="text-align:center;font-family:var(--mono);color:var(--ok)">${esc(r.npos||"0")}</td>
+      <td style="font-size:11px;${ell}" title="${esc(r.flagType)}">${esc(r.flagType)}</td>
+      <td>${(r.detain||"").toUpperCase().startsWith("Y")?'<span class="st st-solid">⚑</span>':'<span class="st st-none">—</span>'}</td>
+      <td>${r._impAt?`<span title="轉入/匯入於 ${esc(new Date(r._impAt).toLocaleString("zh-TW",{hour12:false}))}${r._impBy?"，操作者："+esc(r._impBy):""}" style="cursor:help;color:var(--ink-3);font-size:12px">ℹ</span>`:""}<button class="btn sm" onclick="Ov.openEdit(${idx})">✎</button></td></tr>`;
+    }).join("")||`<tr><td colspan="14" class="empty">無符合資料</td></tr>`;
     $("#ov-pager").innerHTML=pagerHtml(this.page,pages,total,"Ov","ov");
   },
   filteredRows(){
