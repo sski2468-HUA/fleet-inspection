@@ -1165,6 +1165,32 @@ body.dg-on td.dg-empty{background:rgba(232,132,44,.10)}   /* 未填：更明顯�
 .df-card-row2-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
 .df-card-classifyrow{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
 .df-card-classifygrp{display:flex;flex-direction:column;gap:5px;min-width:0}
+/* 列表模式（新版試用）分類欄：直向堆疊分組，避免跟查看模式卡片一樣橫向擠成一團看不清楚 */
+.df-lc-classify{display:flex;flex-direction:column;gap:8px}
+.df-lc-classify .df-card-classifygrp+.df-card-classifygrp{padding-top:6px;border-top:1px dashed var(--line)}
+
+/* 列表模式（新版試用）操作欄「⊕展開詳情」*/
+.lcx-expand-btn{min-width:30px}
+.lcx-expand-btn.on{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
+.lcx-detail-row>td{background:var(--paper);padding:0}
+.lcx-wrap{padding:14px 18px;border-left:4px solid var(--navy-3)}
+.lcx-section{margin-bottom:14px}
+.lcx-section:last-child{margin-bottom:0}
+.lcx-section-title{font-size:11.5px;font-weight:700;color:var(--navy-3);letter-spacing:.3px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.lcx-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 16px}
+.lcx-grid.cols2{grid-template-columns:repeat(2,1fr)}
+.lcx-ditem{min-width:0}
+.lcx-ditem .k{display:block;font-size:10.5px;color:var(--ink-3);font-weight:700;letter-spacing:.3px;margin-bottom:3px}
+.lcx-ditem .v{font-size:12.5px;line-height:1.55;word-break:break-word;white-space:pre-wrap}
+.lcx-ditem .v.empty{color:var(--ink-3);font-style:italic}
+.lcx-reply-pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.lcx-reply-box{border:1px solid var(--line);border-radius:7px;padding:9px 11px;background:var(--card)}
+.lcx-reply-box.onboard{border-left:3px solid var(--ink-3)}
+.lcx-reply-box.external{border-left:3px solid var(--teal)}
+.lcx-reply-box .lbl{font-size:11px;font-weight:700;color:var(--ink-2);margin-bottom:5px;display:block}
+.lcx-reply-box .txt{font-size:12.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.lcx-reply-box .txt.empty{color:var(--ink-3);font-style:italic}
+@media (max-width:1000px){.lcx-grid{grid-template-columns:repeat(2,1fr)}.lcx-reply-pair{grid-template-columns:1fr}}
 .df-card-tag{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--teal-l);color:var(--teal)}
 .df-card-tag-eq{background:#e8eef7;color:#2c4a70}
 .df-card-tag-op{background:#fdf3e3;color:#a06a10}
@@ -3294,7 +3320,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <span class="statline" id="f2-stat"></span>
           </span>
         </h3>
-        <p class="hint" style="margin-bottom:8px">試用版面：船舶/日期、來源/CODE、優先序、缺失內容/實際情況、分類、檢查員/責任人、改善回覆（對外）、結案狀態、照片合併顯示，欄位固定不可自訂；篩選條件與左邊「列表模式」共用。</p>
+        <p class="hint" style="margin-bottom:8px">試用版面：船舶/日期、來源/CODE、優先序、缺失內容/實際情況、分類、檢查員/責任人、結案狀態、照片合併顯示，欄位固定不可自訂；篩選條件與左邊「列表模式」共用。點「操作」欄的 ⊕ 可展開該筆完整資訊（含對內/對外回覆等所有欄位）。</p>
         <div class="tblwrap" style="max-height:640px">
           <table class="tbl" id="f2-table"><thead><tr id="f2-thead"></tr></thead><tbody id="f2-tbody"></tbody></table>
         </div>
@@ -15092,21 +15118,20 @@ const Defs={
       <th>船舶 / 日期</th>
       <th>來源 / CODE</th>
       <th>優先序</th>
-      <th style="width:22%">缺失內容 / 實際情況</th>
-      <th>分類</th>
+      <th style="width:24%">缺失內容 / 實際情況</th>
+      <th style="width:16%">分類</th>
       <th>檢查員 / 責任人</th>
-      <th style="width:16%">改善回覆（對外）</th>
       <th>結案狀態</th>
       <th>照片</th>
-      <th style="width:52px">操作</th>`;
-    const totalCols=11;
+      <th style="width:74px">操作</th>`;
+    const totalCols=10;
     $("#f2-tbody").innerHTML=pg.map(d=>{
       const cp=(typeof Defs!=="undefined")?Defs._classifyParts(d):null;
-      const clsTags=[];
-      if(d.ncProb)clsTags.push(`<span class="df-card-tag">${esc(d.ncProb)}</span>`);
-      if(cp&&cp.eqMain)clsTags.push(`<span class="df-card-tag df-card-tag-eq">🔧 ${esc(cp.eqMain)}</span>`);
-      if(cp&&cp.opMain)clsTags.push(`<span class="df-card-tag df-card-tag-op">⚙️ ${esc(cp.opMain)}</span>`);
-      if(d.ncRoot)clsTags.push(`<span class="df-card-tag">根因：${esc(d.ncRoot)}</span>`);
+      const clsGroups=[];
+      if(d.ncProb)clsGroups.push(`<div class="df-card-classifygrp"><span class="df-card-col-caption">問題分類</span><span class="df-card-tag">${esc(d.ncProb)}</span></div>`);
+      if(cp&&(cp.eqMain||cp.eqLeaves.length))clsGroups.push(`<div class="df-card-classifygrp"><span class="df-card-col-caption">設備大類 / 具體</span><span class="df-card-tag df-card-tag-eq">🔧 ${esc(cp.eqMain||"")}</span>${cp.eqLeaves.length?`<span class="df-card-tag df-card-tag-eq">🔧 ${esc(cp.eqLeaves.join("、"))}</span>`:""}</div>`);
+      if(cp&&(cp.opMain||cp.opLeaves.length))clsGroups.push(`<div class="df-card-classifygrp"><span class="df-card-col-caption">作業大類 / 具體</span><span class="df-card-tag df-card-tag-op">⚙️ ${esc(cp.opMain||"")}</span>${cp.opLeaves.length?`<span class="df-card-tag df-card-tag-op">⚙️ ${esc(cp.opLeaves.join("、"))}</span>`:""}</div>`);
+      if(d.ncRoot||d.ncFactor)clsGroups.push(`<div class="df-card-classifygrp"><span class="df-card-col-caption">根因 / 三要素</span>${d.ncRoot?`<span class="df-card-tag">根因：${esc(d.ncRoot)}</span>`:""}${d.ncFactor?`<span class="df-card-tag">三要素：${esc(d.ncFactor)}</span>`:""}</div>`);
       const nPhoto=(d.photosBefore||[]).length+(d.photosAfter||[]).length;
       let closeHtml=`<span class="hint">—</span>`;
       if(d.intAuditId){
@@ -15124,14 +15149,97 @@ const Defs={
       <td>${cl(`<span class="io-chip ${isInternal(d.itype)?"io-int":"io-ext"}" style="margin-left:0;margin-right:4px">${isInternal(d.itype)?"內":"外"}</span>${itypeChip(d.itype)}${d.code?`<div style="margin-top:3px"><span class="code-chip">${esc(d.code)}</span></div>`:""}`)}</td>
       <td>${cl(`${d.risk?`<div><span class="st ${+d.risk>=3?"st-hi":+d.risk===2?"st-md":"st-lo"}">風險 ${esc(d.risk)}</span></div>`:""}${d.ncImp?`<div style="margin-top:3px"><span class="st ${d.ncImp==="高"?"st-hi":d.ncImp==="中"?"st-md":"st-lo"}">${esc(d.ncImp)}</span></div>`:""}`||`<span class="hint">—</span>`)}</td>
       <td class="cell-wide">${cl(`${d.detail?`<div><span class="df-card-field-l">詳細內容</span>${esc(d.detail)}</div>`:""}${d.actual?`<div style="margin-top:4px"><span class="df-card-field-l">實際情況</span>${esc(d.actual)}</div>`:""}`)}</td>
-      <td>${cl(clsTags.join("")||`<span class="hint">—</span>`)}</td>
+      <td>${cl(`<div class="df-lc-classify">${clsGroups.join("")||`<span class="hint">—</span>`}</div>`)}</td>
       <td>${cl(inspPerson)}</td>
-      <td class="cell-wide">${d.correctiveReply?cl(esc(d.correctiveReply)):`<span class="hint">—</span>`}</td>
       <td>${closeHtml}</td>
       <td>${nPhoto?photoStripHtml(d,"deflc_"+d.id):`<span class="hint">—</span>`}</td>
-      <td><button class="btn sm" onclick="Defs.openEdit(${d.id})">✎</button></td>
-    </tr>`;}).join("")||`<tr><td colspan="${totalCols}"><div class="empty"><div class="big">⚓</div>無符合篩選條件之缺失紀錄</div></td></tr>`;
+      <td><button class="btn sm lcx-expand-btn" onclick="Defs.toggleLcExpand('${d.id}')" title="展開完整資訊">⊕</button><button class="btn sm" onclick="Defs.openEdit(${d.id})">✎</button></td>
+    </tr>
+    <tr class="lcx-detail-row" data-detail-for="${d.id}" style="display:none"><td colspan="${totalCols}">${this.lcDetailHtml(d)}</td></tr>`;}).join("")||`<tr><td colspan="${totalCols}"><div class="empty"><div class="big">⚓</div>無符合篩選條件之缺失紀錄</div></td></tr>`;
     $("#f2-pager").innerHTML=pagerHtml(this.page,pages,total,"Defs","f2");
+  },
+  /* ── 列表模式（新版試用）操作欄「⊕展開」：直接切換該列詳情<tr>的顯示/隱藏，
+     不整個重繪表格，避免每次展開/收合都把捲動位置彈回頂端。 ── */
+  toggleLcExpand(id){
+    const tr=document.querySelector(`#f2-tbody tr[data-id="${id}"]`);
+    const dr=document.querySelector(`#f2-tbody tr.lcx-detail-row[data-detail-for="${id}"]`);
+    if(!dr)return;
+    const show=dr.style.display==="none";
+    dr.style.display=show?"":"none";
+    const btn=tr&&tr.querySelector(".lcx-expand-btn");
+    if(btn){btn.textContent=show?"⊖":"⊕";btn.classList.toggle("on",show);}
+  },
+  /* ── 列表模式（新版試用）展開詳情：全部欄位都列出來，沒填的顯示「（未填寫）」，
+     不留白讓人誤以為忘記看漏了。對內/對外回覆左右並排方便對照。 ── */
+  lcDetailHtml(d){
+    const v=val=>val?esc(val):`（未填寫）`;
+    const item=(label,val)=>`<div class="lcx-ditem"><span class="k">${label}</span><span class="v${val?"":" empty"}">${v(val)}</span></div>`;
+    const replyPair=(label,onboard,external)=>`<div class="lcx-reply-pair">
+      <div class="lcx-reply-box onboard"><span class="lbl">${label}（船上填寫版）</span><span class="txt${onboard?"":" empty"}">${v(onboard)}</span></div>
+      <div class="lcx-reply-box external"><span class="lbl">${label}（對外回覆版）</span><span class="txt${external?"":" empty"}">${v(external)}</span></div>
+    </div>`;
+    const isIa=!!d.intAuditId;
+    return `<div class="lcx-wrap">
+      <div class="lcx-section">
+        <div class="lcx-section-title">① 基本資訊</div>
+        <div class="lcx-grid">
+          ${item("船名",shipFullLabel(d.ship))}
+          ${item("船型",d.vtype)}
+          ${item("檢查日期",normDateSlash(d.date))}
+          ${item("檢查地點",d.place)}
+          ${item("檢查來源",d.itype)}
+          ${item("檢查類型",icatOf(d.itype))}
+          ${item("CODE",d.code)}
+          ${item("PSC Action Taken",d.psc)}
+          ${item("檢查員",d.inspector)}
+          ${item("油公司/單位",d.oilco)}
+          ${item("年月",d.ym||ymOf(d.date))}
+          ${item("需內控",d.internalControl?"是":"否")}
+        </div>
+      </div>
+      <div class="lcx-section">
+        <div class="lcx-section-title">② 缺失內容與分類</div>
+        <div class="lcx-grid cols2" style="margin-bottom:10px">
+          ${item("詳細內容",d.detail)}
+          ${item("實際情況",d.actual)}
+        </div>
+        <div class="lcx-grid">
+          ${item("問題別",d.ncProb)}
+          ${item("大類",d.ncMain)}
+          ${item("具體名稱",d.ncLeaf)}
+          ${item("三要素",d.ncFactor)}
+          ${item("根因",d.ncRoot)}
+          ${item("重要程度",d.ncImp)}
+          ${item("重要關注",d.ncFocus)}
+          ${item("風險",d.risk)}
+          ${item("缺失性質判定",d.ncOpinion?ncOpinionLabel(d.ncOpinion):"")}
+          ${item("分類方法",d.tmMethod)}
+          ${item("新分類方法",d.ncMethod)}
+        </div>
+      </div>
+      <div class="lcx-section">
+        <div class="lcx-section-title">③ 對內 / 對外回覆</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${replyPair("直接原因",d.immediateCause,d.immediateCauseReply)}
+          ${replyPair("根本原因",d.rootCause,d.rootCauseReply)}
+          ${replyPair("預防措施",d.preventive,d.preventiveReply)}
+          ${replyPair("改善措施",d.corrective,d.correctiveReply)}
+          ${replyPair("Initial Operator Comment",d.opComment,d.opCommentReply)}
+        </div>
+      </div>
+      <div class="lcx-section">
+        <div class="lcx-section-title">④ 責任歸屬 / 內部檢查 / 其他</div>
+        <div class="lcx-grid">
+          ${item("職級-責任人",d.rank)}
+          ${item("姓名-責任人",d.person)}
+          ${item("內部檢查-結案方式",isIa?d.intAuditCloseMode:"（非內部檢查匯入）")}
+          ${item("內稽類別",isIa?d.intAuditTopic:"（非內部檢查匯入）")}
+          ${item("內部檢查-結案狀態",isIa?(d.intAuditCloseMode==="FLOW"?"FLOW，船上自行填單":d.intAuditStatus||"待船上回報／審核"):"（非內部檢查匯入）")}
+          ${item("矯正前/後照片",((d.photosBefore||[]).length+(d.photosAfter||[]).length)?`共 ${(d.photosBefore||[]).length+(d.photosAfter||[]).length} 張`:"")}
+          ${item("🆕新缺失須注意",d.attn?"是":"否")}
+        </div>
+      </div>
+    </div>`;
   },
   /* ── 查看模式字體大小調整（僅本機記憶，個人化設定） ── */
   fontScale(){
