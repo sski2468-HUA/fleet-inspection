@@ -11025,23 +11025,27 @@ const Ov={
     if($("#ov-selall"))$("#ov-selall").checked=pg.length>0&&pg.every(r=>this.selRows.has(String(r.id)));
     // 固定欄寬的表格＋每格內容最多顯示兩行（超過兩行才截斷，滑鼠移上去看完整內容），
     // 欄位永遠對齊在同一條直線上，盡量讓文字完整顯示，又不會把頁面撐寬到要左右拖曳。
-    const ell="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;word-break:break-word;line-height:1.3";
+    // ⚠ line-clamp 的 display:-webkit-box 不能直接放在 <td> 上——那樣會讓 td 失去
+    // table-cell 的版面行為，整張表格欄位就會全部跑掉、擠成一欄（曾經發生過一次）。
+    // 一定要包一層 <div> 放 line-clamp，td 本身維持預設的 table-cell。
+    const clamp="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;word-break:break-word;line-height:1.3";
+    const cl=(html,t)=>`<div style="${clamp}"${t?` title="${t}"`:""}>${html}</div>`;
     $("#ov-tbody").innerHTML=pg.map(r=>{
       const idx=App.insp.indexOf(r);
       const breakdown=intAuditTopicBreakdown(r);
       return `<tr class="${this.selRows.has(String(r.id))?'sel':''}">
       <td><input type="checkbox" ${this.selRows.has(String(r.id))?"checked":""} onchange="Ov.toggleSelRow('${r.id}',this.checked)"></td>
-      <td style="${ell}" title="${esc(shipFullLabel(r.ship))}"><b>${esc(shipFullLabel(r.ship))}</b></td>
-      <td style="${ell}">${esc(r.vtype)}</td>
-      <td style="${ell}">${itypeChip(r.itype)}<span class="io-chip ${isInternal(r.itype)?"io-int":"io-ext"}">${isInternal(r.itype)?"內":"外"}</span></td>
-      <td style="${ell}">${icatChip(icatOf(r.itype))}</td>
-      <td style="font-family:var(--mono);${ell}">${esc(normDateSlash(r.date))}</td>
-      <td style="${ell}" title="${esc(r.loc)}">${esc(r.loc)}</td>
-      <td style="${ell}" title="${esc(r.inspector)}">${esc(r.inspector)}</td>
-      <td style="${ell}" title="${esc(r.unit)}">${esc(r.unit)}</td>
-      <td style="text-align:center;font-family:var(--mono);${(+r.ndef||0)>=4?"color:var(--bad);font-weight:700":""}" title="${esc(breakdown)}">${esc(r.ndef||"0")}${breakdown?`<div class="hint" style="font-weight:400;font-size:9.5px;${ell}">${esc(breakdown)}</div>`:""}</td>
+      <td>${cl(`<b>${esc(shipFullLabel(r.ship))}</b>`,esc(shipFullLabel(r.ship)))}</td>
+      <td>${cl(esc(r.vtype))}</td>
+      <td>${cl(`${itypeChip(r.itype)}<span class="io-chip ${isInternal(r.itype)?"io-int":"io-ext"}">${isInternal(r.itype)?"內":"外"}</span>`)}</td>
+      <td>${cl(icatChip(icatOf(r.itype)))}</td>
+      <td style="font-family:var(--mono)">${cl(esc(normDateSlash(r.date)))}</td>
+      <td>${cl(esc(r.loc),esc(r.loc))}</td>
+      <td>${cl(esc(r.inspector),esc(r.inspector))}</td>
+      <td>${cl(esc(r.unit),esc(r.unit))}</td>
+      <td style="text-align:center;font-family:var(--mono);${(+r.ndef||0)>=4?"color:var(--bad);font-weight:700":""}">${esc(r.ndef||"0")}${breakdown?`<div class="hint" style="font-weight:400;font-size:9.5px" title="${esc(breakdown)}">${cl(esc(breakdown))}</div>`:""}</td>
       <td style="text-align:center;font-family:var(--mono);color:var(--ok)">${esc(r.npos||"0")}</td>
-      <td style="font-size:11px;${ell}" title="${esc(r.flagType)}">${esc(r.flagType)}</td>
+      <td style="font-size:11px">${cl(esc(r.flagType),esc(r.flagType))}</td>
       <td>${(r.detain||"").toUpperCase().startsWith("Y")?'<span class="st st-solid">⚑</span>':'<span class="st st-none">—</span>'}</td>
       <td>${r._impAt?`<span title="轉入/匯入於 ${esc(new Date(r._impAt).toLocaleString("zh-TW",{hour12:false}))}${r._impBy?"，操作者："+esc(r._impBy):""}" style="cursor:help;color:var(--ink-3);font-size:12px">ℹ</span>`:""}<button class="btn sm" onclick="Ov.openEdit(${idx})">✎</button></td></tr>`;
     }).join("")||`<tr><td colspan="14" class="empty">無符合資料</td></tr>`;
