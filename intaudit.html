@@ -570,24 +570,31 @@ function renderList(){
     const types=(r.types||[]).map(k=>{const t=typeDef(k)||{label:k};return t.label+(t.sarForm?"："+t.sarForm:"");}).join("、");
     const hasIC=(r.defs||[]).some(d=>d.closeMode==="內控");
     const filtering=!!(fm||fst||q),open=filtering||expanded.has(r.id);
-    html+=`<tr class="rec"><td colspan="8"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      ${filtering?"":`<button class="btn sm" onclick="toggleRec(${r.id})" title="展開／收合這張登錄單的缺失明細">${open?"▾ 收合":"▸ 展開"}（${(r.defs||[]).length}）</button>`}
-      <span style="font-size:14px">${esc(shipLabel(r.ship))}</span><span>${esc(dateText(r))}</span><span class="hint">${esc(types)}${r.draft?" ・<b style='color:#b5610f'>草稿</b>":""}</span>
-      <span class="hint">檢查人：${esc(r.inspector)}　地點：${esc(r.psn)}</span>
-      <span class="hint" style="flex-basis:100%;font-weight:400">${esc(summaryText(r))}</span>
-      <span style="margin-left:auto;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
-        <span style="display:flex;flex-direction:column;gap:5px">
-          <button class="btn primary" onclick="editRec(${r.id})">✎ 編輯</button>
-          <button class="btn dark" onclick="openExport(${r.id})" title="Word／JSON／內控 Excel／內控 JSON">⬇ 匯出</button>
-        </span>
-        <span style="display:flex;flex-direction:column;gap:5px">
-          <button class="btn sm" ${(r.draft||!(r.defs||[]).some(d=>d.closeMode!=="FLOW"))?"disabled":""} onclick="issueOrder(${r.id})" title="把「內控／系統內結案」的缺失做成改善單，給船上填改善回報">📨 發改善單${r.issuedAt?"（已發）":""}</button>
-          ${r.issuedAt?`<a class="btn sm" href="${replyUrl(r)}" target="_blank" title="直接開啟船上填寫的改善單頁面（跟複製給船上的連結是同一個）">🔗 開啟船上頁</a>`:""}
-        </span>
-        <button class="btn sm" onclick="duplicateRec(${r.id})" title="複製這張登錄單的所有內容，建立成一張新的草稿，可再自行修改">⧉ 複製一單</button>
-        <button class="btn sm danger" onclick="delRec(${r.id})">🗑</button>
-        <span class="hint" style="white-space:nowrap;line-height:1.6">${r.imported?`<b style="color:var(--ok)">✓ 海技已匯入</b><br>${esc(r.imported.by||"")} ${new Date(r.imported.at).toLocaleString("zh-TW",{hour12:false})}`:(r.draft?"":"<span>尚未匯入主系統</span>")}</span>
-      </span></div></td></tr>`;
+    html+=`<tr class="rec"><td colspan="8"><div style="display:flex;align-items:flex-start;gap:14px">
+      <div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        ${filtering?"":`<button class="btn sm" onclick="toggleRec(${r.id})" title="展開／收合這張登錄單的缺失明細">${open?"▾ 收合":"▸ 展開"}（${(r.defs||[]).length}）</button>`}
+        <span style="font-size:14px">${esc(shipLabel(r.ship))}</span><span>${esc(dateText(r))}</span><span class="hint">${esc(types)}${r.draft?" ・<b style='color:#b5610f'>草稿</b>":""}</span>
+        <span class="hint">檢查人：${esc(r.inspector)}　地點：${esc(r.psn)}</span>
+        <span class="hint" style="flex-basis:100%;font-weight:400">${esc(summaryText(r))}</span>
+      </div>
+      <div style="flex:0 0 260px;display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+          <span style="display:flex;flex-direction:column;gap:4px">
+            <button class="btn sm primary" onclick="editRec(${r.id})">✎ 編輯</button>
+            <button class="btn sm dark" onclick="openExport(${r.id})" title="Word／JSON／內控 Excel／內控 JSON">⬇ 匯出</button>
+          </span>
+          <span style="display:flex;flex-direction:column;gap:4px">
+            <button class="btn sm" ${(r.draft||!(r.defs||[]).some(d=>d.closeMode!=="FLOW"))?"disabled":""} onclick="issueOrder(${r.id})" title="把「內控／系統內結案」的缺失做成改善單，給船上填改善回報">📨 發改善單${r.issuedAt?"（已發）":""}</button>
+            ${r.issuedAt?`<a class="btn sm" href="${replyUrl(r)}" target="_blank" title="直接開啟船上填寫的改善單頁面（跟複製給船上的連結是同一個）">🔗 開啟船上頁</a>`:""}
+          </span>
+          <span style="display:flex;flex-direction:column;gap:4px">
+            <button class="btn sm" onclick="duplicateRec(${r.id})" title="複製這張登錄單的所有內容，建立成一張新的草稿，可再自行修改">⧉ 複製一單</button>
+            <button class="btn sm danger" onclick="delRec(${r.id})">🗑</button>
+          </span>
+        </div>
+        <div class="hint" style="white-space:nowrap;line-height:1.4;font-size:11px;text-align:right">${r.imported?`<b style="color:var(--ok)">✓ 海技已匯入</b> ${esc(r.imported.by||"")} ${new Date(r.imported.at).toLocaleString("zh-TW",{hour12:false})}`:(r.draft?"":"尚未匯入主系統")}</div>
+      </div>
+    </div></td></tr>`;
     if(open)html+=ds.map(d=>{
       const i=r.defs.indexOf(d),m=modeOf(d.closeMode),td=typeDef(d.type);
       const es=effStatus(r,d);
