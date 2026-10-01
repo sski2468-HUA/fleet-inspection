@@ -3394,7 +3394,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <span class="statline" id="f2-stat"></span>
         </div>
         <h3>缺失紀錄明細（新版試用）</h3>
-        <p class="hint" style="margin-bottom:8px">勾選列＝彙入專項自查時僅彙入勾選；未勾選＝彙入全部篩選結果。試用版面：船舶/日期、來源/CODE、優先序、缺失內容/實際情況、分類、檢查員/責任人、結案狀態、照片合併顯示；按「👁 欄位」可個別隱藏優先序/缺失內容/分類/檢查員責任人/結案狀態/照片這幾欄，集中看您要的內容（船舶/日期、來源/CODE、操作固定顯示）。篩選條件與左邊「列表模式」共用。點「操作」欄的展開鍵可展開該筆完整資訊（含對內/對外回覆等所有欄位）。</p>
         <div id="f2-selbar"></div>
         <div class="tblwrap" style="max-height:640px">
           <table class="tbl" id="f2-table"><thead><tr id="f2-thead"></tr></thead><tbody id="f2-tbody"></tbody></table>
@@ -6007,9 +6006,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 </div>
 
 <div class="modal-bg" id="dfpCreateModal">
-  <div class="modal" style="max-width:640px">
+  <div class="modal" style="max-width:900px;width:96vw">
     <div class="mh"><h3>➕ 新建缺失專案分析</h3><button class="x" onclick="DefsProj.closeCreate()">✕</button></div>
-    <div class="mb">
+    <div class="mb" style="max-height:80vh;overflow:auto">
       <label class="fw">專案名稱 *<input type="text" id="dfp-c-name" placeholder="例：救生艇類缺失專項分析"></label>
       <label class="fw" style="margin-top:8px">關鍵字（可留空，多詞以空格分隔）<input type="text" id="dfp-c-kw" placeholder="例：救生艇 lifeboat"></label>
       <div class="toolbar" style="margin-top:10px;flex-wrap:wrap">
@@ -6031,6 +6030,28 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <span style="flex:1"></span>
       <button class="btn" onclick="DefsProj.closeCreate()">取消</button>
       <button class="btn primary" onclick="DefsProj.createProject()">✓ 建立專案（鎖定這批紀錄）</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ 責任人紀錄：列印前勾選要印出哪幾筆（公司責任/敏感內容可排除，不要印給當事人看） ════════ -->
+<div class="modal-bg" id="dfpPersonPrintModal">
+  <div class="modal" style="max-width:720px;width:96vw">
+    <div class="mh"><h3>🖨 列印 － <span id="dfp-pp-name"></span></h3><button class="x" onclick="Defs.closePersonPrintPick()">✕</button></div>
+    <div class="mb" style="max-height:70vh;overflow:auto">
+      <p class="hint" style="margin-bottom:8px">預設全選；如果某幾筆其實算公司責任、不適合印出來給這位同仁看，取消勾選即可排除，不會印在這份列印結果裡。</p>
+      <div class="toolbar" style="margin-bottom:8px">
+        <button class="btn sm" onclick="Defs.personPrintSetAll(true)">✓ 全選</button>
+        <button class="btn sm" onclick="Defs.personPrintSetAll(false)">✕ 全不選</button>
+        <span class="spacer" style="flex:1"></span>
+        <span class="hint" id="dfp-pp-count"></span>
+      </div>
+      <div id="dfp-pp-list"></div>
+    </div>
+    <div class="mf">
+      <span style="flex:1"></span>
+      <button class="btn" onclick="Defs.closePersonPrintPick()">取消</button>
+      <button class="btn primary" onclick="Defs.confirmPersonPrint()">🖨 列印已勾選項目</button>
     </div>
   </div>
 </div>
@@ -14311,7 +14332,7 @@ const Defs={
             <span style="background:var(--navy);color:#fff;border-radius:10px;padding:2px 10px;font-size:12.5px;font-weight:700">共 ${g.items.length} 次</span>
             <span id="dfperson-caret-${idx}">▾</span>
           </div>
-          <button class="btn sm" onclick="event.stopPropagation();Defs.printPersonPdf(${idx})" title="單獨列印這位責任人的完整紀錄">🖨 列印</button>
+          <button class="btn sm" onclick="event.stopPropagation();Defs.openPersonPrintPick(${idx})" title="列印前可勾選要印出哪幾筆">🖨 列印</button>
         </div>
         <div style="margin-top:8px">${itypeBadges}</div>
         <div id="dfperson-detail-${idx}" style="display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
@@ -14961,11 +14982,53 @@ const Defs={
         </span>`;
     }
   },
-  printPersonPdf(idx){
+  /* 責任人紀錄列印：先讓使用者勾選要印出哪幾筆，再列印——同仁的缺失紀錄裡可能夾雜幾筆
+     其實算公司責任或比較敏感的內容，不是每一筆都適合直接印出來交給當事人，所以不能像
+     以前一樣按下去就把全部筆數直接印出。 */
+  openPersonPrintPick(idx){
     const entry=this._personGroups&&this._personGroups[idx];if(!entry)return;
+    this._personPrintIdx=idx;
+    this._personPrintSel=new Set(entry[1].items.map(d=>String(d.id))); // 預設全選
+    this.renderPersonPrintList();
+    $("#dfpPersonPrintModal").classList.add("show");
+  },
+  closePersonPrintPick(){$("#dfpPersonPrintModal").classList.remove("show");},
+  renderPersonPrintList(){
+    const entry=this._personGroups&&this._personGroups[this._personPrintIdx];if(!entry)return;
     const [name,g]=entry;
-    const rankTxt=g.ranks.size?[...g.ranks].join("／"):"";
+    const nameEl=$("#dfp-pp-name");if(nameEl)nameEl.textContent=name;
     const items=g.items.slice().sort((a,b)=>dateSortVal(b.date)-dateSortVal(a.date));
+    const sel=this._personPrintSel;
+    const list=$("#dfp-pp-list");
+    if(list)list.innerHTML=items.map(d=>{
+      const id=String(d.id);
+      return `<label style="display:flex;gap:10px;align-items:flex-start;padding:7px 4px;border-bottom:1px solid var(--line);cursor:pointer">
+        <input type="checkbox" ${sel.has(id)?"checked":""} onchange="Defs.togglePersonPrintItem('${id}')" style="margin-top:3px">
+        <span style="flex:1">
+          <b>${esc(shipFullLabel(d.ship))}</b> <span class="hint">${esc(d.date)}・${esc(d.itype)}</span>
+          <div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">${esc(d.detail||"")}</div>
+        </span>
+      </label>`;
+    }).join("");
+    const cnt=$("#dfp-pp-count");if(cnt)cnt.textContent=`已勾選 ${sel.size} / ${items.length} 筆`;
+  },
+  togglePersonPrintItem(id){
+    if(this._personPrintSel.has(id))this._personPrintSel.delete(id);else this._personPrintSel.add(id);
+    this.renderPersonPrintList();
+  },
+  personPrintSetAll(on){
+    const entry=this._personGroups&&this._personGroups[this._personPrintIdx];if(!entry)return;
+    this._personPrintSel=on?new Set(entry[1].items.map(d=>String(d.id))):new Set();
+    this.renderPersonPrintList();
+  },
+  confirmPersonPrint(){
+    const entry=this._personGroups&&this._personGroups[this._personPrintIdx];if(!entry)return;
+    const [name,g]=entry;
+    const sel=this._personPrintSel;
+    if(!sel.size){toast("⚠ 請至少勾選一筆才能列印");return;}
+    const rankTxt=g.ranks.size?[...g.ranks].join("／"):"";
+    const items=g.items.filter(d=>sel.has(String(d.id))).sort((a,b)=>dateSortVal(b.date)-dateSortVal(a.date));
+    const shipsN=new Set(items.map(d=>d.ship)).size;
     const rows=items.map((d,i)=>`<tr>
       <td style="text-align:center">${i+1}</td>
       <td style="text-align:center">${esc(shipFullLabel(d.ship))}</td>
@@ -14975,13 +15038,14 @@ const Defs={
     </tr>`).join("");
     $("#printArea").innerHTML=`
       <h1>責任人缺失紀錄 － ${esc(name)}${rankTxt?`（${esc(rankTxt)}）`:""}</h1>
-      <div class="pmeta">共 ${g.items.length} 筆　涉及船舶 ${g.ships.size} 艘　匯出：${todayStr()}</div>
+      <div class="pmeta">共 ${items.length} 筆${items.length<g.items.length?`（已排除 ${g.items.length-items.length} 筆）`:""}　涉及船舶 ${shipsN} 艘　匯出：${todayStr()}</div>
       <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:12px">
         <thead><tr><th>#</th><th>船名</th><th>檢查日期</th><th>檢查來源</th><th style="text-align:left">缺失內容</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
+    this.closePersonPrintPick();
     doPrint(true);
-    if(typeof Audit!=="undefined")Audit.log("匯出","缺失紀錄",`責任人紀錄 PDF：${name}（${g.items.length}筆）`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","缺失紀錄",`責任人紀錄 PDF：${name}（勾選 ${items.length}/${g.items.length} 筆）`);
   },
   /* ── 查看模式：顯示欄位設定（全公司統一，僅 Owner／管理員可調整）── */
   loadViewFields(){
