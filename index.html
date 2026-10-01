@@ -1156,11 +1156,15 @@ body.dg-on td.dg-empty{background:rgba(232,132,44,.10)}   /* 未填：更明顯�
 .df-card-chiprow{display:flex;gap:5px;flex-wrap:wrap;margin-top:0}
 .df-card-tagsside{display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left}
 .df-card-3col{display:grid;grid-template-columns:1fr 3fr auto;gap:14px;margin-top:6px}
-.df-card-4col{display:grid;grid-template-columns:1.1fr 1fr 2fr auto;gap:14px;margin-top:6px}
 .df-card-leftcol{display:flex;flex-direction:column;gap:8px}
-.df-card-classifycol{display:flex;flex-direction:column;gap:5px;min-width:0}
 .df-card-col-caption{font-size:10px;color:var(--ink-3);font-weight:700;letter-spacing:.4px}
 .df-card-photoscol{display:flex;flex-direction:column;gap:8px}
+/* 查看模式卡片三列式：第一列船舶/結案判斷資訊、第二列內容說明＋照片、第三列分類階層 */
+.df-card-row1{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.df-card-row2{display:flex;gap:16px;align-items:flex-start;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+.df-card-row2-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.df-card-classifyrow{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+.df-card-classifygrp{display:flex;flex-direction:column;gap:5px;min-width:0}
 .df-card-tag{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--teal-l);color:var(--teal)}
 .df-card-tag-eq{background:#e8eef7;color:#2c4a70}
 .df-card-tag-op{background:#fdf3e3;color:#a06a10}
@@ -13738,7 +13742,7 @@ const Defs={
   FONTSCALE_KEY:"vsm_defs_viewfontscale_v1",
   VIEW_FIELDS:[
     {k:"ship",t:"船名"},{k:"itype",t:"檢查來源"},{k:"icat",t:"檢查類型"},{k:"date",t:"檢查日期"},
-    {k:"inspector",t:"檢查員"},{k:"ncImp",t:"重要程度"},{k:"ncFocus",t:"關注度"},{k:"risk",t:"風險"},
+    {k:"inspector",t:"檢查員"},{k:"place",t:"檢查地點"},{k:"ncImp",t:"重要程度"},{k:"ncFocus",t:"關注度"},{k:"risk",t:"風險"},
     {k:"closeMode",t:"內部檢查-結案方式"},{k:"icTopic",t:"內稽類別"},
     {k:"detail",t:"詳細內容"},{k:"actual",t:"實際情形"},{k:"ncProb",t:"問題分類"},{k:"ncMain",t:"大類"},
     {k:"ncLeaf",t:"具體"},{k:"ncFactor",t:"三要素"},{k:"ncRoot",t:"根因"},{k:"photos",t:"矯正前/後照片"}
@@ -14819,6 +14823,7 @@ const Defs={
           if(!arr.includes("photos")){arr.push("photos");this.saveViewFieldsLocal(arr);}
           if(!arr.includes("closeMode")){arr.push("closeMode");this.saveViewFieldsLocal(arr);}
           if(!arr.includes("icTopic")){arr.push("icTopic");this.saveViewFieldsLocal(arr);}
+          if(!arr.includes("place")){arr.push("place");this.saveViewFieldsLocal(arr);}
           this.viewFields=arr;return this.viewFields;
         }
       }
@@ -14839,6 +14844,7 @@ const Defs={
         if(!p.includes("photos"))p.push("photos");
         if(!p.includes("closeMode"))p.push("closeMode");
         if(!p.includes("icTopic"))p.push("icTopic");
+        if(!p.includes("place"))p.push("place");
         this.saveViewFieldsLocal(p);
       }
     }catch(e){/* 離線或讀取失敗：維持本機快取值 */}
@@ -15050,53 +15056,51 @@ const Defs={
       // 結案方式（FLOW／內控／系統內結案）只有從「內部檢查缺失登錄」匯入的缺失才會有值。
       if(vis.has("closeMode")&&d.intAuditId&&d.intAuditCloseMode)chips.push(`<span class="st ${d.intAuditCloseMode==="FLOW"?"st-none":d.intAuditCloseMode==="內控"?"st-md":"st-lo"}">結案方式：${esc(d.intAuditCloseMode)}</span>`);
       if(vis.has("icTopic")&&d.intAuditId&&d.intAuditTopic)chips.push(`<span class="df-card-chip">內稽類別：${esc(d.intAuditTopic)}</span>`);
-      const field=(k,label,val,full)=>vis.has(k)&&val?`<div class="df-card-field${full?" full":""}"><span class="df-card-field-l">${label}</span>${esc(val)}</div>`:"";
-      // 分類階層（問題分類／大類／具體名稱）跟根因／三要素分開放：前者是「這條缺失屬於哪一類」，
-      // 獨立成自己一欄；後者是「為什麼發生」，留在船舶資訊那一欄、放在重要程度／風險下面，
-      // 不要混在一起看不出主次。
-      const classifyTags=[];
-      if(vis.has("ncProb")&&d.ncProb)classifyTags.push(`<span class="df-card-tag">問題分類：${esc(d.ncProb)}</span>`);
-      // 大類／具體名稱：設備跟作業各自的項目分開標，不要混在同一個「大類：」「具體：」裡看不出誰是誰。
-      // 沿用 Defs._classifyParts() 這個既有的共用邏輯（分類彙總分析等其他地方也在用），
-      // 不要自己另外寫一套判斷，確保跟系統其他地方的分類判斷結果一致。
+      const field=(k,label,val)=>vis.has(k)&&val?`<div class="df-card-field"><span class="df-card-field-l">${label}</span>${esc(val)}</div>`:"";
+      // 分類：問題分類／設備大類+具體／作業大類+具體／根因+三要素，四組分開放，橫向排在卡片
+      // 最下面一列，由左到右依序排列，不要混在一起看不出主次。沿用 Defs._classifyParts()
+      // 這個既有的共用邏輯（分類彙總分析等其他地方也在用），不要自己另外寫一套判斷。
+      const probTags=[];
+      if(vis.has("ncProb")&&d.ncProb)probTags.push(`<span class="df-card-tag">${esc(d.ncProb)}</span>`);
+      const eqTags=[],opTags=[];
       if((vis.has("ncMain")&&d.ncMain)||(vis.has("ncLeaf")&&d.ncLeaf)){
         const cp=(typeof Defs!=="undefined")?Defs._classifyParts(d):null;
         if(cp){
-          if(vis.has("ncMain")&&cp.eqMain)classifyTags.push(`<span class="df-card-tag df-card-tag-eq">🔧 設備大類：${esc(cp.eqMain)}</span>`);
-          if(vis.has("ncLeaf")&&cp.eqLeaves.length)classifyTags.push(`<span class="df-card-tag df-card-tag-eq">🔧 設備具體：${esc(cp.eqLeaves.join("、"))}</span>`);
-          if(vis.has("ncMain")&&cp.opMain)classifyTags.push(`<span class="df-card-tag df-card-tag-op">⚙️ 作業大類：${esc(cp.opMain)}</span>`);
-          if(vis.has("ncLeaf")&&cp.opLeaves.length)classifyTags.push(`<span class="df-card-tag df-card-tag-op">⚙️ 作業具體：${esc(cp.opLeaves.join("、"))}</span>`);
+          if(vis.has("ncMain")&&cp.eqMain)eqTags.push(`<span class="df-card-tag df-card-tag-eq">🔧 ${esc(cp.eqMain)}</span>`);
+          if(vis.has("ncLeaf")&&cp.eqLeaves.length)eqTags.push(`<span class="df-card-tag df-card-tag-eq">🔧 ${esc(cp.eqLeaves.join("、"))}</span>`);
+          if(vis.has("ncMain")&&cp.opMain)opTags.push(`<span class="df-card-tag df-card-tag-op">⚙️ ${esc(cp.opMain)}</span>`);
+          if(vis.has("ncLeaf")&&cp.opLeaves.length)opTags.push(`<span class="df-card-tag df-card-tag-op">⚙️ ${esc(cp.opLeaves.join("、"))}</span>`);
         }
       }
       const rootTags=[];
       if(vis.has("ncRoot")&&d.ncRoot)rootTags.push(`<span class="df-card-tag">根因：${esc(d.ncRoot)}</span>`);
       if(vis.has("ncFactor")&&d.ncFactor)rootTags.push(`<span class="df-card-tag">三要素：${esc(d.ncFactor)}</span>`);
+      const classifyGroups=[
+        ["問題分類",probTags],["設備大類 / 具體",eqTags],["作業大類 / 具體",opTags],["根因 / 三要素",rootTags]
+      ].filter(([,tags])=>tags.length);
       const hasPhotos=vis.has("photos")&&((d.photosBefore&&d.photosBefore.length)||(d.photosAfter&&d.photosAfter.length));
       return `<div class="df-card" onclick="Defs.openEdit(${d.id})" style="cursor:pointer" title="點選開啟編輯視窗">
-        <div class="df-card-4col">
-          <div class="df-card-leftcol">
-            <div class="df-card-top" style="flex-wrap:wrap">
-              ${vis.has("ship")?`<b class="df-card-ship">🚢 ${esc(shipFullLabel(d.ship))}</b>`:""}
-              ${vis.has("itype")?`<span class="df-card-chip">${esc(d.itype)}</span>`:""}
-              ${vis.has("icat")?`<span class="df-card-chip">${esc(icatOf(d.itype))}</span>`:""}
-              ${vis.has("date")?`<span class="hint" style="font-family:var(--mono)">${esc(d.date)}</span>`:""}
-              ${vis.has("inspector")&&d.inspector?`<span class="hint">👤 ${esc(d.inspector)}</span>`:""}
-            </div>
-            ${chips.length?`<div class="df-card-chiprow">${chips.join("")}</div>`:""}
-            ${rootTags.length?`<div class="df-card-tagsside" style="margin-top:4px">${rootTags.join("")}</div>`:""}
-          </div>
-          <div class="df-card-classifycol">
-            ${classifyTags.length?`<span class="df-card-col-caption">分類</span>`:""}
-            ${classifyTags.join("")}
-          </div>
-          <div class="df-card-body">
-            ${field("detail","詳細內容",d.detail,true)}
-            ${field("actual","實際情形",d.actual,true)}
+        <div class="df-card-row1">
+          ${vis.has("ship")?`<b class="df-card-ship">🚢 ${esc(shipFullLabel(d.ship))}</b>`:""}
+          ${vis.has("itype")?`<span class="df-card-chip">${esc(d.itype)}</span>`:""}
+          ${vis.has("icat")?`<span class="df-card-chip">${esc(icatOf(d.itype))}</span>`:""}
+          ${vis.has("date")?`<span class="hint" style="font-family:var(--mono)">${esc(d.date)}</span>`:""}
+          ${vis.has("inspector")&&d.inspector?`<span class="hint">👤 ${esc(d.inspector)}</span>`:""}
+          ${vis.has("place")&&d.place?`<span class="hint">📍 ${esc(d.place)}</span>`:""}
+          ${chips.join("")}
+        </div>
+        <div class="df-card-row2">
+          <div class="df-card-row2-content">
+            ${field("detail","詳細內容",d.detail)}
+            ${field("actual","實際情形",d.actual)}
           </div>
           <div class="df-card-photoscol" onclick="event.stopPropagation()">
             ${hasPhotos?`<div style="font-size:12px;color:var(--ink-2);font-weight:600">📷 矯正前/後照片</div>${photoStripHtml(d,"dfview_"+d.id)}`:""}
           </div>
         </div>
+        ${classifyGroups.length?`<div class="df-card-classifyrow">${classifyGroups.map(([label,tags])=>
+          `<div class="df-card-classifygrp"><span class="df-card-col-caption">${label}</span>${tags.join("")}</div>`
+        ).join("")}</div>`:""}
       </div>`;
     }).join("");
     $("#dfv-pager").innerHTML=pagerHtml(this.page,pages,total,"Defs","dfv");
