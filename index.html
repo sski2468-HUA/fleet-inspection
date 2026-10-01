@@ -3151,6 +3151,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div class="msel" id="ms-f-insp"></div>
         <div class="msel" id="ms-f-icat"></div>
         <div class="msel" id="ms-f-itype"></div>
+        <div class="msel" id="ms-f-ictopic"></div>
         <div class="msel" id="ms-f-rank"></div>
         <div class="msel" id="ms-f-person"></div>
         <div class="msel" id="ms-f-ncprob"></div>
@@ -8868,6 +8869,22 @@ function isInternal(t){
 }
 const ITYPE_COLORS={PSC:["#1e7f8c","#e3f1f3"],SIRE:["#7b4fa3","#f1eaf8"],FLAG:["#2e6db4","#e7f0fa"],CDI:["#b8860b","#faf3df"],RIGHTSHIP:["#c0392b","#fbeae7"],TERMINAL:["#5b7c3f","#eef4e7"],"Internal audit":["#777","#eee"],"P&I":["#9c5d2e","#f7ece2"]};
 function itypeChip(t){const c=ITYPE_COLORS[t]||["#52656f","#eef2f4"];return `<span class="itype-chip" style="color:${c[0]};background:${c[1]};border-color:${c[0]}44">${esc(t||"—")}</span>`;}
+/* 內稽（Internal audit）底下的區域／類別（甲板／機艙／ISM／MLC／其他，來自「內部檢查缺失登錄」
+   每筆缺失自己選的 topic）不像 FLAG 項目另外開一個欄位存在檢查紀錄本身——因為同一筆內稽檢查紀錄
+   底下的缺失，類別本來就可能不只一種，存在檢查紀錄層級反而只能存一個值，不準。這裡改成即時從
+   「缺失紀錄總表」裡同一個 intAuditId、同一個 itype 的缺失，依 intAuditTopic 現場統計出筆數，
+   不佔用額外欄位、也不會因為海技事後調整缺失分類就跟著過期（永遠反映缺失紀錄目前的真實狀態）。
+   回傳例如 "MLC 3・ISM 2・甲板 4・機艙 1"，沒有任何已分類資料就回傳空字串。 */
+function intAuditTopicBreakdown(r){
+  if(!r||!r.intAuditId)return "";
+  const cnt={};
+  App.defs.forEach(d=>{
+    if(d.intAuditId!==r.intAuditId||d.itype!==r.itype)return;
+    const t=d.intAuditTopic;if(t)cnt[t]=(cnt[t]||0)+1;
+  });
+  const keys=Object.keys(cnt);
+  return keys.length?keys.map(t=>`${t} ${cnt[t]}`).join("・"):"";
+}
 
 /* ════════ 檢查類型(icat) ←→ 檢查來源(itype) 對應 ════════ */
 const ICAT_LIST=["PSC","第三方檢查","公司","業界案例","專項檢查"];
@@ -10987,7 +11004,7 @@ const Ov={
       <td><b>${esc(shipFullLabel(r.ship))}</b></td><td>${esc(r.vtype)}</td><td>${itypeChip(r.itype)}<span class="io-chip ${isInternal(r.itype)?"io-int":"io-ext"}">${isInternal(r.itype)?"內":"外"}</span></td>
       <td>${icatChip(icatOf(r.itype))}</td>
       <td style="font-family:var(--mono)">${esc(normDateSlash(r.date))}</td><td>${esc(r.loc)}</td><td>${esc(r.inspector)}</td><td>${esc(r.unit)}</td>
-      <td style="text-align:center;font-family:var(--mono);${(+r.ndef||0)>=4?"color:var(--bad);font-weight:700":""}">${esc(r.ndef||"0")}</td>
+      <td style="text-align:center;font-family:var(--mono);${(+r.ndef||0)>=4?"color:var(--bad);font-weight:700":""}">${esc(r.ndef||"0")}${(()=>{const b=intAuditTopicBreakdown(r);return b?`<div class="hint" style="font-weight:400;font-size:10px;white-space:nowrap">${esc(b)}</div>`:"";})()}</td>
       <td style="text-align:center;font-family:var(--mono);color:var(--ok)">${esc(r.npos||"0")}</td>
       <td style="font-size:11px">${esc(r.flagType)}</td>
       <td>${(r.detain||"").toUpperCase().startsWith("Y")?'<span class="st st-solid">⚑ 扣船</span>':'<span class="st st-none">—</span>'}</td>
@@ -13617,7 +13634,7 @@ const AdvFilterEngine={
 
 /* ── 各頁面註冊：缺失紀錄總表／檢查紀錄／檢查管控／船舶資料 ── */
 FilterVisEngine.register("defs",{label:"缺失紀錄總表",fields:[
-  ["ship","船名","ms-f-ship"],["vtype","船型","ms-f-vtype"],["place","檢查地點","ms-f-place"],["insp","檢查員","ms-f-insp"],["icat","檢查類型","ms-f-icat"],["itype","檢查來源","ms-f-itype"],
+  ["ship","船名","ms-f-ship"],["vtype","船型","ms-f-vtype"],["place","檢查地點","ms-f-place"],["insp","檢查員","ms-f-insp"],["icat","檢查類型","ms-f-icat"],["itype","檢查來源","ms-f-itype"],["icTopic","內稽類別","ms-f-ictopic"],
   ["rank","責任人職位","ms-f-rank"],["person","責任人姓名","ms-f-person"],
   ["ncprob","問題別","ms-f-ncprob"],["ncmain","大類","ms-f-ncmain"],["ncleaf","具體名稱","ms-f-ncleaf"],["ncfactor","根因","ms-f-ncfactor"],
   ["ncimp","重要程度","ms-f-ncimp"],["ncfocus","重要關注","ms-f-ncfocus"],["risk","風險","ms-f-risk"]],
@@ -13678,6 +13695,7 @@ const Defs={
   VIEW_FIELDS:[
     {k:"ship",t:"船名"},{k:"itype",t:"檢查來源"},{k:"icat",t:"檢查類型"},{k:"date",t:"檢查日期"},
     {k:"inspector",t:"檢查員"},{k:"ncImp",t:"重要程度"},{k:"ncFocus",t:"關注度"},{k:"risk",t:"風險"},
+    {k:"closeMode",t:"內部檢查-結案方式"},{k:"icTopic",t:"內稽類別"},
     {k:"detail",t:"詳細內容"},{k:"actual",t:"實際情形"},{k:"ncProb",t:"問題分類"},{k:"ncMain",t:"大類"},
     {k:"ncLeaf",t:"具體"},{k:"ncFactor",t:"三要素"},{k:"ncRoot",t:"根因"},{k:"photos",t:"矯正前/後照片"}
   ],
@@ -13736,6 +13754,10 @@ const Defs={
       if(!d.intAuditId)return `<td class="col-narrow"><span class="hint">—</span></td>`;
       const m=d.intAuditCloseMode;
       return `<td class="col-narrow">${m?`<span class="st ${m==="FLOW"?"st-none":m==="內控"?"st-md":"st-lo"}">${esc(m)}</span>`:'<span class="hint">—</span>'}</td>`;
+    }},
+    {k:"intAuditTopic",t:"內稽類別",sort:true,def:false,cell:d=>{
+      if(!d.intAuditId)return `<td class="col-narrow"><span class="hint">—</span></td>`;
+      return `<td class="col-narrow">${d.intAuditTopic?esc(d.intAuditTopic):'<span class="hint">—</span>'}</td>`;
     }},
     {k:"intAuditStatus",t:"內部檢查-結案狀態",sort:true,def:false,cell:d=>{
       if(!d.intAuditId)return `<td class="col-narrow"><span class="hint">—</span></td>`;
@@ -13975,6 +13997,7 @@ const Defs={
     this.ms.place=MSel("ms-f-place","檢查地點",()=>TagLists.withExtras("place",App.defs.map(d=>d.place)),rerun);
     this.ms.itype=MSel("ms-f-itype","檢查來源",()=>TagLists.withExtras("itype",App.defs.map(d=>d.itype)),rerun);
     this.ms.icat=MSel("ms-f-icat","檢查類型",()=>ICAT_LIST.slice(),rerun);
+    this.ms.icTopic=MSel("ms-f-ictopic","內稽類別",()=>[...new Set(App.defs.map(d=>d.intAuditTopic))].filter(Boolean).sort(),rerun);
     this.ms.insp=MSel("ms-f-insp","檢查員",()=>TagLists.withExtras("inspector",App.defs.map(d=>d.inspector)),rerun);
     this.ms.ym=MSel("ms-f-ym","年月",()=>[...new Set(App.defs.map(d=>d.ym||ymOf(d.date)))].filter(Boolean).sort().reverse(),rerun);
     this.ms.ncprob=MSel("ms-f-ncprob","問題別",()=>["设备问题","作业问题","(未分類)"],rerun);
@@ -14750,6 +14773,8 @@ const Defs={
           // 不用等維護者自己想到要重新打開設定畫面勾選一次。
           if(!arr.includes("ncRoot")){arr.push("ncRoot");this.saveViewFieldsLocal(arr);}
           if(!arr.includes("photos")){arr.push("photos");this.saveViewFieldsLocal(arr);}
+          if(!arr.includes("closeMode")){arr.push("closeMode");this.saveViewFieldsLocal(arr);}
+          if(!arr.includes("icTopic")){arr.push("icTopic");this.saveViewFieldsLocal(arr);}
           this.viewFields=arr;return this.viewFields;
         }
       }
@@ -14768,6 +14793,8 @@ const Defs={
         // 拉回來蓋掉本機時，要一併補上，不然本機剛補好的又會被雲端舊清單蓋回去。
         if(!p.includes("ncRoot"))p.push("ncRoot");
         if(!p.includes("photos"))p.push("photos");
+        if(!p.includes("closeMode"))p.push("closeMode");
+        if(!p.includes("icTopic"))p.push("icTopic");
         this.saveViewFieldsLocal(p);
       }
     }catch(e){/* 離線或讀取失敗：維持本機快取值 */}
@@ -14821,6 +14848,7 @@ const Defs={
       if(!this.ms.place.pass(d.place))return false;
       if(!this.ms.itype.pass(d.itype))return false;
       if(!this.ms.icat.pass(icatOf(d.itype)))return false;
+      if(!this.ms.icTopic.pass(d.intAuditTopic||""))return false;
       if(!this.ms.insp.pass(d.inspector))return false;
       if(!this.ms.ym.pass(ym))return false;
       if(!passTags(this.ms.ncprob,d.ncProb,"(未分類)"))return false;
@@ -14975,6 +15003,9 @@ const Defs={
       if(vis.has("ncImp")&&d.ncImp)chips.push(`<span class="df-card-chip ${impCls(d.ncImp)}">重要程度：${esc(d.ncImp)}</span>`);
       if(vis.has("ncFocus")&&d.ncFocus)chips.push(`<span class="df-card-chip ${d.ncFocus==='是'?'focus-是':''}">關注度：${esc(d.ncFocus)}</span>`);
       if(vis.has("risk")&&d.risk)chips.push(`<span class="df-card-chip risk-${esc(d.risk)}">風險：${esc(d.risk)}</span>`);
+      // 結案方式（FLOW／內控／系統內結案）只有從「內部檢查缺失登錄」匯入的缺失才會有值。
+      if(vis.has("closeMode")&&d.intAuditId&&d.intAuditCloseMode)chips.push(`<span class="st ${d.intAuditCloseMode==="FLOW"?"st-none":d.intAuditCloseMode==="內控"?"st-md":"st-lo"}">結案方式：${esc(d.intAuditCloseMode)}</span>`);
+      if(vis.has("icTopic")&&d.intAuditId&&d.intAuditTopic)chips.push(`<span class="df-card-chip">內稽類別：${esc(d.intAuditTopic)}</span>`);
       const field=(k,label,val,full)=>vis.has(k)&&val?`<div class="df-card-field${full?" full":""}"><span class="df-card-field-l">${label}</span>${esc(val)}</div>`:"";
       const tags=[];
       if(vis.has("ncProb")&&d.ncProb)tags.push(`<span class="df-card-tag">問題分類：${esc(d.ncProb)}</span>`);
