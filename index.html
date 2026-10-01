@@ -1424,6 +1424,9 @@ table.tbl tbody tr.attn-row.sel:hover>td{background:#fbe8d4}
 
 /* 篩選面板:晶片模式 */
 .msel .panel{min-width:340px;max-width:620px;padding:10px}
+/* 批量編輯表格裡的欄位很窄（問題別/大類/具體名稱），面板若沿用篩選列的寬度（340-620px）
+   會整個蓋到隔壁欄位，看起來像壞掉、點不到東西——這裡縮窄到表格欄位放得下的寬度 */
+.bt-table .msel .panel{min-width:200px;max-width:280px;padding:8px}
 .msel .panel .chips{display:flex;flex-wrap:wrap;gap:6px;max-height:240px;overflow:auto;padding:2px}
 .msel .panel .chip{font-size:12px;border:1px solid var(--line-2);border-radius:4px;padding:4px 10px;cursor:pointer;background:#fff;color:var(--ink-2);user-select:none;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono)}
 .msel .panel .chip:hover{border-color:var(--signal);color:var(--ink)}
@@ -3217,6 +3220,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="toolbar" style="margin-bottom:0">
         <button class="btn sm df-tabbtn active" data-p="view" onclick="Defs.setSubTab('view')">👁 查看模式</button>
         <button class="btn sm df-tabbtn" data-p="list" onclick="Defs.setSubTab('list')">📋 列表模式</button>
+        <button class="btn sm df-tabbtn" data-p="listcompact" onclick="Defs.setSubTab('listcompact')">📑 列表模式（新版試用）</button>
         <button class="btn sm df-tabbtn" data-p="proj" id="df-tab-proj-btn" onclick="Defs.setSubTab('proj')" style="display:none">📊 專案分析</button>
         <button class="btn sm df-tabbtn" data-p="person" id="df-tab-person-btn" onclick="Defs.setSubTab('person')" style="display:none">🧑 責任人紀錄</button>
         <button class="btn sm df-tabbtn" data-p="edit" id="df-tab-edit-btn" onclick="Defs.setSubTab('edit')" style="display:none">🗂 編輯模式</button>
@@ -3279,6 +3283,22 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
         </div>
         <div class="pager" id="f-pager"></div>
+      </div>
+      </div>
+
+      <!-- ── 列表模式（新版試用）：固定合併欄位版面，先跟「列表模式」並存比較，資料與篩選條件共用 ── -->
+      <div id="defs-page-listcompact" class="df-subpage" style="display:none">
+      <div class="card">
+        <h3>缺失紀錄明細（新版試用）
+          <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <span class="statline" id="f2-stat"></span>
+          </span>
+        </h3>
+        <p class="hint" style="margin-bottom:8px">試用版面：船舶/日期、來源/CODE、優先序、缺失內容/實際情況、分類、檢查員/責任人、改善回覆（對外）、結案狀態、照片合併顯示，欄位固定不可自訂；篩選條件與左邊「列表模式」共用。</p>
+        <div class="tblwrap" style="max-height:640px">
+          <table class="tbl" id="f2-table"><thead><tr id="f2-thead"></tr></thead><tbody id="f2-tbody"></tbody></table>
+        </div>
+        <div class="pager" id="f2-pager"></div>
       </div>
       </div>
 
@@ -14115,9 +14135,10 @@ const Defs={
     if((tab==="edit"||tab==="person")&&!this.canUseEditMode()){toast("⚠ 僅 Owner／維護者／指定人員可使用此功能");return;}
     this.subTab=tab;
     $$(".df-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.p===tab));
-    const vp=$("#defs-page-view"),lp=$("#defs-page-list"),pp=$("#defs-page-proj"),pep=$("#defs-page-person"),eep=$("#defs-page-edit");
+    const vp=$("#defs-page-view"),lp=$("#defs-page-list"),lcp=$("#defs-page-listcompact"),pp=$("#defs-page-proj"),pep=$("#defs-page-person"),eep=$("#defs-page-edit");
     if(vp)vp.style.display=tab==="view"?"":"none";
     if(lp)lp.style.display=tab==="list"?"":"none";
+    if(lcp)lcp.style.display=tab==="listcompact"?"":"none";
     if(pp)pp.style.display=tab==="proj"?"":"none";
     if(pep)pep.style.display=tab==="person"?"":"none";
     if(eep)eep.style.display=tab==="edit"?"":"none";
@@ -15037,6 +15058,7 @@ const Defs={
     if(this.subTab==="view")this.renderViewMode(pg,total,pages);
     else if(this.subTab==="person"){this.renderPersonPage();return;}
     else if(this.subTab==="edit"){this.renderEditMode();return;}
+    else if(this.subTab==="listcompact")this.renderListCompactMode(pg,total,pages);
     else this.renderListMode(pg,total,pages);
     this.refreshStat();
   },
@@ -15057,6 +15079,59 @@ const Defs={
       ${tds}
     </tr>`;}).join("")||`<tr><td colspan="${totalCols}"><div class="empty"><div class="big">⚓</div>無符合篩選條件之缺失紀錄</div></td></tr>`;
     $("#f-pager").innerHTML=pagerHtml(this.page,pages,total,"Defs","f");
+  },
+  /* ── 列表模式（新版試用）：固定合併欄位版面，跟「列表模式」共用同一套篩選/分頁/勾選狀態，
+     欄位不可自訂，純粹讓使用者比較兩種版面哪個比較好用。line-clamp 一律包在內層 <div>，
+     不能直接放在 <td> 上（否則整張表格欄位會跑掉，Ov 模組曾經踩過這個坑）。 ── */
+  renderListCompactMode(pg,total,pages){
+    this.applyFontScale();
+    const st=$("#f2-stat");if(st)st.innerHTML=`篩選結果 <b>${total}</b> 筆`;
+    const clamp="display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;word-break:break-word;line-height:1.3";
+    const cl=html=>`<div style="${clamp}">${html}</div>`;
+    $("#f2-thead").innerHTML=`<th style="width:28px"></th>
+      <th>船舶 / 日期</th>
+      <th>來源 / CODE</th>
+      <th>優先序</th>
+      <th style="width:22%">缺失內容 / 實際情況</th>
+      <th>分類</th>
+      <th>檢查員 / 責任人</th>
+      <th style="width:16%">改善回覆（對外）</th>
+      <th>結案狀態</th>
+      <th>照片</th>
+      <th style="width:52px">操作</th>`;
+    const totalCols=11;
+    $("#f2-tbody").innerHTML=pg.map(d=>{
+      const cp=(typeof Defs!=="undefined")?Defs._classifyParts(d):null;
+      const clsTags=[];
+      if(d.ncProb)clsTags.push(`<span class="df-card-tag">${esc(d.ncProb)}</span>`);
+      if(cp&&cp.eqMain)clsTags.push(`<span class="df-card-tag df-card-tag-eq">🔧 ${esc(cp.eqMain)}</span>`);
+      if(cp&&cp.opMain)clsTags.push(`<span class="df-card-tag df-card-tag-op">⚙️ ${esc(cp.opMain)}</span>`);
+      if(d.ncRoot)clsTags.push(`<span class="df-card-tag">根因：${esc(d.ncRoot)}</span>`);
+      const nPhoto=(d.photosBefore||[]).length+(d.photosAfter||[]).length;
+      let closeHtml=`<span class="hint">—</span>`;
+      if(d.intAuditId){
+        if(d.intAuditCloseMode==="FLOW")closeHtml=`<span class="hint">FLOW</span>`;
+        else if(d.intAuditStatus==="已結案")closeHtml=`<span class="st st-lo">✓ 已結案</span>`;
+        else closeHtml=`<span class="st st-md">待回報</span>`;
+      }
+      const inspPerson=[
+        d.inspector?`<div><span class="df-card-field-l">檢查員</span>${esc(d.inspector)}</div>`:"",
+        (d.rank||d.person)?`<div style="margin-top:3px"><span class="df-card-field-l">責任人</span>${esc(d.person||"")}${d.rank?`（${esc(d.rank)}）`:""}</div>`:""
+      ].join("")||`<span class="hint">—</span>`;
+      return `<tr data-id="${d.id}" class="${this.selected.has(String(d.id))?"sel":""} ${d.attn?"attn-row":""}">
+      <td><input type="checkbox" ${this.selected.has(String(d.id))?"checked":""} onchange="Defs.toggleSel('${d.id}',this.checked)"></td>
+      <td>${cl(`<b>${esc(shipFullLabel(d.ship))}</b><div class="hint" style="font-family:var(--mono)">${esc(normDateSlash(d.date))}</div>`)}</td>
+      <td>${cl(`<span class="io-chip ${isInternal(d.itype)?"io-int":"io-ext"}" style="margin-left:0;margin-right:4px">${isInternal(d.itype)?"內":"外"}</span>${itypeChip(d.itype)}${d.code?`<div style="margin-top:3px"><span class="code-chip">${esc(d.code)}</span></div>`:""}`)}</td>
+      <td>${cl(`${d.risk?`<div><span class="st ${+d.risk>=3?"st-hi":+d.risk===2?"st-md":"st-lo"}">風險 ${esc(d.risk)}</span></div>`:""}${d.ncImp?`<div style="margin-top:3px"><span class="st ${d.ncImp==="高"?"st-hi":d.ncImp==="中"?"st-md":"st-lo"}">${esc(d.ncImp)}</span></div>`:""}`||`<span class="hint">—</span>`)}</td>
+      <td class="cell-wide">${cl(`${d.detail?`<div><span class="df-card-field-l">詳細內容</span>${esc(d.detail)}</div>`:""}${d.actual?`<div style="margin-top:4px"><span class="df-card-field-l">實際情況</span>${esc(d.actual)}</div>`:""}`)}</td>
+      <td>${cl(clsTags.join("")||`<span class="hint">—</span>`)}</td>
+      <td>${cl(inspPerson)}</td>
+      <td class="cell-wide">${d.correctiveReply?cl(esc(d.correctiveReply)):`<span class="hint">—</span>`}</td>
+      <td>${closeHtml}</td>
+      <td>${nPhoto?photoStripHtml(d,"deflc_"+d.id):`<span class="hint">—</span>`}</td>
+      <td><button class="btn sm" onclick="Defs.openEdit(${d.id})">✎</button></td>
+    </tr>`;}).join("")||`<tr><td colspan="${totalCols}"><div class="empty"><div class="big">⚓</div>無符合篩選條件之缺失紀錄</div></td></tr>`;
+    $("#f2-pager").innerHTML=pagerHtml(this.page,pages,total,"Defs","f2");
   },
   /* ── 查看模式字體大小調整（僅本機記憶，個人化設定） ── */
   fontScale(){
