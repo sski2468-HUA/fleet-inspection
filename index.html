@@ -2140,6 +2140,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     資料儲存於本機瀏覽器<br>
     <span id="storeStat">—</span>
     <button class="btn sm dark" onclick="App.saveAll(true)">💾 立即儲存</button>
+    <button class="btn sm" onclick="DM.showLsBreakdown()" title="查看這台裝置瀏覽器的空間用量，並可自行整理釋放空間；只清這台裝置的暫存資料，不會刪到雲端上任何人的正式資料">🧹 整理本機空間</button>
     <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.1);color:#6b8a9c">QMS &amp; Vetting Unit（海技組）</div>
   </div>
 </aside>
@@ -4666,7 +4667,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="modal-bg" id="lsBreakdownModal">
       <div class="modal" style="max-width:560px">
         <div style="padding:18px 20px">
-          <h3 style="margin:0 0 4px;font-size:16px;color:var(--navy)">本機儲存明細</h3>
+          <h3 style="margin:0 0 4px;font-size:16px;color:var(--navy)">🧹 整理本機資料（釋放空間）</h3>
+          <div style="background:#eef7f0;border:1px solid #bfe0c6;border-radius:8px;padding:8px 12px;margin:8px 0 12px;font-size:12.5px;line-height:1.7;color:#245c33">
+            ✓ 這裡只會清理<b>這台電腦、這個瀏覽器自己的暫存資料</b>，<b>不會刪除雲端上任何人的正式資料</b>，其他人、其他裝置完全不受影響。<br>
+            清掉之後系統會自動從雲端重新同步一份乾淨的資料回來，放心操作。
+          </div>
           <div id="ls-breakdown-info" class="hint" style="margin-bottom:12px"></div>
           <div id="ls-breakdown-list" style="max-height:400px;overflow:auto"></div>
           <div style="display:flex;justify-content:flex-end;margin-top:16px">
@@ -9595,7 +9600,7 @@ const App={
         st.textContent=`已自動儲存 · ${kb} KB · 空間約 ${pct}%`;
         st.style.color=pct>=85?"var(--bad)":(pct>=70?"var(--warn)":"");
       }
-      if(pct>=70&&!this._quotaWarned){this._quotaWarned=true;toast(`⚠ 瀏覽器儲存空間已使用約 ${pct}%，建議先匯出 JS 備份，再到「資料管理 → 📊 查看本機儲存明細」用 🧹 清理釋放空間，以免資料無法儲存`);}
+      if(pct>=70&&!this._quotaWarned){this._quotaWarned=true;toast(`⚠ 瀏覽器儲存空間已使用約 ${pct}%，建議按左下角「🧹 整理本機空間」釋放空間（只清這台裝置的暫存資料，不影響雲端），以免資料無法儲存`);}
       if(manual)toast("✓ 已儲存至本機");
     }catch(e){const st=$("#storeStat");if(st){st.textContent="⚠ 儲存空間不足";st.style.color="var(--bad)";}if(manual)toast("⚠ localStorage 空間不足，請以 JS 檔備份");}
   },
@@ -27285,7 +27290,7 @@ const DM={
     const rows=App.lsUsageBreakdown().filter(r=>{const c=this.lsCleanableInfo(r.key);return c&&c.type!=="snapshot";});
     if(!rows.length){toast("目前沒有可一鍵清理的項目（「預設備份」請按其列上的按鈕個別處理）");return;}
     const freeable=rows.reduce((s,r)=>s+r.bytes,0);
-    if(!confirm(`將清除 ${rows.length} 個項目（舊版資料鍵與匯入前安全備份），約可釋放 ${(freeable/1024).toFixed(0)} KB。\n\n「匯入前安全備份」會先自動下載一份 JSON 檔留存後才刪除。確定繼續？`))return;
+    if(!confirm(`將清除 ${rows.length} 個項目（舊版資料鍵與匯入前安全備份），約可釋放 ${(freeable/1024).toFixed(0)} KB。\n\n⚠ 這只會清掉這台裝置瀏覽器裡的暫存資料，不會刪除雲端上任何人的正式資料，其他人、其他裝置不受影響。\n\n「匯入前安全備份」會先自動下載一份 JSON 檔留存後才刪除。確定繼續？`))return;
     let hadBackup=false;
     rows.forEach(r=>{
       const info=this.lsCleanableInfo(r.key);
