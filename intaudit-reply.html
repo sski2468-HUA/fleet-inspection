@@ -21,6 +21,10 @@ header a{color:#cfe0ee;font-size:13px}
 .banner{margin:14px;background:var(--teal-l);border:1px solid #bfdde0;border-radius:8px;padding:10px 14px;font-size:13px;line-height:1.8;color:#22505a}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-2);background:#fff;color:var(--ink);padding:10px 16px;border-radius:8px;font-size:14px;cursor:pointer;font-family:var(--sans);font-weight:600;text-decoration:none}
 .btn.primary{background:var(--signal);border-color:var(--signal);color:#fff;font-size:16px;padding:13px 22px}
+/* 送出按鈕在沒勾確認框時，外觀仍是「看起來不能按」，但故意不用原生 disabled 屬性——
+   disabled 的按鈕完全擋掉 click 事件，船上點了會毫無反應，容易以為系統當掉；改成只是
+   視覺上變灰，onclick 照樣會觸發，由 submitAll() 自己判斷並跳出明確提示、把確認框閃一下。 */
+.btn.primary.soft-disabled{background:#c3ced5;border-color:#c3ced5;color:#fff;cursor:pointer}
 .btn.sm{padding:5px 11px;font-size:12.5px}
 input[type=text],input[type=date],select,textarea{padding:10px 11px;border:1px solid var(--line-2);border-radius:8px;font-size:15px;font-family:var(--sans);width:100%;background:#fff}
 textarea{min-height:84px;resize:vertical;line-height:1.5}
@@ -174,12 +178,12 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
     <div id="stepPanel4" style="display:none">
       <div class="banner">請確認下方填報內容無誤後再送出；若還沒填完，也可以先匯出草稿存檔，不會送出、也不會遺失已填內容。</div>
       <div id="previewBox"></div>
-      <label class="confirmrow"><input type="checkbox" id="confirmChk" onchange="document.getElementById('btnSubmit').disabled=!this.checked">我已確認以上填報內容無誤</label>
+      <label class="confirmrow"><input type="checkbox" id="confirmChk" onchange="document.getElementById('btnSubmit').classList.toggle('soft-disabled',!this.checked)">我已確認以上填報內容無誤</label>
     </div>
     <div class="navrow" id="navrow4" style="display:none">
       <button class="btn" onclick="goStep(3)">← 上一步</button>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <button class="btn primary" id="btnSubmit" disabled onclick="submitAll()">✓ 送出已填完的項目（並存成 Word）</button>
+        <button class="btn primary soft-disabled" id="btnSubmit" onclick="submitAll()">✓ 送出已填完的項目（並存成 Word）</button>
         <button class="btn" onclick="downloadWord(true)">💾 暫時不送出，先匯出草稿存檔（Word）</button>
       </div>
     </div>
@@ -534,6 +538,16 @@ async function downloadWord(manual){
 }
 async function submitAll(){
   document.querySelectorAll(".bad").forEach(e=>e.classList.remove("bad"));
+  // 按鈕沒做成原生 disabled，點了一定要有反應——沒勾確認框時跳到第④步、把確認框整圈
+  // 閃一下並提示，不要什麼都沒發生讓船上以為按鈕壞了。
+  const chk=$("#confirmChk");
+  if(chk&&!chk.checked){
+    goStep(4);
+    const row=chk.closest(".confirmrow");
+    if(row){row.classList.add("bad");setTimeout(()=>row.classList.remove("bad"),2500);row.scrollIntoView({behavior:"smooth",block:"center"});}
+    toast("⚠ 請先勾選「我已確認以上填報內容無誤」才能送出",true);
+    return;
+  }
   const errs=[];
   if(!$("#fName").value.trim())errs.push({msg:"填寫人姓名未填",step:1,sel:"#fName"});
   if(!$("#fTitle").value)errs.push({msg:"填寫人職稱未選",step:1,sel:"#fTitle"});
