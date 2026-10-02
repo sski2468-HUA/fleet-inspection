@@ -10618,9 +10618,17 @@ function MSel(elId,label,getOptions,onChange,getLabel){
       }
     }};
   document.addEventListener("click",e=>{if(!root.contains(e.target))root.classList.remove("open");});
-  // 面板是 position:fixed，不會跟著底下的表格/篩選列一起捲動——只要偵測到任何捲動
+  // 面板是 position:fixed，不會跟著底下的表格/篩選列一起捲動——只要偵測到「面板以外」的捲動
   // 發生（capture 階段才抓得到巢狀捲動容器），直接關閉，避免面板飄在跟按鈕脫節的位置。
-  document.addEventListener("scroll",()=>{if(root.classList.contains("open"))root.classList.remove("open");},true);
+  // ⚠ 一定要排除面板「自己」的捲動（例如船舶清單很長、要在面板裡往下拉滾動選取）——
+  // 之前沒排除時，使用者在面板裡一拉動捲軸，捲動事件馬上被這裡偵測到並誤判成「外部捲動」，
+  // 面板立刻自己關掉，導致筆數多的清單完全無法滑動選取（看起來像「無法拖拉選擇」壞掉了）。
+  document.addEventListener("scroll",e=>{
+    if(!root.classList.contains("open"))return;
+    const p=root.querySelector(".panel");
+    if(p&&(e.target===p||(e.target.nodeType&&p.contains(e.target))))return;
+    root.classList.remove("open");
+  },true);
   return {get sel(){return st.sel;},clear(){st.sel.clear();refreshBtn();},pass(v){return st.sel.size===0||st.sel.has(v);},
     set(arr){st.sel=new Set(arr);refreshBtn();},refresh(){refreshBtn();}};
 }
