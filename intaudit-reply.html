@@ -519,7 +519,14 @@ async function downloadWord(manual){
   try{
     await loadShips();
     if(manual)await reloadReplies();
-    const {blob,photoCount}=await iaMakeDocx(rec,d=>{const x=rpOf(d);return x?Object.assign({status:x.status},x.payload):null;});
+    // 草稿／尚未送出的內容也要能匯出到 Word（不然填了但還沒按「送出」的東西，匯出草稿檔案時會整個消失）：
+    // 用 val(d) 取目前實際顯示的內容（草稿優先，沒草稿才退回已送出內容），
+    // 回報人／回報時間／審核狀態這些 metadata 則還是沿用最後一次送出的紀錄（没送出過就不顯示那一列）。
+    const {blob,photoCount}=await iaMakeDocx(rec,d=>{
+      const sub=rpOf(d),x=val(d);
+      if(isEmpty(x))return null;
+      return Object.assign({status:sub?sub.status:undefined},sub?sub.payload:{},x);
+    });
     download(blob,fname(rec,".docx"));
     toast(`✓ 已存成 Word 檔：${fname(rec,".docx")}（照片 ${photoCount} 張）`);
     return true;
