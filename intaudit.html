@@ -285,6 +285,14 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
     </div>
   </div>
 </div>
+<!-- 發改善單：複製內容後明確告知使用者「複製了什麼、接下來要怎麼做」，取代原本容易被忽略／
+     跟系統對話框混淆的 confirm()／alert() -->
+<div class="modal" id="issueModal" style="align-items:center">
+  <div class="box" style="width:min(560px,94vw)">
+    <h3 style="margin:0 0 10px;color:var(--navy)">📨 發改善單給船</h3>
+    <div id="issueModalBody"></div>
+  </div>
+</div>
 <!-- 匯出 -->
 <div class="modal" id="exportModal"><div class="box" style="width:min(640px,96vw)">
   <h3 style="margin:0 0 4px;font-size:18px;color:var(--navy)">⬇ 匯出</h3>
@@ -668,15 +676,58 @@ async function issueOrder(id){
   const text=`內部檢查改善單：${shipLabel(r.ship)} ${dateText(r)} ${(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、")}，共 ${n} 項待改善 連結:${replyUrl(r)}`;
   const shipUrl=replyUrl(r).replace(/\?rid=.*/,"?ship="+encodeURIComponent(r.ship));
   const textFull=text+"\n（本船歷次改善單清單，固定連結："+shipUrl+"）";
-  if(r.issuedAt&&!confirm("這張登錄單已發過改善單，要再複製一次連結嗎？（連結不變，船上先前的回報不會消失）"))return;
+  if(r.issuedAt){
+    const again=await askReissue(r);
+    if(!again)return;
+  }
   try{await navigator.clipboard.writeText(textFull);}catch(e){}
   (r.defs||[]).forEach(d=>{if(!d.uid)d.uid=newUid();}); // 舊登錄單的缺失補上固定 id，船上回報才對得回這一筆
   r.issuedAt=Date.now();
   const res=await Store.save(r,Store.srvOf[id]);
   if(res.conflict){toast("⚠ 這張登錄單剛被其他人更新過，請按「🔄 重新整理」後再重新發改善單",true);return;}
   renderList();
-  alert("已複製下列內容，可貼入郵件發給船上：\n\n"+textFull+"\n\n船上打開連結後，會看到這張單的待改善缺失，填寫改善說明、完成日期並上傳改善後照片回報。");
+  openIssueModal(textFull);
 }
+/* 已經發過改善單，要不要再複製一次：原本是容易被忽略的瀏覽器原生 confirm()，改成跟其他
+   提示統一風格的彈窗，回傳 Promise<boolean>。 */
+function askReissue(r){
+  return new Promise(res=>{
+    $("#issueModalBody").innerHTML=`<div class="banner warn">這張登錄單已經在 ${esc(new Date(r.issuedAt).toLocaleString("zh-TW",{hour12:false}))} 發過改善單。連結不會變，船上先前已經填的內容不會消失——只是要再複製一次內容，提醒船上填寫嗎？</div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn primary" id="issueReconfirmYes">📋 是，再複製一次內容</button>
+        <button class="btn" id="issueReconfirmNo">取消</button>
+      </div>`;
+    $("#issueModal").style.display="flex";
+    $("#issueReconfirmYes").onclick=()=>{res(true);};
+    $("#issueReconfirmNo").onclick=()=>{$("#issueModal").style.display="none";res(false);};
+  });
+}
+/* 複製完成後明確告訴使用者：複製了什麼、接下來該怎麼貼給船上、船上打開連結後會看到什麼，
+   不要只靠系統 alert() 一閃即過，船上流程不熟的人很容易不知道下一步要做什麼。 */
+function openIssueModal(textFull){
+  $("#issueModalBody").innerHTML=`
+    <div class="banner" style="margin:0 0 12px">✓ 已把下面這段內容複製到剪貼簿了</div>
+    <p class="hint" style="margin:0 0 6px">請直接貼到要發給船上的 Email、LINE 或其他通訊軟體（Ctrl+V／長按貼上）；如果剛剛複製沒成功，也可以點下面文字方塊全選後手動複製：</p>
+    <textarea id="issueCopyBox" readonly style="width:100%;min-height:110px;font-family:var(--mono);font-size:12.5px;padding:10px;border:1px solid var(--line-2);border-radius:7px" onclick="this.select()">${esc(textFull)}</textarea>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn primary" onclick="reCopyIssueText()">📋 再複製一次</button>
+      <button class="btn" onclick="closeIssueModal()">完成，關閉</button>
+    </div>
+    <div class="hint" style="margin-top:16px;line-height:1.9;background:#f7f9fb;border-radius:8px;padding:10px 14px">
+      <b style="color:var(--navy)">接下來請這樣做：</b><br>
+      1️⃣ 把上面內容貼到要傳給船上的訊息裡，直接送出（可以直接寄給船長／大副，或貼到船隊群組）<br>
+      2️⃣ 船上收到後點連結開啟，會看到這張單所有「需要船上改善」的缺失項目逐筆列出（FLOW 類的缺失不會出現在這裡，船上要另外去 FLOW 系統辦理）<br>
+      3️⃣ 船上針對每一筆填寫改善措施、完成日期，可以附上改善後照片，填完按「送出」<br>
+      4️⃣ 之後回到這張登錄單，可以看到船上陸續回報的內容，審核無誤後即可結案
+    </div>`;
+  $("#issueModal").style.display="flex";
+}
+async function reCopyIssueText(){
+  const el=$("#issueCopyBox");if(!el)return;
+  try{await navigator.clipboard.writeText(el.value);toast("✓ 已再複製一次");}
+  catch(e){el.select();toast("⚠ 自動複製失敗，已幫您選取文字，請手動按 Ctrl+C 複製",true);}
+}
+function closeIssueModal(){$("#issueModal").style.display="none";}
 /* 內控 Excel：欄位、順序與船舶動態與早會待辦系統「內控異常清單」匯出檔一致（16 欄，HTML 格式 .xls，Excel 可直接開） */
 function exportIcXls(id){
   const r=Store.rows.find(x=>x.id===id);if(!r)return;
