@@ -273,19 +273,14 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
   <div id="reviewPage" style="display:none">
     <div class="banner">船上在改善單填寫、送出的改善措施會先出現在這裡，由督導逐筆或批量審核結案；<b>審核結案後才算定案</b>，之後主系統只需要把已審核的內容套用到缺失紀錄總表，不需要再另外審核一次。FLOW 類缺失船上另外在 FLOW 系統辦理，不會出現在這裡。</div>
     <div class="toolbar">
-      <select id="rvStatusFlt" onchange="setReviewStatusFlt(this.value)">
-        <option value="submitted">待審核</option>
-        <option value="reviewed">已結案</option>
-        <option value="returned">已退回待船上重填</option>
-        <option value="all">全部</option>
-      </select>
       <select id="rvShip" onchange="renderReview()"><option value="">全部船舶</option></select>
+      <select id="rvInspector" onchange="renderReview()"><option value="">全部檢查人</option></select>
       <select id="rvMode" onchange="renderReview()"><option value="">全部結案方式</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
       <input type="text" id="rvQ" placeholder="搜尋船名／分類／缺失描述／回報人" oninput="renderReview()" style="flex:1;min-width:160px">
-      <input type="text" id="rvReviewer" placeholder="審核人姓名（選填）" style="width:150px" oninput="saveReviewerName()">
       <button class="btn sm" onclick="Store.loadReplies().then(renderReview)">🔄 重新整理</button>
-      <span class="hint" id="rvStat"></span>
     </div>
+    <div id="rvStatusChips" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 14px 10px"></div>
+    <div style="margin:0 14px"><span class="hint" id="rvStat"></span></div>
     <div id="reviewToolbar2" class="toolbar" style="margin-top:0"></div>
     <div style="margin:0 14px">
       <label style="display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:13px;color:var(--ink-2);cursor:pointer;margin-bottom:8px">
@@ -708,14 +703,21 @@ function reviewItems(){
   });
   return items;
 }
-function reviewFilteredItems(){
+/* 船舶／檢查人／結案方式／關鍵字這幾個篩選先套用（跟狀態無關），狀態快捷籤的筆數就是
+   在這個基準上各別算出來的，才會跟畫面上實際篩出來的結果對得上。 */
+function reviewBaseItems(){
   let items=reviewItems();
-  if(reviewStatusFlt!=="all")items=items.filter(x=>x.rp.status===reviewStatusFlt);
-  const fs=$("#rvShip")?$("#rvShip").value:"",fm=$("#rvMode")?$("#rvMode").value:"",q=$("#rvQ")?$("#rvQ").value.trim().toLowerCase():"";
+  const fs=$("#rvShip")?$("#rvShip").value:"",fi=$("#rvInspector")?$("#rvInspector").value:"",fm=$("#rvMode")?$("#rvMode").value:"",q=$("#rvQ")?$("#rvQ").value.trim().toLowerCase():"";
   if(fs)items=items.filter(x=>x.r.ship===fs);
+  if(fi)items=items.filter(x=>x.r.inspector===fi);
   if(fm)items=items.filter(x=>x.d.closeMode===fm);
   if(q)items=items.filter(x=>{const p=x.rp.payload||{};return [shipLabel(x.r.ship),x.r.inspector,x.d.category,x.d.finding,p.by].join(" ").toLowerCase().includes(q);});
   return items;
+}
+function reviewFilteredItems(){
+  const items=reviewBaseItems();
+  if(reviewStatusFlt==="all")return items;
+  return items.filter(x=>x.rp.status===reviewStatusFlt);
 }
 /* 清掉歷史孤兒資料：這次修正之前，刪除登錄單／刪除單筆缺失都沒有連帶刪除 intaudit_replies，
    舊資料裡可能還留著幾筆「對應的登錄單或缺失已經不存在」的回報殘影，不會在這裡（或任何畫面）
@@ -748,15 +750,13 @@ function updateReviewBadge(){
   const el=$("#btnReviewCount");if(!el)return;
   if(n){el.textContent=n;el.style.display="";}else{el.style.display="none";}
 }
-const RV_REVIEWER_KEY="vsm_intaudit_reviewer_v1";
-function saveReviewerName(){try{localStorage.setItem(RV_REVIEWER_KEY,$("#rvReviewer").value.trim());}catch(e){}}
-function loadReviewerName(){try{return localStorage.getItem(RV_REVIEWER_KEY)||"";}catch(e){return "";}}
 function showReview(){
   stopAutoSave();
   $("#listPage").style.display="none";$("#formPage").style.display="none";$("#reviewPage").style.display="";
   $("#btnList").classList.remove("primary");$("#btnNew").classList.remove("primary");$("#btnReview").classList.add("primary");
   $("#rvShip").innerHTML='<option value="">全部船舶</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}">${esc(s.label)}</option>`).join("");
-  $("#rvReviewer").value=loadReviewerName();
+  const inspectors=[...new Set(reviewItems().map(x=>x.r.inspector).filter(Boolean))].sort();
+  $("#rvInspector").innerHTML='<option value="">全部檢查人</option>'+inspectors.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
   reviewSel.clear();
   renderReview();
 }
@@ -769,8 +769,16 @@ function toggleAllReviewSel(on){
 }
 function renderReview(){
   const box=$("#reviewBody");if(!box)return;
+  // 狀態快捷籤：筆數是在船舶／檢查人／結案方式／關鍵字這些篩選的基準上算的，跟畫面上
+  // 實際篩出來的結果一致，不是整個系統的總數——不然點進某張船、再看籤上數字會對不起來。
+  const base=reviewBaseItems();
+  const statusDefs=[["all","全部"],["submitted","待審核"],["reviewed","已結案"],["returned","已退回待重填"]];
+  $("#rvStatusChips").innerHTML=statusDefs.map(([k,l])=>{
+    const n=k==="all"?base.length:base.filter(x=>x.rp.status===k).length;
+    return `<span class="fchip ${reviewStatusFlt===k?"on":""}" onclick="setReviewStatusFlt('${k}')">${l}<b>${n}</b></span>`;
+  }).join("");
   const items=reviewFilteredItems();
-  const pending=reviewItems().filter(x=>x.rp.status==="submitted").length;
+  const pending=base.filter(x=>x.rp.status==="submitted").length;
   const orphanN=orphanReplies().length;
   $("#rvStat").innerHTML=`顯示 ${items.length} 筆・全部待審核 ${pending} 筆`+(orphanN?`　<button class="btn sm danger" onclick="cleanupOrphanReplies()">🗑 清除 ${orphanN} 筆孤兒資料</button><span class="hint" style="cursor:help" title="「孤兒資料」是指：船上曾經回報過，但後來這筆缺失（或整張登錄單）已經被督導刪除，導致這份回報內容沒有任何缺失可以對應，變成一筆留在雲端卻用不到的殘留資料。它不會顯示在「檢查紀錄登錄清單」裡，但會一直留在主系統的「船上改善回報」清單中，看起來像是「刪了怎麼還在」。按這顆按鈕會把這些殘留資料從雲端清掉，不影響任何還有效的缺失或回報。">　ⓘ 什麼是孤兒資料？</span>`:"");
   const selAllBox=$("#rvSelAll");
@@ -810,7 +818,7 @@ async function returnReplyAudit(rid,uid){
   if(note===null)return;
   if(!note.trim()){toast("⚠ 請填寫退回原因");return;}
   try{
-    const now=Date.now(),newPayload=Object.assign({},rp.payload,{returnNote:note.trim(),returnedAt:now,returnedBy:($("#rvReviewer").value||"").trim()});
+    const now=Date.now(),newPayload=Object.assign({},rp.payload,{returnNote:note.trim(),returnedAt:now});
     await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"returned",payload:newPayload,updated_at:now})});
     rp.status="returned";rp.payload=newPayload;
     reviewSel.delete(key);
@@ -825,12 +833,11 @@ async function batchReturnReview(){
   const note=prompt(`退回原因（會套用到勾選的 ${keys.length} 筆，船上會在改善單上看到，請寫清楚要補什麼）：`);
   if(note===null)return;
   if(!note.trim()){toast("⚠ 請填寫退回原因");return;}
-  const reviewerName=($("#rvReviewer").value||"").trim();
   let ok=0,fail=0;
   for(const key of keys){
     const rp=Store.replies[key];
     try{
-      const now=Date.now(),newPayload=Object.assign({},rp.payload,{returnNote:note.trim(),returnedAt:now,returnedBy:reviewerName});
+      const now=Date.now(),newPayload=Object.assign({},rp.payload,{returnNote:note.trim(),returnedAt:now});
       await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"returned",payload:newPayload,updated_at:now})});
       rp.status="returned";rp.payload=newPayload;ok++;
     }catch(e){fail++;}
@@ -845,7 +852,7 @@ async function closeReplyAudit(rid,uid){
   const key=`${rid}_${uid}`,rp=Store.replies[key];if(!rp||rp.status!=="submitted")return;
   if(!confirm("確定這筆改善內容審核通過、結案嗎？\n\n結案後主系統只需要把這筆已審核的內容套用到缺失紀錄總表，不需要再另外審核一次。"))return;
   try{
-    const now=Date.now(),newPayload=Object.assign({},rp.payload,{reviewedAt:now,reviewedBy:($("#rvReviewer").value||"").trim()});
+    const now=Date.now(),newPayload=Object.assign({},rp.payload,{reviewedAt:now});
     await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"reviewed",payload:newPayload,updated_at:now})});
     rp.status="reviewed";rp.payload=newPayload;
     reviewSel.delete(key);
@@ -859,11 +866,10 @@ async function batchCloseReview(){
   if(!keys.length){toast("⚠ 勾選的項目都不是待審核狀態，請重新整理");return;}
   if(!confirm(`確定要將勾選的 ${keys.length} 筆改善內容一次審核通過、結案嗎？`))return;
   let ok=0,fail=0;
-  const reviewerName=($("#rvReviewer").value||"").trim();
   for(const key of keys){
     const rp=Store.replies[key];
     try{
-      const now=Date.now(),newPayload=Object.assign({},rp.payload,{reviewedAt:now,reviewedBy:reviewerName});
+      const now=Date.now(),newPayload=Object.assign({},rp.payload,{reviewedAt:now});
       await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"reviewed",payload:newPayload,updated_at:now})});
       rp.status="reviewed";rp.payload=newPayload;ok++;
     }catch(e){fail++;}
@@ -876,7 +882,7 @@ async function batchCloseReview(){
    不用自己在審核清單裡重新找。 */
 function gotoReviewItem(rid,uid){
   showReview();
-  reviewStatusFlt="all";$("#rvStatusFlt").value="all";
+  reviewStatusFlt="all";
   renderReview();
   setTimeout(()=>{
     const el=document.getElementById(`rv-${rid}_${uid}`);
