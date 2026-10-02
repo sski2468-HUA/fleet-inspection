@@ -10590,7 +10590,7 @@ function MSel(elId,label,getOptions,onChange,getLabel){
     srch.onclick=e=>e.stopPropagation();
     p.querySelectorAll(".chip[data-v]").forEach(ch=>ch.onclick=e=>{e.stopPropagation();const v=ch.getAttribute("data-v");st.sel.has(v)?st.sel.delete(v):st.sel.add(v);ch.classList.toggle("on");refreshBtn();onChange();});
     p.querySelector('[data-op=all]').onclick=e=>{e.stopPropagation();opts.forEach(o=>st.sel.add(o));renderPanel();refreshBtn();onChange();};
-    p.querySelector('[data-op=none]').onclick=e=>{e.stopPropagation();st.sel.clear();renderPanel();refreshBtn();onChange();};
+    p.querySelector('[data-op=none]').onclick=e=>{e.stopPropagation();st.sel.clear();st.q="";renderPanel();refreshBtn();onChange();};
   }
   function refreshBtn(){const b=root.querySelector("button");b.innerHTML=`${label}${st.sel.size?` <span class="cnt">${st.sel.size}</span>`:""} <span class="car">▼</span>`;}
   root.classList.add("msel");root.innerHTML=btnHtml();
@@ -15183,7 +15183,10 @@ const Defs={
       if(terms.length){
         // 補上原本漏掉沒被搜到的欄位：姓名-責任人(person)是最常被找的，其餘幾個也一併補齊，
         // 這樣關鍵字搜尋才算真的涵蓋所有看得到的欄位，不是只搜一部分。
-        const hay=`${d.ship} ${d.itype} ${icatOf(d.itype)} ${d.date} ${d.place} ${d.inspector} ${d.oilco} ${d.code} ${d.psc||""} ${d.rank||""} ${d.person||""} ${d.ncProb||""} ${d.ncMain||""} ${d.ncLeaf||""} ${d.ncFactor||""} ${d.ncMethod||""} ${d.detail} ${d.actual} ${d.preventive} ${d.ncOpinion||""}`.toLowerCase();
+        // ⚠ d.ship 存的是船舶代碼（如 B108），不是畫面上顯示的「中文＋英文」船名，
+        // 單搜代碼使用者打真正看到的船名（例如「FPMC S AMBER」）會完全搜不到——
+        // 這裡額外把 shipFullLabel(d.ship) 併進去，代碼、中文、英文都能搜到。
+        const hay=`${d.ship} ${shipFullLabel(d.ship)} ${d.itype} ${icatOf(d.itype)} ${d.date} ${d.place} ${d.inspector} ${d.oilco} ${d.code} ${d.psc||""} ${d.rank||""} ${d.person||""} ${d.ncProb||""} ${d.ncMain||""} ${d.ncLeaf||""} ${d.ncFactor||""} ${d.ncMethod||""} ${d.detail} ${d.actual} ${d.preventive} ${d.ncOpinion||""}`.toLowerCase();
         if(!terms.every(t=>hay.includes(t)))return false;
       }
       if(typeof DefsAdvFilter!=="undefined"&&!DefsAdvFilter.pass(d))return false;
