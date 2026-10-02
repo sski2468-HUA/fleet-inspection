@@ -23594,6 +23594,18 @@ const Air={
     if($("#air-push-sirepos").checked)targets.push("sirepos");
     if(!targets.length){toast("⚠ 請至少勾選一個要轉入的地方");return;}
     this.closePushModal();
+    // ⚠ 轉入前先同步一次雲端最新資料再執行，避免這台裝置本機資料不是最新的，拿舊資料去比對
+    // 「這筆以前轉過沒」「要覆蓋哪一筆」而誤判（例如剛好有別的裝置也動過這幾筆填單／檢查紀錄）。
+    // 過程中用跟「從雲端載入」同一顆彈窗鎖住畫面，讓使用者清楚知道現在在做什麼、不要中途關頁面，
+    // 轉入完成後也用同一顆彈窗明確顯示成功或失敗，而不是容易被忽略、幾秒後自動消失的 toast。
+    const modal=$("#syncStatusModal"),body=$("#syncStatusBody"),useModal=!!(modal&&body);
+    if(useModal){
+      body.innerHTML=`<div style="font-size:34px;margin-bottom:10px">⏳</div><h3 style="margin:0 0 8px">正在抓取最新資料…</h3><p class="hint">請稍候，完成前請不要關閉頁面或進行其他操作。</p>`;
+      modal.classList.add("show");
+    }
+    try{ if(typeof Cloud!=="undefined")await Cloud.loadDB(true); }catch(e){console.warn("轉入前重新整理雲端資料失敗",e);}
+    this.renderList(); // 用剛載入的最新資料重畫列表；勾選的 id 不變，仍對得上同一批紀錄
+    if(useModal)body.innerHTML=`<div style="font-size:34px;margin-bottom:10px">⏳</div><h3 style="margin:0 0 8px">正在轉入…</h3><p class="hint">請稍候，轉入過程中請不要關閉頁面或進行其他操作。</p>`;
     // 依序轉入各個勾選的地方，沿用各自既有的驗證／重複轉入警示邏輯（每個地方跳一次確認視窗）；
     // 個別目標失敗時記下來繼續跑下一個，不要讓其中一個出錯就整批卡住，最後統一告知結果。
     const failed=[];
@@ -23603,13 +23615,21 @@ const Air={
       try{ const ok=await this.pushSelected(t); if(ok===false)skipped.push(t); }
       catch(e){ console.error("pushSelected failed for target="+t,e); failed.push(`${labelMap[t]}（${e.message}）`); }
     }
-    // 用 alert() 而不是 toast()：toast 會在幾秒後自動消失、也可能被後面接著跳出的訊息蓋掉，
-    // 轉入失敗這種事必須讓使用者確實看到、按確定才會消失，避免以為轉成功了其實沒有。
-    if(failed.length){
-      alert(`⚠ 轉入時發生問題，以下項目沒有成功轉入，請重新勾選再試一次，若持續失敗請截圖回報：\n\n${failed.join("\n")}`);
+    const done=targets.filter(t=>!skipped.includes(t)).map(t=>labelMap[t]);
+    if(useModal){
+      if(failed.length){
+        body.innerHTML=`<div style="font-size:34px;margin-bottom:10px;color:var(--bad)">⚠</div><h3 style="margin:0 0 10px;color:var(--bad)">轉入時發生問題</h3>
+          <p style="text-align:left;background:#fdf2f0;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7;white-space:pre-line">以下項目沒有成功轉入，請重新勾選再試一次，若持續失敗請截圖回報：\n${esc(failed.join("\n"))}</p>
+          <button class="btn primary" style="margin-top:14px" onclick="Cloud.closeSyncModal()">確認</button>`;
+      }else{
+        body.innerHTML=`<div style="font-size:34px;margin-bottom:10px;color:var(--ok)">✓</div><h3 style="margin:0 0 10px;color:var(--ok)">轉入成功</h3>
+          <p style="text-align:left;background:#f7f9f9;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7">${done.length?"已完成轉入："+esc(done.join("、")):"沒有項目被轉入（可能都被判定為沒有內容而跳過）"}</p>
+          <button class="btn primary" style="margin-top:14px" onclick="Cloud.closeSyncModal()">確認</button>`;
+      }
     }else{
-      const done=targets.filter(t=>!skipped.includes(t)).map(t=>labelMap[t]);
-      if(done.length)toast(`✓ 已完成轉入（${done.join("、")}）`);
+      // 找不到共用彈窗元素時，退回原本的 alert/toast 行為，不要整個功能壞掉
+      if(failed.length)alert(`⚠ 轉入時發生問題，以下項目沒有成功轉入，請重新勾選再試一次，若持續失敗請截圖回報：\n\n${failed.join("\n")}`);
+      else if(done.length)toast(`✓ 已完成轉入（${done.join("、")}）`);
     }
     this._pushScopeId=null;
     this.selected.clear();this.renderList();
