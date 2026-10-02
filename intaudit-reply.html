@@ -63,7 +63,21 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
 .mtab.flow.on{background:#eceff1;border-color:#8195a0;color:#455a66}
 .mtab.ic.on{background:#fdeedf;border-color:var(--signal);color:#b5610f}
 .mtab.sys.on{background:var(--teal-l);border-color:var(--teal);color:var(--teal)}
-.mtab.on{border-width:2px}
+/* 原本「選中」只有加粗邊框，顏色跟沒選中的差異很小，船上滑過去一下子很容易看不出目前
+   篩的是哪個——改成選中一律填滿深色底＋打勾符號，不管哪個分頁列都一眼看得出來。 */
+.mtab.on{border-width:2px;background:var(--navy);border-color:var(--navy);color:#fff}
+.mtab.on::before{content:"✓ ";font-weight:900}
+.mtab.flow.on{background:#455a66;border-color:#455a66;color:#fff}
+.mtab.ic.on{background:var(--signal);border-color:var(--signal);color:#fff}
+.mtab.sys.on{background:var(--teal);border-color:var(--teal);color:#fff}
+/* 全船總計：不受上方篩選影響，隨時都顯示整張改善單（排除 FLOW）的完成度，
+   避免船上篩著篩著只看局部分類，誤以為全部填完了，其實其他分類還有未填項目。 */
+.globalbar{position:sticky;top:0;z-index:21;background:var(--navy);color:#fff;padding:10px 14px;margin:14px 14px 0;border-radius:8px;font-size:13.5px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.globalbar b{font-size:14px}
+.globalbar .gstat{font-family:ui-monospace,Consolas,monospace;font-weight:700;padding:2px 10px;border-radius:10px}
+.globalbar .gstat.ok{background:#2e8b57}
+.globalbar .gstat.warn{background:#c0392b}
+.globalbar .ghint{font-size:11.5px;color:#cfdcea;font-weight:400}
 .cmnote{background:var(--teal-l);border:1px solid #bfdde0;border-radius:8px;padding:10px 14px;font-size:13px;line-height:1.7;color:#22505a;margin:0 0 10px}
 .badge{display:inline-block;font-size:12px;font-weight:700;border-radius:10px;padding:2px 11px}
 .badge.red{background:#fde8e6;color:#c0392b}.badge.yellow{background:#ffe38a;color:#6b4e00}.badge.green{background:#dff2e6;color:#20703f}.badge.lock{background:#e3e8ec;color:#455a66}
@@ -107,6 +121,7 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
       </div>
       <div class="hint">姓名、職稱送出時會一併記錄；這台裝置下次會記得您填過的內容。</div>
     </div>
+    <div class="globalbar" id="globalBar"></div>
     <div style="margin:14px 14px 0">
       <div class="mtabs" id="typeTabs"></div>
       <div class="mtabs" id="modeTabs" style="margin-top:8px"></div>
@@ -350,7 +365,24 @@ function renderTypeTabs(){
   const ttab=(k,l,n)=>`<button type="button" class="mtab ${typeFlt===k?"on":""}" onclick="setTypeFlt('${k}')">${esc(l)}<b>${n}</b></button>`;
   $("#typeTabs").innerHTML=list.length>1?ttab("all","全部",(rec.defs||[]).length)+list.map(([l,n])=>ttab(l,l,n)).join(""):"";
 }
+/* 全船總計：固定顯示整張改善單（排除 FLOW，FLOW 本來就不在這裡填）的完成度，完全不受
+   上方「檢查種類」「結案方式」篩選影響——船上很容易篩著篩著只看局部分類就以為填完了，
+   這裡隨時提醒還有沒有其他分類沒填完，不用切回「全部」才看得到真正的總進度。 */
+function renderGlobalBar(){
+  const el=$("#globalBar"); if(!el) return;
+  const items=nonFlow(rec);
+  if(!items.length){ el.innerHTML=""; el.style.display="none"; return; }
+  el.style.display="";
+  let done=0;
+  items.forEach(d=>{ const st=stOf(d); if(st==="green"||st==="lock") done++; });
+  const remain=items.length-done;
+  el.innerHTML=`<b>📋 全船應填報總計 ${items.length} 項</b>`+
+    `<span class="gstat ok">已填 ${done}</span>`+
+    (remain?`<span class="gstat warn">尚有 ${remain} 項未填完</span>`:`<span class="gstat ok">✓ 全部已填完</span>`)+
+    `<span class="ghint">（不受上方篩選影響，篩選只是方便分類查看，不會漏算）</span>`;
+}
 function renderRows(){
+  renderGlobalBar();
   renderTypeTabs();
   const flows=(rec.defs||[]).filter(d=>d.closeMode==="FLOW"&&typePass(d));
   const icN=nonFlow(rec).filter(d=>d.closeMode==="內控"&&typePass(d)).length,sysN=nonFlow(rec).filter(d=>d.closeMode==="系統內結案"&&typePass(d)).length;
@@ -365,7 +397,7 @@ function renderRows(){
   $("#bar").style.display="";$("#submitBar").style.display="";
   const list=subset();
   $("#defList").innerHTML=list.length?list.map((d,i)=>rowHtml(d,i+1)).join(""):`<div class="banner" style="margin:0">${modeFlt==="all"?"這張改善單沒有需要船上改善的項目。":"目前沒有這個結案方式的項目。"}</div>`;
-  $("#flowNote").innerHTML=(modeFlt==="all"&&flows.length)?`<b style="display:block;margin:0 14px 10px;font-size:14px;color:var(--ink)">以下 ${flows.length} 項屬 FLOW 系統（DMP-FM01）缺失，不在這裡回報，請船上自行至 FLOW 系統填單：</b><div class="rows" style="margin-top:0">${flows.map((d,i)=>flowCardHtml(d,i)).join("")}</div>`:"";
+  $("#flowNote").innerHTML=(modeFlt==="all"&&flows.length)?`<div class="cmnote" style="margin:0 14px 10px;font-size:16px;font-weight:700;padding:14px 16px">以下 ${flows.length} 項屬 FLOW 系統（DMP-FM01）缺失，不在這裡回報，請船上自行至 FLOW 系統填單：</div><div class="rows" style="margin-top:0">${flows.map((d,i)=>flowCardHtml(d,i)).join("")}</div>`:"";
   updateBar();applyFlt();
 }
 /* Word：內容＝督導登錄單全部內容＋船上已送出的回報（改善措施、完成日期、證據備註、改善後照片） */
