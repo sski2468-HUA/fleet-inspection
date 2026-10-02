@@ -82,6 +82,17 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
 .badge{display:inline-block;font-size:12px;font-weight:700;border-radius:10px;padding:2px 11px}
 .badge.red{background:#fde8e6;color:#c0392b}.badge.yellow{background:#ffe38a;color:#6b4e00}.badge.green{background:#dff2e6;color:#20703f}.badge.lock{background:#e3e8ec;color:#455a66}
 .two{display:grid;grid-template-columns:200px 1fr;gap:12px}
+/* 步驟導引（1填寫人 →2 FLOW項目 →3 系統填報 →4 預覽送出） */
+.stepbar{display:flex;gap:4px;margin:14px;flex-wrap:wrap;position:sticky;top:0;z-index:19;background:var(--paper);padding-top:4px}
+.stepbar .step{flex:1;min-width:130px;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line-2);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:700;color:var(--ink-2)}
+.stepbar .step .dot{width:24px;height:24px;border-radius:50%;background:var(--line-2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+.stepbar .step.current{border-color:var(--navy);box-shadow:0 0 0 2px rgba(28,58,94,.15);color:var(--navy)}
+.stepbar .step.current .dot{background:var(--navy)}
+.stepbar .step.done .dot{background:var(--ok)}
+.stepbar .step.done .dot::before{content:"✓"}
+.navrow{display:flex;justify-content:space-between;align-items:center;margin:14px;gap:10px;flex-wrap:wrap}
+.confirmrow{display:flex;gap:8px;align-items:center;font-weight:700;margin:14px;background:#fff;border:1px solid var(--line-2);border-radius:8px;padding:12px 16px;font-size:14px}
+.confirmrow input{width:auto}
 /* 清單頁 */
 .tabs{display:flex;gap:8px;margin:14px}
 .tabs button{border:1px solid var(--line-2);background:#fff;border-radius:20px;padding:8px 20px;font-size:14px;font-weight:700;cursor:pointer;color:var(--ink-2);font-family:var(--sans)}
@@ -113,29 +124,66 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
 
   <!-- ══════ 單張改善單（?rid=單號）══════ -->
   <div id="main" style="display:none">
-    <div class="banner">請針對下列每一項待改善缺失，填寫<b>改善措施簡述</b>、<b>改善完成日期</b>，，改善後照片<b>選填</b>（最多 3 張）。可以先填幾項、其餘之後再補；填完後按最下方「送出」，送出後會自動存一份 Word 檔。已送出的項目在海技審核前都能修改。</div>
-    <div class="card">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <label>填寫人姓名 <span class="req">*</span><input type="text" id="fName" autocomplete="off"></label>
-        <label>填寫人職稱 <span class="req">*</span><select id="fTitle"></select></label>
-      </div>
-      <div class="hint">姓名、職稱送出時會一併記錄；這台裝置下次會記得您填過的內容。</div>
-    </div>
     <div class="globalbar" id="globalBar"></div>
-    <div style="margin:14px 14px 0">
-      <div class="mtabs" id="typeTabs"></div>
+    <div class="stepbar" id="stepbar">
+      <div class="step" data-n="1" onclick="goStep(1)"><span class="dot">1</span><span class="lbl">填寫人</span></div>
+      <div class="step" data-n="2" onclick="goStep(2)"><span class="dot">2</span><span class="lbl">FLOW 填單項目</span></div>
+      <div class="step" data-n="3" onclick="goStep(3)"><span class="dot">3</span><span class="lbl">系統填報</span></div>
+      <div class="step" data-n="4" onclick="goStep(4)"><span class="dot">4</span><span class="lbl">預覽並送出</span></div>
+    </div>
+
+    <!-- Step 1：填寫人 -->
+    <div id="stepPanel1">
+      <div class="banner">請先填寫填寫人姓名與職稱，這會一併記錄在之後送出的每一項回報裡；這台裝置下次會記得您填過的內容。</div>
+      <div class="card">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <label>填寫人姓名 <span class="req">*</span><input type="text" id="fName" autocomplete="off"></label>
+          <label>填寫人職稱 <span class="req">*</span><select id="fTitle"></select></label>
+        </div>
+      </div>
+    </div>
+    <div class="navrow" id="navrow1"><span></span><button class="btn primary" onclick="goStep(2)">下一步：FLOW 填單項目 →</button></div>
+
+    <!-- Step 2：FLOW 填單項目（不在本頁回報，只列出提醒清單，預設全部、可篩選檢查種類） -->
+    <div id="stepPanel2" style="display:none">
+      <div class="cmnote" style="font-size:15px;font-weight:700;padding:14px 16px">以下屬 FLOW 系統（DMP-FM01）缺失，請至 FLOW 系統辦理立案並在 FLOW 系統內完成結案，<b>不需要在這裡填寫回報</b>，這裡僅列出清單供核對，預設顯示全部，可依檢查種類篩選查看。</div>
+      <div class="mtabs" id="flowTypeTabs"></div>
+      <div id="flowList"></div>
+    </div>
+    <div class="navrow" id="navrow2" style="display:none">
+      <button class="btn" onclick="goStep(1)">← 上一步</button>
+      <button class="btn primary" onclick="goStep(3)">下一步：系統填報 →</button>
+    </div>
+
+    <!-- Step 3：系統填報（內控／系統內結案，預設全部，可篩選檢查種類與結案方式） -->
+    <div id="stepPanel3" style="display:none">
+      <div class="banner">請針對下列每一項待改善缺失，填寫<b>改善措施簡述</b>、<b>改善完成日期</b>，改善後照片<b>選填</b>（最多 3 張）。可以先填幾項、其餘之後再補，填寫內容會自動存成草稿。</div>
+      <div class="mtabs" id="sysTypeTabs"></div>
       <div class="mtabs" id="modeTabs" style="margin-top:8px"></div>
       <div id="modeNote"></div>
+      <div class="bar" id="bar"></div>
+      <div id="errBox" class="errors" style="display:none"></div>
+      <div class="rows" id="defList"></div>
     </div>
-    <div class="bar" id="bar"></div>
-    <div id="errBox" class="errors" style="display:none"></div>
-    <div class="rows" id="defList"></div>
-    <div id="flowNote"></div>
-    <div id="submitBar" style="margin:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <button class="btn primary" onclick="submitAll()">✓ 送出已填完的項目（並存成 Word）</button>
-      <button class="btn" onclick="downloadWord(true)">⬇ 只下載 Word（不送出）</button>
-      <span class="hint">送出時只會送「改善措施與完成日期都填完」的項目；填到一半的項目會保留在草稿，不會遺失。</span>
+    <div class="navrow" id="navrow3" style="display:none">
+      <button class="btn" onclick="goStep(2)">← 上一步</button>
+      <button class="btn primary" onclick="goStep(4)">下一步：預覽並送出 →</button>
     </div>
+
+    <!-- Step 4：預覽並確認資料，送出或先匯出草稿 -->
+    <div id="stepPanel4" style="display:none">
+      <div class="banner">請確認下方填報內容無誤後再送出；若還沒填完，也可以先匯出草稿存檔，不會送出、也不會遺失已填內容。</div>
+      <div id="previewBox"></div>
+      <label class="confirmrow"><input type="checkbox" id="confirmChk" onchange="document.getElementById('btnSubmit').disabled=!this.checked">我已確認以上填報內容無誤</label>
+    </div>
+    <div class="navrow" id="navrow4" style="display:none">
+      <button class="btn" onclick="goStep(3)">← 上一步</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn primary" id="btnSubmit" disabled onclick="submitAll()">✓ 送出已填完的項目（並存成 Word）</button>
+        <button class="btn" onclick="downloadWord(true)">💾 暫時不送出，先匯出草稿存檔（Word）</button>
+      </div>
+    </div>
+    <div class="hint" style="margin:0 14px 20px">送出時只會送「改善措施與完成日期都填完」的項目；填到一半的項目會保留在草稿，不會遺失。</div>
   </div>
 </div>
 <div class="lightbox" id="lightbox" onclick="this.style.display='none'"><img id="lightboxImg" alt=""></div>
@@ -151,7 +199,7 @@ async function api(path,opts){const r=await fetch(`${CLOUD.url}/rest/v1/${path}`
 const RANK_OPTIONS=["Master船長","C/O大副","2/O二副","3/O三副","C/E輪機長","2/E大管","3/E二管","4/E三管","BSN水手長","AB幹練水手","OS普通水手","COOK廚師","FTR銅匠","OLR加油匠","PM泵匠","A.Capt.見習船長","A.C/O見習大副","A.2/O見習二副","A.3/O見習三副","A.C/E見習輪機長","A.2/E見習大管","A.3/E見習二管","A.4/E見習三管","其他(請聯繫海技新增)"];
 const QS=new URLSearchParams(location.search),RID=QS.get("rid"),SHIP=QS.get("ship");
 const MAX_PH=3,ID_KEY="vsm_iareply_who_v1",DRAFT_KEY="vsm_iareply_draft_"+RID;
-let SHIPS=[],rec=null,replies={},drafts={},flt="all",modeFlt="all",typeFlt="all";
+let SHIPS=[],rec=null,replies={},drafts={},flt="all",modeFlt="all",flowTypeFlt="all",sysTypeFlt="all",currentStep=1;
 const todayIso=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
 const typeLabels=r=>(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、");
 function download(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);}
@@ -249,7 +297,7 @@ async function initRec(){
   $("#fTitle").innerHTML='<option value="">— 請選擇職稱 —</option>'+RANK_OPTIONS.map(r=>`<option ${w.title===r?"selected":""}>${esc(r)}</option>`).join("");
   $("#fName").oninput=saveWho;$("#fTitle").onchange=saveWho;
   $("#main").style.display="";
-  renderRows();
+  goStep(1);
 }
 async function reloadReplies(){
   const rr=await api(`intaudit_replies?record_id=eq.${encodeURIComponent(RID)}&select=id,def_uid,status,payload`);
@@ -303,10 +351,18 @@ function rowHtml(d,seq){
 }
 /* 檢查種類 Audit Type 篩選：跟結案方式（modeFlt）是兩個獨立維度，可以同時套用——
    例如只看「訪船」裡還沒結案的項目。型別標籤用 typeDef(d.type).label 判斷，
-   同一種「專項檢查」底下不同 SAR 表單一律合併算同一個「專項檢查」分類。 */
+   同一種「專項檢查」底下不同 SAR 表單一律合併算同一個「專項檢查」分類。
+   FLOW 項目跟系統填報項目各自是獨立的步驟頁面，所以各自有自己的檢查種類篩選狀態
+   （flowTypeFlt／sysTypeFlt），切換其中一邊不會互相影響。 */
 function typeKeyOf(d){const t=typeDef(d.type);return t?t.label:"（未分類）";}
-function typePass(d){return typeFlt==="all"||typeKeyOf(d)===typeFlt;}
-function subset(){return (modeFlt==="all"?nonFlow(rec):nonFlow(rec).filter(d=>d.closeMode===modeFlt)).filter(typePass);}
+function sysTypePass(d){return sysTypeFlt==="all"||typeKeyOf(d)===sysTypeFlt;}
+function subset(){return (modeFlt==="all"?nonFlow(rec):nonFlow(rec).filter(d=>d.closeMode===modeFlt)).filter(sysTypePass);}
+function typeTabList(items){
+  const present=new Map();
+  items.forEach(d=>{const l=typeKeyOf(d);present.set(l,(present.get(l)||0)+1);});
+  const order=TYPE_DEFS.map(t=>t.label).filter((v,i,a)=>a.indexOf(v)===i);
+  return order.filter(l=>present.has(l)).map(l=>[l,present.get(l)]);
+}
 function rerow(uid){const el=document.getElementById("def-"+uid);if(!el)return;const list=subset(),i=list.findIndex(d=>d.uid===uid);if(i<0)return;const disp=el.style.display;el.outerHTML=rowHtml(list[i],i+1);const n=document.getElementById("def-"+uid);if(n)n.style.display=disp;updateBar();}
 /* 打字時只更新狀態色條與文字，不重畫整列（避免輸入框失去游標） */
 function paintStatus(uid){
@@ -316,6 +372,7 @@ function paintStatus(uid){
 }
 function counts(){const c={red:0,yellow:0,green:0,lock:0};subset().forEach(d=>{c[stOf(d)]++;});return c;}
 function updateBar(){
+  renderGlobalBar();
   const c=counts(),n=subset().length,g=c.green+c.lock;
   $("#bar").innerHTML=`<b style="color:var(--navy);margin-right:4px">共 ${n} 項　已填 ${g}　待填 ${c.yellow}　未填 ${c.red}</b>
     <button class="chip all ${flt==="all"?"on":""}" onclick="setFlt('all')">全部<b>${n}</b></button>
@@ -330,22 +387,13 @@ function applyFlt(){document.querySelectorAll("#defList .row").forEach(el=>{cons
    內控／系統結案都是同一套回報表單——內控在督導登錄時就已匯出立案，這裡結案後海技還要多一步去內控系統標記結案；
    系統內結案則單純在本系統結案即可，差別放在各自分頁上方的提示文字。 */
 const MODE_TAB_NOTE={
-  FLOW:"📋 以下缺失屬 FLOW 系統（DMP-FM01），請至 FLOW 系統辦理立案並在 FLOW 系統內完成結案，<b>不需要在這裡填寫回報</b>。",
   "內控":"📋 這項已由督導匯入內控系統（船舶動態與早會待辦系統）立案；請在下方填寫改善回報，海技審核結案後會再至內控系統把該案標記結案。",
   "系統內結案":"📋 請填寫改善措施並附上證據，海技審核後即可系統內結案，不需要登記到其他系統。"
 };
-function setModeFlt(k){modeFlt=k;flt="all";renderRows();} // 切分頁時把填寫狀態篩選重置為「全部」，避免上一分頁篩到「未填」時，切過來卻誤以為是空的
-/* 檢查種類快捷分頁：跟結案方式是獨立的另一個篩選維度，放在結案方式上面，可以兩者疊加
-   （例如只看「訪船」裡還沒結案的項目）。只有這張單裡出現超過一種檢查種類時才顯示，
-   避免單一種類的單還要多看一排沒意義的篩選。 */
-function typeFilterList(){
-  const present=new Map();
-  (rec.defs||[]).forEach(d=>{const l=typeKeyOf(d);present.set(l,(present.get(l)||0)+1);});
-  const order=TYPE_DEFS.map(t=>t.label).filter((v,i,a)=>a.indexOf(v)===i);
-  return order.filter(l=>present.has(l)).map(l=>[l,present.get(l)]);
-}
-function setTypeFlt(k){typeFlt=k;modeFlt="all";flt="all";renderRows();}
-/* FLOW 缺失卡片：「FLOW」分頁跟「全部」分頁下方的 FLOW 提示區共用同一份完整卡片（含照片），
+function setModeFlt(k){modeFlt=k;flt="all";renderSysStep();} // 切分頁時把填寫狀態篩選重置為「全部」，避免上一分頁篩到「未填」時，切過來卻誤以為是空的
+function setFlowTypeFlt(k){flowTypeFlt=k;renderFlowStep();}
+function setSysTypeFlt(k){sysTypeFlt=k;modeFlt="all";flt="all";renderSysStep();}
+/* FLOW 缺失卡片：步驟②跟（之前）「全部」分頁下方的 FLOW 提示區共用同一份完整卡片（含照片），
    不要再各畫一套（之前「全部」底下那段是陽春的純文字項目符號清單，缺失內容/照片都看不到，
    切到某個檢查種類剛好全部都是 FLOW 時，整頁只看得到那種陽春清單，體驗跟「FLOW」分頁差很多）。
    文字在左、照片縮圖靠右排，方便掃視。 */
@@ -360,16 +408,11 @@ function flowCardHtml(d,i){
     </div>
   </div></div>`;
 }
-function renderTypeTabs(){
-  const list=typeFilterList();
-  const ttab=(k,l,n)=>`<button type="button" class="mtab ${typeFlt===k?"on":""}" onclick="setTypeFlt('${k}')">${esc(l)}<b>${n}</b></button>`;
-  $("#typeTabs").innerHTML=list.length>1?ttab("all","全部",(rec.defs||[]).length)+list.map(([l,n])=>ttab(l,l,n)).join(""):"";
-}
 /* 全船總計：固定顯示整張改善單（排除 FLOW，FLOW 本來就不在這裡填）的完成度，完全不受
-   上方「檢查種類」「結案方式」篩選影響——船上很容易篩著篩著只看局部分類就以為填完了，
-   這裡隨時提醒還有沒有其他分類沒填完，不用切回「全部」才看得到真正的總進度。 */
+   步驟切換或篩選影響——船上很容易篩著篩著只看局部分類就以為填完了，這裡隨時提醒還有沒有
+   其他分類沒填完，不用切回某一步才看得到真正的總進度。 */
 function renderGlobalBar(){
-  const el=$("#globalBar"); if(!el) return;
+  const el=$("#globalBar"); if(!el||!rec) return;
   const items=nonFlow(rec);
   if(!items.length){ el.innerHTML=""; el.style.display="none"; return; }
   el.style.display="";
@@ -379,26 +422,73 @@ function renderGlobalBar(){
   el.innerHTML=`<b>📋 全船應填報總計 ${items.length} 項</b>`+
     `<span class="gstat ok">已填 ${done}</span>`+
     (remain?`<span class="gstat warn">尚有 ${remain} 項未填完</span>`:`<span class="gstat ok">✓ 全部已填完</span>`)+
-    `<span class="ghint">（不受上方篩選影響，篩選只是方便分類查看，不會漏算）</span>`;
+    `<span class="ghint">（不受步驟／篩選影響，篩選只是方便分類查看，不會漏算）</span>`;
 }
-function renderRows(){
-  renderGlobalBar();
-  renderTypeTabs();
-  const flows=(rec.defs||[]).filter(d=>d.closeMode==="FLOW"&&typePass(d));
-  const icN=nonFlow(rec).filter(d=>d.closeMode==="內控"&&typePass(d)).length,sysN=nonFlow(rec).filter(d=>d.closeMode==="系統內結案"&&typePass(d)).length;
+/* 步驟②：FLOW 填單項目——預設顯示全部 FLOW 缺失，可依檢查種類篩選；純提醒清單，不在這裡填寫。 */
+function renderFlowStep(){
+  const all=(rec.defs||[]).filter(d=>d.closeMode==="FLOW");
+  const list=typeTabList(all);
+  const ttab=(k,l,n)=>`<button type="button" class="mtab ${flowTypeFlt===k?"on":""}" onclick="setFlowTypeFlt('${k}')">${esc(l)}<b>${n}</b></button>`;
+  $("#flowTypeTabs").innerHTML=list.length>1?ttab("all","全部",all.length)+list.map(([l,n])=>ttab(l,l,n)).join(""):"";
+  const flows=all.filter(d=>flowTypeFlt==="all"||typeKeyOf(d)===flowTypeFlt);
+  $("#flowList").innerHTML=flows.length?flows.map((d,i)=>flowCardHtml(d,i)).join(""):`<div class="banner" style="margin:0">這張改善單沒有 FLOW 類的缺失。</div>`;
+}
+/* 步驟③：系統填報（內控／系統內結案）——預設顯示全部系統填報項目，可依檢查種類、結案方式篩選。 */
+function renderSysTypeTabs(){
+  const list=typeTabList(nonFlow(rec));
+  const ttab=(k,l,n)=>`<button type="button" class="mtab ${sysTypeFlt===k?"on":""}" onclick="setSysTypeFlt('${k}')">${esc(l)}<b>${n}</b></button>`;
+  $("#sysTypeTabs").innerHTML=list.length>1?ttab("all","全部",nonFlow(rec).length)+list.map(([l,n])=>ttab(l,l,n)).join(""):"";
+}
+function renderSysStep(){
+  renderSysTypeTabs();
+  const icN=nonFlow(rec).filter(d=>d.closeMode==="內控"&&sysTypePass(d)).length,sysN=nonFlow(rec).filter(d=>d.closeMode==="系統內結案"&&sysTypePass(d)).length;
   const mtab=(k,l,cls,n)=>`<button type="button" class="mtab ${cls} ${modeFlt===k?"on":""}" onclick="setModeFlt('${k}')">${l}<b>${n}</b></button>`;
-  $("#modeTabs").innerHTML=mtab("all","全部","",flows.length+icN+sysN)+mtab("FLOW","FLOW","flow",flows.length)+mtab("內控","內控","ic",icN)+mtab("系統內結案","系統結案","sys",sysN);
+  $("#modeTabs").innerHTML=mtab("all","全部","",icN+sysN)+mtab("內控","內控","ic",icN)+mtab("系統內結案","系統結案","sys",sysN);
   $("#modeNote").innerHTML=MODE_TAB_NOTE[modeFlt]?`<div class="cmnote">${MODE_TAB_NOTE[modeFlt]}</div>`:"";
-  if(modeFlt==="FLOW"){
-    $("#bar").style.display="none";$("#errBox").style.display="none";$("#submitBar").style.display="none";$("#flowNote").innerHTML="";
-    $("#defList").innerHTML=flows.length?flows.map((d,i)=>flowCardHtml(d,i)).join(""):`<div class="banner" style="margin:0">這張改善單沒有 FLOW 類的缺失。</div>`;
-    return;
-  }
-  $("#bar").style.display="";$("#submitBar").style.display="";
   const list=subset();
   $("#defList").innerHTML=list.length?list.map((d,i)=>rowHtml(d,i+1)).join(""):`<div class="banner" style="margin:0">${modeFlt==="all"?"這張改善單沒有需要船上改善的項目。":"目前沒有這個結案方式的項目。"}</div>`;
-  $("#flowNote").innerHTML=(modeFlt==="all"&&flows.length)?`<div class="cmnote" style="margin:0 14px 10px;font-size:16px;font-weight:700;padding:14px 16px">以下 ${flows.length} 項屬 FLOW 系統（DMP-FM01）缺失，不在這裡回報，請船上自行至 FLOW 系統填單：</div><div class="rows" style="margin-top:0">${flows.map((d,i)=>flowCardHtml(d,i)).join("")}</div>`:"";
   updateBar();applyFlt();
+}
+/* 步驟④：預覽並確認資料——彙整填寫人、FLOW 提醒、系統填報各項目前狀態，確認無誤才能送出。 */
+function renderPreview(){
+  const items=nonFlow(rec);
+  const flows=(rec.defs||[]).filter(d=>d.closeMode==="FLOW");
+  const c={red:0,yellow:0,green:0,lock:0};items.forEach(d=>{c[stOf(d)]++;});
+  const g=c.green+c.lock;
+  const readyCount=items.filter(d=>{const x=drafts[d.uid];return x&&isComplete(x)&&!(rpOf(d)&&sameAsReply(x,rpOf(d).payload));}).length;
+  const nameVal=$("#fName").value.trim(),titleVal=$("#fTitle").value;
+  $("#previewBox").innerHTML=`
+    <div class="card">
+      <div class="ih">👤 填寫人資料${(!nameVal||!titleVal)?'<span class="badge red">尚未填完</span>':""}</div>
+      <div>姓名：<b>${esc(nameVal||"（未填）")}</b>　職稱：<b>${esc(titleVal||"（未選）")}</b></div>
+    </div>
+    ${flows.length?`<div class="banner">提醒：這張改善單另有 <b>${flows.length}</b> 項 FLOW 系統缺失，請自行至 FLOW 系統（DMP-FM01）辦理，本頁送出不包含這些項目。</div>`:""}
+    <div class="card">
+      <div class="ih">📋 系統填報項目（共 ${items.length} 項）</div>
+      <div class="hint" style="font-size:13px;margin-bottom:10px">已填 <b style="color:var(--ok)">${g}</b>　待填／修改中 <b style="color:var(--warn)">${c.yellow}</b>　未填 <b style="color:var(--bad)">${c.red}</b>　本次按「送出」可送出 <b style="color:var(--navy)">${readyCount}</b> 項</div>
+      <div class="rows" style="margin:0">${items.length?items.map((d,i)=>{const st=stOf(d);return `<div class="row st-${st}" style="grid-template-columns:1fr"><div class="rl" style="border-right:none"><div class="ih">No.${i+1}　${esc(d.category||"")}${typeBadge(d)}<span class="badge ${st}">${esc(badgeText(d,st))}</span></div></div></div>`;}).join(""):`<div class="banner" style="margin:0">這張改善單沒有需要船上改善的項目。</div>`}</div>
+    </div>`;
+  const chk=$("#confirmChk");if(chk){chk.checked=false;}
+  const btn=$("#btnSubmit");if(btn)btn.disabled=true;
+}
+function goStep(n){
+  currentStep=n;
+  for(let i=1;i<=4;i++){
+    const show=i===n;
+    const panel=document.getElementById("stepPanel"+i),nav=document.getElementById("navrow"+i);
+    if(panel)panel.style.display=show?"":"none";
+    if(nav)nav.style.display=show?"":"none";
+  }
+  document.querySelectorAll("#stepbar .step").forEach(el=>{
+    const i=+el.dataset.n;
+    el.classList.toggle("current",i===n);
+    el.classList.toggle("done",i<n);
+  });
+  if(n===2)renderFlowStep();
+  if(n===3)renderSysStep();
+  if(n===4)renderPreview();
+  renderGlobalBar();
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 /* Word：內容＝督導登錄單全部內容＋船上已送出的回報（改善措施、完成日期、證據備註、改善後照片） */
 async function downloadWord(manual){
@@ -414,20 +504,25 @@ async function downloadWord(manual){
 }
 async function submitAll(){
   document.querySelectorAll(".bad").forEach(e=>e.classList.remove("bad"));
-  const box=$("#errBox"),errs=[];
-  if(!$("#fName").value.trim())errs.push({msg:"填寫人姓名未填",sel:"#fName"});
-  if(!$("#fTitle").value)errs.push({msg:"填寫人職稱未選",sel:"#fTitle"});
+  const errs=[];
+  if(!$("#fName").value.trim())errs.push({msg:"填寫人姓名未填",step:1,sel:"#fName"});
+  if(!$("#fTitle").value)errs.push({msg:"填寫人職稱未選",step:1,sel:"#fTitle"});
   const todo=nonFlow(rec).filter(d=>stOf(d)!=="lock");
   const ready=todo.filter(d=>{const x=drafts[d.uid];return x&&isComplete(x)&&!(rpOf(d)&&sameAsReply(x,rpOf(d).payload));});
   const partial=todo.filter(d=>{const x=drafts[d.uid];return x&&!isEmpty(x)&&!isComplete(x);});
-  if(!ready.length)errs.push({msg:partial.length?`目前沒有「改善措施與完成日期都填完」的項目可送出（有 ${partial.length} 項填到一半，請補齊改善措施與完成日期）`:"還沒有填寫任何一項改善回報",sel:partial.length?"#def-"+partial[0].uid:"#defList"});
+  if(!ready.length)errs.push({msg:partial.length?`目前沒有「改善措施與完成日期都填完」的項目可送出（有 ${partial.length} 項填到一半，請補齊改善措施與完成日期）`:"還沒有填寫任何一項改善回報",step:3,sel:partial.length?"#def-"+partial[0].uid:"#defList"});
   if(errs.length){
-    box.innerHTML=`<b>無法送出</b><br>${errs.map(e=>"・"+esc(e.msg)).join("<br>")}`;box.style.display="";
-    errs.forEach(e=>{const el=document.querySelector(e.sel);if(el)el.classList.add("bad");});
-    (document.querySelector(errs[0].sel)||box).scrollIntoView({behavior:"smooth",block:"center"});
-    toast("⚠ "+errs[0].msg,true);return;
+    const first=errs[0];
+    goStep(first.step);
+    if(first.step===3){modeFlt="all";sysTypeFlt="all";flt="all";renderSysStep();}
+    requestAnimationFrame(()=>{
+      if(first.step===3){const box=$("#errBox");box.innerHTML=`<b>無法送出</b><br>${errs.map(e=>"・"+esc(e.msg)).join("<br>")}`;box.style.display="";}
+      errs.forEach(e=>{const el=document.querySelector(e.sel);if(el)el.classList.add("bad");});
+      (document.querySelector(first.sel)||document.body).scrollIntoView({behavior:"smooth",block:"center"});
+    });
+    toast("⚠ "+first.msg,true);return;
   }
-  box.style.display="none";
+  const box=$("#errBox");if(box)box.style.display="none";
   const by=$("#fName").value.trim(),title=$("#fTitle").value,now=Date.now();
   try{
     await reloadReplies(); // 送出前再讀一次最新狀態，避免蓋掉剛好被海技審核結案的項目
@@ -437,7 +532,7 @@ async function submitAll(){
     if(!rows.length){toast("⚠ 這些項目剛剛已被海技結案，請重新整理頁面",true);return;}
     await api("intaudit_replies?on_conflict=id",{method:"POST",headers:H({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(rows)});
     rows.forEach(r=>{delete drafts[r.def_uid];});saveDrafts();
-    await reloadReplies();renderRows();
+    await reloadReplies();renderGlobalBar();if(currentStep===3)renderSysStep();if(currentStep===4)renderPreview();
     toast(`✓ 已送出 ${rows.length} 項改善回報`+(partial.length?`；另有 ${partial.length} 項填到一半，已保留為草稿`:"")+"，正在存成 Word…");
     window.scrollTo({top:0,behavior:"smooth"});
     await downloadWord(false);

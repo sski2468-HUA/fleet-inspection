@@ -101,7 +101,9 @@ async function buildDocBody(r,ctx,replyOf){
     b+=wTbl([4678,2500,2500,2500,2500],sumRows)+tinyGap();
     const kind=d=>{const t=typeDef(d.type)||{label:d.type};return t.label+(t.sarForm?"："+t.sarForm:"")+(topicText(d)?"・"+topicText(d):"");};
     const listBlock=(title,items,withRemark)=>{
-      const cols=withRemark?[700,2300,2000,6078,900,2700]:[700,2800,2400,7778,1000];
+      // 檢查種類／主題、分類兩欄文字通常很短（訪船、內稽、防火門…），原本給太寬，擠壓到
+      // 缺失內容欄位的可讀寬度——縮窄這兩欄，把空間讓給缺失內容，總寬維持跟頁面版面一致（14678）。
+      const cols=withRemark?[700,1700,1500,7178,900,2700]:[700,2000,1800,9178,1000];
       const head=lblCell(cols[0],"No.")+lblCell(cols[1],"檢查種類／主題")+lblCell(cols[2],"分類 Category")+lblCell(cols[3],"缺失內容 Finding")+lblCell(cols[4],"風險")+(withRemark?lblCell(cols[5],"備註：結案方式"):"");
       const rows=[head];
       if(!items.length)rows.push(txtCell(cols.reduce((a,c)=>a+c,0),"（無）",{span:cols.length}));
@@ -144,7 +146,7 @@ async function buildDocBody(r,ctx,replyOf){
     groups.get(key).items.push(d);
   });
   const cols=[900,2200,4400,3600,1800,1778];
-  let defN=0; // 每一條缺失獨立一頁：第二條起（含換到下一個分區標題）都從新的一頁開始
+  let defN=0; // 分區標題（換到下一個檢查種類/主題/結案方式分組）才換頁；同一分區內的缺失逐筆往下接，排得下就不特別跳頁
   for(const key of [...groups.keys()].sort((a,b)=>{
     const ga=groups.get(a),gb=groups.get(b);
     return typeRank(ga.type)-typeRank(gb.type)||String(ga.topic).localeCompare(gb.topic)||modeOrder.indexOf(ga.mode)-modeOrder.indexOf(gb.mode);
@@ -155,7 +157,7 @@ async function buildDocBody(r,ctx,replyOf){
       const d=g.items[i],mm=modeOf(d.closeMode),rp=(replyOf&&replyOf(d))||null;
       defN++;
       b+=wTbl(cols,[
-        wCell(900,wPara(wRun("No.",{b:true,sz:18}),{after:0,pb:i>0}),{shd:LBL})+lblCell(2200,"分類 Category")+lblCell(4400,"待改善項目 Items to be corrected")+lblCell(3600,"改善完成證據/備註 Corrected Evidence / Remark")+lblCell(1800,"Reported @")+lblCell(1778,"Corrected @"),
+        wCell(900,wPara(wRun("No.",{b:true,sz:18}),{after:0}),{shd:LBL})+lblCell(2200,"分類 Category")+lblCell(4400,"待改善項目 Items to be corrected")+lblCell(3600,"改善完成證據/備註 Corrected Evidence / Remark")+lblCell(1800,"Reported @")+lblCell(1778,"Corrected @"),
         txtCell(900,String(i+1))+wCell(2200,wPara(wRun(d.category||"",{b:true,sz:19}),{after:0})+(topicText(d)?wPara(wRun(topicText(d),{sz:16,color:"666666"}),{after:0}):""))+wCell(4400,await P(d.photos,2.4))+wCell(3600,wPara(wRun(rp?rp.evidence||"":"",{sz:19}),{after:0})+(rp&&(rp.photos||[]).length?await P(rp.photos,2.4):""))+txtCell(1800,slash(d.reported))+txtCell(1778,rp?slash(rp.corrected):""),
         lblCell(3100,"Risk Level",{span:2})+txtCell(8000,d.risk||"",{span:2})+lblCell(1800,"結案方式")+txtCell(1778,mm?mm.label:""),
         lblCell(3100,"待改善描述 Finding Brief",{span:2})+txtCell(11578,d.finding||"",{span:4}),
