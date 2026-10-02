@@ -108,7 +108,8 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
       <div class="hint">姓名、職稱送出時會一併記錄；這台裝置下次會記得您填過的內容。</div>
     </div>
     <div style="margin:14px 14px 0">
-      <div class="mtabs" id="modeTabs"></div>
+      <div class="mtabs" id="typeTabs"></div>
+      <div class="mtabs" id="modeTabs" style="margin-top:8px"></div>
       <div id="modeNote"></div>
     </div>
     <div class="bar" id="bar"></div>
@@ -135,7 +136,7 @@ async function api(path,opts){const r=await fetch(`${CLOUD.url}/rest/v1/${path}`
 const RANK_OPTIONS=["Master船長","C/O大副","2/O二副","3/O三副","C/E輪機長","2/E大管","3/E二管","4/E三管","BSN水手長","AB幹練水手","OS普通水手","COOK廚師","FTR銅匠","OLR加油匠","PM泵匠","A.Capt.見習船長","A.C/O見習大副","A.2/O見習二副","A.3/O見習三副","A.C/E見習輪機長","A.2/E見習大管","A.3/E見習二管","A.4/E見習三管","其他(請聯繫海技新增)"];
 const QS=new URLSearchParams(location.search),RID=QS.get("rid"),SHIP=QS.get("ship");
 const MAX_PH=3,ID_KEY="vsm_iareply_who_v1",DRAFT_KEY="vsm_iareply_draft_"+RID;
-let SHIPS=[],rec=null,replies={},drafts={},flt="all",modeFlt="all";
+let SHIPS=[],rec=null,replies={},drafts={},flt="all",modeFlt="all",typeFlt="all";
 const todayIso=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
 const typeLabels=r=>(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、");
 function download(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);}
@@ -285,7 +286,12 @@ function rowHtml(d,seq){
   }
   return `<div class="row st-${st}" id="def-${d.uid}" data-st="${st}"><div class="rl">${left}</div><div class="rr">${right}</div></div>`;
 }
-function subset(){return modeFlt==="all"?nonFlow(rec):nonFlow(rec).filter(d=>d.closeMode===modeFlt);}
+/* 檢查種類 Audit Type 篩選：跟結案方式（modeFlt）是兩個獨立維度，可以同時套用——
+   例如只看「訪船」裡還沒結案的項目。型別標籤用 typeDef(d.type).label 判斷，
+   同一種「專項檢查」底下不同 SAR 表單一律合併算同一個「專項檢查」分類。 */
+function typeKeyOf(d){const t=typeDef(d.type);return t?t.label:"（未分類）";}
+function typePass(d){return typeFlt==="all"||typeKeyOf(d)===typeFlt;}
+function subset(){return (modeFlt==="all"?nonFlow(rec):nonFlow(rec).filter(d=>d.closeMode===modeFlt)).filter(typePass);}
 function rerow(uid){const el=document.getElementById("def-"+uid);if(!el)return;const list=subset(),i=list.findIndex(d=>d.uid===uid);if(i<0)return;const disp=el.style.display;el.outerHTML=rowHtml(list[i],i+1);const n=document.getElementById("def-"+uid);if(n)n.style.display=disp;updateBar();}
 /* 打字時只更新狀態色條與文字，不重畫整列（避免輸入框失去游標） */
 function paintStatus(uid){
@@ -314,9 +320,25 @@ const MODE_TAB_NOTE={
   "系統內結案":"📋 請填寫改善措施並附上證據，海技審核後即可系統內結案，不需要登記到其他系統。"
 };
 function setModeFlt(k){modeFlt=k;flt="all";renderRows();} // 切分頁時把填寫狀態篩選重置為「全部」，避免上一分頁篩到「未填」時，切過來卻誤以為是空的
+/* 檢查種類快捷分頁：跟結案方式是獨立的另一個篩選維度，放在結案方式上面，可以兩者疊加
+   （例如只看「訪船」裡還沒結案的項目）。只有這張單裡出現超過一種檢查種類時才顯示，
+   避免單一種類的單還要多看一排沒意義的篩選。 */
+function typeFilterList(){
+  const present=new Map();
+  (rec.defs||[]).forEach(d=>{const l=typeKeyOf(d);present.set(l,(present.get(l)||0)+1);});
+  const order=TYPE_DEFS.map(t=>t.label).filter((v,i,a)=>a.indexOf(v)===i);
+  return order.filter(l=>present.has(l)).map(l=>[l,present.get(l)]);
+}
+function setTypeFlt(k){typeFlt=k;modeFlt="all";flt="all";renderRows();}
+function renderTypeTabs(){
+  const list=typeFilterList();
+  const ttab=(k,l,n)=>`<button type="button" class="mtab ${typeFlt===k?"on":""}" onclick="setTypeFlt('${k}')">${esc(l)}<b>${n}</b></button>`;
+  $("#typeTabs").innerHTML=list.length>1?ttab("all","全部",(rec.defs||[]).length)+list.map(([l,n])=>ttab(l,l,n)).join(""):"";
+}
 function renderRows(){
-  const flows=(rec.defs||[]).filter(d=>d.closeMode==="FLOW");
-  const icN=nonFlow(rec).filter(d=>d.closeMode==="內控").length,sysN=nonFlow(rec).filter(d=>d.closeMode==="系統內結案").length;
+  renderTypeTabs();
+  const flows=(rec.defs||[]).filter(d=>d.closeMode==="FLOW"&&typePass(d));
+  const icN=nonFlow(rec).filter(d=>d.closeMode==="內控"&&typePass(d)).length,sysN=nonFlow(rec).filter(d=>d.closeMode==="系統內結案"&&typePass(d)).length;
   const mtab=(k,l,cls,n)=>`<button type="button" class="mtab ${cls} ${modeFlt===k?"on":""}" onclick="setModeFlt('${k}')">${l}<b>${n}</b></button>`;
   $("#modeTabs").innerHTML=mtab("all","全部","",flows.length+icN+sysN)+mtab("FLOW","FLOW","flow",flows.length)+mtab("內控","內控","ic",icN)+mtab("系統內結案","系統結案","sys",sysN);
   $("#modeNote").innerHTML=MODE_TAB_NOTE[modeFlt]?`<div class="cmnote">${MODE_TAB_NOTE[modeFlt]}</div>`:"";

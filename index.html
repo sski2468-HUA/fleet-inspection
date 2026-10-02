@@ -1250,7 +1250,10 @@ table.ap-tbl tbody tr:hover td:first-child{background:#f3f8fa}
 .msel>button{border:1px solid var(--line-2);background:#fff;border-radius:4px;padding:7px 10px;font-size:13px;cursor:pointer;display:flex;gap:6px;align-items:center;font-family:var(--sans)}
 .msel>button .cnt{background:var(--signal);color:#fff;border-radius:8px;font-size:10.5px;padding:0 6px;font-family:var(--mono);font-weight:700}
 .msel>button .car{font-size:9px;color:var(--ink-3)}
-.msel .panel{display:none;position:absolute;z-index:60;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--line-2);border-radius:5px;box-shadow:0 8px 24px rgba(12,36,51,.18);min-width:210px;max-height:300px;overflow:auto;padding:6px}
+/* position:fixed（而非 absolute）：面板位置由 JS 在開啟當下用 getBoundingClientRect() 算好填入，
+   不跟著所屬的 .msel 容器走，也就不會被篩選列、批量編輯表格等外層 overflow:auto 容器裁切、
+   蓋住隔壁欄位——這是這個元件過去最常見的「看起來壞掉」原因（見下方按鈕開啟邏輯的註解）。 */
+.msel .panel{display:none;position:fixed;z-index:60;background:#fff;border:1px solid var(--line-2);border-radius:5px;box-shadow:0 8px 24px rgba(12,36,51,.18);min-width:210px;max-height:300px;overflow:auto;padding:6px}
 .msel.open .panel{display:block}
 .msel .panel .srch{width:100%;margin-bottom:5px;padding:5px 7px;font-size:12px}
 .msel .panel label{display:flex;gap:7px;align-items:flex-start;padding:5px 6px;border-radius:3px;cursor:pointer;font-size:12.5px;line-height:1.35}
@@ -10600,16 +10603,24 @@ function MSel(elId,label,getOptions,onChange,getLabel){
       const p=root.querySelector(".panel");
       if(p){
         p.setAttribute("data-title","選擇"+label+"（可單選或多選）");
-        // 面板預設從按鈕左邊界往右展開，若欄位靠近視窗（或彈出視窗）右側，寬版面板
-        // 會被撐出可視範圍外變成看不到/點不到——開啟後偵測一次，超出就改成靠右對齊往左展開。
-        p.style.left="0";p.style.right="auto";
+        // 面板用 position:fixed，位置以按鈕當下在視窗上的實際座標現算，預設貼在按鈕左下方；
+        // 開啟後偵測一次，右側超出視窗就改成貼齊按鈕右邊界往左展開，下方超出視窗就改成往上展開
+        // （貼在按鈕上方）——這樣不管面板開在欄位很窄、或表格筆數很少導致容器很矮的情況，
+        // 都不會被外層的 overflow:auto 容器裁切掉，也不會整個蓋到隔壁欄位。
+        const r=root.getBoundingClientRect();
+        p.style.top=(r.bottom+4)+"px";p.style.bottom="auto";
+        p.style.left=r.left+"px";p.style.right="auto";
         requestAnimationFrame(()=>{
-          const r=p.getBoundingClientRect();
-          if(r.right>window.innerWidth-8){p.style.left="auto";p.style.right="0";}
+          const pr=p.getBoundingClientRect();
+          if(pr.right>window.innerWidth-8){p.style.left="auto";p.style.right=Math.max(0,window.innerWidth-r.right)+"px";}
+          if(pr.bottom>window.innerHeight-8){p.style.top="auto";p.style.bottom=Math.max(0,window.innerHeight-r.top+4)+"px";}
         });
       }
     }};
   document.addEventListener("click",e=>{if(!root.contains(e.target))root.classList.remove("open");});
+  // 面板是 position:fixed，不會跟著底下的表格/篩選列一起捲動——只要偵測到任何捲動
+  // 發生（capture 階段才抓得到巢狀捲動容器），直接關閉，避免面板飄在跟按鈕脫節的位置。
+  document.addEventListener("scroll",()=>{if(root.classList.contains("open"))root.classList.remove("open");},true);
   return {get sel(){return st.sel;},clear(){st.sel.clear();refreshBtn();},pass(v){return st.sel.size===0||st.sel.has(v);},
     set(arr){st.sel=new Set(arr);refreshBtn();},refresh(){refreshBtn();}};
 }
@@ -15470,6 +15481,9 @@ const Defs={
           ${item("矯正前/後照片",((d.photosBefore||[]).length+(d.photosAfter||[]).length)?`共 ${(d.photosBefore||[]).length+(d.photosAfter||[]).length} 張`:"")}
           ${item("🆕新缺失須注意",d.attn?"是":"否")}
         </div>
+      </div>
+      <div style="text-align:right;padding-top:8px;border-top:1px solid var(--line)">
+        <button class="btn sm" onclick="Defs.toggleLcExpand('${d.id}')">▲ 收合</button>
       </div>
     </div>`;
   },
