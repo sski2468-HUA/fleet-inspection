@@ -153,11 +153,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
 
   <div class="savebar" id="savebar">💾 本機自動暫存中：填到一半離開頁面，重新打開這個網址還會接續之前的內容<span id="draftSavedWrap"></span>　<button type="button" id="btnRefreshNcdb" style="border:1px solid #d8c48a;background:#fffdf6;color:#8a5a10;border-radius:12px;padding:2px 10px;font-size:11px;cursor:pointer">🔄 重新整理分類清單</button></div>
   <div class="draftbar">
-    <button class="btn ghost" id="btnExportDraft" type="button">💾 匯出草稿存檔（Excel＋Word＋JSON）</button>
     <button class="btn ghost" id="btnImportDraft" type="button">📂 開啟草稿檔案</button>
     <input type="file" id="fileImportDraft" accept="application/json,.json" style="display:none">
   </div>
-  <p class="hint" style="padding:0 14px;margin:6px 0 0">沒有網路時可先「匯出草稿存檔」，之後用「開啟草稿檔案」選回同一份 <b>.json</b> 檔接續編輯（Excel／Word 只能看，無法匯入接續編輯）。詳見右上角「操作說明」。此按鈕任何步驟都能按，不用等全部填完。</p>
+  <p class="hint" style="padding:0 14px;margin:6px 0 0">沒有網路、或還沒填完也可以先用最後一步「暫時不送出，先匯出草稿存檔」存成檔案，之後用這裡的「開啟草稿檔案」選回同一份 <b>.json</b> 檔接續編輯（Excel／Word 只能看，無法匯入接續編輯）。詳見右上角「操作說明」。</p>
 
   <div class="stepbar" id="stepbar">
     <div class="step current" data-step="1" onclick="goStep(1)"><div class="dot">1</div><div class="lbl">檢查基本資料</div></div>
@@ -207,7 +206,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
       <p class="sub" style="margin-top:6px">點「📋 全部」先看整批清單總覽，或點 #1 #2… 逐筆填寫，請盡量完整填寫包含各項分類欄位。</p>
       <p class="hint warn" id="photoUploadOffNotice" style="display:none">📷 照片上傳功能目前由公司後台暫時關閉，缺失內容仍可正常填寫送出。</p>
       <div id="tabBar" style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0"></div>
-      <div id="defAllList"></div>
       <div id="defList"></div>
       <div style="margin-top:10px">
         <button class="btn ghost block addDef" id="btnAddDef" type="button">＋ 新增一筆缺失明細</button>
@@ -236,13 +234,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
 
     <div class="card card--submit" id="stepPanel4" style="display:none">
       <h2>預覽並確認資料・下載與送出</h2>
-      <p class="sub">請先核對下方預覽內容，確認無誤後再送出；就算還有項目沒填完，上方「💾 匯出草稿存檔」仍然可以隨時按，不受這裡的確認影響。</p>
+      <p class="sub">請先核對下方預覽內容，確認無誤後再送出；就算還有項目沒填完，下方「暫時不送出，先匯出草稿存檔」仍然可以隨時按，不受這裡的確認影響。</p>
       <div class="previewbox" id="previewBox"></div>
       <label class="confirmrow"><input type="checkbox" id="confirmChk" onchange="document.getElementById('btnSubmit').disabled=!this.checked">我已核對以上資料無誤，確認送出</label>
       <div class="actionbar">
         <button class="btn primary block" id="btnSubmit" type="button" disabled>✓ 送出填單</button>
+        <button class="btn ghost block" id="btnExportDraft" type="button">💾 暫時不送出，先匯出草稿存檔（Excel＋Word＋JSON）</button>
       </div>
-      <p class="hint" style="margin-top:10px">送出後會自動下載備份檔並顯示完成畫面；送出前系統仍會檢查所有必填欄位是否完整，若有缺漏會提示您回去補上。送出失敗請改用最上方「💾 匯出草稿存檔」回傳給承辦人員。詳見右上角「操作說明」。</p>
+      <p class="hint" style="margin-top:10px">送出後會自動下載備份檔並顯示完成畫面；送出前系統仍會檢查所有必填欄位是否完整，若有缺漏會提示您回去補上。送出失敗請改用上方「暫時不送出，先匯出草稿存檔」回傳給承辦人員。詳見右上角「操作說明」。</p>
       <div style="display:flex;gap:8px;margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
         <button class="btn ghost sm" id="btnTestCloud" type="button" style="flex:1">☁ 測試雲端連線與資料表</button>
         <button class="btn ghost sm" id="btnClearForm" type="button" style="flex:1;color:var(--bad);border-color:#e8c3bc">🧹 清除表單（重新開始）</button>
@@ -538,7 +537,7 @@ function saveDraftIndicatorFail(){
   if(!bar||!wrap)return;
   bar.classList.remove("justSaved");
   bar.classList.add("err");
-  wrap.textContent="　⚠ 本機暫存失敗，請立即匯出草稿存檔";
+  wrap.textContent="　⚠ 本機暫存失敗，請至最後一步匯出草稿存檔";
 }
 function saveDraft(){
   try{
@@ -552,7 +551,7 @@ function saveDraft(){
     saveDraftIndicatorFail();
     if(!_draftSaveFailWarned){
       _draftSaveFailWarned=true;
-      notify("⚠ 本機自動暫存失敗（多半是照片太多、容量爆了），請立即按「💾 匯出草稿存檔」把內容存成檔案，避免重新整理後遺失","err");
+      notify("⚠ 本機自動暫存失敗（多半是照片太多、容量爆了），請立即到最後一步「暫時不送出，先匯出草稿存檔」把內容存成檔案，避免重新整理後遺失","err");
     }
   }
 }
@@ -844,50 +843,15 @@ function renderTabs(){
     });
   });
 }
+/* 「📋 全部」＝完整的缺失填單表，把每一筆缺失的完整表單依序整個顯示出來（跟正面評論同一種做法），
+   不是精簡摘要清單；填完第1筆接著往下滑就是第2筆，捲到最後一筆才會看到「＋新增一筆缺失明細」。
+   點個別「缺失 #N」分頁則只顯示那一筆，方便已經填了一堆筆數、只想專心改某一筆時使用。 */
 function switchTab(tab){
   activeTab = tab;
-  const allBox = document.getElementById("defAllList");
-  if(tab.kind==="all"){
-    document.querySelectorAll(".defbox").forEach(box=>{ box.style.display = "none"; });
-    if(allBox){ allBox.style.display = ""; renderDefAllList(); }
-  }else{
-    if(allBox) allBox.style.display = "none";
-    document.querySelectorAll(".defbox").forEach(box=>{
-      box.style.display = (tab.kind==="def" && tab.id===box.dataset.id) ? "" : "none";
-    });
-  }
+  document.querySelectorAll(".defbox").forEach(box=>{
+    box.style.display = (tab.kind==="all" || (tab.kind==="def" && tab.id===box.dataset.id)) ? "" : "none";
+  });
   renderTabs();
-}
-/* 「📋 全部」清單總覽：讀取每個缺失框目前畫面上已填的值（不是另外存一份資料），
-   純粹拿來顯示摘要，點「編輯」才跳回單筆表單；是否算「已填」沿用 validatePayload() 的必填規則
-   （缺失詳情、實際情況、設備/作業大類擇一、根因、重要程度、風險）。 */
-function defRowSummary(box){
-  const detail = box.querySelector(".d-detail").value.trim();
-  const actual = box.querySelector(".d-actual").value.trim();
-  const ncImp = box.querySelector(".d-ncImp").value;
-  const risk = box.querySelector(".d-risk").value;
-  const c = box._classify || {eqMain:"",opMain:"",root:[]};
-  const hasMain = !!(c.eqMain || c.opMain);
-  const hasRoot = !!(c.root && c.root.length);
-  const filled = !!(detail && actual && hasMain && hasRoot && ncImp && risk);
-  return {detail, ncImp, risk, filled};
-}
-function renderDefAllList(){
-  const box = document.getElementById("defAllList"); if(!box) return;
-  const boxes = [...document.querySelectorAll(".defbox")];
-  if(!boxes.length){ box.innerHTML = `<p class="hint" style="padding:6px 2px">目前還沒有任何缺失，請按下方「＋ 新增一筆缺失明細」開始新增。</p>`; return; }
-  box.innerHTML = boxes.map((b,i)=>{
-    const s = defRowSummary(b);
-    return `<div class="itemrow${s.filled?" filled":""}">
-      <div class="idx2">${i+1}</div>
-      <div class="body">
-        <div class="finding2${s.detail?"":" empty"}">${esc(s.detail||"尚未填寫")}</div>
-        <div class="meta2">${s.ncImp?`重要程度：${esc(s.ncImp)}`:""}${s.risk?`・風險：${esc(s.risk)}`:""}${s.filled?"":"（必填欄位尚未填完）"}</div>
-      </div>
-      <button type="button" class="editbtn" data-id="${b.dataset.id}">編輯</button>
-    </div>`;
-  }).join("");
-  box.querySelectorAll(".editbtn").forEach(btn=>btn.addEventListener("click", ()=>switchTab({kind:"def", id:btn.dataset.id})));
 }
 
 /* ── 步驟列導覽：4 步驟各自是一個 stepPanel，上/下一步按鈕放在對應 navrow 裡 ── */
@@ -906,41 +870,73 @@ function goStep(n){
   if(n===4) renderPreview();
   window.scrollTo({top:0, behavior:"smooth"});
 }
-/* 步驟④預覽：直接沿用 collectPayload()／validatePayload() 同一套資料與規則，
+/* 步驟④預覽：直接沿用 collectPayload()／validatePayload() 同一套資料與規則判斷「缺什麼」，
    不另外維護一份判斷邏輯，避免預覽畫面「看起來填完了」但送出時規則對不起來。 */
-function isDefComplete(d, isPSC){
-  return !!(d.detail && d.actual && d.ncMain && d.ncRoot && d.ncImp && d.risk && !(isPSC && !d.psc));
+function basicMissingFields(b){
+  const miss=[];
+  if(!b.ship) miss.push("船名");
+  if(!b.itype) miss.push("檢查來源");
+  if(b.itype==="FLAG" && !b.flagType) miss.push("FLAG項目");
+  if(!b.date) miss.push("檢查日期");
+  if(!b.place) miss.push("檢查地點");
+  else if(typeof isValidPort==="function" && !isValidPort(b.place)) miss.push("檢查地點（格式需為英文 Port, Country）");
+  return miss;
 }
-function isPosComplete(p){ return !!(p.people && p.people.length); }
+function defMissingFields(d, isPSC){
+  const miss=[];
+  if(!d.detail) miss.push("缺失詳情");
+  if(!d.actual) miss.push("實際情況");
+  if(!d.ncMain) miss.push("設備大類／作業大類（擇一）");
+  if(!d.ncRoot) miss.push("根因分類");
+  if(!d.ncImp) miss.push("重要程度");
+  if(!d.risk) miss.push("風險");
+  if(isPSC && !d.psc) miss.push("PSC Action Taken");
+  return miss;
+}
+function posMissingFields(p){ return (p.people && p.people.length) ? [] : ["相關人員（至少一位）"]; }
+function isDefComplete(d, isPSC){ return defMissingFields(d,isPSC).length===0; }
+function isPosComplete(p){ return posMissingFields(p).length===0; }
 function renderPreview(){
   const box = document.getElementById("previewBox"); if(!box) return;
   const payload = collectPayload();
   const isPSC = normItype(payload.basic.itype)==="PSC";
   const shipObj = SHIP_OPTS.find(s=>s.code===payload.basic.ship);
   const shipLabel = shipObj ? shipOptLabel(shipObj) : (payload.basic.ship||"（未選）");
+  const basicMiss = basicMissingFields(payload.basic);
   const defDone = payload.defects.filter(d=>isDefComplete(d,isPSC)).length;
   const posDone = payload.posComments.filter(isPosComplete).length;
   const defBoxes = [...document.querySelectorAll(".defbox")]; // 跟 collectPayload() 同一份 DOM 順序，一一對應
   const defRows = payload.defects.map((d,i)=>{
-    const ok = isDefComplete(d,isPSC);
+    const miss = defMissingFields(d,isPSC), ok = miss.length===0;
     const id = defBoxes[i] ? defBoxes[i].dataset.id : "";
+    const classifyTxt = [d.ncMain, d.ncRoot].filter(Boolean).map(s=>s.replace(/‖/g,"、")).join("　");
     return `<div class="itemrow${ok?" filled":""}"><div class="idx2">${i+1}</div><div class="body">
-      <div class="finding2${d.detail?"":" empty"}">${esc(d.detail||"尚未填寫")}</div></div>
+      <div class="finding2${d.detail?"":" empty"}">${esc(d.detail||"尚未填寫缺失詳情")}</div>
+      <div class="meta2">${esc(classifyTxt)}${d.ncImp?`${classifyTxt?"　・　":""}重要程度：${esc(d.ncImp)}`:""}${d.risk?`　・　風險：${esc(d.risk)}`:""}
+        ${miss.length?`<br><span style="color:var(--bad)">缺：${esc(miss.join("、"))}</span>`:""}</div>
+      </div>
       <button type="button" class="editbtn" data-step="2" data-id="${esc(id)}">編輯</button></div>`;
   }).join("") || `<p class="hint">尚未新增任何缺失。</p>`;
   const posRows = payload.posComments.map((p,i)=>{
-    const ok = isPosComplete(p);
+    const miss = posMissingFields(p), ok = miss.length===0;
+    const peopleTxt = (p.people||[]).map(x=>x.person).filter(Boolean).join("、");
     return `<div class="itemrow${ok?" filled":""}"><div class="idx2" style="background:#eaf6ee;color:#1f6b4a">${i+1}</div><div class="body">
-      <div class="finding2${p.comment?"":" empty"}">${esc(p.comment||"尚未填寫")}</div></div>
+      <div class="finding2${p.comment?"":" empty"}">${esc(p.comment||"尚未填寫正向評論內容")}</div>
+      <div class="meta2">${peopleTxt?`相關人員：${esc(peopleTxt)}`:""}${miss.length?`<br><span style="color:var(--bad)">缺：${esc(miss.join("、"))}</span>`:""}</div>
+      </div>
       <button type="button" class="editbtn" data-step="3">編輯</button></div>`;
   }).join("") || `<p class="hint">沒有填寫正面評論（非必填，可以略過）。</p>`;
   box.innerHTML = `
-    <h3>📋 檢查基本資料</h3>
+    <h3>📋 檢查基本資料${basicMiss.length?`　<span style="color:var(--bad);font-size:11.5px;font-weight:400">缺：${esc(basicMiss.join("、"))}</span>`:""}</h3>
     <div class="pgrid">
       <div><span class="k">船名</span>${esc(shipLabel)}</div>
-      <div><span class="k">檢查來源</span>${esc(payload.basic.itype||"（未選）")}</div>
+      <div><span class="k">船型</span>${esc(payload.basic.vtype||"（未填）")}</div>
+      <div><span class="k">檢查來源</span>${esc(payload.basic.itype||"（未選）")}${payload.basic.flagType?`（${esc(payload.basic.flagType)}）`:""}</div>
       <div><span class="k">檢查日期</span>${esc(payload.basic.date||"（未填）")}</div>
       <div><span class="k">檢查地點</span>${esc(payload.basic.place||"（未填）")}</div>
+      <div><span class="k">油公司/單位</span>${esc(payload.basic.oilco||"（無／不適用）")}</div>
+      <div><span class="k">檢查員</span>${esc(payload.basic.inspector||"（未填）")}</div>
+      <div><span class="k">缺失數／正面評論數</span>${payload.defects.length} / ${payload.posComments.length}</div>
     </div>
     <div class="psection">
       <h4>缺失明細（共 ${payload.defects.length} 筆，已填完 ${defDone} 筆${payload.defects.length>defDone?`・<span style="color:var(--bad)">尚未填完 ${payload.defects.length-defDone} 筆</span>`:""}）</h4>
@@ -1597,7 +1593,7 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
     document.getElementById("formView").style.display = "none";
     document.getElementById("successView").style.display = "block";
   }catch(e){
-    notify("送出失敗，建議改用最上方「💾 匯出草稿存檔」：" + e.message, "err");
+    notify("送出失敗，建議改用下方「暫時不送出，先匯出草稿存檔」：" + e.message, "err");
     btn.disabled = false; btn.textContent = "✓ 送出填單";
   }
 });
