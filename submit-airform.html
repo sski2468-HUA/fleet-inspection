@@ -37,7 +37,11 @@ label.full{grid-column:1/-1}
 input,select,textarea{padding:11px 12px;border:1px solid var(--line-2);border-radius:8px;font-size:15px;font-family:var(--sans);color:var(--ink);background:#fff;width:100%}
 textarea{resize:vertical;min-height:64px;line-height:1.5}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-offset:1px}
-.defbox,.posbox{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;background:#fafbfc;position:relative}
+/* 「全部」畫面把每一筆缺失/正面評論的完整表單整個疊在一起，原本卡片背景（#fafbfc）跟頁面
+   底色幾乎同色，捲動時分不清楚上一筆在哪裡結束、下一筆從哪裡開始；改成白底＋左側色條，
+   缺失用藍色、正面評論用綠色，跟各自的標籤顏色一致，一眼就能看出每筆的邊界。 */
+.defbox,.posbox{border:1px solid var(--line);border-left:5px solid var(--navy-3);border-radius:10px;padding:14px;margin-bottom:16px;background:var(--card);position:relative;box-shadow:0 1px 4px rgba(18,52,86,.06)}
+.posbox{border-left-color:#2e8b57}
 .defbox .dhead,.posbox .dhead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .defbox .idx,.posbox .idx{font-size:12.5px;color:var(--navy);font-weight:700;background:#e9eff5;padding:3px 10px;border-radius:20px}
 .defbox .rm,.posbox .rm{margin-left:auto;background:none;border:none;color:var(--bad);font-size:13px;cursor:pointer;padding:4px 6px;font-weight:600}
@@ -148,7 +152,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
       <h1>⚓ 線上填單（After Inspection Review）</h1>
       <p>依照上方步驟列分 4 步填寫：①基本資料 →②缺失明細 →③正面評論 →④預覽並送出。詳細操作請看右上角「操作說明」。</p>
     </div>
-    <a class="guideLink" href="https://claude.ai/code/artifact/9fe8ed38-61fc-458a-99e2-2ee53a0cbb3b" target="_blank" rel="noopener">📖 操作說明</a>
+    <a class="guideLink" href="https://claude.ai/artifact/LkHjKRiUBNFtUQ5rhf4vS6" target="_blank" rel="noopener">📖 操作說明</a>
   </header>
 
   <div class="savebar" id="savebar">💾 本機自動暫存中：填到一半離開頁面，重新打開這個網址還會接續之前的內容<span id="draftSavedWrap"></span>　<button type="button" id="btnRefreshNcdb" style="border:1px solid #d8c48a;background:#fffdf6;color:#8a5a10;border-radius:12px;padding:2px 10px;font-size:11px;cursor:pointer">🔄 重新整理分類清單</button></div>
@@ -1163,8 +1167,15 @@ document.getElementById("f-ndef").addEventListener("change", function(){
   }else if(target < boxes.length){
     for(let i=boxes.length-1; i>=target; i--){
       const box = boxes[i];
-      const hasContent = [...box.querySelectorAll("input,textarea,select")]
-        .some(el => el.type==="checkbox" ? el.checked : (el.value||"").trim());
+      // ⚠ <select> 一律有值（瀏覽器預設選第一個選項），不能直接拿 .value 判斷「有沒有填」，
+      // 否則每筆缺失一開始就自動帶一列「責任人員」（職級下拉預設非空白），永遠被當成「有內容」，
+      // 導致缺失數改小（甚至改回 0）都刪不掉任何一筆，數字欄位看起來像被卡住改不動。
+      // 改成：只有使用者「真的動過」這個下拉（選到非第一個選項）才算數。
+      const hasContent = [...box.querySelectorAll("input,textarea,select")].some(el=>{
+        if(el.type==="checkbox") return el.checked;
+        if(el.tagName==="SELECT") return el.selectedIndex>0 && !!el.value;
+        return (el.value||"").trim();
+      });
       if(!hasContent) box.remove();
     }
     updateDefCount();
