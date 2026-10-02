@@ -492,6 +492,13 @@ const Store={
     if(this.mode==="cloud"){try{await api(`${TABLE}?id=eq.${id}`,{method:"DELETE"});}catch(e){toast("⚠ 刪除失敗："+e.message,true);return;}}
     this.rows=this.rows.filter(r=>r.id!==id);
     if(this.mode==="local")try{localStorage.setItem(LOCAL_KEY,JSON.stringify(this.rows));}catch(e){}
+    // ⚠ 原本刪除整張登錄單只刪 intaudit_records 這一筆，底下缺失船上回報過的
+    // intaudit_replies 那幾筆完全沒清掉——變成孤兒資料，record_id 已經找不到對應的登錄單，
+    // 卻還是會出現在主系統的「船上改善回報」審核/套用清單裡（因為那邊是直接撈整張
+    // intaudit_replies 表，不是從登錄單反查），看起來像「明明刪了怎麼還在」。
+    // 刪除登錄單時一併把底下所有回報也刪掉，才不會留下這種殘影。
+    if(this.mode==="cloud"){try{await api(`intaudit_replies?record_id=eq.${id}`,{method:"DELETE"});}catch(e){}}
+    Object.keys(this.replies).forEach(k=>{if(k.startsWith(id+"_"))delete this.replies[k];});
   }
 };
 
@@ -589,13 +596,22 @@ function editDef(rid,i){
 }
 async function delDefFromList(rid,i){
   const r=Store.rows.find(x=>x.id===rid);if(!r||!r.defs[i])return;
-  const d=r.defs[i],rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;
-  const warn=(rp?"\n\n⚠ 船上已對這筆缺失回報過，回報內容會一併失去關聯。":"")+(r.imported?"\n\n⚠ 這張登錄單已匯入主系統，主系統裡的缺失紀錄不會被刪除。":"");
+  const d=r.defs[i],key=d.uid?`${r.id}_${d.uid}`:null,rp=key?Store.replies[key]:null;
+  const warn=(rp?"\n\n⚠ 船上已對這筆缺失回報過，回報內容會一併刪除。":"")+(r.imported?"\n\n⚠ 這張登錄單已匯入主系統，主系統裡的缺失紀錄不會被刪除。":"");
   if(!confirm(`刪除這筆缺失？\n\n${d.category||""}：${String(d.finding||"").slice(0,60)}${warn}\n\n此動作無法復原。`))return;
   const rec=JSON.parse(JSON.stringify(r));rec.defs.splice(i,1);rec.updatedAt=Date.now();
   const res=await Store.save(rec,Store.srvOf[rid]);
   if(res.conflict){toast("⚠ 這張登錄單剛被其他人更新過，請按「🔄 重新整理」後再試一次",true);return;}
-  if(res.ok){toast("✓ 已刪除該筆缺失");renderList();}
+  if(res.ok){
+    // ⚠ 原本刪缺失只提醒「回報內容會失去關聯」，卻沒有真的清掉 intaudit_replies 那一筆，
+    // 變成孤兒資料留在雲端，主系統那邊的「船上改善回報」清單撈的是整張 intaudit_replies 表、
+    // 不是從登錄單反查，所以還是會看到這筆空殼資料，看起來像「刪了怎麼還在」。
+    if(key&&rp){
+      if(Store.mode==="cloud"){try{await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"DELETE"});}catch(e){}}
+      delete Store.replies[key];
+    }
+    toast("✓ 已刪除該筆缺失");renderList();
+  }
 }
 function renderList(){
   const rows=Store.rows,all=[];rows.forEach(r=>(r.defs||[]).forEach(d=>all.push(d)));
@@ -701,6 +717,32 @@ function reviewFilteredItems(){
   if(q)items=items.filter(x=>{const p=x.rp.payload||{};return [shipLabel(x.r.ship),x.r.inspector,x.d.category,x.d.finding,p.by].join(" ").toLowerCase().includes(q);});
   return items;
 }
+/* 清掉歷史孤兒資料：這次修正之前，刪除登錄單／刪除單筆缺失都沒有連帶刪除 intaudit_replies，
+   舊資料裡可能還留著幾筆「對應的登錄單或缺失已經不存在」的回報殘影，不會在這裡（或任何畫面）
+   自然顯示出來，但會一直留在主系統「船上改善回報」清單裡像是刪不掉——這裡提供一次性清理。 */
+function orphanReplies(){
+  const list=[];
+  Object.keys(Store.replies).forEach(key=>{
+    const idx=key.indexOf("_");if(idx<0)return;
+    const rid=key.slice(0,idx),uid=key.slice(idx+1);
+    const r=Store.rows.find(x=>String(x.id)===rid);
+    const exists=r&&(r.defs||[]).some(d=>d.uid===uid);
+    if(!exists)list.push({key,rid,uid,rp:Store.replies[key]});
+  });
+  return list;
+}
+async function cleanupOrphanReplies(){
+  const list=orphanReplies();
+  if(!list.length){toast("目前沒有孤兒回報資料，不用清理");return;}
+  if(!confirm(`找到 ${list.length} 筆孤兒回報資料（對應的登錄單或缺失已經被刪除，但回報內容還留在雲端）。\n\n這些不會再出現在任何畫面上，只會一直佔用資料、讓主系統的清單看起來「刪不掉」。確定要清除嗎？此動作無法復原。`))return;
+  let ok=0,fail=0;
+  for(const {key} of list){
+    try{if(Store.mode==="cloud")await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"DELETE"});delete Store.replies[key];ok++;}
+    catch(e){fail++;}
+  }
+  toast(fail?`已清除 ${ok} 筆，${fail} 筆失敗`:`✓ 已清除 ${ok} 筆孤兒資料`,!!fail);
+  renderReview();renderList();
+}
 function updateReviewBadge(){
   const n=reviewItems().filter(x=>x.rp.status==="submitted").length;
   const el=$("#btnReviewCount");if(!el)return;
@@ -729,7 +771,8 @@ function renderReview(){
   const box=$("#reviewBody");if(!box)return;
   const items=reviewFilteredItems();
   const pending=reviewItems().filter(x=>x.rp.status==="submitted").length;
-  $("#rvStat").textContent=`顯示 ${items.length} 筆・全部待審核 ${pending} 筆`;
+  const orphanN=orphanReplies().length;
+  $("#rvStat").innerHTML=`顯示 ${items.length} 筆・全部待審核 ${pending} 筆`+(orphanN?`　<button class="btn sm danger" onclick="cleanupOrphanReplies()">🗑 清除 ${orphanN} 筆孤兒資料</button>`:"");
   const selAllBox=$("#rvSelAll");
   const pendingShown=items.filter(x=>x.rp.status==="submitted");
   if(selAllBox)selAllBox.checked=pendingShown.length>0&&pendingShown.every(x=>reviewSel.has(`${x.r.id}_${x.d.uid}`));
@@ -1309,8 +1352,11 @@ function openSpecialSarModal(){
   const already=new Set(cur.types.filter(k=>k.startsWith(SPECIAL_PREFIX)).map(k=>k.slice(SPECIAL_PREFIX.length)));
   const avail=SPECIAL_SAR_OPTS.filter(t=>!already.has(t));
   sel.innerHTML='<option value="">— 請選擇 —</option>'+avail.map(t=>`<option>${esc(t)}</option>`).join("")+`<option value="其他">其他</option>`;
-  $("#specialSarOther").style.display="none";
-  $("#specialSarOther").value="";
+  // 大多數專項檢查實際上都不對應既有的 SAR 表單，每次都要手動選「其他」再打字——
+  // 預設直接選「其他」並帶出常用的「其他問題」字樣，不想用再自己改掉或改選別的表單即可。
+  sel.value="其他";
+  $("#specialSarOther").style.display="";
+  $("#specialSarOther").value="其他問題";
   $("#specialSarModal").style.display="flex";
 }
 function onSpecialSarSelChange(){
