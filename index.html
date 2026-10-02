@@ -15370,7 +15370,7 @@ const Defs={
     if(v("content"))heads.push(`<th style="width:24%">缺失內容 / 實際情況</th>`);
     if(v("classify"))heads.push(`<th style="width:16%">分類</th>`);
     if(v("inspperson"))heads.push(`<th>檢查員 / 責任人</th>`);
-    if(v("close"))heads.push(`<th>結案狀態</th>`);
+    if(v("close"))heads.push(`<th>結案狀態<span title="這個欄位只追蹤「內部檢查缺失登錄」船上回報流程的進度（FLOW／已結案／待回報）。SIRE、PSC、FLAG 等外部查核缺失不是走這套流程，這裡一律顯示「—」，不代表「未結案」——這類缺失的結案認定請以「船上矯正措施＋對外回覆」是否都完成為準，本表目前沒有另外做這個狀態追蹤。" style="cursor:help;color:var(--ink-3);font-size:12px;margin-left:3px">ⓘ</span></th>`);
     if(v("photo"))heads.push(`<th>照片</th>`);
     heads.push(`<th style="width:86px">操作</th>`);
     $("#f2-thead").innerHTML=heads.join("");
@@ -15383,7 +15383,10 @@ const Defs={
       if(cp&&(cp.opMain||cp.opLeaves.length))clsGroups.push(`<div class="df-card-classifygrp"><span class="df-card-col-caption">作業大類 / 具體</span><span class="df-card-tag df-card-tag-op">⚙️ ${esc(cp.opMain||"")}</span>${cp.opLeaves.length?`<span class="df-card-tag df-card-tag-op">⚙️ ${esc(cp.opLeaves.join("、"))}</span>`:""}</div>`);
       if(d.ncRoot||d.ncFactor)clsGroups.push(`<div class="df-card-classifygrp"><span class="df-card-col-caption">根因 / 三要素</span>${d.ncRoot?`<span class="df-card-tag">根因：${esc(d.ncRoot)}</span>`:""}${d.ncFactor?`<span class="df-card-tag">三要素：${esc(d.ncFactor)}</span>`:""}</div>`);
       const nPhoto=(d.photosBefore||[]).length+(d.photosAfter||[]).length;
-      let closeHtml=`<span class="hint">—</span>`;
+      // 「結案狀態」只有「內部檢查缺失登錄」匯入的缺失才有這個流程概念（船上要在 intaudit-reply
+      // 回報、海技審核才算結案）；SIRE/PSC/FLAG 等外部缺失走的是「船上矯正＋對外回覆」，不是這
+      // 套流程，不該顯示空白的「—」讓人誤以為忘記填或沒結案，改成明講「不適用這個狀態」。
+      let closeHtml=`<span class="hint" title="這筆不是內部檢查缺失登錄匯入的，結案認定請看對外回覆是否完成，本表不追蹤這個狀態" style="cursor:help">不適用</span>`;
       if(d.intAuditId){
         if(d.intAuditCloseMode==="FLOW")closeHtml=`<span class="hint">FLOW</span>`;
         else if(d.intAuditStatus==="已結案")closeHtml=`<span class="st st-lo">✓ 已結案</span>`;
@@ -15403,6 +15406,7 @@ const Defs={
       if(v("close"))tds.push(`<td>${closeHtml}</td>`);
       if(v("photo"))tds.push(`<td>${nPhoto?photoStripHtml(d,"deflc_"+d.id):`<span class="hint">—</span>`}</td>`);
       tds.push(`<td><div class="lcx-opbtns">
+        ${d._impAt?`<span title="轉入/匯入於 ${esc(new Date(d._impAt).toLocaleString("zh-TW",{hour12:false}))}${d._impBy?"，操作者："+esc(d._impBy):""}" style="cursor:help;color:var(--ink-3);font-size:12px">ℹ</span>`:""}
         <button class="btn sm" onclick="Defs.openEdit(${d.id})">✎ 編輯</button>
         <button class="btn sm lcx-expand-btn" onclick="Defs.toggleLcExpand('${d.id}')" title="展開完整資訊">展開</button>
       </div></td>`);
@@ -21914,9 +21918,16 @@ const Air={
     const records=await this._parseImportDocxFile(file);
     if(!records)return;
     const rec=records[0];
-    const newRows=rec.defects.map(df=>{
+    // ⚠ 重新匯入會整組換成全新物件，如果沒有把舊列的 pushedDefId（上次「轉入缺失紀錄總表」
+    // 記住的對應關係）帶回來，下次轉入時系統會找不到對應的舊紀錄，誤判成「沒轉過」而新增一筆，
+    // 等於明明選「覆蓋」卻變成重複——這是船上對外回覆完成後重新匯入 Word 會跑出重複缺失紀錄的
+    // 真正原因。這裡依照匯入順序（第幾列）把舊的 pushedDefId 接回對應的新列，順序／筆數不同時
+    // 多出來的新列就當作全新缺失處理（找不到可接的 pushedDefId 本來就合理）。
+    const oldRows=this.defRows;
+    const newRows=rec.defects.map((df,i)=>{
       const o=this.blankDefect();
       ["code","psc","detail","actual","corrective","rootCause","preventive","rank","person","ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncOpinion","risk","needControl","photosBefore","photosAfter"].forEach(k=>{if(df[k]!==undefined)o[k]=df[k];});
+      if(oldRows[i]&&oldRows[i].pushedDefId!=null)o.pushedDefId=oldRows[i].pushedDefId;
       o._reply=df._reply||{};
       return o;
     });
@@ -22470,7 +22481,11 @@ const Air={
           "岸上_預防措施PreventiveMeasures_中文":"_preventiveCn","岸上_預防措施PreventiveMeasures_English":"_preventiveEn"};
         const keys=hdr.map(h=>mapHdr[h]||null);
         if(!keys.some(Boolean)){toast("⚠ 找不到可對應的欄位，請確認是用本系統匯出的範本");return;}
-        const newRows=aoa.slice(1).filter(row=>row.some(c=>String(c).trim())).map(row=>{
+        // ⚠ 跟 importDefectsDocx 同一個坑：重新匯入是整組換成全新物件，必須把舊列的
+        // pushedDefId 依順序接回來，不然下次轉入缺失紀錄總表選「覆蓋」會因為找不到對應
+        // 舊紀錄而誤判成新增，變成重複資料。
+        const oldRows=this.defRows;
+        const newRows=aoa.slice(1).filter(row=>row.some(c=>String(c).trim())).map((row,i)=>{
           const o=this.blankDefect();
           const reply={};
           keys.forEach((k,i)=>{
@@ -22480,6 +22495,7 @@ const Air={
           });
           o.ncOpinion=ncOpinionNormalize(o.ncOpinion);
           const fv=o.ncFocus;o.ncFocus=/^(是|y|yes|true|1)$/i.test(fv)?"是":(fv?"否":"");
+          if(oldRows[i]&&oldRows[i].pushedDefId!=null)o.pushedDefId=oldRows[i].pushedDefId;
           o._reply=reply;
           return o;
         });
