@@ -451,6 +451,22 @@ function renderSysStep(){
   $("#defList").innerHTML=list.length?list.map((d,i)=>rowHtml(d,i+1)).join(""):`<div class="banner" style="margin:0">${modeFlt==="all"?"這張改善單沒有需要船上改善的項目。":"目前沒有這個結案方式的項目。"}</div>`;
   updateBar();applyFlt();
 }
+/* 步驟④逐項卡片：缺失內容、改善措施、改善完成日期、備註、照片都要能完整核對，
+   不能只看 No./狀態——不然等於沒預覽到真正要送出的內容。 */
+function previewItemHtml(d,i){
+  const st=stOf(d),x=val(d),photos=x.photos||[];
+  return `<div class="row st-${st}" style="grid-template-columns:1fr"><div class="rl" style="border-right:none">
+    <div class="ih">No.${i+1}　${esc(d.category||"")}${typeBadge(d)}<span class="badge ${st}">${esc(badgeText(d,st))}</span></div>
+    ${d.topic?`<div class="hint">${esc(d.topic)}</div>`:""}
+    <div class="finding">${esc(d.finding||"")}</div>
+    <div style="margin-top:8px"><div class="hint" style="margin-bottom:3px">改善措施</div><div class="sub">${esc(x.action||"（尚未填寫）")}</div></div>
+    <div style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:150px"><div class="hint" style="margin-bottom:3px">改善完成日期</div><div class="sub">${esc(x.corrected||"（尚未填寫）")}</div></div>
+      ${x.evidence?`<div style="flex:2;min-width:200px"><div class="hint" style="margin-bottom:3px">改善完成證據／備註</div><div class="sub">${esc(x.evidence)}</div></div>`:""}
+    </div>
+    ${photos.length?`<div class="phs" style="margin-top:8px">${photos.map(p=>`<div class="ph"><img src="${p.dataUrl}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:""}
+  </div></div>`;
+}
 /* 步驟④：預覽並確認資料——彙整填寫人、FLOW 提醒、系統填報各項目前狀態，確認無誤才能送出。 */
 function renderPreview(){
   const items=nonFlow(rec);
@@ -465,11 +481,9 @@ function renderPreview(){
       <div>姓名：<b>${esc(nameVal||"（未填）")}</b>　職稱：<b>${esc(titleVal||"（未選）")}</b></div>
     </div>
     ${flows.length?`<div class="banner">提醒：這張改善單另有 <b>${flows.length}</b> 項 FLOW 系統缺失，請自行至 FLOW 系統（DMP-FM01）辦理，本頁送出不包含這些項目。</div>`:""}
-    <div class="card">
-      <div class="ih">📋 系統填報項目（共 ${items.length} 項）</div>
-      <div class="hint" style="font-size:13px;margin-bottom:10px">已填 <b style="color:var(--ok)">${g}</b>　未填 <b style="color:var(--bad)">${c.red}</b>　本次按「送出」可送出 <b style="color:var(--navy)">${readyCount}</b> 項</div>
-      <div class="rows" style="margin:0">${items.length?items.map((d,i)=>{const st=stOf(d);return `<div class="row st-${st}" style="grid-template-columns:1fr"><div class="rl" style="border-right:none"><div class="ih">No.${i+1}　${esc(d.category||"")}${typeBadge(d)}<span class="badge ${st}">${esc(badgeText(d,st))}</span></div></div></div>`;}).join(""):`<div class="banner" style="margin:0">這張改善單沒有需要船上改善的項目。</div>`}</div>
-    </div>`;
+    <div class="ih" style="margin:14px 14px 0">📋 系統填報項目（共 ${items.length} 項）</div>
+    <div class="hint" style="font-size:13px;margin:4px 14px 0">已填 <b style="color:var(--ok)">${g}</b>　未填 <b style="color:var(--bad)">${c.red}</b>　本次按「送出」可送出 <b style="color:var(--navy)">${readyCount}</b> 項</div>
+    <div class="rows">${items.length?items.map((d,i)=>previewItemHtml(d,i)).join(""):`<div class="banner" style="margin:0 14px">這張改善單沒有需要船上改善的項目。</div>`}</div>`;
   const chk=$("#confirmChk");if(chk){chk.checked=false;}
   const btn=$("#btnSubmit");if(btn)btn.disabled=true;
 }
