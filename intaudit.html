@@ -805,10 +805,25 @@ function setSec(k){if(cur)collect();secTab=k;renderSecTabs();if(k==="download")r
 /* ⚠ 原本①~⑤每個分頁都看得到「送出海技入系統」，容易在資料都還沒填完（例如⑥下載/發改善單
    都還沒跑過）就提早按下去；改成①~⑤顯示「下一步」依序引導，只有切到⑥下載/發改善單那頁
    才會顯示真正的「送出海技入系統」按鈕。儲存草稿、取消在任何一頁都維持可以按。 */
-function nextSec(){
-  if(cur)collect();
+async function nextSec(){
+  if(!cur)return;
+  collect();
   const idx=SECS.findIndex(([k])=>k===secTab);
   if(idx<0||idx>=SECS.length-1)return;
+  // 按鈕寫「儲存並前往下一步」，所以這裡要真的立刻存一次（不是只更新記憶體裡的 cur、
+  // 等 20 秒後的自動儲存才真正落地）——不然使用者連續點好幾步下一步，中途真的斷線
+  // 或關頁面，可能這幾步的內容都還沒存到雲端，跟按鈕文字講的不一樣。
+  const res=await persist(true,{silent:true});
+  // ⚠ persist 在「靜默模式＋衝突」時回傳的是一個物件（{ok:false,conflict:true,...}），
+  // 物件本身是 truthy，這裡原本只用 if(res) 判斷會誤判成「存成功」，實際上是存檔衝突、
+  // 畫面上的內容其實還沒真的存進去——改成跟 autoSave() 同一套判斷順序，先攔截衝突。
+  if(res&&res.conflict){
+    stopAutoSave();
+    setAutoState(conflictMsg(res.serverAt),true);
+    return; // 有衝突先留在原本這一頁，讓使用者看到完整提示再處理，不要悄悄跳到下一步
+  }
+  if(res){lastSnap=snapNow();const d=new Date();setAutoState(`✓ 資料已自動儲存（${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}）`);}
+  else setAutoState(autosaveFailMsg(),true);
   secTab=SECS[idx+1][0];
   renderSecTabs();
   if(secTab==="download")renderDownloadTab();
@@ -819,7 +834,7 @@ function handlePrimaryAction(){
   else nextSec();
 }
 function updatePrimaryBtns(){
-  const isLast=secTab==="download",label=isLast?"🚀 送出海技入系統":"下一步 →";
+  const isLast=secTab==="download",label=isLast?"🚀 送出海技入系統":"儲存並前往下一步 →";
   const top=$("#btnPrimaryTop"),bottom=$("#btnPrimaryBottom");
   if(top)top.textContent=label;
   if(bottom)bottom.textContent=label;
@@ -879,6 +894,16 @@ function startAutoSave(){
   autoTimer=setInterval(autoSave,20000);
 }
 function stopAutoSave(){if(autoTimer){clearInterval(autoTimer);autoTimer=null;}}
+/* 這兩句提示文字共用：原本的「⚠ 自動儲存已暫停，請自行複製備份」「⚠自動儲存失敗」讀起來很像
+   「資料快不見了」，容易讓正在填表的人（尤其年長同仁）當下很緊張、甚至不敢再往下填。其實不管
+   哪一種情況，畫面上剛打的內容都還好好留著、什麼都沒遺失，只是這次存檔動作本身沒成功而已——
+   文字改成先講「別擔心、內容都還在」，再講清楚要做什麼，語氣平靜一點。 */
+function conflictMsg(serverAt){
+  return `這張單同時有人更新過（對方時間 ${new Date(serverAt).toLocaleString("zh-TW",{hour12:false})}），別擔心，您畫面上剛打的內容都還在、沒有不見，只是系統先暫停自動存檔，避免兩邊互相覆蓋掉對方的修改。請按最上方「取消」回登錄紀錄列表，重新打開這張單抓最新版本，再把您剛填的部分補回去就可以了。`;
+}
+function autosaveFailMsg(){
+  return "這次自動儲存沒成功，別擔心，畫面上的內容都還在、沒有不見，手動按一下「💾 儲存草稿」存一次就可以了";
+}
 async function autoSave(){
   if(!cur||autoBusy||$("#formPage").style.display==="none"||cur.draft===false)return;
   const s=snapNow();if(!s||s===lastSnap)return;
@@ -888,11 +913,11 @@ async function autoSave(){
   autoBusy=false;
   if(res&&res.conflict){
     stopAutoSave();
-    setAutoState(`⚠ 這張單已被其他人更新（對方時間 ${new Date(res.serverAt).toLocaleString("zh-TW",{hour12:false})}），自動儲存已暫停。請先自行複製目前畫面內容備份，再按「取消」回登錄紀錄重新開啟最新版本`,true);
+    setAutoState(conflictMsg(res.serverAt),true);
     return;
   }
   if(res){lastSnap=snapNow();const d=new Date();setAutoState(`✓ 資料已自動儲存（${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}）`);}
-  else setAutoState("⚠ 自動儲存失敗，請按「儲存草稿」",true);
+  else setAutoState(autosaveFailMsg(),true);
 }
 function collect(){
   const g=id=>$(id).value.trim();
@@ -1044,9 +1069,12 @@ function renderBest(){
     $("#bestList").innerHTML=`<div class="blist">${cur.best.map((x,i)=>blistRow(i,{category:x.category,finding:x.brief},"openBest","delBest",x.people?`<span class="hint">${esc(x.people)}</span>`:"")).join("")}</div>`;
     return;
   }
-  $("#bestList").innerHTML=openIdxs.map(i=>bestCardHtml(i)).join("");
+  $("#bestList").innerHTML=openIdxs.map((i,n)=>bestCardHtml(i,n===openIdxs.length-1)).join("");
 }
-function bestCardHtml(i){
+/* ⚠ 「＋新增下一筆」原本每一張堆疊卡片都有，結果堆了好幾筆後畫面上到處都是這顆按鈕，
+   容易誤以為要在某一筆中間插入新的一筆——其實新增永遠是接在「目前最後一筆」下面，
+   所以只在堆疊的最後一張卡片顯示這顆按鈕即可。 */
+function bestCardHtml(i,isLast){
   const x=cur.best[i];
   return `<div class="item" id="best-${i}"><div class="ih"><button class="btn sm" type="button" onclick="backBest()">← 返回清單</button>　優良案例 No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delBest(${i})">🗑 刪除</button></div>
     <div class="fgrid"><label>分類 Category<input type="text" value="${esc(x.category)}" placeholder="例：作業記錄、壓載水記錄" oninput="setB(${i},'category',this.value)"></label>
@@ -1055,7 +1083,7 @@ function bestCardHtml(i){
       <div><button class="btn sm" type="button" onclick="addBP(${i})">＋ 新增人員</button></div></div>
     <label class="fw">描述 Brief<textarea oninput="setB(${i},'brief',this.value)">${esc(x.brief)}</textarea></label>
     <div class="fld fw">案例照片 Photos${phHtml("best",i,0)}</div></div>
-    <div class="ih-bottom"><button class="btn lg primary" type="button" onclick="addBest()" title="直接新增下一筆繼續填，接在這筆下面顯示">＋ 新增下一筆</button></div>
+    ${isLast?`<div class="ih-bottom"><button class="btn lg primary" type="button" onclick="addBest()" title="直接新增下一筆繼續填，接在這筆下面顯示">＋ 新增下一筆</button></div>`:""}
     </div>`;
 }
 /* 缺失明細：依檢查種類分頁 */
@@ -1189,9 +1217,9 @@ function renderDefs(){
     return;
   }
   // 展開模式：可能同時堆疊顯示多筆（見 addDef 內的說明），依 openIdxs 的加入順序由上往下排列
-  $("#defList").innerHTML=openIdxs.map(i=>defCardHtml(i,td,allIdxs)).join("");
+  $("#defList").innerHTML=openIdxs.map((i,n)=>defCardHtml(i,td,allIdxs,n===openIdxs.length-1)).join("");
 }
-function defCardHtml(i,td,allIdxs){
+function defCardHtml(i,td,allIdxs,isLast){
     const seq=allIdxs.indexOf(i);
     const d=cur.defs[i],m=modeOf(d.closeMode);
     const topicCtl=td&&td.topics?`<label>${esc(td.topicLabel)}（選填）<select data-f="topic" onchange="setTopic(${i},this.value)"><option value="">（不特別標註）</option>${td.topics.map(t=>`<option ${d.topic===t?"selected":""}>${esc(t)}</option>`).join("")}</select>${d.topic==="其他"?`<input type="text" data-f="topicOther" value="${esc(d.topicOther||"")}" placeholder="請說明是哪一類" oninput="setD(${i},'topicOther',this.value)">`:""}</label>`
@@ -1220,7 +1248,7 @@ function defCardHtml(i,td,allIdxs){
           </div>
         </div>
       </div>
-      <div class="ih-bottom"><button class="btn lg primary" type="button" onclick="addDef()" title="直接新增下一筆同種類的缺失繼續填，接在這筆下面顯示">＋ 新增下一筆缺失</button></div>
+      ${isLast?`<div class="ih-bottom"><button class="btn lg primary" type="button" onclick="addDef()" title="直接新增下一筆同種類的缺失繼續填，接在這筆下面顯示">＋ 新增下一筆缺失</button></div>`:""}
       </div>`;
 }
 /* ══════ 批量新增缺失：大表格一列一筆，填完一次加入目前分頁的檢查種類 ══════ */
@@ -1376,7 +1404,7 @@ async function saveDraft(){
   if(!cur.ship&&!cur.inspector&&!cur.defs.length){toast("⚠ 還沒有填寫任何內容",true);return;}
   showSaving("⏳ 儲存中，請稍候…");
   const ok=await persist(true);
-  if(ok){lastSnap=snapNow();saveDone("✅ 已完成儲存"+(Store.mode==="local"?"（暫存於本機瀏覽器）":""));}
+  if(ok){lastSnap=snapNow();saveDone("✅ 已完成儲存"+(Store.mode==="local"?"（目前連不上雲端，內容先安全存在這台電腦，別擔心不會不見；等網路恢復、重新整理頁面後會自動補存到雲端）":""));}
   else saveDone("⚠ 儲存失敗，請重試一次",false);
   hideSaving();
   return ok;
