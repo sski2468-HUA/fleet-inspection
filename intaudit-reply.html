@@ -267,21 +267,24 @@ function dr(d){if(!drafts[d.uid])drafts[d.uid]=JSON.parse(JSON.stringify(val(d))
 const isEmpty=x=>!x||(!x.action&&!x.corrected&&!x.evidence&&!(x.photos||[]).length);
 const isComplete=x=>x&&(x.action||"").trim()&&x.corrected; // 照片為選填
 function sameAsReply(x,p){p=p||{};return (x.action||"")===(p.action||"")&&(x.corrected||"")===(p.corrected||"")&&(x.evidence||"")===(p.evidence||"")&&JSON.stringify((x.photos||[]).map(a=>a.dataUrl))===JSON.stringify((p.photos||[]).map(a=>a.dataUrl));}
-/* 狀態：lock 已結案｜green 已填（已回報）｜yellow 待填（填到一半／已修改未重送／被退回）｜red 未填 */
+/* 狀態：lock 已結案｜green 已填（只要改善措施與完成日期都填了就算，不管是否已送出）｜red 未填
+   （原本填完但還沒送出算「待填」一個中間狀態，船上容易搞不清楚待填到底算填了沒——
+   只要內容填妥就算已填，送出與否另外用徽章文字區分，不再多一個篩選分類。） */
 function stOf(d){
-  const rp=rpOf(d),x=drafts[d.uid];
+  const rp=rpOf(d);
   if(rp&&rp.status==="reviewed")return "lock";
-  if(rp&&rp.status==="returned")return "yellow";
-  if(x&&!isEmpty(x)&&!(rp&&sameAsReply(x,rp.payload)))return "yellow";
-  if(rp&&rp.status==="submitted")return "green";
+  if(isComplete(val(d)))return "green";
   return "red";
 }
 function badgeText(d,st){
   const rp=rpOf(d);
   if(st==="lock")return "✓ 已結案";
-  if(st==="green")return "已回報，待海技審核";
-  if(st==="yellow")return rp&&rp.status==="returned"?"被退回，請修正後重送":rp?"已修改，尚未重新送出":isComplete(drafts[d.uid])?"已填完，尚未送出":"待填（尚未填完）";
-  return "未填";
+  if(st==="green"){
+    if(rp&&rp.status==="returned")return "被退回，已填妥，請重新送出";
+    if(rp&&rp.status==="submitted")return sameAsReply(val(d),rp.payload)?"已回報，待海技審核":"已修改，尚未重新送出";
+    return "已填完，尚未送出";
+  }
+  return rp&&rp.status==="returned"?"被退回，請修正後重送":"未填";
 }
 async function initRec(){
   try{
@@ -370,16 +373,15 @@ function paintStatus(uid){
   el.className="row st-"+st;el.dataset.st=st;
   const b=document.getElementById("bd-"+uid);if(b){b.className="badge "+st;b.textContent=badgeText(d,st);}
 }
-function counts(){const c={red:0,yellow:0,green:0,lock:0};subset().forEach(d=>{c[stOf(d)]++;});return c;}
+function counts(){const c={red:0,green:0,lock:0};subset().forEach(d=>{c[stOf(d)]++;});return c;}
 function updateBar(){
   renderGlobalBar();
   const c=counts(),n=subset().length,g=c.green+c.lock;
-  $("#bar").innerHTML=`<b style="color:var(--navy);margin-right:4px">共 ${n} 項　已填 ${g}　待填 ${c.yellow}　未填 ${c.red}</b>
+  $("#bar").innerHTML=`<b style="color:var(--navy);margin-right:4px">共 ${n} 項　已填 ${g}　未填 ${c.red}</b>
     <button class="chip all ${flt==="all"?"on":""}" onclick="setFlt('all')">全部<b>${n}</b></button>
     <button class="chip red ${flt==="red"?"on":""}" onclick="setFlt('red')">未填<b>${c.red}</b></button>
-    <button class="chip yellow ${flt==="yellow"?"on":""}" onclick="setFlt('yellow')">待填<b>${c.yellow}</b></button>
     <button class="chip green ${flt==="green"?"on":""}" onclick="setFlt('green')">已填<b>${g}</b></button>
-    <span class="hint">${c.lock?`（已填含 ${c.lock} 項已結案）　`:""}紅＝還沒開始　黃＝填到一半／已修改未送出　綠＝已送出</span>`;
+    <span class="hint">${c.lock?`（已填含 ${c.lock} 項已結案）　`:""}紅＝尚未填寫　綠＝已填妥（徽章文字會標示是否已送出）</span>`;
 }
 function setFlt(k){flt=k;applyFlt();updateBar();}
 function applyFlt(){document.querySelectorAll("#defList .row").forEach(el=>{const st=el.dataset.st,g=st==="green"||st==="lock";el.style.display=(flt==="all"||flt===st||(flt==="green"&&g))?"":"none";});}
@@ -453,7 +455,7 @@ function renderSysStep(){
 function renderPreview(){
   const items=nonFlow(rec);
   const flows=(rec.defs||[]).filter(d=>d.closeMode==="FLOW");
-  const c={red:0,yellow:0,green:0,lock:0};items.forEach(d=>{c[stOf(d)]++;});
+  const c={red:0,green:0,lock:0};items.forEach(d=>{c[stOf(d)]++;});
   const g=c.green+c.lock;
   const readyCount=items.filter(d=>{const x=drafts[d.uid];return x&&isComplete(x)&&!(rpOf(d)&&sameAsReply(x,rpOf(d).payload));}).length;
   const nameVal=$("#fName").value.trim(),titleVal=$("#fTitle").value;
@@ -465,7 +467,7 @@ function renderPreview(){
     ${flows.length?`<div class="banner">提醒：這張改善單另有 <b>${flows.length}</b> 項 FLOW 系統缺失，請自行至 FLOW 系統（DMP-FM01）辦理，本頁送出不包含這些項目。</div>`:""}
     <div class="card">
       <div class="ih">📋 系統填報項目（共 ${items.length} 項）</div>
-      <div class="hint" style="font-size:13px;margin-bottom:10px">已填 <b style="color:var(--ok)">${g}</b>　待填／修改中 <b style="color:var(--warn)">${c.yellow}</b>　未填 <b style="color:var(--bad)">${c.red}</b>　本次按「送出」可送出 <b style="color:var(--navy)">${readyCount}</b> 項</div>
+      <div class="hint" style="font-size:13px;margin-bottom:10px">已填 <b style="color:var(--ok)">${g}</b>　未填 <b style="color:var(--bad)">${c.red}</b>　本次按「送出」可送出 <b style="color:var(--navy)">${readyCount}</b> 項</div>
       <div class="rows" style="margin:0">${items.length?items.map((d,i)=>{const st=stOf(d);return `<div class="row st-${st}" style="grid-template-columns:1fr"><div class="rl" style="border-right:none"><div class="ih">No.${i+1}　${esc(d.category||"")}${typeBadge(d)}<span class="badge ${st}">${esc(badgeText(d,st))}</span></div></div></div>`;}).join(""):`<div class="banner" style="margin:0">這張改善單沒有需要船上改善的項目。</div>`}</div>
     </div>`;
   const chk=$("#confirmChk");if(chk){chk.checked=false;}
