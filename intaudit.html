@@ -28,6 +28,10 @@ header p{margin:5px 0 0;font-size:14px;color:#b9c8d6;line-height:1.6}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-2);background:#fff;color:var(--ink);padding:9px 14px;border-radius:8px;font-size:15px;cursor:pointer;font-family:var(--sans);font-weight:600}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn.primary{background:var(--signal);border-color:var(--signal);color:#fff}
+/* 上方頂層導覽（檢查紀錄登錄清單／改善單審核清單）用深藍標示目前所在頁籤，橘色留給
+   「＋新增檢查記錄」這種真正的建立/動作類按鈕，兩種按鈕意義不同、顏色也該分開。 */
+.toolbar #btnList.primary,.toolbar #btnReview.primary{background:var(--navy);border-color:var(--navy)}
+#btnReviewCount{display:inline-block;margin-left:6px;background:var(--bad);color:#fff;border-radius:10px;padding:1px 8px;font-size:12px;font-weight:800}
 .btn.dark{background:var(--navy);border-color:var(--navy);color:#fff}
 .btn.sm{padding:5px 11px;font-size:13.5px}
 .btn.lg{background:var(--signal);border-color:var(--signal);color:#fff;padding:13px 26px;font-size:18px;font-weight:800;box-shadow:0 2px 10px rgba(232,132,44,.45)}
@@ -150,7 +154,8 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
   <div id="modeBanner" class="banner warn" style="display:none"></div>
 
   <div class="toolbar">
-    <button class="btn primary" id="btnList" onclick="leaveFormGuard('list')">📋 登錄紀錄</button>
+    <button class="btn primary" id="btnList" onclick="leaveFormGuard('list')">📋 檢查紀錄登錄清單</button>
+    <button class="btn" id="btnReview" onclick="leaveFormGuard(showReview)">🔎 改善單審核清單<span class="n" id="btnReviewCount" style="display:none"></span></button>
     <button class="btn lg" id="btnNew" onclick="newForm()">＋ 新增檢查記錄</button>
     <span style="flex:1"></span>
     <a class="btn sm" href="./" title="回到主系統">← 返回系統</a>
@@ -261,6 +266,33 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
       <button class="btn" onclick="saveDraft()">💾 儲存草稿</button>
       <button class="btn lg" id="btnPrimaryBottom" onclick="handlePrimaryAction()">🚀 送出海技入系統</button>
     </div>
+  </div>
+
+  <!-- ══════ 改善單審核清單：船上回報的改善內容在這裡由督導審核結案，審核通過後才算定案，
+       主系統那邊只需要把已審核的內容套用進缺失紀錄總表，不再另外做審核判斷。══════ -->
+  <div id="reviewPage" style="display:none">
+    <div class="banner">船上在改善單填寫、送出的改善措施會先出現在這裡，由督導逐筆或批量審核結案；<b>審核結案後才算定案</b>，之後主系統只需要把已審核的內容套用到缺失紀錄總表，不需要再另外審核一次。FLOW 類缺失船上另外在 FLOW 系統辦理，不會出現在這裡。</div>
+    <div class="toolbar">
+      <select id="rvStatusFlt" onchange="setReviewStatusFlt(this.value)">
+        <option value="submitted">待審核</option>
+        <option value="reviewed">已結案</option>
+        <option value="returned">已退回待船上重填</option>
+        <option value="all">全部</option>
+      </select>
+      <select id="rvShip" onchange="renderReview()"><option value="">全部船舶</option></select>
+      <select id="rvMode" onchange="renderReview()"><option value="">全部結案方式</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
+      <input type="text" id="rvQ" placeholder="搜尋船名／分類／缺失描述／回報人" oninput="renderReview()" style="flex:1;min-width:160px">
+      <input type="text" id="rvReviewer" placeholder="審核人姓名（選填）" style="width:150px" oninput="saveReviewerName()">
+      <button class="btn sm" onclick="Store.loadReplies().then(renderReview)">🔄 重新整理</button>
+      <span class="hint" id="rvStat"></span>
+    </div>
+    <div id="reviewToolbar2" class="toolbar" style="margin-top:0"></div>
+    <div style="margin:0 14px">
+      <label style="display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:13px;color:var(--ink-2);cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="rvSelAll" onchange="toggleAllReviewSel(this.checked)">全選目前顯示的待審核項目
+      </label>
+    </div>
+    <div id="reviewBody" style="margin:0 14px"></div>
   </div>
 </div>
 
@@ -471,10 +503,11 @@ function effStatus(r,d){
   const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;
   if(rp&&rp.status==="reviewed")return "已結案";
   if(rp&&rp.status==="submitted")return "船上已回報";
+  if(rp&&rp.status==="returned")return "已退回待重填";
   return d.status||"待船上改善";
 }
 const replyUrl=r=>`${location.href.replace(/[^/]*$/,"")}intaudit-reply.html?rid=${r.id}`;
-const statCls=s=>s==="FLOW 結案"?"s-flow":s==="待船上改善"?"s-wait":s==="船上已回報"?"s-rep":"s-done";
+const statCls=s=>s==="FLOW 結案"?"s-flow":s==="待船上改善"?"s-wait":s==="船上已回報"?"s-rep":s==="已退回待重填"?"s-wait":"s-done";
 const rankSelect=(cur,onchange,extra)=>`<select ${extra||""} onchange="${onchange}"><option value="">— 職級 —</option>${RANK_OPTIONS.map(r=>`<option ${cur===r?"selected":""}>${esc(r)}</option>`).join("")}${cur&&!RANK_OPTIONS.includes(cur)?`<option selected>${esc(cur)}</option>`:""}</select>`;
 function openLightbox(url){$("#lightboxImg").src=url;$("#lightbox").style.display="flex";}
 function download(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
@@ -482,8 +515,8 @@ function download(blob,name){const a=document.createElement("a");a.href=URL.crea
 /* ══════ 登錄紀錄（清單） ══════ */
 function showList(){
   stopAutoSave();
-  $("#listPage").style.display="";$("#formPage").style.display="none";
-  $("#btnList").classList.add("primary");$("#btnNew").classList.remove("primary");
+  $("#listPage").style.display="";$("#formPage").style.display="none";$("#reviewPage").style.display="none";
+  $("#btnList").classList.add("primary");$("#btnNew").classList.remove("primary");$("#btnReview").classList.remove("primary");
   renderList();
 }
 function clearFilters(){$("#fShip").value="";if($("#fInsp"))$("#fInsp").value="";$("#fMode").value="";$("#fStatus").value="";$("#fQ").value="";renderList();}
@@ -618,19 +651,195 @@ function renderList(){
     if(open)html+=ds.map(d=>{
       const i=r.defs.indexOf(d),m=modeOf(d.closeMode),td=typeDef(d.type);
       const es=effStatus(r,d);
-      const nxt=d.closeMode==="FLOW"?`<span class="hint">船上自行至 FLOW 系統填單</span>`:es==="待船上改善"?`<span class="hint">${r.issuedAt?"已發改善單，等船上回報":"尚未發改善單"}</span>`:es==="船上已回報"?`<span class="hint">船上已回報，待海技審核</span>`:`<span class="hint">已結案</span>`;
+      const nxt=d.closeMode==="FLOW"?`<span class="hint">船上自行至 FLOW 系統填單</span>`:es==="待船上改善"?`<span class="hint">${r.issuedAt?"已發改善單，等船上回報":"尚未發改善單"}</span>`:es==="船上已回報"?`<span class="hint">船上已回報，待督導審核</span>`:es==="已退回待重填"?`<span class="hint">已退回，等船上重新回報</span>`:`<span class="hint">已結案</span>`;
+      const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;
       return `<tr><td style="text-align:center">${i+1}</td>
         <td><b>${esc(d.category||"—")}</b><div class="hint">${esc(td?td.label:d.type)}${topicText(d)?"・"+esc(topicText(d)):""}</div></td>
         <td style="white-space:pre-line;max-width:520px">${esc(d.finding||"")}${(d.photos||[]).length?`<div class="hint">📷 ${d.photos.length} 張照片</div>`:""}</td>
         <td>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">${esc(d.risk)}</span>`:""}</td>
         <td>${m?`<span class="mode ${m.cls}">${esc(m.label)}</span>`:'<span class="hint">未選</span>'}</td>
         <td><span class="stat ${statCls(es)}">${esc(es||"—")}</span></td><td>${nxt}</td>
-        <td style="white-space:nowrap"><button class="btn sm" onclick="editDef(${r.id},${i})" title="開啟這張登錄單並直接跳到這筆缺失">✎ 編輯</button> <button class="btn sm danger" onclick="delDefFromList(${r.id},${i})" title="只刪除這一筆缺失">🗑 刪除</button></td></tr>`;}).join("");
+        <td style="white-space:nowrap">${rp?`<button class="btn sm ${rp.status==="submitted"?"dark":""}" onclick="gotoReviewItem(${r.id},'${d.uid}')" title="前往改善單審核清單">➜ 審核</button> `:""}<button class="btn sm" onclick="editDef(${r.id},${i})" title="開啟這張登錄單並直接跳到這筆缺失">✎ 編輯</button> <button class="btn sm danger" onclick="delDefFromList(${r.id},${i})" title="只刪除這一筆缺失">🗑 刪除</button></td></tr>`;}).join("");
   });
   $("#listBody").innerHTML=html||`<tr><td colspan="8" style="text-align:center;color:#8195a0;padding:24px">目前沒有登錄紀錄，請按上方「＋ 新增登錄」。</td></tr>`;
   $("#listStat").textContent=`顯示 ${n} 筆缺失`;
+  updateReviewBadge();
 }
 async function delRec(id){if(!confirm("確定刪除這張登錄單？此動作無法復原。"))return;await Store.remove(id);renderList();}
+
+/* ══════════ 改善單審核清單：船上回報的改善內容在這裡由督導逐筆／批量審核結案 ══════════
+   設計重點：審核（結案）這個判斷動作完全在這裡完成，直接把 intaudit_replies 這筆的 status
+   寫成 "reviewed"；主系統那邊不再做「審核」這個判斷，只需要把已經是 reviewed 狀態的內容
+   套用進缺失紀錄總表（參考 index.html 的 IntAuditQueue 模組）。FLOW 類缺失沒有回報表單，
+   不會出現在這裡。 */
+let reviewStatusFlt="submitted",reviewSel=new Set();
+function reviewItems(){
+  const items=[];
+  Store.rows.forEach(r=>{
+    if(r.draft)return;
+    (r.defs||[]).forEach(d=>{
+      if(d.closeMode==="FLOW"||!d.uid)return;
+      const rp=Store.replies[`${r.id}_${d.uid}`];
+      if(!rp||(rp.status!=="submitted"&&rp.status!=="reviewed"&&rp.status!=="returned"))return;
+      items.push({r,d,rp});
+    });
+  });
+  // 待審核的排前面，同狀態依回報時間新到舊
+  items.sort((a,b)=>{
+    const pa=a.rp.status==="submitted"?0:1,pb=b.rp.status==="submitted"?0:1;
+    if(pa!==pb)return pa-pb;
+    return (((b.rp.payload||{}).at)||0)-(((a.rp.payload||{}).at)||0);
+  });
+  return items;
+}
+function reviewFilteredItems(){
+  let items=reviewItems();
+  if(reviewStatusFlt!=="all")items=items.filter(x=>x.rp.status===reviewStatusFlt);
+  const fs=$("#rvShip")?$("#rvShip").value:"",fm=$("#rvMode")?$("#rvMode").value:"",q=$("#rvQ")?$("#rvQ").value.trim().toLowerCase():"";
+  if(fs)items=items.filter(x=>x.r.ship===fs);
+  if(fm)items=items.filter(x=>x.d.closeMode===fm);
+  if(q)items=items.filter(x=>{const p=x.rp.payload||{};return [shipLabel(x.r.ship),x.r.inspector,x.d.category,x.d.finding,p.by].join(" ").toLowerCase().includes(q);});
+  return items;
+}
+function updateReviewBadge(){
+  const n=reviewItems().filter(x=>x.rp.status==="submitted").length;
+  const el=$("#btnReviewCount");if(!el)return;
+  if(n){el.textContent=n;el.style.display="";}else{el.style.display="none";}
+}
+const RV_REVIEWER_KEY="vsm_intaudit_reviewer_v1";
+function saveReviewerName(){try{localStorage.setItem(RV_REVIEWER_KEY,$("#rvReviewer").value.trim());}catch(e){}}
+function loadReviewerName(){try{return localStorage.getItem(RV_REVIEWER_KEY)||"";}catch(e){return "";}}
+function showReview(){
+  stopAutoSave();
+  $("#listPage").style.display="none";$("#formPage").style.display="none";$("#reviewPage").style.display="";
+  $("#btnList").classList.remove("primary");$("#btnNew").classList.remove("primary");$("#btnReview").classList.add("primary");
+  $("#rvShip").innerHTML='<option value="">全部船舶</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}">${esc(s.label)}</option>`).join("");
+  $("#rvReviewer").value=loadReviewerName();
+  reviewSel.clear();
+  renderReview();
+}
+function setReviewStatusFlt(k){reviewStatusFlt=k;reviewSel.clear();renderReview();}
+function toggleReviewSel(key,on){on?reviewSel.add(key):reviewSel.delete(key);renderReview();}
+function toggleAllReviewSel(on){
+  const list=reviewFilteredItems().filter(x=>x.rp.status==="submitted");
+  reviewSel=on?new Set(list.map(x=>`${x.r.id}_${x.d.uid}`)):new Set();
+  renderReview();
+}
+function renderReview(){
+  const box=$("#reviewBody");if(!box)return;
+  const items=reviewFilteredItems();
+  const pending=reviewItems().filter(x=>x.rp.status==="submitted").length;
+  $("#rvStat").textContent=`顯示 ${items.length} 筆・全部待審核 ${pending} 筆`;
+  const selAllBox=$("#rvSelAll");
+  const pendingShown=items.filter(x=>x.rp.status==="submitted");
+  if(selAllBox)selAllBox.checked=pendingShown.length>0&&pendingShown.every(x=>reviewSel.has(`${x.r.id}_${x.d.uid}`));
+  $("#reviewToolbar2").innerHTML=reviewSel.size?`<span class="hint">已勾選 ${reviewSel.size} 筆</span><button class="btn sm dark" onclick="batchCloseReview()">✓ 批量審核結案</button><button class="btn sm" onclick="batchReturnReview()">↩ 批量退回</button><button class="btn sm" onclick="reviewSel.clear();renderReview()">清除勾選</button>`:"";
+  box.innerHTML=items.length?items.map(({r,d,rp})=>{
+    const key=`${r.id}_${d.uid}`,p=rp.payload||{},closed=rp.status==="reviewed",returned=rp.status==="returned",pending=!closed&&!returned,m=modeOf(d.closeMode);
+    const border=closed?"var(--ok)":returned?"var(--bad)":"var(--signal)";
+    const statPill=closed?'<span class="stat s-done">✓ 已結案</span>':returned?'<span class="stat" style="background:#fde8e6;color:var(--bad)">已退回，待船上重填</span>':'<span class="stat s-rep">待審核</span>';
+    return `<div class="card" id="rv-${key}" style="margin:0 0 12px;padding:14px 16px;border-left:5px solid ${border}">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        ${pending?`<input type="checkbox" style="margin-top:4px" ${reviewSel.has(key)?"checked":""} onchange="toggleReviewSel('${key}',this.checked)">`:'<span style="width:18px"></span>'}
+        <div style="flex:1;min-width:260px">
+          <div style="font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${esc(shipLabel(r.ship))}　${esc(dateText(r))}　${m?`<span class="mode ${m.cls}">${esc(m.label)}</span>`:""} ${statPill}</div>
+          <div class="hint">${esc(d.category||"")}${d.topic?"・"+esc(d.topic):""}　檢查人：${esc(r.inspector||"")}</div>
+          <div style="margin-top:6px;font-size:13px;line-height:1.6"><b>缺失內容：</b>${esc(d.finding||"")}</div>
+          ${returned&&p.returnNote?`<div style="margin-top:8px;padding:8px 10px;background:#fdf0ee;border-radius:7px;font-size:12.5px;color:#8a2c1f"><b>退回原因：</b>${esc(p.returnNote)}</div>`:""}
+          <div style="margin-top:8px;padding:10px 12px;background:#f7f9fb;border-radius:7px;font-size:13px;line-height:1.8">
+            <b>船上改善措施：</b>${esc(p.action||"（未填）")}<br><b>完成日期：</b>${esc(p.corrected||"（未填）")}${p.evidence?`<br><b>備註：</b>${esc(p.evidence)}`:""}<br><b>回報人：</b>${esc(p.by||"")}${p.title?"（"+esc(p.title)+"）":""}　${p.at?esc(new Date(p.at).toLocaleString("zh-TW",{hour12:false})):""}
+            ${(p.photos||[]).length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${p.photos.map(ph=>`<img src="${ph.dataUrl}" style="width:84px;height:84px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);cursor:pointer" onclick="openLightbox('${ph.dataUrl}')">`).join("")}</div>`:""}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${closed?`<span class="hint" style="text-align:right">${esc(((rp.payload||{}).reviewedBy)||"")}${((rp.payload||{}).reviewedAt)?"<br>"+esc(new Date((rp.payload||{}).reviewedAt).toLocaleString("zh-TW",{hour12:false})):""}</span>`:returned?`<span class="hint" style="text-align:right">等待船上重新回報</span>`:`<button class="btn sm dark" onclick="closeReplyAudit(${r.id},'${d.uid}')">✓ 審核結案</button><button class="btn sm" onclick="returnReplyAudit(${r.id},'${d.uid}')">↩ 退回</button>`}
+          <button class="btn sm" onclick="editDef(${r.id},${(r.defs||[]).indexOf(d)})">✎ 查看登錄</button>
+        </div>
+      </div>
+    </div>`;
+  }).join(""):`<div class="banner">目前沒有符合條件的項目。</div>`;
+}
+/* 退回：請船上補充後重新回報。跟原本在主系統裡的退回邏輯一樣（status 改成 returned、
+   記下退回原因），只是現在直接在督導端這裡做，不用再跑一趟主系統。 */
+async function returnReplyAudit(rid,uid){
+  const key=`${rid}_${uid}`,rp=Store.replies[key];if(!rp||rp.status!=="submitted")return;
+  const note=prompt("退回原因（船上會在改善單上看到，請寫清楚要補什麼）：");
+  if(note===null)return;
+  if(!note.trim()){toast("⚠ 請填寫退回原因");return;}
+  try{
+    const now=Date.now(),newPayload=Object.assign({},rp.payload,{returnNote:note.trim(),returnedAt:now,returnedBy:($("#rvReviewer").value||"").trim()});
+    await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"returned",payload:newPayload,updated_at:now})});
+    rp.status="returned";rp.payload=newPayload;
+    reviewSel.delete(key);
+    toast("已退回給船上重新回報");
+    renderReview();renderList();
+  }catch(e){toast("⚠ 退回失敗："+e.message,true);}
+}
+async function batchReturnReview(){
+  if(!reviewSel.size)return;
+  const keys=[...reviewSel].filter(key=>Store.replies[key]&&Store.replies[key].status==="submitted");
+  if(!keys.length){toast("⚠ 勾選的項目都不是待審核狀態，請重新整理");return;}
+  const note=prompt(`退回原因（會套用到勾選的 ${keys.length} 筆，船上會在改善單上看到，請寫清楚要補什麼）：`);
+  if(note===null)return;
+  if(!note.trim()){toast("⚠ 請填寫退回原因");return;}
+  const reviewerName=($("#rvReviewer").value||"").trim();
+  let ok=0,fail=0;
+  for(const key of keys){
+    const rp=Store.replies[key];
+    try{
+      const now=Date.now(),newPayload=Object.assign({},rp.payload,{returnNote:note.trim(),returnedAt:now,returnedBy:reviewerName});
+      await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"returned",payload:newPayload,updated_at:now})});
+      rp.status="returned";rp.payload=newPayload;ok++;
+    }catch(e){fail++;}
+  }
+  reviewSel.clear();
+  toast(fail?`已退回 ${ok} 筆，${fail} 筆失敗`:`已批量退回 ${ok} 筆`,!!fail);
+  renderReview();renderList();
+}
+/* 審核結案：直接把 intaudit_replies 這筆寫成 reviewed，不經過主系統。寫完立刻更新本機
+   Store.replies 快取，清單／狀態欄位會馬上反映，不用等重新整理。 */
+async function closeReplyAudit(rid,uid){
+  const key=`${rid}_${uid}`,rp=Store.replies[key];if(!rp||rp.status!=="submitted")return;
+  if(!confirm("確定這筆改善內容審核通過、結案嗎？\n\n結案後主系統只需要把這筆已審核的內容套用到缺失紀錄總表，不需要再另外審核一次。"))return;
+  try{
+    const now=Date.now(),newPayload=Object.assign({},rp.payload,{reviewedAt:now,reviewedBy:($("#rvReviewer").value||"").trim()});
+    await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"reviewed",payload:newPayload,updated_at:now})});
+    rp.status="reviewed";rp.payload=newPayload;
+    reviewSel.delete(key);
+    toast("✓ 已審核結案");
+    renderReview();renderList();
+  }catch(e){toast("⚠ 結案失敗："+e.message,true);}
+}
+async function batchCloseReview(){
+  if(!reviewSel.size)return;
+  const keys=[...reviewSel].filter(key=>Store.replies[key]&&Store.replies[key].status==="submitted");
+  if(!keys.length){toast("⚠ 勾選的項目都不是待審核狀態，請重新整理");return;}
+  if(!confirm(`確定要將勾選的 ${keys.length} 筆改善內容一次審核通過、結案嗎？`))return;
+  let ok=0,fail=0;
+  const reviewerName=($("#rvReviewer").value||"").trim();
+  for(const key of keys){
+    const rp=Store.replies[key];
+    try{
+      const now=Date.now(),newPayload=Object.assign({},rp.payload,{reviewedAt:now,reviewedBy:reviewerName});
+      await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"reviewed",payload:newPayload,updated_at:now})});
+      rp.status="reviewed";rp.payload=newPayload;ok++;
+    }catch(e){fail++;}
+  }
+  reviewSel.clear();
+  toast(fail?`✓ 已結案 ${ok} 筆，${fail} 筆失敗，請重試`:`✓ 已批量結案 ${ok} 筆`,!!fail);
+  renderReview();renderList();
+}
+/* 從「檢查紀錄登錄清單」展開的缺失明細按「➜ 審核」跳過來：直接定位到那一筆卡片並閃一下，
+   不用自己在審核清單裡重新找。 */
+function gotoReviewItem(rid,uid){
+  showReview();
+  reviewStatusFlt="all";$("#rvStatusFlt").value="all";
+  renderReview();
+  setTimeout(()=>{
+    const el=document.getElementById(`rv-${rid}_${uid}`);
+    if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash");}
+  },50);
+}
 /* 匯出：一個按鈕，跳出視窗列出可下載的項目 */
 function openExport(id){
   const r=Store.rows.find(x=>x.id===id);if(!r)return;
@@ -969,8 +1178,8 @@ function updatePrimaryBtns(){
 }
 function openForm(sec){
   secTab=sec||"basic";defFilter="";
-  $("#listPage").style.display="none";$("#formPage").style.display="";
-  $("#btnList").classList.remove("primary");$("#btnNew").classList.add("primary");$("#errBox").style.display="none";
+  $("#listPage").style.display="none";$("#formPage").style.display="";$("#reviewPage").style.display="none";
+  $("#btnList").classList.remove("primary");$("#btnNew").classList.add("primary");$("#btnReview").classList.remove("primary");$("#errBox").style.display="none";
   $("#fShipSel").innerHTML='<option value="">— 請選擇船舶 —</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}" ${cur.ship===s.code?"selected":""}>${esc(s.label)}</option>`).join("");
   const insp=SUPERVISORS.slice();if(cur.inspector&&!insp.includes(cur.inspector))insp.unshift(cur.inspector);
   $("#fInspector").innerHTML='<option value="">— 請選擇檢查人 —</option>'+insp.map(n=>`<option ${cur.inspector===n?"selected":""}>${esc(n)}</option>`).join("");

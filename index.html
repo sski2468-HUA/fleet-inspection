@@ -25439,9 +25439,11 @@ const IntAuditQueue={
     // 船上改善回報（intaudit_replies）：讀不到（資料表未建）時當作沒有，不影響其他分頁
     try{this.replyAll=await Cloud.api("intaudit_replies?select=id,record_id,def_uid,status,payload,updated_at&order=updated_at.desc&limit=2000")||[];}catch(e){this.replyAll=[];}
     this.replyMap={};this.replyAll.forEach(x=>{this.replyMap[x.id]=x;});
-    const repPend=this.replyAll.filter(x=>x.status==="submitted").length;
-    const rb=$("#air-ia-tab-replies");if(rb)rb.textContent="船上回報待審"+(repPend?` (${repPend})`:"");
-    const pend=this.all.filter(r=>!r.draft&&!r.imported).length+repPend;
+    // 海技這邊真正需要動手的是「督導已審核、還沒套用進缺失紀錄總表」這批；「待督導審核」的
+    // 只是顯示給海技知道進度，不需要、也不能在這裡處理（審核判斷搬到督導端 intaudit.html 做）。
+    const toApplyN=this.replyAll.filter(x=>x.status==="reviewed"&&!(x.payload&&x.payload.appliedAt)).length;
+    const rb=$("#air-ia-tab-replies");if(rb)rb.textContent="船上改善回報"+(toApplyN?` (待套用 ${toApplyN})`:"");
+    const pend=this.all.filter(r=>!r.draft&&!r.imported).length+toApplyN;
     const bd=$("#air-ia-badge");if(bd){if(pend&&this.isAdm()){bd.textContent=pend;bd.style.display="";}else bd.style.display="none";}
     const sel=$("#ia-f-ship");
     if(sel){const cur=sel.value;sel.innerHTML='<option value="">全部船舶</option>'+[...new Set(this.all.map(r=>r.ship).filter(Boolean))].sort().map(c=>`<option value="${esc(c)}" ${c===cur?"selected":""}>${esc(shipFullLabel(c))}</option>`).join("");}
@@ -25454,8 +25456,9 @@ const IntAuditQueue={
     try{
       if(!this.isAdm()||typeof Cloud==="undefined"||!Cloud.enabled())return;
       const a=await Cloud.api(`${this.TABLE}?select=id,d:payload->>draft,i:payload->imported&limit=500`)||[];
-      const b=await Cloud.api("intaudit_replies?select=id&status=eq.submitted&limit=2000").catch(()=>[])||[];
-      const n=a.filter(r=>r.d!=="true"&&!r.i).length+b.length;
+      const b=await Cloud.api("intaudit_replies?select=id,payload&status=eq.reviewed&limit=2000").catch(()=>[])||[];
+      const toApplyN=b.filter(x=>!(x.payload&&x.payload.appliedAt)).length;
+      const n=a.filter(r=>r.d!=="true"&&!r.i).length+toApplyN;
       const bd=$("#air-ia-badge");if(bd){if(n){bd.textContent=n;bd.style.display="";}else bd.style.display="none";}
     }catch(e){}
   },
@@ -25516,38 +25519,51 @@ const IntAuditQueue={
         return head+body;
       }).join("")+`</tbody></table></div>`;
   },
-  /* ── 船上改善回報審核：船上在 intaudit-reply.html 送出的改善說明／完成日期／改善後照片 ── */
+  /* ── 船上改善回報：船上在 intaudit-reply.html 送出的改善說明／完成日期／改善後照片。
+     審核（結案）判斷已經搬到督導端（intaudit.html 的「改善單審核清單」）做；這裡分三區塊：
+     待督導審核（status=submitted，唯讀，告訴海技去等督導）、待套用（督導已 reviewed 但還沒把
+     內容寫進缺失紀錄總表）、近期已套用（參考用，只列最近 30 筆避免清單無限長）。 ── */
   replySel:new Set(),
   renderReplies(){
     const box=$("#air-ia-list");if(!box)return;
-    const list=(this.replyAll||[]).filter(x=>x.status==="submitted");
-    this.replySel=new Set([...this.replySel].filter(id=>list.some(x=>x.id===id))); // 清掉重新整理後已不在待審清單裡的勾選（例如剛好被別人審過了）
-    if(!list.length){box.innerHTML=`<p class="hint">目前沒有船上回報待審核。</p>`;return;}
+    const all=this.replyAll||[];
+    const pending=all.filter(x=>x.status==="submitted");
+    const toApply=all.filter(x=>x.status==="reviewed"&&!(x.payload&&x.payload.appliedAt));
+    const applied=all.filter(x=>x.status==="reviewed"&&x.payload&&x.payload.appliedAt).slice(0,30);
+    this.replySel=new Set([...this.replySel].filter(id=>toApply.some(x=>x.id===id))); // 清掉重新整理後已不在待套用清單裡的勾選
+    if(!pending.length&&!toApply.length&&!applied.length){box.innerHTML=`<p class="hint">目前沒有船上回報的改善內容。</p>`;return;}
     const adm=this.isAdm();
     const n=this.replySel.size;
-    const bar=adm?`<div class="toolbar" style="margin:0 0 10px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 12px">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600"><input type="checkbox" ${n&&n===list.length?"checked":""} onchange="IntAuditQueue.toggleAllReplySel(this.checked)"> 全選（共 ${list.length} 項）</label>
-      <span class="hint">已勾選 ${n} 項</span>
-      <span style="flex:1"></span>
-      <button class="btn sm dark" ${n?"":"disabled"} onclick="IntAuditQueue.batchCloseReplies()">✓ 批量審核結案</button>
-      <button class="btn sm" ${n?"":"disabled"} onclick="IntAuditQueue.batchReturnReplies()">↩ 批量退回</button>
-    </div>`:"";
-    box.innerHTML=bar+list.map(x=>{
+    const card=(x,mode)=>{
       const r=(this.all||[]).find(a=>String(a.id)===String(x.record_id))||{};
       const d=(r.defs||[]).find(dd=>dd.uid===x.def_uid)||{};
       const p=x.payload||{};
+      const actions=mode==="toapply"?(adm?`<button class="btn sm dark" onclick="IntAuditQueue.applyReply('${esc(x.id)}')">✓ 套用到缺失紀錄</button>`:`<span class="hint">套用限維護者</span>`)
+        :mode==="pending"?`<span class="hint">等待督導在「內部檢查缺失登錄」網站審核</span>`
+        :`<span class="hint" style="color:var(--ok)">✓ 已套用${p.appliedAt?"　"+esc(new Date(p.appliedAt).toLocaleString("zh-TW",{hour12:false})):""}</span>`;
       return `<div class="card" style="margin-bottom:10px;background:#fafbfc">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          ${adm?`<input type="checkbox" ${this.replySel.has(x.id)?"checked":""} onchange="IntAuditQueue.toggleReplySel('${esc(x.id)}',this.checked)">`:""}
+          ${mode==="toapply"&&adm?`<input type="checkbox" ${this.replySel.has(x.id)?"checked":""} onchange="IntAuditQueue.toggleReplySel('${esc(x.id)}',this.checked)">`:""}
           <b>${esc(shipFullLabel(r.ship))}</b><span class="hint">${esc(r.dateFrom||"")} ・ ${esc(this.tl(d.type))}${d.topic?"・"+esc(d.topic):""} ・ ${esc(d.closeMode||"")}</span>
           <span class="hint">回報人：${esc(p.by||"")}（${esc(p.title||"")}）${p.at?esc(new Date(p.at).toLocaleString("zh-TW",{hour12:false})):""}</span>
-          <span style="margin-left:auto;display:flex;gap:6px">${adm?`<button class="btn sm dark" onclick="IntAuditQueue.closeReply('${esc(x.id)}')">✓ 審核結案</button>
-            <button class="btn sm" onclick="IntAuditQueue.returnReply('${esc(x.id)}')">↩ 退回</button>`:`<span class="hint">審核限維護者</span>`}</span></div>
+          ${(p.reviewedBy||p.reviewedAt)?`<span class="hint">督導審核：${esc(p.reviewedBy||"")}${p.reviewedAt?"　"+esc(new Date(p.reviewedAt).toLocaleString("zh-TW",{hour12:false})):""}</span>`:""}
+          <span style="margin-left:auto;display:flex;gap:6px">${actions}</span></div>
         <div style="margin-top:8px;font-size:12.5px;line-height:1.7"><b>${esc(d.category||"")}</b>：${esc(d.finding||"")}
           <div style="margin-top:6px;padding:8px 10px;background:#fff;border:1px solid var(--line);border-radius:6px"><b>船上改善措施：</b>${esc(p.action||"")}<br><b>完成日期：</b>${esc(p.corrected||"")}${p.evidence?`<br><b>備註：</b>${esc(p.evidence)}`:""}
           ${(p.photos||[]).length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${p.photos.map(ph=>`<img src="${ph.dataUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:5px;border:1px solid var(--line-2)">`).join("")}</div>`:""}</div>
-          ${d.importedDefId==null?`<div class="hint" style="color:#a04030;margin-top:4px">⚠ 這張登錄單還沒匯入主系統，請先到「待匯入」匯入，再回來審核結案。</div>`:""}</div></div>`;
-    }).join("");
+          ${mode==="toapply"&&d.importedDefId==null?`<div class="hint" style="color:#a04030;margin-top:4px">⚠ 這張登錄單還沒匯入主系統，請先到「待匯入」匯入，再回來套用。</div>`:""}</div></div>`;
+    };
+    const bar=(adm&&toApply.length)?`<div class="toolbar" style="margin:0 0 10px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 12px">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600"><input type="checkbox" ${n&&n===toApply.length?"checked":""} onchange="IntAuditQueue.toggleAllReplySel(this.checked)"> 全選待套用（共 ${toApply.length} 項）</label>
+      <span class="hint">已勾選 ${n} 項</span>
+      <span style="flex:1"></span>
+      <button class="btn sm dark" ${n?"":"disabled"} onclick="IntAuditQueue.batchApplyReplies()">✓ 批量套用到缺失紀錄</button>
+    </div>`:"";
+    let html=bar;
+    if(toApply.length)html+=`<div class="hint" style="margin:0 0 6px;font-weight:700;color:var(--navy)">待套用到缺失紀錄總表（督導已審核結案 ${toApply.length} 項）</div>`+toApply.map(x=>card(x,"toapply")).join("");
+    if(pending.length)html+=`<div class="hint" style="margin:16px 0 6px;font-weight:700">等待督導審核（${pending.length} 項，請至「內部檢查缺失登錄」網站的「改善單審核清單」處理）</div>`+pending.map(x=>card(x,"pending")).join("");
+    if(applied.length)html+=`<div class="hint" style="margin:16px 0 6px;font-weight:700">近期已套用（最多顯示 30 筆）</div>`+applied.map(x=>card(x,"applied")).join("");
+    box.innerHTML=html;
   },
   toggleReplySel(id,on){if(on)this.replySel.add(id);else this.replySel.delete(id);this.renderReplies();},
   toggleAllReplySel(on){
@@ -25559,9 +25575,14 @@ const IntAuditQueue={
     const p=Object.assign({},x.payload,extra||{});
     await Cloud.api(`intaudit_replies?id=eq.${encodeURIComponent(x.id)}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),body:JSON.stringify({status,payload:p,updated_at:Date.now()})});
   },
-  /* 單筆審核結案的核心邏輯，單筆／批量共用：寫缺失紀錄總表、把回報標記為已結案。
-     回傳 {ok,msg,hasIc}，呼叫端自己決定要不要 alert、要不要中斷（批量時不中斷，略過繼續下一筆）。 */
-  async _closeOne(x){
+  /* ⚠ 審核權責搬家：改善內容的「審核／結案」判斷，已經改成督導直接在「內部檢查缺失登錄」
+     獨立網站（intaudit.html 的「改善單審核清單」）處理，寫入 intaudit_replies 的 status
+     會直接變成 "reviewed"。主系統這裡不再做審核判斷，只需要把督導已審核（reviewed）的內容
+     「套用」進缺失紀錄總表——所以原本的 _closeOne／closeReply／batchCloseReplies 改名成
+     _applyOne／applyReply／batchApplyReplies，不再寫 status（status 已經是 reviewed），
+     只額外在 payload 記一個 appliedAt／appliedBy，用來判斷「已經套用過，不用再套第二次」。
+     「↩ 退回」也一併搬去督導端處理，這裡不再提供。 */
+  async _applyOne(x){
     const r=(this.all||[]).find(a=>String(a.id)===String(x.record_id));
     const d=r&&(r.defs||[]).find(dd=>dd.uid===x.def_uid);
     if(!d||d.importedDefId==null)return {ok:false,msg:"登錄單還沒匯入主系統"};
@@ -25570,73 +25591,49 @@ const IntAuditQueue={
     const p=x.payload||{};
     const by=(typeof Audit!=="undefined")?Audit.user():"",now=Date.now();
     Object.assign(rec,{corrective:p.action||rec.corrective||"",photosAfter:Array.isArray(p.photos)&&p.photos.length?p.photos:(rec.photosAfter||[]),
-      intAuditStatus:"已結案",intAuditCorrectedDate:p.corrected||"",intAuditEvidence:p.evidence||"",intAuditClosedAt:now,intAuditReplyBy:`${p.by||""}（${p.title||""}）`,_impAt:now,_impBy:by});
+      intAuditStatus:"已結案",intAuditCorrectedDate:p.corrected||"",intAuditEvidence:p.evidence||"",intAuditClosedAt:now,intAuditReplyBy:`${p.by||""}（${p.title||""}）`,
+      intAuditReviewedBy:p.reviewedBy||"",_impAt:now,_impBy:by});
     try{
-      await this._patchReply(x,"reviewed",{reviewedBy:by,reviewedAt:now});
+      await this._patchReply(x,"reviewed",{appliedAt:now,appliedBy:by});
     }catch(e){return {ok:false,msg:"寫回雲端失敗："+e.message};}
-    if(typeof Audit!=="undefined")Audit.log("審核結案","內部檢查缺失",`${r.ship} ${r.dateFrom} ${d.category||""}（回報人 ${p.by||""}）`);
+    if(typeof Audit!=="undefined")Audit.log("套用改善內容","內部檢查缺失",`${r.ship} ${r.dateFrom} ${d.category||""}（督導審核：${p.reviewedBy||""}，回報人 ${p.by||""}）`);
     return {ok:true,hasIc:d.closeMode==="內控"};
   },
-  async closeReply(id){
-    if(!await Guard.require()){toast("⚠ 審核僅限維護者操作");return;}
+  async applyReply(id){
+    if(!await Guard.require()){toast("⚠ 套用僅限維護者操作");return;}
     const x=(this.replyAll||[]).find(a=>a.id===id);if(!x)return;
+    if(x.status!=="reviewed"){toast("⚠ 這筆還沒經督導審核結案，請等督導在「內部檢查缺失登錄」網站審核後再套用");return;}
     const r=(this.all||[]).find(a=>String(a.id)===String(x.record_id));
     const d=r&&(r.defs||[]).find(dd=>dd.uid===x.def_uid);
-    if(!d||d.importedDefId==null){alert("這筆缺失所屬的登錄單還沒匯入主系統，請先到「待匯入」分頁匯入，再回來審核結案。");return;}
-    if(!App.defs.find(z=>String(z.id)===String(d.importedDefId))){alert("在缺失紀錄總表找不到對應的缺失（可能已被刪除）。請到「已匯入」分頁按「重新匯入」重建後再審核。");return;}
-    if(!confirm(`確定審核結案？\n\n將把船上的改善措施、改善後照片寫入缺失紀錄總表這一筆，並標記為已結案。${d.closeMode==="內控"?"\n\n這是內控項目，應該已先匯出「內控 Excel／JSON」匯入內控系統（船舶動態與早會待辦系統）立案。這裡審核結案後，請再至內控系統把該案標記結案。":""}`))return;
-    const res=await this._closeOne(x);
+    if(!d||d.importedDefId==null){alert("這筆缺失所屬的登錄單還沒匯入主系統，請先到「待匯入」分頁匯入，再回來套用。");return;}
+    if(!App.defs.find(z=>String(z.id)===String(d.importedDefId))){alert("在缺失紀錄總表找不到對應的缺失（可能已被刪除）。請到「已匯入」分頁按「重新匯入」重建後再套用。");return;}
+    if(!confirm(`確定套用這筆督導已審核的改善內容？\n\n將把船上的改善措施、改善後照片寫入缺失紀錄總表這一筆，並標記為已結案。${d.closeMode==="內控"?"\n\n這是內控項目，應該已先匯出「內控 Excel／JSON」匯入內控系統（船舶動態與早會待辦系統）立案。這裡套用後，請再至內控系統把該案標記結案。":""}`))return;
+    const res=await this._applyOne(x);
     if(!res.ok){alert("⚠ "+res.msg);return;}
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
     try{if(typeof Defs!=="undefined"){Defs.init();Defs.render();}}catch(e){}
-    toast("✓ 已審核結案");this.refresh();
+    toast("✓ 已套用到缺失紀錄總表");this.refresh();
   },
-  async batchCloseReplies(){
-    if(!await Guard.require()){toast("⚠ 審核僅限維護者操作");return;}
-    const items=[...this.replySel].map(id=>(this.replyAll||[]).find(a=>a.id===id)).filter(Boolean);
+  async batchApplyReplies(){
+    if(!await Guard.require()){toast("⚠ 套用僅限維護者操作");return;}
+    const items=[...this.replySel].map(id=>(this.replyAll||[]).find(a=>a.id===id)).filter(Boolean).filter(x=>x.status==="reviewed");
     if(!items.length)return;
     const notReady=items.filter(x=>{const r=(this.all||[]).find(a=>String(a.id)===String(x.record_id));const d=r&&(r.defs||[]).find(dd=>dd.uid===x.def_uid);return !d||d.importedDefId==null;});
     const ready=items.length-notReady.length;
-    if(!ready){alert("勾選的項目所屬登錄單都還沒匯入主系統，請先到「待匯入」分頁匯入，再回來審核結案。");return;}
-    if(!confirm(`確定批量審核結案 ${ready} 項？\n\n將把船上的改善措施、改善後照片寫入缺失紀錄總表，並標記為已結案。若其中有內控項目，請結案後再至內控系統把該案標記結案。${notReady.length?`\n\n另有 ${notReady.length} 項所屬登錄單還沒匯入主系統，會略過不處理。`:""}`))return;
+    if(!ready){alert("勾選的項目所屬登錄單都還沒匯入主系統，請先到「待匯入」分頁匯入，再回來套用。");return;}
+    if(!confirm(`確定批量套用 ${ready} 項督導已審核的改善內容？\n\n將把船上的改善措施、改善後照片寫入缺失紀錄總表，並標記為已結案。若其中有內控項目，請套用後再至內控系統把該案標記結案。${notReady.length?`\n\n另有 ${notReady.length} 項所屬登錄單還沒匯入主系統，會略過不處理。`:""}`))return;
     let okN=0,failN=0,icN=0;
     for(const x of items){
       const r=(this.all||[]).find(a=>String(a.id)===String(x.record_id));
       const d=r&&(r.defs||[]).find(dd=>dd.uid===x.def_uid);
       if(!d||d.importedDefId==null)continue; // 未匯入的整批略過，不中斷其餘項目
-      const res=await this._closeOne(x);
+      const res=await this._applyOne(x);
       if(res.ok){okN++;if(res.hasIc)icN++;}else failN++;
     }
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
     try{if(typeof Defs!=="undefined"){Defs.init();Defs.render();}}catch(e){}
     this.replySel=new Set();
-    toast(`✓ 已批量審核結案 ${okN} 項${failN?`，${failN} 項失敗`:""}${notReady.length?`，${notReady.length} 項未匯入已略過`:""}${icN?`；其中 ${icN} 項為內控，記得至內控系統標記結案`:""}`);
-    this.refresh();
-  },
-  async returnReply(id){
-    if(!await Guard.require()){toast("⚠ 審核僅限維護者操作");return;}
-    const x=(this.replyAll||[]).find(a=>a.id===id);if(!x)return;
-    const note=prompt("退回原因（船上會在改善單上看到，請寫清楚要補什麼）：");
-    if(note===null)return;
-    if(!note.trim()){toast("⚠ 請填寫退回原因");return;}
-    try{await this._patchReply(x,"returned",{returnNote:note.trim(),returnedAt:Date.now(),returnedBy:(typeof Audit!=="undefined")?Audit.user():""});}
-    catch(e){alert("⚠ 退回失敗："+e.message);return;}
-    toast("已退回給船上重新回報");this.refresh();
-  },
-  async batchReturnReplies(){
-    if(!await Guard.require()){toast("⚠ 審核僅限維護者操作");return;}
-    const ids=[...this.replySel];if(!ids.length)return;
-    const note=prompt(`退回原因（會套用到勾選的 ${ids.length} 項，船上會在改善單上看到，請寫清楚要補什麼）：`);
-    if(note===null)return;
-    if(!note.trim()){toast("⚠ 請填寫退回原因");return;}
-    let okN=0,failN=0;
-    for(const id of ids){
-      const x=(this.replyAll||[]).find(a=>a.id===id);if(!x)continue;
-      try{await this._patchReply(x,"returned",{returnNote:note.trim(),returnedAt:Date.now(),returnedBy:(typeof Audit!=="undefined")?Audit.user():""});okN++;}
-      catch(e){failN++;}
-    }
-    this.replySel=new Set();
-    toast(`已批量退回 ${okN} 項${failN?`，${failN} 項失敗`:""}`);
+    toast(`✓ 已批量套用 ${okN} 項${failN?`，${failN} 項失敗`:""}${notReady.length?`，${notReady.length} 項未匯入已略過`:""}${icN?`；其中 ${icN} 項為內控，記得至內控系統標記結案`:""}`);
     this.refresh();
   },
   toggle(id){this.expandedId=this.expandedId===id?null:id;this.render();},
