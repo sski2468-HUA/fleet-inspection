@@ -554,7 +554,20 @@ async function submitAll(){
   const todo=nonFlow(rec).filter(d=>stOf(d)!=="lock");
   const ready=todo.filter(d=>{const x=drafts[d.uid];return x&&isComplete(x)&&!(rpOf(d)&&sameAsReply(x,rpOf(d).payload));});
   const partial=todo.filter(d=>{const x=drafts[d.uid];return x&&!isEmpty(x)&&!isComplete(x);});
-  if(!ready.length)errs.push({msg:partial.length?`目前沒有「改善措施與完成日期都填完」的項目可送出（有 ${partial.length} 項填到一半，請補齊改善措施與完成日期）`:"還沒有填寫任何一項改善回報",step:3,sel:partial.length?"#def-"+partial[0].uid:"#defList"});
+  // ⚠ 原本「ready」只看本機 drafts[uid]（這次有沒有動過草稿），已經送出過、之後完全沒再碰過
+  // 的項目 drafts[uid] 是 undefined，會掉進「沒填」那個分支，跳出「還沒有填寫任何一項改善回報」
+  // ——船上看了會誤以為自己其實沒填，但其實是已經送出過、內容沒變，本來就不需要再送一次。
+  // 這裡額外抓出「已填完且跟上次送出的內容一樣」這組，訊息才能講清楚「已送出過，沒變不用重送」
+  // 而不是暗示船上忘記填寫。
+  const unchanged=todo.filter(d=>{const rp=rpOf(d);if(!rp||rp.status==="returned")return false;const x=val(d);return isComplete(x)&&sameAsReply(x,rp.payload);});
+  if(!ready.length){
+    let msg;
+    if(partial.length)msg=`目前沒有「改善措施與完成日期都填完」的項目可送出（有 ${partial.length} 項填到一半，請補齊改善措施與完成日期）`;
+    else if(unchanged.length&&unchanged.length===todo.length)msg="這份改善單的內容都已經送出過、且沒有任何修改，不需要重新送出。若確實有更新內容，請確認有實際改到文字後再試一次。";
+    else if(unchanged.length)msg=`已有 ${unchanged.length} 項內容跟上次送出的一樣，不需要重送；其餘項目都還沒填寫`;
+    else msg="還沒有填寫任何一項改善回報";
+    errs.push({msg,step:3,sel:partial.length?"#def-"+partial[0].uid:"#defList"});
+  }
   if(errs.length){
     const first=errs[0];
     goStep(first.step);
