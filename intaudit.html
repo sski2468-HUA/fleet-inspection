@@ -662,31 +662,67 @@ function draftIssues(r){
   });
   return errs;
 }
+/* 草稿無法發改善單的說明：原本用 toast() 顯示，3.2 秒就自動消失，訊息又長，常常還沒看完就
+   不見了——改成跟其他提示統一風格的彈窗，要按「知道了」才會關掉，順便給一個直接跳去編輯的
+   捷徑按鈕。 */
+function showDraftNotice(r){
+  const issues=draftIssues(r);
+  $("#issueModalBody").innerHTML=`
+    <div class="banner warn">這張登錄單還是<b>草稿</b>狀態，海技還看不到，也還不能發改善單給船上。</div>
+    ${issues.length?`<p class="hint" style="margin:12px 0 4px"><b style="color:var(--bad)">還有 ${issues.length} 項沒填完：</b></p><ul style="margin:0 0 12px;padding-left:20px;line-height:1.9">${issues.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:`<p class="hint" style="margin:12px 0">內容看起來都填好了，只是還沒按「🚀送出海技入系統」。</p>`}
+    <p class="hint" style="margin:0 0 14px">請按「✎編輯」打開，補齊後到「⑥下載/發改善單」按「🚀送出海技入系統」，才能發改善單。</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn primary" onclick="closeIssueModal();editRec(${r.id})">✎ 編輯這張單</button>
+      <button class="btn" onclick="closeIssueModal()">知道了</button>
+    </div>`;
+  $("#issueModal").style.display="flex";
+}
 /* 發改善單：內控／系統內結案的缺失才需要船上改善。複製「單名＋連結」貼進郵件發給船上，並記下已發單。 */
 async function issueOrder(id){
   const r=Store.rows.find(x=>x.id===id);if(!r)return;
   if(r.draft){
-    const issues=draftIssues(r);
-    toast(issues.length?`⚠ 這張還是草稿，還有 ${issues.length} 項沒填完：${issues.slice(0,3).join("；")}${issues.length>3?"…":""}。請按「✎編輯」補齊，到「⑥下載/發改善單」按「🚀送出海技入系統」後才能發改善單。`:"⚠ 這張還是草稿，內容看起來都填好了，請按「✎編輯」打開，到「⑥下載/發改善單」按「🚀送出海技入系統」即可發改善單。",true);
+    showDraftNotice(r);
     return;
   }
   const n=(r.defs||[]).filter(d=>d.closeMode!=="FLOW").length;
   if(!n){toast("⚠ 這張登錄單沒有需要船上改善的缺失（都是 FLOW）",true);return;}
   if(Store.mode!=="cloud"){alert("⚠ 目前連不上雲端資料表，改善單連結暫時無法給船上使用。\n\n"+(Store._loadErr?"錯誤訊息："+Store._loadErr+"\n\n":"")+"請按「🔄 重新整理」後再試；若一直失敗，才需要請維護者確認 Supabase 是否已執行過 intaudit_setup.sql。");return;}
-  const text=`內部檢查改善單：${shipLabel(r.ship)} ${dateText(r)} ${(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、")}，共 ${n} 項待改善 連結:${replyUrl(r)}`;
-  const shipUrl=replyUrl(r).replace(/\?rid=.*/,"?ship="+encodeURIComponent(r.ship));
-  const textFull=text+"\n（本船歷次改善單清單，固定連結："+shipUrl+"）";
+  const rUrl=replyUrl(r);
+  const shipUrl=rUrl.replace(/\?rid=.*/,"?ship="+encodeURIComponent(r.ship));
+  const head=`內部檢查改善單：${shipLabel(r.ship)} ${dateText(r)} ${(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、")}，共 ${n} 項待改善`;
+  const textFull=`${head} 連結:${rUrl}\n（本船歷次改善單清單，固定連結：${shipUrl}）`;
+  // 純文字貼到郵件軟體，連結是否自動變成可點擊的超連結完全看對方軟體的自動辨識，不保證——
+  // 另外準備一份帶 <a href> 的 HTML 版本一起複製，貼到 Outlook／Gmail／LINE 等支援富文本貼上的
+  // 地方就會直接是可點擊的連結，不用再靠軟體自動判斷。
+  const textHtml=`${esc(head)} 連結：<a href="${esc(rUrl)}">${esc(rUrl)}</a><br>（本船歷次改善單清單，固定連結：<a href="${esc(shipUrl)}">${esc(shipUrl)}</a>）`;
   if(r.issuedAt){
     const again=await askReissue(r);
     if(!again)return;
   }
-  try{await navigator.clipboard.writeText(textFull);}catch(e){}
+  await copyRich(textFull,textHtml);
   (r.defs||[]).forEach(d=>{if(!d.uid)d.uid=newUid();}); // 舊登錄單的缺失補上固定 id，船上回報才對得回這一筆
   r.issuedAt=Date.now();
   const res=await Store.save(r,Store.srvOf[id]);
   if(res.conflict){toast("⚠ 這張登錄單剛被其他人更新過，請按「🔄 重新整理」後再重新發改善單",true);return;}
   renderList();
-  openIssueModal(textFull);
+  openIssueModal(textFull,textHtml);
+}
+/* 同時複製純文字＋HTML 兩種格式：貼到支援富文本的地方（Outlook／Gmail／LINE 等）用 HTML
+   版本，連結直接可點擊；貼到純文字欄位（例如記事本）則自動退回純文字版本。瀏覽器不支援
+   ClipboardItem（少數舊版/非安全連線環境）時，退回只複製純文字，至少連結本身還在，
+   大部分郵件軟體仍會自動辨識網址。 */
+async function copyRich(plain,html){
+  try{
+    if(navigator.clipboard&&navigator.clipboard.write&&typeof ClipboardItem!=="undefined"){
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/plain":new Blob([plain],{type:"text/plain"}),
+        "text/html":new Blob([html],{type:"text/html"})
+      })]);
+      return "rich";
+    }
+  }catch(e){}
+  try{await navigator.clipboard.writeText(plain);return "plain";}catch(e){}
+  return false;
 }
 /* 已經發過改善單，要不要再複製一次：原本是容易被忽略的瀏覽器原生 confirm()，改成跟其他
    提示統一風格的彈窗，回傳 Promise<boolean>。 */
@@ -704,10 +740,12 @@ function askReissue(r){
 }
 /* 複製完成後明確告訴使用者：複製了什麼、接下來該怎麼貼給船上、船上打開連結後會看到什麼，
    不要只靠系統 alert() 一閃即過，船上流程不熟的人很容易不知道下一步要做什麼。 */
-function openIssueModal(textFull){
+let _issueCopyHtml="";
+function openIssueModal(textFull,textHtml){
+  _issueCopyHtml=textHtml||"";
   $("#issueModalBody").innerHTML=`
-    <div class="banner" style="margin:0 0 12px">✓ 已把下面這段內容複製到剪貼簿了</div>
-    <p class="hint" style="margin:0 0 6px">請直接貼到要發給船上的 Email、LINE 或其他通訊軟體（Ctrl+V／長按貼上）；如果剛剛複製沒成功，也可以點下面文字方塊全選後手動複製：</p>
+    <div class="banner" style="margin:0 0 12px">✓ 已複製到剪貼簿，貼到 Outlook／Gmail／LINE 等支援富文本的地方，連結會直接是可以點擊的超連結</div>
+    <p class="hint" style="margin:0 0 6px">請直接貼到要發給船上的 Email、LINE 或其他通訊軟體（Ctrl+V／長按貼上）；如果貼出來連結沒有變成可點擊（例如貼到記事本這種純文字欄位，本來就不支援），或剛剛複製沒成功，可以點下面文字方塊全選後手動複製純文字版本：</p>
     <textarea id="issueCopyBox" readonly style="width:100%;min-height:110px;font-family:var(--mono);font-size:12.5px;padding:10px;border:1px solid var(--line-2);border-radius:7px" onclick="this.select()">${esc(textFull)}</textarea>
     <div style="display:flex;gap:8px;margin-top:10px">
       <button class="btn primary" onclick="reCopyIssueText()">📋 再複製一次</button>
@@ -724,8 +762,10 @@ function openIssueModal(textFull){
 }
 async function reCopyIssueText(){
   const el=$("#issueCopyBox");if(!el)return;
-  try{await navigator.clipboard.writeText(el.value);toast("✓ 已再複製一次");}
-  catch(e){el.select();toast("⚠ 自動複製失敗，已幫您選取文字，請手動按 Ctrl+C 複製",true);}
+  const r=await copyRich(el.value,_issueCopyHtml);
+  if(r==="rich")toast("✓ 已再複製一次（含可點擊連結）");
+  else if(r==="plain")toast("✓ 已再複製一次（純文字，部分郵件軟體仍會自動辨識網址）");
+  else{el.select();toast("⚠ 自動複製失敗，已幫您選取文字，請手動按 Ctrl+C 複製",true);}
 }
 function closeIssueModal(){$("#issueModal").style.display="none";}
 /* 內控 Excel：欄位、順序與船舶動態與早會待辦系統「內控異常清單」匯出檔一致（16 欄，HTML 格式 .xls，Excel 可直接開） */
@@ -888,6 +928,18 @@ async function nextSec(){
   collect();
   const idx=SECS.findIndex(([k])=>k===secTab);
   if(idx<0||idx>=SECS.length-1)return;
+  // ⚠ 這裡原本不管三七二十一都用 persist(true,...) 存檔，draft 參數寫死 true——對一張「已經
+  // 送出海技入系統」的單來說，等於每點一次「下一步」就把它悄悄改回草稿，就算完全沒改內容
+  // 也一樣，使用者只是進來看一眼、按幾次下一步，回到清單卻發現已送出的單變成草稿。
+  // 改成比照 autoSave() 同一套保護：已送出的單，「下一步」只單純換頁、不落地存檔；
+  // 真的要保留編輯內容，請在「⑥下載/發改善單」按「🚀送出海技入系統」正式重新送出。
+  if(cur.draft===false){
+    secTab=SECS[idx+1][0];
+    renderSecTabs();
+    if(secTab==="download")renderDownloadTab();
+    window.scrollTo({top:0,behavior:"smooth"});
+    return;
+  }
   // 按鈕寫「儲存並前往下一步」，所以這裡要真的立刻存一次（不是只更新記憶體裡的 cur、
   // 等 20 秒後的自動儲存才真正落地）——不然使用者連續點好幾步下一步，中途真的斷線
   // 或關頁面，可能這幾步的內容都還沒存到雲端，跟按鈕文字講的不一樣。
@@ -966,7 +1018,7 @@ const snapNow=()=>{try{collect();return JSON.stringify(cur);}catch(e){return "";
 function setAutoState(msg,warn){const el=$("#autoState");if(!el)return;el.textContent=msg;el.style.color=warn?"#b5610f":"#2e8b57";}
 function startAutoSave(){
   stopAutoSave();lastSnap=snapNow();
-  setAutoState(cur.draft===false?"編輯已送出的登錄單：完成後請按「檢查並送出」儲存":"",cur.draft===false);
+  setAutoState(cur.draft===false?"編輯已送出的登錄單：單純查看可直接離開；若有修改，請到「⑥下載/發改善單」按「🚀送出海技入系統」才會存檔":"",cur.draft===false);
   autoTimer=setInterval(autoSave,20000);
 }
 function stopAutoSave(){if(autoTimer){clearInterval(autoTimer);autoTimer=null;}}
