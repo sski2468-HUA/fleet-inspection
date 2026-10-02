@@ -330,6 +330,21 @@ function typeFilterList(){
   return order.filter(l=>present.has(l)).map(l=>[l,present.get(l)]);
 }
 function setTypeFlt(k){typeFlt=k;modeFlt="all";flt="all";renderRows();}
+/* FLOW 缺失卡片：「FLOW」分頁跟「全部」分頁下方的 FLOW 提示區共用同一份完整卡片（含照片），
+   不要再各畫一套（之前「全部」底下那段是陽春的純文字項目符號清單，缺失內容/照片都看不到，
+   切到某個檢查種類剛好全部都是 FLOW 時，整頁只看得到那種陽春清單，體驗跟「FLOW」分頁差很多）。
+   文字在左、照片縮圖靠右排，方便掃視。 */
+function flowCardHtml(d,i){
+  const photosHtml=(d.photos||[]).length?`<div class="phs" style="flex:none">${d.photos.map(p=>`<div class="ph"><img src="${p.dataUrl}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:"";
+  return `<div class="row info"><div class="rl">
+    <div class="ih">No.${i+1}　${esc(d.category||"")}${typeBadge(d)}<span class="pill" style="background:#eceff1;color:#52656f">FLOW</span>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">風險 ${esc(d.risk)}</span>`:""}</div>
+    ${d.topic?`<div class="hint">${esc(d.topic)}</div>`:""}
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      <div class="finding" style="flex:1;min-width:220px">${esc(d.finding||"")}</div>
+      ${photosHtml}
+    </div>
+  </div></div>`;
+}
 function renderTypeTabs(){
   const list=typeFilterList();
   const ttab=(k,l,n)=>`<button type="button" class="mtab ${typeFlt===k?"on":""}" onclick="setTypeFlt('${k}')">${esc(l)}<b>${n}</b></button>`;
@@ -344,16 +359,13 @@ function renderRows(){
   $("#modeNote").innerHTML=MODE_TAB_NOTE[modeFlt]?`<div class="cmnote">${MODE_TAB_NOTE[modeFlt]}</div>`:"";
   if(modeFlt==="FLOW"){
     $("#bar").style.display="none";$("#errBox").style.display="none";$("#submitBar").style.display="none";$("#flowNote").innerHTML="";
-    $("#defList").innerHTML=flows.length?flows.map((d,i)=>`<div class="row info"><div class="rl">
-      <div class="ih">No.${i+1}　${esc(d.category||"")}${typeBadge(d)}<span class="pill" style="background:#eceff1;color:#52656f">FLOW</span>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">風險 ${esc(d.risk)}</span>`:""}</div>
-      ${d.topic?`<div class="hint">${esc(d.topic)}</div>`:""}<div class="finding">${esc(d.finding||"")}</div>
-      ${(d.photos||[]).length?`<div class="phs">${d.photos.map(p=>`<div class="ph"><img src="${p.dataUrl}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:""}</div></div>`).join(""):`<div class="banner" style="margin:0">這張改善單沒有 FLOW 類的缺失。</div>`;
+    $("#defList").innerHTML=flows.length?flows.map((d,i)=>flowCardHtml(d,i)).join(""):`<div class="banner" style="margin:0">這張改善單沒有 FLOW 類的缺失。</div>`;
     return;
   }
   $("#bar").style.display="";$("#submitBar").style.display="";
   const list=subset();
   $("#defList").innerHTML=list.length?list.map((d,i)=>rowHtml(d,i+1)).join(""):`<div class="banner" style="margin:0">${modeFlt==="all"?"這張改善單沒有需要船上改善的項目。":"目前沒有這個結案方式的項目。"}</div>`;
-  $("#flowNote").innerHTML=(modeFlt==="all"&&flows.length)?`<div class="card"><b>以下 ${flows.length} 項屬 FLOW 系統（DMP-FM01）缺失，不在這裡回報，請船上自行至 FLOW 系統填單：</b><ul style="margin:8px 0 0 18px;line-height:1.8">${flows.map(d=>`<li>${esc(d.category||"")}：${esc((d.finding||"").slice(0,80))}</li>`).join("")}</ul></div>`:"";
+  $("#flowNote").innerHTML=(modeFlt==="all"&&flows.length)?`<b style="display:block;margin:0 14px 10px;font-size:14px;color:var(--ink)">以下 ${flows.length} 項屬 FLOW 系統（DMP-FM01）缺失，不在這裡回報，請船上自行至 FLOW 系統填單：</b><div class="rows" style="margin-top:0">${flows.map((d,i)=>flowCardHtml(d,i)).join("")}</div>`:"";
   updateBar();applyFlt();
 }
 /* Word：內容＝督導登錄單全部內容＋船上已送出的回報（改善措施、完成日期、證據備註、改善後照片） */
