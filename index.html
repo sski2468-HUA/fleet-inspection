@@ -1270,6 +1270,11 @@ table.ap-tbl tbody tr:hover td:first-child{background:#f3f8fa}
 
 /* 模態 */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(12,36,51,.55);z-index:100;align-items:center;justify-content:center;padding:24px}
+/* 轉入動作的「正在轉單中」鎖定畫面（#syncStatusModal）z-index 刻意設得很高（9999），
+   原本是給「從雲端載入」這種前後都不會再跳其他視窗的場景用；現在轉入流程中途可能還要跳出
+   「覆蓋／另外新增」選擇視窗、或差異預覽視窗，這三個視窗若還是預設 z-index:100，會被鎖定
+   畫面整個蓋住，使用者什麼都看不到、以為卡住了——這裡讓它們蓋在鎖定畫面之上。 */
+#airPushDefsModal,#airPushPosModal,#importDiffModal{z-index:10000}
 .modal-bg.show{display:flex}
 .modal{background:#fff;border-radius:8px;max-width:880px;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .modal .mh{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
@@ -23095,17 +23100,57 @@ const Air={
       el.textContent="";
     }
   },
-  /* ── 一鍵轉入全部（檢查紀錄＋缺失紀錄總表＋正面評價），三個各自獨立，缺哪個資料就自動略過 ── */
+  /* ── 轉入動作共用的鎖定畫面：按下轉入後先鎖畫面＋重新抓一次雲端最新資料，避免本機資料
+     不是最新而誤判「有沒有轉過」；實際寫入前後顯示同一顆彈窗。中途若需要跳出確認/差異預覽
+     （confirm() 是瀏覽器原生對話框一定蓋在最上面不受影響；自訂的差異預覽彈窗則要先把鎖定
+     畫面收起來，不然會被鎖定畫面的高 z-index 蓋住看不到），用 hideTransferLock/showTransferLock
+     包住那段即可。 ── */
+  _xferLockEls(){return {modal:$("#syncStatusModal"),body:$("#syncStatusBody")};},
+  showTransferLock(){
+    const {modal,body}=this._xferLockEls();
+    if(modal&&body){body.innerHTML=`<div style="font-size:34px;margin-bottom:10px">⏳</div><h3 style="margin:0 0 8px">正在轉單中…</h3><p class="hint">請稍候，完成前請不要關閉頁面或進行其他操作。</p>`;modal.classList.add("show");}
+  },
+  hideTransferLock(){const {modal}=this._xferLockEls();if(modal)modal.classList.remove("show");},
+  finishTransferLock(msg){
+    const {modal,body}=this._xferLockEls();
+    if(modal&&body){body.innerHTML=`<div style="font-size:34px;margin-bottom:10px;color:var(--ok)">✓</div><h3 style="margin:0 0 10px;color:var(--ok)">轉入成功</h3>
+      <p style="text-align:left;background:#f7f9f9;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7;white-space:pre-line">${esc(msg||"已完成轉入")}</p>
+      <button class="btn primary" style="margin-top:14px" onclick="Cloud.closeSyncModal()">確認</button>`;}
+    else toast("✓ "+(msg||"已完成轉入"));
+  },
+  failTransferLock(msg){
+    const {modal,body}=this._xferLockEls();
+    if(modal&&body){body.innerHTML=`<div style="font-size:34px;margin-bottom:10px;color:var(--bad)">⚠</div><h3 style="margin:0 0 10px;color:var(--bad)">轉入時發生問題</h3>
+      <p style="text-align:left;background:#fdf2f0;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7;white-space:pre-line">${esc(msg||"轉入失敗，請重試一次")}</p>
+      <button class="btn primary" style="margin-top:14px" onclick="Cloud.closeSyncModal()">確認</button>`;}
+    else alert("⚠ "+(msg||"轉入失敗，請重試一次"));
+  },
+  async refreshBeforeTransfer(){
+    try{ if(typeof Cloud!=="undefined")await Cloud.loadDB(true); }catch(e){console.warn("轉入前重新整理雲端資料失敗",e);}
+  },
+  /* ── 一鍵轉入全部（檢查紀錄＋缺失紀錄總表＋正面評價），三個各自獨立，缺哪個資料就自動略過。
+     只在最外層做一次「鎖畫面＋抓最新資料」，裡面三個各自的函式用 skipLock 略過各自重複的
+     鎖畫面/刷新/結果彈窗，最後統一顯示一個總結果。 ── */
   async pushAllFromRecord(){
-    await this.pushToInsp();
-    await this.pushDefRowsToDefs();
-    await this.pushPosRowsToSire();
+    if(!await Guard.require())return;
+    this.showTransferLock();
+    await this.refreshBeforeTransfer();
+    const parts=[];
+    try{
+      const r1=await this.pushToInsp({skipLock:true});if(r1&&r1.msg)parts.push(r1.msg);
+      const r2=await this.pushDefRowsToDefs({skipLock:true});if(r2&&r2.msg)parts.push(r2.msg);
+      const r3=await this.pushPosRowsToSire({skipLock:true});if(r3&&r3.msg)parts.push(r3.msg);
+      this.finishTransferLock(parts.length?parts.join("\n"):"沒有可轉入的內容，或都已取消");
+    }catch(e){this.failTransferLock(e.message);}
   },
   /* ── 轉入記錄（單筆，含防重複確認） ── */
-  async pushToInsp(){
+  async pushToInsp(opts){
+    opts=opts||{};
     if(!await Guard.require())return;
     if(this.editId==null){toast("⚠ 請先儲存基本資料");return;}
-    const d=App.air.find(x=>x.id===this.editId);if(!d)return;
+    if(!opts.skipLock){this.showTransferLock();await this.refreshBeforeTransfer();}
+    const d=App.air.find(x=>x.id===this.editId);
+    if(!d){const m="找不到這筆填單資料，可能已被刪除，請重新整理頁面後再試。";if(!opts.skipLock)this.failTransferLock(m);else toast("⚠ "+m);return;}
     let existing=d.pushedInspId!=null?App.insp.find(x=>x.id===d.pushedInspId):null;
     if(!existing&&d.usedInsp){
       // 舊資料在此次修正前轉入的，沒有記錄對應的檢查紀錄 id；用船名＋檢查來源＋日期回溯比對，
@@ -23113,39 +23158,49 @@ const Air={
       existing=App.insp.find(x=>x.ship===d.ship&&x.itype===d.itype&&x.date===d.date)||null;
     }
     const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:d.date,loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:d.flagType||"",_impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
+    let msg;
     if(existing){
       // ⚠ 這裡原本只是一句籠統的 confirm()，看不到到底哪些欄位會被改成什麼——現在改成
       // 實際列出每個欄位「現有值 → 匯入值」的差異表，看得清楚再決定要不要套用。
       const diffFields=["ship","vtype","itype","date","loc","inspector","unit","ndef","npos","flagType"];
       const diffs=ImportDiff.diffFields(existing,payload,diffFields);
-      if(!diffs.length){toast("此筆內容與現有檢查紀錄完全一致，無需更新");return;}
+      if(!diffs.length){if(!opts.skipLock)this.hideTransferLock();toast("此筆內容與現有檢查紀錄完全一致，無需更新");return {ok:true,msg:null};}
+      if(!opts.skipLock)this.hideTransferLock(); // 差異預覽彈窗不是原生對話框，要先把鎖定畫面收起來才看得到
       const ok=await ImportDiff.showFieldDiffModal(`轉入檢查紀錄 — 差異預覽（${shipFullLabel(d.ship)} ${d.date}）`,diffs);
-      if(!ok)return;
+      if(!ok)return {ok:true,msg:null};
+      if(!opts.skipLock)this.showTransferLock();
       Object.assign(existing,payload);
       d.pushedInspId=existing.id;
       if(typeof Audit!=="undefined")Audit.log("更新","檢查紀錄",`由AIR#${d.id}同步更新`);
-      toast("✓ 已同步更新對應的檢查紀錄");
+      msg="已同步更新對應的檢查紀錄";
     }else{
-      if(!confirm("確定要將此筆基本資料轉入「檢查紀錄」？"))return;
+      if(!opts.skipLock)this.hideTransferLock();
+      if(!confirm("確定要將此筆基本資料轉入「檢查紀錄」？"))return {ok:true,msg:null};
+      if(!opts.skipLock)this.showTransferLock();
       const newId=App.nextInspId();
       App.insp.push({id:newId,...payload,detain:""});
       d.pushedInspId=newId;
       if(typeof Audit!=="undefined")Audit.log("轉入","檢查紀錄",`由AIR#${d.id}轉入`);
-      toast("✓ 已轉入檢查紀錄");
+      msg="已轉入檢查紀錄";
     }
     d.usedInsp=true;
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
     if(typeof Ov!=="undefined"){Ov.init();Ov.render();}
     if(typeof InspCtrl!=="undefined")InspCtrl.render();
+    if(!opts.skipLock)this.finishTransferLock(msg);
+    return {ok:true,msg};
   },
-  async pushDefRowsToDefs(){
+  async pushDefRowsToDefs(opts){
+    opts=opts||{};
     if(!await Guard.require())return;
     if(this.editId==null){toast("⚠ 請先儲存基本資料");return;}
-    const d=App.air.find(x=>x.id===this.editId);if(!d)return;
+    if(!opts.skipLock){this.showTransferLock();await this.refreshBeforeTransfer();}
+    const d=App.air.find(x=>x.id===this.editId);
+    if(!d){const m="找不到這筆填單資料，可能已被刪除，請重新整理頁面後再試。";if(!opts.skipLock)this.failTransferLock(m);else toast("⚠ "+m);return {ok:false,msg:null};}
     let rows=this.defRows.filter(r=>r.detail||r.corrective||r.rootCause||r.preventive||r.opComment||r.immediateCause||r.code||r.actual||r.psc||r.ncProb||r.ncMain||r.ncLeaf);
     const selScope=this.defSel.size>0;
     if(selScope)rows=rows.filter(r=>this.defSel.has(r.id));
-    if(!rows.length){toast(selScope?"⚠ 已勾選的列中沒有可轉入的缺失明細":"⚠ 沒有可轉入的缺失明細");return;}
+    if(!rows.length){if(!opts.skipLock)this.hideTransferLock();toast(selScope?"⚠ 已勾選的列中沒有可轉入的缺失明細":"⚠ 沒有可轉入的缺失明細");return {ok:true,msg:null};}
     const reqFields=(typeof AirDefReq!=="undefined")?AirDefReq.load():[];
     if(reqFields.length){
       const idxOf=r=>this.defRows.indexOf(r)+1;
@@ -23155,38 +23210,35 @@ const Air={
         if(missing.length)problems.push(`第 ${idxOf(r)} 筆缺：${missing.join("、")}`);
       });
       if(problems.length){
+        if(!opts.skipLock)this.hideTransferLock();
         alert(`⚠ 有 ${problems.length} 筆缺失明細未填妥必填欄位，無法轉入缺失紀錄總表：\n\n${problems.join("\n")}\n\n請補齊後再試一次。`);
-        return;
+        return {ok:true,msg:null};
       }
     }
-    this._pendingPushRows=rows;
     if(!d.usedDef){
       // 第一次轉入，沒有先前紀錄可覆蓋，直接新增即可
-      if(!confirm(`確定要將${selScope?"已勾選的 ":""} ${rows.length} 筆缺失明細轉入「缺失紀錄總表」？`))return;
-      this._doPushDefs(rows,"add");
-      return;
+      if(!confirm(`確定要將${selScope?"已勾選的 ":""} ${rows.length} 筆缺失明細轉入「缺失紀錄總表」？`)){if(!opts.skipLock)this.hideTransferLock();return {ok:true,msg:null};}
+      return await this._doPushDefs(rows,"add",opts);
     }
     const msg=`此筆填單先前已轉入過「缺失紀錄總表」。\n\n建議選「覆蓋」：系統會依上次轉入時的對應關係，直接更新原本那幾筆缺失紀錄的內容（找不到對應舊紀錄——例如已被手動刪除——的列，會視為新增一筆）；若您是刻意要另外多留一份，才選「另外新增」，會產生 ${rows.length} 筆全新的重複紀錄。`;
     $("#airPushDefsMsg").textContent=msg;
     $("#airPushDefsModal").classList.add("show");
+    const mode=await new Promise(res=>{this._singlePushDefsResolve=res;});
+    if(!mode){if(!opts.skipLock)this.hideTransferLock();return {ok:true,msg:null};}
+    return await this._doPushDefs(rows,mode,opts);
   },
   closePushDefsModal(){
     $("#airPushDefsModal").classList.remove("show");this._pendingPushRows=null;
-    // 填單清單批次轉入（pushSelected）借用這個既有的「覆蓋／另外新增」彈窗來問使用者，
-    // 用 Promise resolver 接手：取消時要 resolve(null)，讓等待中的批次流程知道使用者放棄，不能整批卡住。
+    // 填單清單批次轉入（pushSelected）跟單筆填單頁面都借用這個既有的「覆蓋／另外新增」彈窗來問
+    // 使用者，各自用自己的 Promise resolver 接手；取消時要 resolve(null)，讓等待中的流程知道
+    // 使用者放棄，不能卡住。
     if(this._bulkModeResolveDefs){const r=this._bulkModeResolveDefs;this._bulkModeResolveDefs=null;r(null);}
+    if(this._singlePushDefsResolve){const r=this._singlePushDefsResolve;this._singlePushDefsResolve=null;r(null);}
   },
   confirmPushDefs(mode){
-    if(this._bulkModeResolveDefs){
-      const resolve=this._bulkModeResolveDefs;this._bulkModeResolveDefs=null;
-      $("#airPushDefsModal").classList.remove("show");
-      resolve(mode);
-      return;
-    }
-    const rows=this._pendingPushRows;
-    this.closePushDefsModal();
-    if(!rows||!rows.length)return;
-    this._doPushDefs(rows,mode);
+    $("#airPushDefsModal").classList.remove("show");
+    if(this._bulkModeResolveDefs){const resolve=this._bulkModeResolveDefs;this._bulkModeResolveDefs=null;resolve(mode);return;}
+    if(this._singlePushDefsResolve){const resolve=this._singlePushDefsResolve;this._singlePushDefsResolve=null;resolve(mode);return;}
   },
   /* 填單清單批次轉入專用：跟單筆填單編輯頁面同一個彈窗，問使用者「覆蓋先前轉入的紀錄」還是
      「另外新增」，回傳 Promise<'overwrite'|'add'|null>（null＝使用者取消）。target 只支援 defs／sirepos，
@@ -23201,8 +23253,10 @@ const Air={
     $("#airPushPosModal").classList.add("show");
     return new Promise(res=>{this._bulkModeResolvePos=res;});
   },
-  async _doPushDefs(rows,mode){
-    const d=App.air.find(x=>x.id===this.editId);if(!d)return;
+  async _doPushDefs(rows,mode,opts){
+    opts=opts||{};
+    const d=App.air.find(x=>x.id===this.editId);
+    if(!d){const m="找不到這筆填單資料，可能已被刪除，請重新整理頁面後再試。";if(!opts.skipLock)this.failTransferLock(m);return {ok:false,msg:null};}
     let added=0,updated=0,skipped=0;
     for(const r of rows){
       /* 策略：船上原始填寫的版本，與海技「對外回覆」審閱過的版本，是兩份不同的內容，
@@ -23274,11 +23328,12 @@ const Air={
     }
     d.usedDef=true;
     d.defects=this.rowsToDefectsPayload(this.defRows); // 把更新後的 pushedDefId 寫回持久化的 defects
-    App.saveAll();if(App.refreshMeta)App.refreshMeta();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
     if(typeof Defs!=="undefined"){Defs.init();Defs.render();}
-    const msg=mode==="overwrite"?`✓ 已覆蓋更新 ${updated} 筆、新增 ${added} 筆缺失紀錄${skipped?`、跳過 ${skipped} 筆`:""}`:`✓ 已新增 ${added} 筆缺失紀錄`;
+    const msg=mode==="overwrite"?`已覆蓋更新 ${updated} 筆、新增 ${added} 筆缺失紀錄${skipped?`、跳過 ${skipped} 筆`:""}`:`已新增 ${added} 筆缺失紀錄`;
     if(typeof Audit!=="undefined")Audit.log("轉入","缺失紀錄總表",`由AIR#${d.id}${mode==="overwrite"?"覆蓋轉入":"轉入"} ${rows.length} 筆（更新${updated}／新增${added}${skipped?`／跳過${skipped}`:""}）`);
-    toast(msg);
+    if(!opts.skipLock)this.finishTransferLock(msg);
+    return {ok:true,msg};
   },
   /* ══════════ 分享缺失做船隊自查（問卷模式：一條連結發全船隊，船上打開後自行選船名填答，
      不再是「每艘船各自一個專屬連結」——資料存在獨立的 selfcheck_share_campaigns／
@@ -23381,44 +23436,44 @@ const Air={
   },
   copyShareLink(){ safeCopyText($("#air-sw-link").value,"✓ 已複製分享連結"); }, // 舊的連結視窗已不再使用，建立後改為直接複製「活動名稱＋連結」並跳轉
   copySummaryLink(){ safeCopyText($("#air-sw-summary-link").value,"✓ 已複製彙整清單連結"); },
-  async pushPosRowsToSire(){
+  async pushPosRowsToSire(opts){
+    opts=opts||{};
     if(!await Guard.require())return;
     if(this.editId==null){toast("⚠ 請先儲存基本資料");return;}
-    const d=App.air.find(x=>x.id===this.editId);if(!d)return;
+    if(!opts.skipLock){this.showTransferLock();await this.refreshBeforeTransfer();}
+    const d=App.air.find(x=>x.id===this.editId);
+    if(!d){const m="找不到這筆填單資料，可能已被刪除，請重新整理頁面後再試。";if(!opts.skipLock)this.failTransferLock(m);else toast("⚠ "+m);return {ok:false,msg:null};}
     let rows=this.posRows.filter(r=>r.code||r.item||r.comment||(r.people||[]).some(p=>p.rank||p.person));
     const selScope=this.posSel.size>0;
     if(selScope)rows=rows.filter(r=>this.posSel.has(r.id));
-    if(!rows.length){toast(selScope?"⚠ 已勾選的列中沒有可轉入的正面評價明細":"⚠ 沒有可轉入的正面評價明細");return;}
+    if(!rows.length){if(!opts.skipLock)this.hideTransferLock();toast(selScope?"⚠ 已勾選的列中沒有可轉入的正面評價明細":"⚠ 沒有可轉入的正面評價明細");return {ok:true,msg:null};}
     let total=0;rows.forEach(r=>{total+=(r.people&&r.people.length?r.people.filter(p=>p.rank||p.person).length||1:1);});
-    this._pendingPushPosRows=rows;
     if(!d.usedPos){
       // 第一次轉入，沒有先前紀錄可覆蓋，直接新增即可
-      if(!confirm(`確定要將${selScope?"已勾選的 ":""} ${rows.length} 列正面評價明細（共 ${total} 筆，含多位受訪人員）轉入「正面評價/優秀案例記錄」？`))return;
-      this._doPushPos(rows,"add");
-      return;
+      if(!confirm(`確定要將${selScope?"已勾選的 ":""} ${rows.length} 列正面評價明細（共 ${total} 筆，含多位受訪人員）轉入「正面評價/優秀案例記錄」？`)){if(!opts.skipLock)this.hideTransferLock();return {ok:true,msg:null};}
+      return this._doPushPos(rows,"add",opts);
     }
     const msg=`此筆填單先前已轉入過「正面評價/優秀案例記錄」。\n\n建議選「覆蓋」：系統會依上次轉入時的對應關係，直接更新原本那幾筆正面評價紀錄的內容（找不到對應舊紀錄——例如已被手動刪除——的會視為新增一筆）；若您是刻意要另外多留一份，才選「另外新增」，會產生 ${total} 筆全新的重複紀錄。`;
     $("#airPushPosMsg").textContent=msg;
     $("#airPushPosModal").classList.add("show");
+    const mode=await new Promise(res=>{this._singlePushPosResolve=res;});
+    if(!mode){if(!opts.skipLock)this.hideTransferLock();return {ok:true,msg:null};}
+    return this._doPushPos(rows,mode,opts);
   },
   closePushPosModal(){
     $("#airPushPosModal").classList.remove("show");this._pendingPushPosRows=null;
     if(this._bulkModeResolvePos){const r=this._bulkModeResolvePos;this._bulkModeResolvePos=null;r(null);}
+    if(this._singlePushPosResolve){const r=this._singlePushPosResolve;this._singlePushPosResolve=null;r(null);}
   },
   confirmPushPos(mode){
-    if(this._bulkModeResolvePos){
-      const resolve=this._bulkModeResolvePos;this._bulkModeResolvePos=null;
-      $("#airPushPosModal").classList.remove("show");
-      resolve(mode);
-      return;
-    }
-    const rows=this._pendingPushPosRows;
-    this.closePushPosModal();
-    if(!rows||!rows.length)return;
-    this._doPushPos(rows,mode);
+    $("#airPushPosModal").classList.remove("show");
+    if(this._bulkModeResolvePos){const resolve=this._bulkModeResolvePos;this._bulkModeResolvePos=null;resolve(mode);return;}
+    if(this._singlePushPosResolve){const resolve=this._singlePushPosResolve;this._singlePushPosResolve=null;resolve(mode);return;}
   },
-  _doPushPos(rows,mode){
-    const d=App.air.find(x=>x.id===this.editId);if(!d)return;
+  _doPushPos(rows,mode,opts){
+    opts=opts||{};
+    const d=App.air.find(x=>x.id===this.editId);
+    if(!d){const m="找不到這筆填單資料，可能已被刪除，請重新整理頁面後再試。";if(!opts.skipLock)this.failTransferLock(m);return {ok:false,msg:null};}
     let added=0,updated=0;
     rows.forEach(r=>{
       const people=(r.people||[]).filter(p=>p.rank||p.person);
@@ -23443,11 +23498,12 @@ const Air={
     });
     d.usedPos=true;
     d.posComments=this.posRows.filter(r=>r.code||r.item||r.comment||(r.people||[]).some(p=>p.rank||p.person)).map(r=>({code:r.code||"",item:r.item||"",comment:r.comment||"",people:(r.people||[{rank:"",person:""}]).map(p=>({rank:p.rank||"",person:p.person||""})),pushedPosIds:Array.isArray(r.pushedPosIds)?r.pushedPosIds:null})); // 把更新後的 pushedPosIds 寫回持久化的 posComments
-    App.saveAll();if(App.refreshMeta)App.refreshMeta();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
     if(typeof SirePos!=="undefined")SirePos.init();
-    const msg=mode==="overwrite"?`✓ 已覆蓋更新 ${updated} 筆、新增 ${added} 筆正面評價`:`✓ 已新增 ${added} 筆正面評價`;
+    const msg=mode==="overwrite"?`已覆蓋更新 ${updated} 筆、新增 ${added} 筆正面評價`:`已新增 ${added} 筆正面評價`;
     if(typeof Audit!=="undefined")Audit.log("轉入","正面評價/優秀案例記錄",`由AIR#${d.id}${mode==="overwrite"?"覆蓋轉入":"轉入"}（更新${updated}／新增${added}）`);
-    toast(msg);
+    if(!opts.skipLock)this.finishTransferLock(msg);
+    return {ok:true,msg};
   },
   /* 匯入方式／匯入者：依 importSource 分辨這筆是怎麼進系統的，早期（此欄位上線前）建立的舊資料
      沒有 importSource，退回原本「只顯示建立者姓名」的舊行為，不會變成空白或誤判。 */
@@ -23600,12 +23656,11 @@ const Air={
     // 轉入完成後也用同一顆彈窗明確顯示成功或失敗，而不是容易被忽略、幾秒後自動消失的 toast。
     const modal=$("#syncStatusModal"),body=$("#syncStatusBody"),useModal=!!(modal&&body);
     if(useModal){
-      body.innerHTML=`<div style="font-size:34px;margin-bottom:10px">⏳</div><h3 style="margin:0 0 8px">正在抓取最新資料…</h3><p class="hint">請稍候，完成前請不要關閉頁面或進行其他操作。</p>`;
+      body.innerHTML=`<div style="font-size:34px;margin-bottom:10px">⏳</div><h3 style="margin:0 0 8px">正在轉單中…</h3><p class="hint">請稍候，完成前請不要關閉頁面或進行其他操作。</p>`;
       modal.classList.add("show");
     }
     try{ if(typeof Cloud!=="undefined")await Cloud.loadDB(true); }catch(e){console.warn("轉入前重新整理雲端資料失敗",e);}
     this.renderList(); // 用剛載入的最新資料重畫列表；勾選的 id 不變，仍對得上同一批紀錄
-    if(useModal)body.innerHTML=`<div style="font-size:34px;margin-bottom:10px">⏳</div><h3 style="margin:0 0 8px">正在轉入…</h3><p class="hint">請稍候，轉入過程中請不要關閉頁面或進行其他操作。</p>`;
     // 依序轉入各個勾選的地方，沿用各自既有的驗證／重複轉入警示邏輯（每個地方跳一次確認視窗）；
     // 個別目標失敗時記下來繼續跑下一個，不要讓其中一個出錯就整批卡住，最後統一告知結果。
     const failed=[];
