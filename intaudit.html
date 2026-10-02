@@ -585,7 +585,7 @@ function renderList(){
     html+=`<tr class="rec"><td colspan="8"><div style="display:flex;align-items:flex-start;gap:14px">
       <div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         ${filtering?"":`<button class="btn sm" onclick="toggleRec(${r.id})" title="展開／收合這張登錄單的缺失明細">${open?"▾ 收合":"▸ 展開"}（${(r.defs||[]).length}）</button>`}
-        <span style="font-size:14px">${esc(shipLabel(r.ship))}</span><span>${esc(dateText(r))}</span><span class="hint">${esc(types)}${r.draft?" ・<b style='color:#b5610f'>草稿</b>":""}</span>
+        <span style="font-size:14px">${esc(shipLabel(r.ship))}</span><span>${esc(dateText(r))}</span><span class="hint">${esc(types)}${r.draft?` ・<b style='color:#b5610f'>草稿</b>${(()=>{const n=draftIssues(r).length;return n?` <span style="color:#c0392b;font-weight:700">（還有 ${n} 項未填完，按「✎編輯」查看）</span>`:` <span style="color:var(--ok);font-weight:700">（已填妥，按「✎編輯」送出即可發改善單）</span>`;})()}`:""}</span>
         <span class="hint">檢查人：${esc(r.inspector)}　地點：${esc(r.psn)}</span>
         <span class="hint" style="flex-basis:100%;font-weight:400">${esc(summaryText(r))}</span>
       </div>
@@ -596,7 +596,7 @@ function renderList(){
             <button class="btn sm dark" onclick="openExport(${r.id})" title="Word／JSON／內控 Excel／內控 JSON">⬇ 匯出</button>
           </span>
           <span style="display:flex;flex-direction:column;gap:4px">
-            <button class="btn sm" ${(r.draft||!(r.defs||[]).some(d=>d.closeMode!=="FLOW"))?"disabled":""} onclick="issueOrder(${r.id})" title="把「內控／系統內結案」的缺失做成改善單，給船上填改善回報">📨 發改善單${r.issuedAt?"（已發）":""}</button>
+            <button class="btn sm" ${(!(r.defs||[]).some(d=>d.closeMode!=="FLOW"))?"disabled":""} onclick="issueOrder(${r.id})" title="${r.draft?"這張還是草稿，點了會告訴你還缺什麼":"把「內控／系統內結案」的缺失做成改善單，給船上填改善回報"}">📨 發改善單${r.issuedAt?"（已發）":""}</button>
             ${r.issuedAt?`<a class="btn sm" href="${replyUrl(r)}" target="_blank" title="直接開啟船上填寫的改善單頁面（跟複製給船上的連結是同一個）">🔗 開啟船上頁</a>`:""}
           </span>
           <span style="display:flex;flex-direction:column;gap:4px">
@@ -638,9 +638,30 @@ function openExport(id){
 }
 function closeExport(){$("#exportModal").style.display="none";}
 function exportJson(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;download(new Blob([JSON.stringify(r,null,1)],{type:"application/json"}),fname(r,".json"));}
+/* 草稿還缺什麼才能送出：跟編輯頁 validate() 同一套必填規則，但直接讀存檔裡的 r（不是
+   正在編輯的 cur），這樣登錄紀錄清單上每一張草稿都能不用點進去編輯就先看到還缺幾項、
+   「發改善單」按鈕點了也能具體講出原因，而不是按了完全沒反應讓人以為壞掉。 */
+function draftIssues(r){
+  const errs=[];
+  [["ship","訪問船舶"],["dateFrom","檢查日期（起）"],["inspector","檢查人"],["psn","地點 Ship's PSN"]].forEach(([f,l])=>{if(!r[f])errs.push(l);});
+  if(!(r.types||[]).length)errs.push("檢查種類（至少一種）");
+  if(!(r.defs||[]).length)errs.push("缺失明細（至少一筆）");
+  (r.defs||[]).forEach((d,i)=>{
+    const missing=[];
+    [["category","分類"],["risk","風險等級"],["reported","發現日期"],["finding","待改善描述"]].forEach(([f,l])=>{if(!String(d[f]||"").trim())missing.push(l);});
+    if(!d.closeMode)missing.push("結案方式");
+    if(missing.length)errs.push(`第 ${i+1} 筆缺失：${missing.join("、")}`);
+  });
+  return errs;
+}
 /* 發改善單：內控／系統內結案的缺失才需要船上改善。複製「單名＋連結」貼進郵件發給船上，並記下已發單。 */
 async function issueOrder(id){
-  const r=Store.rows.find(x=>x.id===id);if(!r||r.draft)return;
+  const r=Store.rows.find(x=>x.id===id);if(!r)return;
+  if(r.draft){
+    const issues=draftIssues(r);
+    toast(issues.length?`⚠ 這張還是草稿，還有 ${issues.length} 項沒填完：${issues.slice(0,3).join("；")}${issues.length>3?"…":""}。請按「✎編輯」補齊，到「⑥下載/發改善單」按「🚀送出海技入系統」後才能發改善單。`:"⚠ 這張還是草稿，內容看起來都填好了，請按「✎編輯」打開，到「⑥下載/發改善單」按「🚀送出海技入系統」即可發改善單。",true);
+    return;
+  }
   const n=(r.defs||[]).filter(d=>d.closeMode!=="FLOW").length;
   if(!n){toast("⚠ 這張登錄單沒有需要船上改善的缺失（都是 FLOW）",true);return;}
   if(Store.mode!=="cloud"){alert("⚠ 目前連不上雲端資料表，改善單連結暫時無法給船上使用。\n\n"+(Store._loadErr?"錯誤訊息："+Store._loadErr+"\n\n":"")+"請按「🔄 重新整理」後再試；若一直失敗，才需要請維護者確認 Supabase 是否已執行過 intaudit_setup.sql。");return;}
