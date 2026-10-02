@@ -273,9 +273,9 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
   <div id="reviewPage" style="display:none">
     <div class="banner">船上在改善單填寫、送出的改善措施會先出現在這裡，由督導逐筆或批量審核結案；<b>審核結案後才算定案</b>，之後主系統只需要把已審核的內容套用到缺失紀錄總表，不需要再另外審核一次。FLOW 類缺失船上另外在 FLOW 系統辦理，不會出現在這裡。</div>
     <div class="toolbar">
-      <select id="rvShip" onchange="renderReview()"><option value="">全部船舶</option></select>
-      <select id="rvInspector" onchange="renderReview()"><option value="">全部檢查人</option></select>
-      <select id="rvMode" onchange="renderReview()"><option value="">全部結案方式</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
+      <select id="rvShip" onchange="renderReview()" style="width:auto"><option value="">全部船舶</option></select>
+      <select id="rvInspector" onchange="renderReview()" style="width:auto"><option value="">全部檢查人</option></select>
+      <select id="rvMode" onchange="renderReview()" style="width:auto"><option value="">全部結案方式</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
       <input type="text" id="rvQ" placeholder="搜尋船名／分類／缺失描述／回報人" oninput="renderReview()" style="flex:1;min-width:160px">
       <button class="btn sm" onclick="Store.loadReplies().then(renderReview)">🔄 重新整理</button>
     </div>
@@ -609,11 +609,7 @@ async function delDefFromList(rid,i){
   }
 }
 function renderList(){
-  const rows=Store.rows,all=[];rows.forEach(r=>(r.defs||[]).forEach(d=>all.push(d)));
-  const cnt=k=>all.filter(d=>d.closeMode===k).length;
-  $("#listCounts").innerHTML=`<span class="hint" style="font-weight:700">全部缺失結案方式</span>
-    <span class="cchip flow">FLOW 系統（DMP-FM01）<b>${cnt("FLOW")}</b> 筆</span><span class="cchip ic">內控<b>${cnt("內控")}</b> 筆</span><span class="cchip sys">系統內結案<b>${cnt("系統內結案")}</b> 筆</span>
-    <span class="hint">共 ${rows.length} 張登錄單、${all.length} 筆缺失</span>`;
+  const rows=Store.rows;
   // 檢查人篩選選項：直接從目前登錄單裡有出現過的檢查人整理，不限於目前的 SUPERVISORS 名單
   // （名單調整過也還是看得到舊紀錄的檢查人可以篩），每次重繪時保留使用者目前選取的值。
   const fInspEl=$("#fInsp");
@@ -623,13 +619,18 @@ function renderList(){
     fInspEl.innerHTML='<option value="">全部檢查人</option>'+insps.map(n=>`<option ${n===curInsp?"selected":""}>${esc(n)}</option>`).join("");
   }
   const fs=$("#fShip").value,fi=$("#fInsp")?$("#fInsp").value:"",fm=$("#fMode").value,fst=$("#fStatus").value,q=$("#fQ").value.trim().toLowerCase();
+  // ⚠ 上方「全部缺失結案方式」統計原本是用完全沒篩選過的 rows/all 算的，使用者下面篩選船舶／
+  // 檢查人／結案方式／狀態／關鍵字之後，上面那排數字完全不會變，看起來像篩選沒作用在統計上。
+  // 改成在同一個迴圈裡，把符合篩選條件的缺失一起收集起來，統計數字跟著篩選結果走。
   let html="",n=0;
+  const filteredDefs=[];let matchedRecs=0;
   rows.forEach(r=>{
     if(fs&&r.ship!==fs)return;
     if(fi&&r.inspector!==fi)return;
     const ds=(r.defs||[]).filter(d=>(!fm||d.closeMode===fm)&&(!fst||effStatus(r,d)===fst)&&
       (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,topicText(d)].join(" ").toLowerCase().includes(q)));
     if(!ds.length&&(fm||fst||q))return;
+    matchedRecs++;filteredDefs.push(...ds);
     n+=ds.length;
     const types=(r.types||[]).map(k=>{const t=typeDef(k)||{label:k};return t.label+(t.sarForm?"："+t.sarForm:"");}).join("、");
     const hasIC=(r.defs||[]).some(d=>d.closeMode==="內控");
@@ -674,6 +675,11 @@ function renderList(){
   });
   $("#listBody").innerHTML=html||`<tr><td colspan="8" style="text-align:center;color:#8195a0;padding:24px">目前沒有登錄紀錄，請按上方「＋ 新增登錄」。</td></tr>`;
   $("#listStat").textContent=`顯示 ${n} 筆缺失`;
+  const cnt=k=>filteredDefs.filter(d=>d.closeMode===k).length;
+  const filtering=!!(fs||fi||fm||fst||q);
+  $("#listCounts").innerHTML=`<span class="hint" style="font-weight:700">${filtering?"篩選結果":"全部"}缺失結案方式</span>
+    <span class="cchip flow">FLOW 系統（DMP-FM01）<b>${cnt("FLOW")}</b> 筆</span><span class="cchip ic">內控<b>${cnt("內控")}</b> 筆</span><span class="cchip sys">系統內結案<b>${cnt("系統內結案")}</b> 筆</span>
+    <span class="hint">共 ${matchedRecs} 張登錄單、${filteredDefs.length} 筆缺失</span>`;
   updateReviewBadge();
 }
 async function delRec(id){if(!confirm("確定刪除這張登錄單？此動作無法復原。"))return;await Store.remove(id);renderList();}
