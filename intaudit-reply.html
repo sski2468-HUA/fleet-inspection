@@ -107,6 +107,11 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);display:none;z-index:99;max-width:90vw;text-align:center}
 #toast.err{background:var(--bad)}
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:120;cursor:zoom-out}
+/* 送出進度彈窗：按下送出後蓋住畫面，清楚顯示「送出中」→「已完成」，不要讓船上按了按鈕
+   卻只看到畫面毫無動靜、以為沒反應又重複按好幾次。 */
+.modal{position:fixed;inset:0;background:rgba(15,30,45,.5);display:none;align-items:center;justify-content:center;z-index:130;padding:16px}
+.modal.show{display:flex}
+.modal .box{background:#fff;border-radius:12px;width:min(420px,92vw);padding:28px 24px;text-align:center}
 .lightbox img{max-width:94vw;max-height:94vh;border-radius:6px}
 @media(max-width:860px){.row{grid-template-columns:1fr}.rl{border-right:none;border-bottom:1px dashed var(--line)}.two{grid-template-columns:1fr}}
 </style>
@@ -191,6 +196,7 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
   </div>
 </div>
 <div class="lightbox" id="lightbox" onclick="this.style.display='none'"><img id="lightboxImg" alt=""></div>
+<div class="modal" id="submitModal"><div class="box" id="submitModalBody"></div></div>
 <div id="toast"></div>
 <script>
 const CLOUD={url:"https://iqmbircjokdzdssouwkr.supabase.co",
@@ -581,20 +587,34 @@ async function submitAll(){
   }
   const box=$("#errBox");if(box)box.style.display="none";
   const by=$("#fName").value.trim(),title=$("#fTitle").value,now=Date.now();
+  // 按下送出不能毫無反應——馬上蓋一個進度畫面，船上才知道系統真的在處理，不會以為按鈕壞掉
+  // 又連續點好幾次；處理完成再換成明確的「已完成」畫面，要按確認才會關掉。
+  showSubmitStatus("⏳","送單中…","請稍候，正在送出給督導");
   try{
     await reloadReplies(); // 送出前再讀一次最新狀態，避免蓋掉剛好被海技審核結案的項目
     const rows=ready.filter(d=>stOf(d)!=="lock").map(d=>{const x=drafts[d.uid];
       return {id:`${RID}_${d.uid}`,record_id:+RID,def_uid:d.uid,status:"submitted",updated_at:now,
         payload:{action:x.action.trim(),corrected:x.corrected,evidence:(x.evidence||"").trim(),photos:x.photos,by,title,at:now}};});
-    if(!rows.length){toast("⚠ 這些項目剛剛已被海技結案，請重新整理頁面",true);return;}
+    if(!rows.length){closeSubmitStatus();toast("⚠ 這些項目剛剛已被海技結案，請重新整理頁面",true);return;}
     await api("intaudit_replies?on_conflict=id",{method:"POST",headers:H({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(rows)});
     rows.forEach(r=>{delete drafts[r.def_uid];});saveDrafts();
     await reloadReplies();renderGlobalBar();if(currentStep===3)renderSysStep();if(currentStep===4)renderPreview();
-    toast(`✓ 已送出 ${rows.length} 項改善回報`+(partial.length?`；另有 ${partial.length} 項填到一半，已保留為草稿`:"")+"，正在存成 Word…");
     window.scrollTo({top:0,behavior:"smooth"});
-    await downloadWord(false);
-  }catch(e){toast("⚠ 送出失敗："+e.message+"（請確認網路後再試，填寫內容還在）",true);}
+    showSubmitStatus("⏳","送單中…","已送出改善回報，正在存成 Word 檔…");
+    const wordOk=await downloadWord(false);
+    finishSubmitStatus(`已完成送單給督導！共送出 ${rows.length} 項改善回報${partial.length?`；另有 ${partial.length} 項填到一半，已保留為草稿，記得之後補齊再送`:""}。${wordOk?"Word 檔已下載，可自行保存備查。":"（Word 檔案存檔失敗，不影響送出結果，可稍後在「下載/發改善單」重新下載）"}`);
+  }catch(e){closeSubmitStatus();toast("⚠ 送出失敗："+e.message+"（請確認網路後再試，填寫內容還在）",true);}
 }
+function showSubmitStatus(icon,title,desc){
+  $("#submitModalBody").innerHTML=`<div style="font-size:36px;margin-bottom:12px">${icon}</div><h3 style="margin:0 0 8px;color:var(--navy)">${esc(title)}</h3><p class="hint" style="margin:0">${esc(desc)}</p>`;
+  $("#submitModal").classList.add("show");
+}
+function finishSubmitStatus(msg){
+  $("#submitModalBody").innerHTML=`<div style="font-size:36px;margin-bottom:12px;color:var(--ok)">✓</div><h3 style="margin:0 0 10px;color:var(--ok)">已完成送單給督導</h3>
+    <p style="text-align:left;background:#f7f9f9;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.7;color:var(--ink-2)">${esc(msg)}</p>
+    <button class="btn primary" style="margin-top:16px;width:100%" onclick="closeSubmitStatus()">確認</button>`;
+}
+function closeSubmitStatus(){$("#submitModal").classList.remove("show");}
 (async function init(){
   if(SHIP&&!RID){await loadShips();return initShip();}
   if(!RID){$("#hdrSub").textContent="連結不完整";bad("找不到改善單編號，請向督導／海技索取完整連結。");return;}
