@@ -1163,28 +1163,33 @@ function renderDownloadTab(){
       <span class="hint">下載／發改善單／送出前，建議先在這裡完整核對一次內容</span>
     </div>
     ${previewOpen?`<div style="margin-bottom:16px">${recordPreviewHtml(cur)}</div>`:""}
-    <div class="banner">內控／WORD 下載隨時可以用；<b>發改善單給船必須先送出海技入系統後才能使用</b>——這張單本來就該先確定正式送出、海技看得到了，才讓船上開始填改善單，避免船上填的內容對應到一張還沒送出的草稿。<br>
-      <b>內控 JSON</b> 下載後請帶去「船舶動態與早會待辦系統」登入建檔；<b>WORD</b> 檔案下載後請自行保存留底（含缺失完整內容與照片，每條缺失獨立一頁）。</div>
-    <div style="display:flex;flex-direction:column;gap:14px;max-width:680px;margin-top:4px">
+    <div class="banner">請依照下面的順序操作：<b>① 先送出海技入系統 → ② 再發改善單給船</b>；下載檔案是選用，隨時都可以做。<br>
+      這張單要先確定正式送出、海技看得到了，才讓船上開始填改善單，避免船上填的內容對應到一張還沒送出的草稿。</div>
+    <div style="display:flex;flex-direction:column;gap:14px;max-width:720px;margin-top:4px">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--chip,#eceff1);color:var(--ink-2);font-weight:700;font-size:12px;flex:none">1</span>
-        <button class="btn primary" style="min-width:180px" ${nIc?"":"disabled"} onclick="dlIcJsonInTab()">⬇ 下載內控 JSON</button>
-        <span class="hint">${nIc?`含 ${nIc} 筆內控異常`:"這張單目前沒有結案方式為「內控」的缺失"}${cur.icJsonDlAt?`<br><b style="color:var(--ok)">✓ ${esc(cur.icJsonDlBy||cur.inspector||"")} 已於 ${fmtT(cur.icJsonDlAt)} 下載</b>`:""}</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;font-weight:700;font-size:13px;flex:none">1</span>
+        <button class="btn lg" style="min-width:220px" onclick="submitForm()">🚀 ${cur.draft===false?"重新送出（更新內容）":"送出海技入系統"}</button>
+        <span class="hint">${cur.draft===false?`<b style="color:var(--ok)">✓ 已送出海技入系統</b>，可以進行下一步發改善單`:`<b style="color:var(--bad)">尚未送出</b>——送出後海技才看得到、才能匯入主系統，也才能發改善單`}</span>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--chip,#eceff1);color:var(--ink-2);font-weight:700;font-size:12px;flex:none">1</span>
-        <button class="btn dark" style="min-width:180px" onclick="dlWordInTab()">⬇ 下載完整報告 WORD</button>
-        <span class="hint">含照片，每筆缺失獨立一頁${cur.wordDlAt?`<br><b style="color:var(--ok)">✓ ${esc(cur.wordDlBy||cur.inspector||"")} 已於 ${fmtT(cur.wordDlAt)} 下載</b>`:""}</span>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:12px;border-top:1px dashed var(--line-2)">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${cur.draft===false?"var(--navy)":"#c3ced5"};color:#fff;font-weight:700;font-size:13px;flex:none">2</span>
+        <button class="btn ${cur.draft===false?"":"soft-disabled"}" style="min-width:220px" ${nIssue?"":"disabled"} onclick="issueOrderInTab()">📨 發改善單給船</button>
+        <span class="hint">${cur.draft!==false?'<b style="color:var(--bad)">請先完成上一步「送出海技入系統」，才能發改善單給船上</b><br>':""}${nIssue?`共 ${nIssue} 項待改善；會複製好內容供貼到郵件，船上打開連結後也能在那頁完整下載這次的檢查報告 WORD`:"這張單沒有需要船上改善的缺失"}${cur.issuedAt?`<br><b style="color:var(--ok)">✓ 已於 ${fmtT(cur.issuedAt)} 發送</b>`:""}</span>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:4px;border-top:1px dashed var(--line-2)">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--navy);color:#fff;font-weight:700;font-size:12px;flex:none;margin-top:4px">2</span>
-        <button class="btn ${cur.draft===false?"":"soft-disabled"}" style="min-width:180px" ${nIssue?"":"disabled"} onclick="issueOrderInTab()">📨 發改善單給船</button>
-        <span class="hint">${cur.draft!==false?'<b style="color:var(--bad)">請先按最上方「🚀 送出海技入系統」，送出後才能發改善單給船上</b><br>':""}${nIssue?`共 ${nIssue} 項待改善；會複製好內容供貼到郵件，船上打開連結後也能在那頁完整下載這次的檢查報告 WORD`:"這張單沒有需要船上改善的缺失"}${cur.issuedAt?`<br><b style="color:var(--ok)">✓ 已於 ${fmtT(cur.issuedAt)} 發送</b>`:""}</span>
+      <div style="padding-top:12px;border-top:1px dashed var(--line-2)">
+        <div class="hint" style="font-weight:700;margin-bottom:8px">選用：下載檔案（隨時可下載）</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <button class="btn" style="min-width:220px" ${nIc?"":"disabled"} onclick="dlIcJsonInTab()">⬇ 下載內控 JSON</button>
+            <span class="hint">${nIc?`含 ${nIc} 筆內控異常；下載後請帶去「船舶動態與早會待辦系統」登入建檔`:"這張單目前沒有結案方式為「內控」的缺失"}${cur.icJsonDlAt?`<br><b style="color:var(--ok)">✓ ${esc(cur.icJsonDlBy||cur.inspector||"")} 已於 ${fmtT(cur.icJsonDlAt)} 下載</b>`:""}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <button class="btn" style="min-width:220px" onclick="dlWordInTab()">⬇ 下載完整報告 WORD</button>
+            <span class="hint">含照片，每筆缺失獨立一頁，下載後請自行保存留底${cur.wordDlAt?`<br><b style="color:var(--ok)">✓ ${esc(cur.wordDlBy||cur.inspector||"")} 已於 ${fmtT(cur.wordDlAt)} 下載</b>`:""}</span>
+          </div>
+        </div>
       </div>
-    </div>
-    ${cur.draft!==false?`<div style="border-top:1px dashed var(--line-2);margin-top:18px;padding-top:14px">
-      <p class="hint" style="font-size:13px;line-height:1.8"><b style="color:var(--bad)">⚠ 這張單還沒送出，海技看不到、也還不能發改善單。完成以上下載（若需要）後，請回到最上方按「🚀 送出海技入系統」。</b></p>
-    </div>`:""}`;
+    </div>`;
 }
 /* 複製一單：整張登錄單（基本資料／總體評價／優良案例／缺失明細／船舶訴求）原封不動複製一份，
    變成一張新的草稿直接進入編輯，方便同船同類型案件不用重打一次。複製後 id／已發改善單／
@@ -1327,7 +1332,11 @@ async function leaveConfirmAction(choice){
   const a=pendingLeaveAction;pendingLeaveAction=null;
   if(choice==="discard"){a==="list"?showList():a();return;}
   if(choice==="draft"){await saveDraft();a==="list"?showList():a();return;}
-  if(choice==="submit"){await submitForm();return;} // submitForm() 驗證失敗時會自己顯示錯誤並停在原頁，成功才會 showList()
+  if(choice==="submit"){ // submitForm() 驗證失敗時會自己顯示錯誤並停在原頁；成功後它會留在⑥頁，這裡再執行使用者原本要離開去的地方
+    const sent=await submitForm();
+    if(sent)a==="list"?showList():a();
+    return;
+  }
 }
 function cancelForm(){leaveFormGuard("list");}
 /* 自動儲存：每 20 秒檢查一次，內容有變動就把草稿存到雲端（新登錄單與草稿適用）。
@@ -1861,16 +1870,22 @@ async function saveDraft(){
 }
 async function submitForm(){
   const errs=validate();showErrors(errs);
-  if(errs.length){toast(`⚠ 尚有 ${errs.length} 個必填項目未完成，請見頁面上方紅色提示`,true);return;}
+  if(errs.length){toast(`⚠ 尚有 ${errs.length} 個必填項目未完成，請見頁面上方紅色提示`,true);return false;}
   showSaving("🚀 送出中，請稍候…");
   const ok=await persist(false);
-  if(!ok){saveDone("⚠ 送出失敗，請重試一次",false);hideSaving();return;}
+  if(!ok){saveDone("⚠ 送出失敗，請重試一次",false);hideSaving();return false;}
   lastSnap=snapNow();
   const nIssue=cur.defs.filter(d=>d.closeMode!=="FLOW").length;
-  saveDone(`✅ 已送出！共 ${cur.defs.length} 筆缺失${nIssue?`，其中 ${nIssue} 筆記得去「⑥ 下載／發改善單」發改善單給船上`:""}`);
+  saveDone(`✅ 已送出！共 ${cur.defs.length} 筆缺失${nIssue?`，接著請在這一頁發改善單給船上`:""}`);
   hideSaving(1400);
   toast(`✓ 已送出，海技可以開始匯入主系統了（共 ${cur.defs.length} 筆缺失）`);
-  showList();
+  // 流程是「先送出 → 再發改善單」：送出成功後留在⑥頁並解鎖「發改善單給船」，
+  // 不要直接跳回清單，讓督導還得自己再找路回來發改善單。
+  cur.draft=false;
+  secTab="download";
+  renderSecTabs();renderDownloadTab();
+  window.scrollTo({top:0,behavior:"smooth"});
+  return true;
 }
 
 (async function init(){
