@@ -6211,6 +6211,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <label>Type<input type="text" id="s-type1"></label>
         <label>交船日期 *<input type="text" id="s-delivery" placeholder="2015/03/20（用於計算船齡）"></label>
         <label>IMO No.<input type="text" id="s-imo"></label>
+        <label>HULL NO.<input type="text" id="s-hull" placeholder="造船廠船體編號 H No."></label>
         <label>C/S 呼號<input type="text" id="s-cs"></label>
         <label>DWT<input type="text" id="s-dwt"></label>
         <label>GRT<input type="text" id="s-grt"></label>
@@ -11638,6 +11639,7 @@ const Sp={
     {k:"age",t:"船齡(年)",sort:true,cell:s=>{const a=Sp.ageOf(s);return `<td style="text-align:center;font-family:var(--mono);${a!=null&&a>=15?"color:var(--bad);font-weight:700":""}">${a??"—"}</td>`;}},
     {k:"delivery",t:"交船日",sort:true,cell:s=>`<td style="font-family:var(--mono)">${esc(s.delivery)}</td>`},
     {k:"imo",t:"IMO No.",sort:true,cell:s=>`<td style="font-family:var(--mono)">${esc(s.imo)}</td>`},
+    {k:"hull",t:"HULL NO.",sort:true,cell:s=>`<td style="font-family:var(--mono)">${esc(s.hull)}</td>`},
     {k:"cs",t:"C/S",sort:true,cell:s=>`<td style="font-family:var(--mono)">${esc(s.cs)}</td>`},
     {k:"dwt",t:"DWT",sort:true,cell:s=>`<td style="text-align:right;font-family:var(--mono)">${esc(s.dwt)}</td>`},
     {k:"grt",t:"GRT",sort:true,cell:s=>`<td style="text-align:right;font-family:var(--mono)">${esc(s.grt)}</td>`},
@@ -11660,11 +11662,34 @@ const Sp={
   defaultVisible(){return this.ALL_COLS.filter(c=>c.def!==false).map(c=>c.k);},
   loadVisible(){
     if(this.visible)return this.visible;
-    try{const s=localStorage.getItem(this.VISKEY);if(s){this.visible=JSON.parse(s);return this.visible;}}catch(e){}
+    try{const s=localStorage.getItem(this.VISKEY);if(s){
+      this.visible=JSON.parse(s);
+      // 一次性補欄：新增「HULL NO.」之前就存過欄位顯示設定的人，清單裡沒有這一欄，會一直看不到新欄位，
+      // 這裡自動補進去一次（之後使用者自己取消勾選就尊重他的選擇，不會再被加回來）。
+      try{if(!localStorage.getItem("vsm_sp_hull_col_v1")){localStorage.setItem("vsm_sp_hull_col_v1","1");if(!this.visible.includes("hull")){this.visible.push("hull");localStorage.setItem(this.VISKEY,JSON.stringify(this.visible));}}}catch(e){}
+      return this.visible;}}catch(e){}
     this.visible=this.defaultVisible();
     return this.visible;
   },
   saveVisible(v){this.visible=v;try{localStorage.setItem(this.VISKEY,JSON.stringify(v));}catch(e){}},
+  /* HULL NO.（船體編號／造船廠 H No.）：依 Excel「船舶基本資料」整理的對照表，只補「目前還沒填」的船，
+     已經有值的絕不覆蓋，有補到才存檔並同步雲端。 */
+  HULL_SEED:{F27:"1418",F28:"1419",F29:"1423",F30:"1424",F31:"17121001",F32:"17121002",F33:"17121003",F34:"17121004",F35:"17121005",F36:"17121006",
+    CI:"3249",CJ:"3250",CL:"3258",CM:"129",CN:"130",CO:"131",
+    BF:"BC18.0-15",BG:"BC18.0-16",BH:"BC18.0-17",BI:"136",BJ:"137",BK:"150",BL:"151",BM:"5002",BN:"5003",
+    B105:"YZJ2006858",B106:"YZJ2006859",B107:"YZJ2006860",B108:"YZJ2006861",B201:"1205(649)",B202:"1206(650)",
+    SA:"S-650",SE:"S-651",SR:"S-652",SS:"S-653",F25:"560",F26:"561",PH:"773",PI:"774"},
+  backfillHull(){
+    if(typeof SHIPINFO==="undefined")return 0;
+    let n=0;
+    SHIPINFO.forEach(s=>{const h=this.HULL_SEED[s.code];if(h&&!String(s.hull||"").trim()){s.hull=h;n++;}});
+    if(n){
+      this.persist();
+      // 只有維護者才把補好的 HULL NO. 推上雲端（其他身份只在自己畫面上先看到，避免權限不足的同步失敗訊息）
+      try{if(typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin()&&typeof Cloud!=="undefined"&&Cloud.queueAutoPublish)Cloud.queueAutoPublish("ships");}catch(e){}
+    }
+    return n;
+  },
   viewCols(){const vis=new Set(this.loadVisible());return this.ALL_COLS.filter(c=>vis.has(c.k));},
   openColPicker(){
     const vis=new Set(this.loadVisible());
@@ -11708,6 +11733,7 @@ const Sp={
   filtered(){return SHIPINFO.filter(s=>this.ms.vtype.pass(s.vtype)&&this.ms.ship.pass(s.code)&&this.ms.operator.pass(s.operator)&&(typeof AdvFilterEngine==="undefined"||AdvFilterEngine.pass("sp",s)));},
   sort(k){if(this.sortKey===k)this.sortAsc=!this.sortAsc;else{this.sortKey=k;this.sortAsc=true;}this.render();},
   render(){
+    this.backfillHull();
     const rows=this.filtered();
     const ages=rows.map(s=>this.ageOf(s)).filter(a=>a!=null);
     const avg=ages.length?+(ages.reduce((a,b)=>a+b,0)/ages.length).toFixed(1):0;
@@ -11765,7 +11791,7 @@ const Sp={
   },
   persist(){try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}},
   editCode:null,
-  F:["code","name","zh","vtype","type1","delivery","imo","cs","dwt","grt","loa","breadth","yard","yardLoc","flag","cls","registry","mgr","deckSup","engineSup","cso","operator","note"],
+  F:["code","name","zh","vtype","type1","delivery","imo","hull","cs","dwt","grt","loa","breadth","yard","yardLoc","flag","cls","registry","mgr","deckSup","engineSup","cso","operator","note"],
   async openEdit(code){
     if(typeof Guard!=="undefined"&&!await Guard.require())return;
     this.editCode=code;
@@ -11810,7 +11836,7 @@ const Sp={
   },
   exportXlsx(){
     if(!hasXLSX())return;
-    const rows=this.filtered().map(s=>({代碼:s.code,"Vessel Name":s.name,船名:s.zh,船型:s.vtype,Type:s.type1,"船齡(年)":this.ageOf(s),交船日:s.delivery,"IMO No.":s.imo,"C/S":s.cs,DWT:s.dwt,GRT:s.grt,LOA:s.loa,Breadth:s.breadth,船廠:s.yard,船廠地點:s.yardLoc,FLAG:s.flag,Class:s.cls,登記公司:s.registry,海技經管:s.mgr,甲板督導:s.deckSup,機艙督導:s.engineSup,CSO:s.cso,備註:s.note}));
+    const rows=this.filtered().map(s=>({代碼:s.code,"Vessel Name":s.name,船名:s.zh,船型:s.vtype,Type:s.type1,"船齡(年)":this.ageOf(s),交船日:s.delivery,"IMO No.":s.imo,"HULL NO.":s.hull,"C/S":s.cs,DWT:s.dwt,GRT:s.grt,LOA:s.loa,Breadth:s.breadth,船廠:s.yard,船廠地點:s.yardLoc,FLAG:s.flag,Class:s.cls,登記公司:s.registry,海技經管:s.mgr,甲板督導:s.deckSup,機艙督導:s.engineSup,CSO:s.cso,備註:s.note}));
     const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"Ship Particulars");
     XLSX.writeFile(wb,`Ship_Particulars_${todayStr()}.xlsx`);
@@ -11819,7 +11845,7 @@ const Sp={
     if(!hasExcelJS())return;
     const wb=new ExcelJS.Workbook();
     const ws=wb.addWorksheet("船舶資料模板");
-    const hdr=["代碼","Vessel Name","船名","船型","Type","交船日","IMO No.","C/S","DWT","GRT","LOA","Breadth","船廠","船廠地點","FLAG","Class","登記公司","海技經管","甲板督導","機艙督導","CSO","Operator","備註"];
+    const hdr=["代碼","Vessel Name","船名","船型","Type","交船日","IMO No.","HULL NO.","C/S","DWT","GRT","LOA","Breadth","船廠","船廠地點","FLAG","Class","登記公司","海技經管","甲板督導","機艙督導","CSO","Operator","備註"];
     ws.addRow(hdr);
     ws.addRow(["F99","FPMC 99","台塑99號輪","tanker","Oil/Chemical","2020/1/1","9999999","D5XX9","49700","28900","183","32","範例船廠","範例地點, Country","Liberia","LR","範例登記公司","海技經管人","甲板督導人","機艙督導人","CSO人員","",""]);
     hdr.forEach((h,i)=>{ws.getColumn(i+1).width=["船廠","船廠地點","登記公司"].includes(h)?20:12;});
@@ -11855,7 +11881,7 @@ const Sp={
   },
   _readImport(file){
     const name=file.name.toLowerCase();
-    const mapHdr=h=>({"代碼":"code","Code":"code","Name":"name","Vessel Name":"name","船名":"zh","船型":"vtype","Type":"type1","IMO":"imo","IMO No.":"imo","CS":"cs","C/S":"cs","DWT":"dwt","GRT":"grt","LOA":"loa","Breadth":"breadth","船廠":"yard","船廠地點":"yardLoc","FLAG":"flag","Class":"cls","登記公司":"registry","海技經管":"mgr","甲板督導":"deckSup","機艙督導":"engineSup","CSO":"cso","Operator":"operator","備註":"note","交船日":"delivery"}[h]||null);
+    const mapHdr=h=>({"代碼":"code","Code":"code","Name":"name","Vessel Name":"name","船名":"zh","船型":"vtype","Type":"type1","IMO":"imo","IMO No.":"imo","HULL NO.":"hull","Hull No.":"hull","H No.":"hull","HULL":"hull","CS":"cs","C/S":"cs","DWT":"dwt","GRT":"grt","LOA":"loa","Breadth":"breadth","船廠":"yard","船廠地點":"yardLoc","FLAG":"flag","Class":"cls","登記公司":"registry","海技經管":"mgr","甲板督導":"deckSup","機艙督導":"engineSup","CSO":"cso","Operator":"operator","備註":"note","交船日":"delivery"}[h]||null);
     if(name.endsWith(".json")){
       const r=new FileReader();
       r.onload=()=>{try{
@@ -28510,7 +28536,7 @@ const DM={
     const wsReply=XLSX.utils.json_to_sheet(replyRows.length?replyRows:[{提示:"目前沒有任何缺失已產生對外回覆內容"}]);
     XLSX.utils.book_append_sheet(wb,wsReply,"對外回覆內容");
     // 6. 船舶資料
-    const shipRows=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).map(s=>({代碼:s.code,"Vessel Name":s.name,船名:s.zh,船型:s.vtype,Type:s.type1,交船日:s.delivery,"IMO No.":s.imo,"C/S":s.cs,DWT:s.dwt,GRT:s.grt,LOA:s.loa,Breadth:s.breadth,船廠:s.yard,船廠地點:s.yardLoc,FLAG:s.flag,Class:s.cls,登記公司:s.registry,海技經管:s.mgr,甲板督導:s.deckSup,機艙督導:s.engineSup,CSO:s.cso,備註:s.note}));
+    const shipRows=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).map(s=>({代碼:s.code,"Vessel Name":s.name,船名:s.zh,船型:s.vtype,Type:s.type1,交船日:s.delivery,"IMO No.":s.imo,"HULL NO.":s.hull,"C/S":s.cs,DWT:s.dwt,GRT:s.grt,LOA:s.loa,Breadth:s.breadth,船廠:s.yard,船廠地點:s.yardLoc,FLAG:s.flag,Class:s.cls,登記公司:s.registry,海技經管:s.mgr,甲板督導:s.deckSup,機艙督導:s.engineSup,CSO:s.cso,備註:s.note}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(shipRows),"船舶資料");
     // 7. 其他現有資料表：船舶缺失自查任務（概要）
     const taskRows=(App.tasks||[]).map(t=>{
