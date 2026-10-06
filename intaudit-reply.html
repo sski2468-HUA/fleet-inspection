@@ -280,9 +280,10 @@ function sameAsReply(x,p){p=p||{};return (x.action||"")===(p.action||"")&&(x.cor
 /* 狀態：lock 已結案｜green 已填（只要改善措施與完成日期都填了就算，不管是否已送出）｜red 未填
    （原本填完但還沒送出算「待填」一個中間狀態，船上容易搞不清楚待填到底算填了沒——
    只要內容填妥就算已填，送出與否另外用徽章文字區分，不再多一個篩選分類。） */
+const reopened={}; // 已結案項目，船上主動按「需要修改」解鎖重填的 uid（只存在這次開啟頁面期間）
 function stOf(d){
   const rp=rpOf(d);
-  if(rp&&rp.status==="reviewed")return "lock";
+  if(rp&&rp.status==="reviewed"&&!reopened[d.uid])return "lock";
   if(isComplete(val(d)))return "green";
   return "red";
 }
@@ -290,6 +291,7 @@ function badgeText(d,st){
   const rp=rpOf(d);
   if(st==="lock")return "✓ 已結案";
   if(st==="green"){
+    if(rp&&rp.status==="reviewed")return sameAsReply(val(d),rp.payload)?"已結案（修改中，內容尚未變動）":"已結案，修改中，尚未重新送出";
     if(rp&&rp.status==="returned")return "被退回，已填妥，請重新送出";
     if(rp&&rp.status==="submitted")return sameAsReply(val(d),rp.payload)?"已回報，待海技審核":"已修改，尚未重新送出";
     return "已填完，尚未送出";
@@ -351,7 +353,8 @@ function rowHtml(d,seq){
   if(st==="lock"){
     const p=rp.payload||{};
     right=`<div class="ih"><span class="badge lock" id="bd-${d.uid}">✓ 已結案</span></div><div class="sub"><b>改善措施：</b>${esc(p.action||"")}\n<b>完成日期：</b>${esc(p.corrected||"")}${p.evidence?`\n<b>備註：</b>${esc(p.evidence)}`:""}\n<b>回報人：</b>${esc(p.by||"")}${p.title?"（"+esc(p.title)+"）":""}</div>
-      ${(p.photos||[]).length?`<div class="phs" style="margin-top:8px">${p.photos.map(a=>`<div class="ph"><img src="${a.dataUrl}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:""}`;
+      ${(p.photos||[]).length?`<div class="phs" style="margin-top:8px">${p.photos.map(a=>`<div class="ph"><img src="${a.dataUrl}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:""}
+      <div style="margin-top:10px"><button type="button" class="btn" onclick="reopenDef('${d.uid}')">✏ 已結案，但需要修改內容（重新送單）</button></div>`;
   }else{
     right=`<div class="ih"><span class="badge ${st}" id="bd-${d.uid}">${esc(badgeText(d,st))}</span></div>
       ${rp&&rp.status==="returned"&&rp.payload&&rp.payload.returnNote?`<div class="errors" style="margin:0 0 10px;padding:8px 12px">海技退回原因：${esc(rp.payload.returnNote)}</div>`:""}
@@ -375,6 +378,23 @@ function typeTabList(items){
   items.forEach(d=>{const l=typeKeyOf(d);present.set(l,(present.get(l)||0)+1);});
   const order=TYPE_DEFS.map(t=>t.label).filter((v,i,a)=>a.indexOf(v)===i);
   return order.filter(l=>present.has(l)).map(l=>[l,present.get(l)]);
+}
+/* 已結案的項目預設只能看；真的需要修改時才解鎖。解鎖只是開放編輯，不會馬上送出——
+   按下最後的「送出」時，會再問一次「此案已結案，確認要重新送單？」並提醒要通知督導。 */
+function reopenDef(uid){
+  const d=byUid(uid);if(!d)return;
+  reopened[uid]=true;dr(d);saveDrafts();rerow(uid);
+  toast("✏ 已開放修改此項；改好後請到第④步送出（已結案的項目重送前會再次確認）");
+}
+function confirmResubmit(n){
+  return new Promise(res=>{
+    $("#submitModalBody").innerHTML=`<div style="font-size:36px;margin-bottom:12px">⚠</div><h3 style="margin:0 0 10px;color:var(--navy)">此案已結案，確認要重新送單？</h3>
+      <p style="text-align:left;background:#fff6e5;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.7;color:var(--ink-2)">本次有 <b>${n}</b> 項是「已結案」的項目，重新送出後會變回「待審核」。<br><b>重新送單後，請務必通知督導</b>重新審核，否則督導不會知道這案有更新。</p>
+      <div style="display:flex;gap:10px;margin-top:16px"><button class="btn" style="flex:1" id="rsNo">取消，先不送</button><button class="btn primary" style="flex:1" id="rsYes">確認重新送單</button></div>`;
+    $("#submitModal").classList.add("show");
+    $("#rsNo").onclick=()=>{closeSubmitStatus();res(false);};
+    $("#rsYes").onclick=()=>res(true);
+  });
 }
 function rerow(uid){const el=document.getElementById("def-"+uid);if(!el)return;const list=subset(),i=list.findIndex(d=>d.uid===uid);if(i<0)return;const disp=el.style.display;el.outerHTML=rowHtml(list[i],i+1);const n=document.getElementById("def-"+uid);if(n)n.style.display=disp;updateBar();}
 /* 打字時只更新狀態色條與文字，不重畫整列（避免輸入框失去游標） */
@@ -586,6 +606,8 @@ async function submitAll(){
     toast("⚠ "+first.msg,true);return;
   }
   const box=$("#errBox");if(box)box.style.display="none";
+  const reN=ready.filter(d=>reopened[d.uid]).length;
+  if(reN&&!(await confirmResubmit(reN)))return;
   const by=$("#fName").value.trim(),title=$("#fTitle").value,now=Date.now();
   // 按下送出不能毫無反應——馬上蓋一個進度畫面，船上才知道系統真的在處理，不會以為按鈕壞掉
   // 又連續點好幾次；處理完成再換成明確的「已完成」畫面，要按確認才會關掉。
@@ -597,12 +619,12 @@ async function submitAll(){
         payload:{action:x.action.trim(),corrected:x.corrected,evidence:(x.evidence||"").trim(),photos:x.photos,by,title,at:now}};});
     if(!rows.length){closeSubmitStatus();toast("⚠ 這些項目剛剛已被海技結案，請重新整理頁面",true);return;}
     await api("intaudit_replies?on_conflict=id",{method:"POST",headers:H({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(rows)});
-    rows.forEach(r=>{delete drafts[r.def_uid];});saveDrafts();
+    rows.forEach(r=>{delete drafts[r.def_uid];delete reopened[r.def_uid];});saveDrafts();
     await reloadReplies();renderGlobalBar();if(currentStep===3)renderSysStep();if(currentStep===4)renderPreview();
     window.scrollTo({top:0,behavior:"smooth"});
     showSubmitStatus("⏳","送單中…","已送出改善回報，正在存成 Word 檔…");
     const wordOk=await downloadWord(false);
-    finishSubmitStatus(`已完成送單給督導！共送出 ${rows.length} 項改善回報${partial.length?`；另有 ${partial.length} 項填到一半，已保留為草稿，記得之後補齊再送`:""}。${wordOk?"Word 檔已下載，可自行保存備查。":"（Word 檔案存檔失敗，不影響送出結果，可稍後在「下載/發改善單」重新下載）"}`);
+    finishSubmitStatus(`已完成送單給督導！共送出 ${rows.length} 項改善回報${partial.length?`；另有 ${partial.length} 項填到一半，已保留為草稿，記得之後補齊再送`:""}。${wordOk?"Word 檔已下載，可自行保存備查。":"（Word 檔案存檔失敗，不影響送出結果，可稍後在「下載/發改善單」重新下載）"}${reN?`　⚠ 其中 ${reN} 項是已結案後重新送單，請務必通知督導重新審核。`:""}`);
   }catch(e){closeSubmitStatus();toast("⚠ 送出失敗："+e.message+"（請確認網路後再試，填寫內容還在）",true);}
 }
 function showSubmitStatus(icon,title,desc){
