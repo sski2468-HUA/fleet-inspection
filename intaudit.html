@@ -612,6 +612,24 @@ async function delDefFromList(rid,i){
     toast("✓ 已刪除該筆缺失");renderList();
   }
 }
+/* 結案進度：只算系統追蹤的缺失（內控／系統內結案）；FLOW 由船上自行到 FLOW 系統辦理，這裡看不到進度，不列入。
+   「已結案」＝督導已在改善單審核清單審核結案；其餘（待船上改善／船上已回報／已退回）都算未結案。 */
+function closureCount(r,defs){
+  const c={total:0,closed:0,open:0,wait:0,submitted:0,returned:0};
+  (defs||r.defs||[]).forEach(d=>{
+    if(d.closeMode==="FLOW")return;
+    c.total++;const es=effStatus(r,d);
+    if(es==="已結案")c.closed++;else{c.open++;if(es==="船上已回報")c.submitted++;else if(es==="已退回待重填")c.returned++;else c.wait++;}
+  });
+  return c;
+}
+function closureHtml(r){
+  const c=closureCount(r);
+  if(!c.total)return `<span class="hint" style="flex-basis:100%;font-weight:400">結案進度：這張沒有需要系統追蹤的缺失（皆為 FLOW）</span>`;
+  const chip=(t,bg,fg)=>`<span style="background:${bg};color:${fg};border-radius:10px;padding:1px 9px;font-size:12px;font-weight:700">${t}</span>`;
+  const all=c.closed===c.total;
+  return `<span style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px"><b style="color:var(--navy)">結案進度：</b>${chip(`已結案 ${c.closed}／${c.total}`,"#dff2e6","#20703f")}${all?chip("✓ 全部結案","#dff2e6","#20703f"):chip(`未結案 ${c.open}`,"#fde8e6","#c0392b")}${c.submitted?chip(`待督導審核 ${c.submitted}`,"#e3ecf1","#1c3a5e"):""}${c.returned?chip(`已退回 ${c.returned}`,"#fff1dc","#a05a00"):""}${c.wait?chip(`待船上改善 ${c.wait}`,"#eef1f3","#4a5a66"):""}</span>`;
+}
 function renderList(){
   const rows=Store.rows;
   // 檢查人篩選選項：直接從目前登錄單裡有出現過的檢查人整理，不限於目前的 SUPERVISORS 名單
@@ -645,6 +663,7 @@ function renderList(){
         <span style="font-size:14px">${esc(shipLabel(r.ship))}</span><span>${esc(dateText(r))}</span><span class="hint">${esc(types)}${r.draft?` ・<b style='color:#b5610f'>草稿</b>${(()=>{const n=draftIssues(r).length;return n?` <span style="color:#c0392b;font-weight:700">（還有 ${n} 項未填完，按「✎編輯」查看）</span>`:` <span style="color:var(--ok);font-weight:700">（已填妥，按「✎編輯」送出即可發改善單）</span>`;})()}`:""}</span>
         <span class="hint">檢查人：${esc(r.inspector)}　地點：${esc(r.psn)}</span>
         <span class="hint" style="flex-basis:100%;font-weight:400">${esc(summaryText(r))}</span>
+        ${r.draft?"":closureHtml(r)}
       </div>
       <div style="flex:0 0 260px;display:flex;flex-direction:column;align-items:flex-end;gap:6px">
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
@@ -683,7 +702,9 @@ function renderList(){
   const filtering=!!(fs||fi||fm||fst||q);
   $("#listCounts").innerHTML=`<span class="hint" style="font-weight:700">${filtering?"篩選結果":"全部"}缺失結案方式</span>
     <span class="cchip flow">FLOW 系統（DMP-FM01）<b>${cnt("FLOW")}</b> 筆</span><span class="cchip ic">內控<b>${cnt("內控")}</b> 筆</span><span class="cchip sys">系統內結案<b>${cnt("系統內結案")}</b> 筆</span>
-    <span class="hint">共 ${matchedRecs} 張登錄單、${filteredDefs.length} 筆缺失</span>`;
+    <span class="hint">共 ${matchedRecs} 張登錄單、${filteredDefs.length} 筆缺失</span>
+    ${(()=>{const t={total:0,closed:0,open:0};rows.forEach(r=>{if(fs&&r.ship!==fs)return;if(fi&&r.inspector!==fi)return;const ds=filteredDefs.filter(d=>(r.defs||[]).includes(d));const c=closureCount(r,ds);t.total+=c.total;t.closed+=c.closed;t.open+=c.open;});
+      return `<span style="flex-basis:100%"></span><span class="hint" style="font-weight:700">${filtering?"篩選結果":"全部"}結案進度</span><span class="cchip" style="border-color:#20703f;color:#20703f">已結案<b>${t.closed}</b> 筆</span><span class="cchip" style="border-color:#c0392b;color:#c0392b">未結案<b>${t.open}</b> 筆</span><span class="hint">（內控＋系統內結案共 ${t.total} 筆；FLOW 由船上自行辦理，不列入）</span>`;})()}`;
   updateReviewBadge();
 }
 async function delRec(id){if(!confirm("確定刪除這張登錄單？此動作無法復原。"))return;await Store.remove(id);renderList();}

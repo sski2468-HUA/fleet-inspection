@@ -357,6 +357,7 @@ function rowHtml(d,seq){
       <div style="margin-top:10px"><button type="button" class="btn" onclick="reopenDef('${d.uid}')">✏ 已結案，但需要修改內容（重新送單）</button></div>`;
   }else{
     right=`<div class="ih"><span class="badge ${st}" id="bd-${d.uid}">${esc(badgeText(d,st))}</span></div>
+      ${reopened[d.uid]?`<div style="margin:0 0 10px"><button type="button" class="btn" onclick="cancelReopen('${d.uid}')">↩ 取消變更，恢復成已結案</button></div>`:""}
       ${rp&&rp.status==="returned"&&rp.payload&&rp.payload.returnNote?`<div class="errors" style="margin:0 0 10px;padding:8px 12px">海技退回原因：${esc(rp.payload.returnNote)}</div>`:""}
       <label>改善措施簡述 Action Brief <span class="req">*</span><textarea data-f="action" oninput="setF('${d.uid}','action',this.value)">${esc(x.action)}</textarea></label>
       <div class="two"><label>改善完成日期 <span class="req">*</span><input type="date" data-f="corrected" max="${todayIso()}" value="${esc(x.corrected)}" onchange="setF('${d.uid}','corrected',this.value)"></label>
@@ -385,6 +386,13 @@ function reopenDef(uid){
   const d=byUid(uid);if(!d)return;
   reopened[uid]=true;dr(d);saveDrafts();rerow(uid);
   toast("✏ 已開放修改此項；改好後請到第④步送出（已結案的項目重送前會再次確認）");
+}
+function cancelReopen(uid){
+  const d=byUid(uid);if(!d)return;
+  const x=drafts[d.uid],rp=rpOf(d);
+  if(x&&rp&&!sameAsReply(x,rp.payload)&&!confirm("取消後，你剛剛對這項做的修改會被丟掉，恢復成已結案的內容。確定取消變更？"))return;
+  delete reopened[uid];delete drafts[uid];saveDrafts();rerow(uid);
+  toast("↩ 已恢復成已結案的內容");
 }
 function confirmResubmit(n){
   return new Promise(res=>{
