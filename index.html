@@ -3747,21 +3747,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <span class="hint" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">🔍 找船舶</span>
             <input type="text" id="ad-f-kw" placeholder="輸入船舶代碼或船名關鍵字…" oninput="AuditDash.render()" style="padding:5px 8px;width:180px">
             <span class="hint" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px;margin-left:14px">狀態篩選</span>
-            <select id="ad-f-schedstatus" onchange="AuditDash.render()" style="padding:5px 8px" title="依排程／完成狀態篩選">
-              <option value="">排程狀態：全部</option>
-              <option value="scheduled">🔴 已進入排程（未完成）</option>
-              <option value="unscheduled">🟡 未排程</option>
-              <option value="done_open">🔵 已完成稽核未結案</option>
-              <option value="done_closed">✅ 已完成稽核已結案</option>
-            </select>
-            <select id="ad-f-closed" onchange="AuditDash.render()" style="padding:5px 8px">
-              <option value="">結案狀態：全部</option>
-              <option value="1">✓ 已結案</option>
-              <option value="0">✗ 未結案</option>
-            </select>
-            <select id="ad-f-year" onchange="AuditDash.render()" style="padding:5px 8px">
-              <option value="">完成年度：全部（含尚未完成）</option>
-            </select>
+            <div class="msel" id="ms-ad-schedstatus" title="依排程／完成狀態篩選（可多選）"></div>
+            <div class="msel" id="ms-ad-closed"></div>
+            <div class="msel" id="ms-ad-year" title="尚未完成的列不受此篩選影響，一律都會顯示"></div>
             <span class="spacer" style="flex:1"></span>
             <span class="hint" id="ad-result-count" style="font-weight:600"></span>
           </div>
@@ -3769,10 +3757,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <span class="hint" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">進階篩選</span>
             <div class="msel" id="ms-ad-auditor"></div>
             <div class="msel" id="ms-ad-schedmonth"></div>
-            <span class="hint" style="font-size:12px">計畫檢查日：</span>
-            <input type="month" id="ad-f-plandate-from" onchange="AuditDash.render()" style="padding:5px 6px;font-size:12px">
-            <span class="hint">～</span>
-            <input type="month" id="ad-f-plandate-to" onchange="AuditDash.render()" style="padding:5px 6px;font-size:12px">
+            <div class="msel" id="ms-ad-planmonth"></div>
             <button class="btn sm" onclick="AuditDash.addRowPrompt()">➕ 新增一列（同船第二輪稽核）</button>
           </div>
           <div id="ad-filter-summary" style="display:none;margin-top:8px;padding:8px 12px;background:#fff7e6;border:1.5px solid var(--warn);border-radius:6px;font-size:12.5px;align-items:center;gap:8px;flex-wrap:wrap"></div>
@@ -19849,7 +19834,7 @@ const AuditDash={
     if(this.AUDITORS.includes(newVal)){toast("⚠ 此名稱已存在");return;}
     this.AUDITORS[i]=newVal;this.saveAuditorsLocal();this.pushAuditorsCloud();
     let n=0;
-    (App.auditDash||[]).forEach(r=>{if(r.auditor===oldVal){r.auditor=newVal;n++;}});
+    (App.auditDash||[]).forEach(r=>{if(r.auditor===oldVal){r.auditor=newVal;n++;}if(r.auditor2===oldVal){r.auditor2=newVal;n++;}});
     if(n){App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();}
     if(typeof Audit!=="undefined")Audit.log("編輯","內稽稽核員名單",`「${oldVal}」→「${newVal}」（同步更新 ${n} 列）`);
     toast(`✓ 已更名為「${newVal}」，同步更新 ${n} 列`);
@@ -19858,10 +19843,10 @@ const AuditDash={
   async removeAuditor(i){
     if(typeof Role==="undefined"||!Role.isOwner()){toast("⚠ 刪除稽核員僅限 Owner 執行");return;}
     const v=this.AUDITORS[i];if(v===undefined)return;
-    const n=(App.auditDash||[]).filter(r=>r.auditor===v).length;
+    const n=(App.auditDash||[]).filter(r=>r.auditor===v||r.auditor2===v).length;
     if(!confirm(`確定要刪除稽核員「${v}」？${n?`目前有 ${n} 列指派給他，刪除後這些列會變成「未指派」。`:"目前沒有任何列指派給他。"}`))return;
     this.AUDITORS.splice(i,1);this.saveAuditorsLocal();this.pushAuditorsCloud();
-    if(n){(App.auditDash||[]).forEach(r=>{if(r.auditor===v)r.auditor="";});App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();}
+    if(n){(App.auditDash||[]).forEach(r=>{if(r.auditor===v)r.auditor="";if(r.auditor2===v)r.auditor2="";});App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();}
     if(typeof Audit!=="undefined")Audit.log("刪除","內稽稽核員名單",`刪除「${v}」（${n} 列變為未指派）`);
     toast(`✓ 已刪除「${v}」`);
     this.renderAuditorList();this.render();
@@ -20062,6 +20047,16 @@ const AuditDash={
       const set=new Set(this.rowsRaw().filter(r=>this.fpmcShips().some(s=>s.code===r.ship)).map(r=>this.monthDisplay(r.schedMonth)).filter(Boolean));
       return [...set].sort();
     },rerun);
+    // 原本排程狀態／結案狀態／完成年度是原生下拉、計畫檢查日是兩個月份選擇器，只能單選又難操作；
+    // 改成跟「檢查紀錄」一樣的多選面板（可搜尋、一鍵全選／清除、可複選）。
+    const SS_LBL={scheduled:"🔴 已進入排程（未完成）",unscheduled:"🟡 未排程",done_open:"🔵 已完成稽核未結案",done_closed:"✅ 已完成稽核已結案"};
+    this.ms.schedStatus=MSel("ms-ad-schedstatus","排程狀態",()=>Object.keys(SS_LBL),rerun,o=>SS_LBL[o]||o);
+    this.ms.closed=MSel("ms-ad-closed","結案狀態",()=>["1","0"],rerun,o=>o==="1"?"✓ 已結案":"✗ 未結案");
+    this.ms.year=MSel("ms-ad-year","完成年度",()=>[...new Set(this.rowsRaw().filter(r=>r.actualAuditDate).map(r=>r.actualAuditDate.slice(0,4)))].sort().reverse(),rerun,o=>o+"年已完成");
+    this.ms.planMonth=MSel("ms-ad-planmonth","計畫檢查月",()=>{
+      const set=new Set();this.rowsRaw().filter(r=>this.fpmcShips().some(s=>s.code===r.ship)).forEach(r=>{const ic=this.inspCtrlRow(r.ship);const d=ic&&ic.schedDate?InspCtrl.normDate(ic.schedDate):"";if(d)set.add(d.slice(0,7));});
+      return [...set].sort();
+    },rerun);
     this.refreshAutoFields(); // 每次開啟頁面都重算，不再需要手動按「更新進度」才會套用新公式／新資料
     this.ensureDefaults();
     const dl=$("#dl-audit-ports");
@@ -20070,11 +20065,6 @@ const AuditDash={
   },
   clearFilters(){
     const kw=$("#ad-f-kw");if(kw)kw.value="";
-    const sel=$("#ad-f-closed");if(sel)sel.value="";
-    const yr=$("#ad-f-year");if(yr)yr.value="";
-    const ss=$("#ad-f-schedstatus");if(ss)ss.value="";
-    const pf=$("#ad-f-plandate-from");if(pf)pf.value="";
-    const pt=$("#ad-f-plandate-to");if(pt)pt.value="";
     Object.values(this.ms).forEach(m=>m.clear&&m.clear());
     this.render();
   },
@@ -20095,16 +20085,14 @@ const AuditDash={
     const parts=[];
     const kw=$("#ad-f-kw")?$("#ad-f-kw").value.trim():"";
     if(kw)parts.push(`關鍵字＝「${esc(kw)}」`);
-    const ss=$("#ad-f-schedstatus"),ssMap={scheduled:"🔴已進入排程",unscheduled:"🟡未排程",done_open:"🔵已完成未結案",done_closed:"✅已完成已結案"};
-    if(ss&&ss.value)parts.push(`排程狀態＝${ssMap[ss.value]||ss.value}`);
-    const cf=$("#ad-f-closed");
-    if(cf&&cf.value!=="")parts.push(`結案狀態＝${cf.value==="1"?"已結案":"未結案"}`);
-    const yr=$("#ad-f-year");
-    if(yr&&yr.value)parts.push(`完成年度＝${yr.value}年`);
+    const ssMap={scheduled:"🔴已進入排程",unscheduled:"🟡未排程",done_open:"🔵已完成未結案",done_closed:"✅已完成已結案"};
+    const has=m=>m&&m.sel&&m.sel.size;
+    if(has(this.ms.schedStatus))parts.push(`排程狀態＝${[...this.ms.schedStatus.sel].map(v=>ssMap[v]||v).join("、")}`);
+    if(has(this.ms.closed))parts.push(`結案狀態＝${[...this.ms.closed.sel].map(v=>v==="1"?"已結案":"未結案").join("、")}`);
+    if(has(this.ms.year))parts.push(`完成年度＝${[...this.ms.year.sel].sort().join("、")}年`);
+    if(has(this.ms.planMonth))parts.push(`計畫檢查月＝${[...this.ms.planMonth.sel].sort().join("、")}`);
     if(this.ms.auditor&&this.ms.auditor.sel&&this.ms.auditor.sel.size)parts.push(`稽核員＝${[...this.ms.auditor.sel].join("、")}`);
     if(this.ms.schedMonth&&this.ms.schedMonth.sel&&this.ms.schedMonth.sel.size)parts.push(`Sched.Month＝${[...this.ms.schedMonth.sel].join("、")}`);
-    const pf=$("#ad-f-plandate-from")?$("#ad-f-plandate-from").value:"",pt=$("#ad-f-plandate-to")?$("#ad-f-plandate-to").value:"";
-    if(pf||pt)parts.push(`計畫檢查日＝${pf||"最早"}～${pt||"最晚"}`);
     return parts;
   },
   renderFilterSummary(){
@@ -20123,7 +20111,7 @@ const AuditDash={
     const plannedDate=ic&&ic.schedDate?InspCtrl.normDate(ic.schedDate):"";
     const enhanced=!!(icRow&&icRow.isEnhancedAudit);
     const defCount=this.defsFor(row.ship,row.actualAuditDate).length;
-    return {...row,vesselName:s.name||row.ship,cso:s.cso||"",plannedDate,enhanced,enhancedReason:ic?ic.enhancedReason:"",defCount};
+    return {...row,auditorText:[row.auditor,row.auditor2].filter(Boolean).join("、"),vesselName:s.name||row.ship,cso:s.cso||"",plannedDate,enhanced,enhancedReason:ic?ic.enhancedReason:"",defCount};
   },
   /* 排程狀態四分類，供篩選／分區檢視／列印勾選共用：
      scheduled＝已排（有計畫檢查日）但尚未完成；unscheduled＝尚未排程也尚未完成；
@@ -20140,24 +20128,12 @@ const AuditDash={
     let rows=this.rowsRaw().filter(r=>this.fpmcShips().some(s=>s.code===r.ship)).map(r=>this.enrich(r));
     const kw=($("#ad-f-kw")?$("#ad-f-kw").value:"").trim().toLowerCase();
     if(kw)rows=rows.filter(r=>r.ship.toLowerCase().includes(kw)||(r.vesselName||"").toLowerCase().includes(kw));
-    const closedF=$("#ad-f-closed")?$("#ad-f-closed").value:"";
-    if(closedF!=="")rows=rows.filter(r=>(closedF==="1")===!!r.closedOut);
-    const schedF=$("#ad-f-schedstatus")?$("#ad-f-schedstatus").value:"";
-    if(schedF)rows=rows.filter(r=>this.schedStatus(r)===schedF);
-    const yearF=$("#ad-f-year")?$("#ad-f-year").value:"";
-    if(yearF)rows=rows.filter(r=>!r.actualAuditDate||r.actualAuditDate.slice(0,4)===yearF);
-    if(this.ms.auditor)rows=rows.filter(r=>this.ms.auditor.pass(r.auditor));
+    if(this.ms.closed)rows=rows.filter(r=>this.ms.closed.pass(r.closedOut?"1":"0"));
+    if(this.ms.schedStatus)rows=rows.filter(r=>this.ms.schedStatus.pass(this.schedStatus(r)));
+    if(this.ms.year)rows=rows.filter(r=>!r.actualAuditDate||this.ms.year.pass(r.actualAuditDate.slice(0,4)));
+    if(this.ms.auditor)rows=rows.filter(r=>this.ms.auditor.pass(r.auditor)||(r.auditor2&&this.ms.auditor.pass(r.auditor2)));
     if(this.ms.schedMonth)rows=rows.filter(r=>this.ms.schedMonth.pass(this.monthDisplay(r.schedMonth)));
-    const pdFrom=$("#ad-f-plandate-from")?$("#ad-f-plandate-from").value:"",pdTo=$("#ad-f-plandate-to")?$("#ad-f-plandate-to").value:"";
-    if(pdFrom||pdTo){
-      rows=rows.filter(r=>{
-        if(!r.plannedDate)return false;
-        const ym=r.plannedDate.slice(0,7);
-        if(pdFrom&&ym<pdFrom)return false;
-        if(pdTo&&ym>pdTo)return false;
-        return true;
-      });
-    }
+    if(this.ms.planMonth&&this.ms.planMonth.sel.size)rows=rows.filter(r=>r.plannedDate&&this.ms.planMonth.pass(r.plannedDate.slice(0,7)));
     const k=this.sortKey,asc=this.sortAsc?1:-1;
     rows.sort((a,b)=>{
       // 管控目的是掌握「今年還沒完成的船」，已完成的（不論結案與否）一律排到最下面，
@@ -20182,6 +20158,10 @@ const AuditDash={
     row[field]=val;
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
     if(typeof Audit!=="undefined")Audit.log("編輯","內稽動態",`${row.ship} ${field}=${val}`);
+    if(field==="auditor"){ // 第 1 位選好才會出現第 2 位的下拉；清掉第 1 位時一併清第 2 位，並避免兩位選到同一人
+      if(!val||row.auditor2===val){row.auditor2="";App.saveAll();}
+      this.render();
+    }
   },
   setSchedMonth(id,val){
     if(!this.requireEdit())return;
@@ -20336,9 +20316,12 @@ const AuditDash={
         <td style="text-align:center">${r.defCount||"-"}</td>
         <td style="text-align:center"><input type="checkbox" ${r.closedOut?"checked":""} ${dis} onchange="AuditDash.setField(${r.id},'closedOut',this.checked)"></td>
         <td style="font-size:11.5px;white-space:nowrap;min-width:66px">${esc(r.cso)||"-"}</td>
-        <td><select style="font-size:11.5px;min-width:78px" ${dis} onchange="AuditDash.setField(${r.id},'auditor',this.value)">
+        <td><select style="font-size:11.5px;min-width:78px" ${dis} onchange="AuditDash.setField(${r.id},'auditor',this.value)" title="稽核員（第 1 位）">
           <option value="">—</option>${this.AUDITORS.map(a=>`<option ${a===r.auditor?"selected":""}>${esc(a)}</option>`).join("")}
-        </select></td>
+        </select>
+        ${r.auditor2||r.auditor?`<select style="font-size:11.5px;min-width:78px;margin-top:3px" ${dis} onchange="AuditDash.setField(${r.id},'auditor2',this.value)" title="第 2 位稽核員（兩位稽核員一起登輪時才選）">
+          <option value="">＋ 第 2 位（選填）</option>${this.AUDITORS.filter(a=>a!==r.auditor).map(a=>`<option ${a===r.auditor2?"selected":""}>${esc(a)}</option>`).join("")}
+        </select>`:""}</td>
         <td style="text-align:left">${flagBadge}${exemptBadge}${remarkPreview} <button class="btn sm" onclick="AuditDash.openRemark(${r.id})">${canEdit?"✎":"👁"}</button></td>
         <td style="white-space:nowrap"><button class="btn sm" ${dis} onclick="AuditDash.addRowCopy('${esc(r.ship)}',${r.id})" title="新增下一輪（若此列已完成,會自動帶入實際檢查日當下一輪基準）">➕</button> <button class="btn sm" ${dis} onclick="AuditDash.delRow(${r.id})" title="刪除此列">🗑</button></td>
       </tr>`;
@@ -20601,7 +20584,7 @@ const AuditDash={
           out.push({id:r.id,code:s.code,name:r.vesselName,last:r.lastAuditDate,sched:r.schedMonth,
             actual:r.actualAuditDate||"",enhanced:r.enhanced,
             status:r.actualAuditDate?(isDelayed?"逾期延至次年完成":"已完成"):(r.schedMonth&&r.schedMonth<=todayYM?"逾期尚未完成":"尚未到期"),
-            extra:i>0,port:r.actualAuditDate?this.actualPortFor(r):r.plannedPort,auditor:r.auditor||"",
+            extra:i>0,port:r.actualAuditDate?this.actualPortFor(r):r.plannedPort,auditor:r.auditorText||r.auditor||"",
             remark:r.remark||"",closedOut:!!r.closedOut,defCount:r.defCount||0,
             flagNotified:r.flagNotified||"",exemptionStatus:r.exemptionStatus||"",delayed:isDelayed});
         });
@@ -20714,7 +20697,7 @@ const AuditDash={
         <div><span class="hint">上次稽核日</span><br><b>${esc(r.lastAuditDate)||"—"}</b></div>
         <div><span class="hint">實際完成日</span><br><b>${esc(r.actualAuditDate)||"（尚未完成，預計 "+esc(this.monthDisplay(r.schedMonth)||"—")+"）"}</b></div>
         <div><span class="hint">檢查港口</span><br><b>${esc(port)||"—"}</b></div>
-        <div><span class="hint">稽核員</span><br><b>${esc(r.auditor)||"—"}</b></div>
+        <div><span class="hint">稽核員</span><br><b>${esc(r.auditorText||r.auditor)||"—"}</b></div>
         <div><span class="hint">加強稽核</span><br><b>${r.enhanced?"⭐ 是（"+esc(r.enhancedReason||"")+"）":"否"}</b></div>
         <div><span class="hint">結案狀態</span><br><b>${r.closedOut?"✓ 已結案":"✗ 未結案"}</b></div>
         <div><span class="hint">已通報船籍國</span><br><b>${esc(this.FLAG_NOTIFIED_LABEL[r.flagNotified]||"未填寫")}</b></div>
@@ -20743,18 +20726,15 @@ const AuditDash={
     }
     if(typeof CardFold!=="undefined")CardFold.apply("ad-monthly-card");
     this.renderMonthly();
-    const yearSel=$("#ad-f-year");
-    if(yearSel){
+    if(this.ms.year){
       const years=[...new Set(this.rowsRaw().filter(r=>r.actualAuditDate).map(r=>r.actualAuditDate.slice(0,4)))].sort().reverse();
-      const cur=yearSel.value;
-      yearSel.innerHTML=`<option value="">完成年度：全部（含尚未完成）</option>`+years.map(y=>`<option value="${y}"${y===cur?" selected":""}>${y}年已完成</option>`).join("");
       // 預設只看「今年度」的已完成＋所有還在追蹤中的（尚未完成一律不受此篩選影響）；
       // 舊年度回填的歷史紀錄要主動切篩選才會出現，不然畫面一開就塞滿舊資料。
       // 只在第一次渲染時套用這個預設值，之後使用者自己選「全部」也不會被這裡強制改回去。
-      if(!yearSel.dataset.inited){
+      if(!this._yearInited){
         const curYear=String(new Date().getFullYear());
-        if(years.includes(curYear))yearSel.value=curYear;
-        yearSel.dataset.inited="1";
+        if(years.includes(curYear))this.ms.year.set([curYear]);
+        this._yearInited=true;
       }
     }
     document.querySelectorAll(".ad-viewbtn").forEach(b=>b.classList.toggle("active",b.dataset.v===this.viewMode));
@@ -20785,7 +20765,7 @@ const AuditDash={
     const rows=this.filteredRows();
     const hdr=["Sched. Month","Vessel Name","Last Audit Date","Planned Audit Port","Planned Audit Date","Actual Audit Date","缺失數","結案","CSO","Auditor","Remark"];
     const aoa=[["2026 ISM/MLC/ISO Internal Audit Status Table"],[`Last updated: ${(this.updatedAt||new Date()).toLocaleString()}`],[],hdr,
-      ...rows.map(r=>[this.monthDisplay(r.schedMonth),`${r.vesselName}${r.enhanced?"（加強稽核）":""}`,r.lastAuditDate,r.actualAuditDate?this.actualPortFor(r):r.plannedPort,r.plannedDate||"未排程",r.actualAuditDate,r.defCount,r.closedOut?"✓":"✗",r.cso,r.auditor,r.remark])
+      ...rows.map(r=>[this.monthDisplay(r.schedMonth),`${r.vesselName}${r.enhanced?"（加強稽核）":""}`,r.lastAuditDate,r.actualAuditDate?this.actualPortFor(r):r.plannedPort,r.plannedDate||"未排程",r.actualAuditDate,r.defCount,r.closedOut?"✓":"✗",r.cso,r.auditorText||r.auditor,r.remark])
     ];
     const ws=XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"]=[{wch:12},{wch:20},{wch:12},{wch:16},{wch:12},{wch:12},{wch:8},{wch:6},{wch:12},{wch:10},{wch:40}];
@@ -20911,7 +20891,7 @@ Principles for assigning ISM auditors are as follows:
       <td style="text-align:left">${r.enhanced?"⭐":""}${esc(r.vesselName)}</td>
       <td style="text-align:center">${esc(r.lastAuditDate)||"-"}</td><td style="text-align:center">${esc(r.actualAuditDate?this.actualPortFor(r):r.plannedPort)||"-"}</td><td style="text-align:center">${esc(r.plannedDate)||"Not Scheduled"}</td>
       <td style="text-align:center">${esc(r.actualAuditDate)||"-"}</td><td style="text-align:center">${r.defCount||"-"}</td><td style="text-align:center">${r.closedOut?"✓":"✗"}</td>
-      <td style="text-align:center">${esc(r.cso)||"-"}</td><td style="text-align:center">${esc(r.auditor)||"-"}</td><td style="text-align:left;white-space:pre-wrap">${esc(r.remark)||""}</td>
+      <td style="text-align:center">${esc(r.cso)||"-"}</td><td style="text-align:center">${esc(r.auditorText||r.auditor)||"-"}</td><td style="text-align:left;white-space:pre-wrap">${esc(r.remark)||""}</td>
     </tr>`;
     // 已進入排程／未排程：只列 Sched.Month／Vessel／Last Audit／Plan Port／Plan Date／CSO／Auditor／Remark，
     // 不含 Actual Date／缺失數／結案（這兩區船都還沒完成稽核，這幾欄本來就沒有意義）。
@@ -20919,7 +20899,7 @@ Principles for assigning ISM auditors are as follows:
       ${includeSchedMonth?`<td style="text-align:center">${esc(r.schedMonth)||"-"}</td>`:""}
       <td style="text-align:left">${r.enhanced?"⭐":""}${esc(r.vesselName)}</td>
       <td style="text-align:center">${esc(r.lastAuditDate)||"-"}</td><td style="text-align:center">${esc(r.plannedPort)||"-"}</td><td style="text-align:center">${esc(r.plannedDate)||"Not Scheduled"}</td>
-      <td style="text-align:center">${esc(r.cso)||"-"}</td><td style="text-align:center">${esc(r.auditor)||"-"}</td><td style="text-align:left;white-space:pre-wrap">${esc(r.remark)||""}</td>
+      <td style="text-align:center">${esc(r.cso)||"-"}</td><td style="text-align:center">${esc(r.auditorText||r.auditor)||"-"}</td><td style="text-align:left;white-space:pre-wrap">${esc(r.remark)||""}</td>
     </tr>`;
     const BRIEF_HEAD=`<tr>${includeSchedMonth?'<th style="text-align:center">Sched. Month</th>':""}<th style="text-align:left">Vessel</th><th style="text-align:center">Last Audit</th><th style="text-align:center">Planned Port</th><th style="text-align:center">Planned Date</th><th style="text-align:center">CSO</th><th style="text-align:center">Auditor</th><th style="text-align:left">Remark</th></tr>`;
     const FULL_HEAD=`<tr>${includeSchedMonth?'<th style="text-align:center">Sched. Month</th>':""}<th style="text-align:left">Vessel</th><th style="text-align:center">Last Audit</th><th style="text-align:center">Planned Port</th><th style="text-align:center">Planned Date</th><th style="text-align:center">Actual Date</th><th style="text-align:center">Def. No.</th><th style="text-align:center">Closed</th><th style="text-align:center">CSO</th><th style="text-align:center">Auditor</th><th style="text-align:left">Remark</th></tr>`;
