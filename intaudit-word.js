@@ -60,7 +60,7 @@ function buildDocx_photos(ctx){
     return `<w:p><w:pPr><w:spacing w:before="20" w:after="20"/></w:pPr>${runs}</w:p>`;
   };
 }
-const MODE_SUFFIX={"FLOW":"需要登記到DMP-FM01中","內控":"需要登記內控中（不用輸入DMP-FM01）","系統內結案":"無需輸入FLOW系統追蹤，本表改善即可"};
+const MODE_SUFFIX={"FLOW":"需要登記到DMP-FM01中","內控":"需要登記內控中（不用輸入DMP-FM01）","系統內結案":"線上改善單改善即可"};
 const SECTION_HEAD={"onboard visit":"訪船缺失 Ship Visit","Internal audit":"內稽缺失 Internal Audit","ACCOMPANYING SHIP":"隨船缺失 On-Voyage Audit","Cross ship visit":"交叉訪船缺失 Cross Visit","ISPS Audit":"ISPS缺失 ISPS Audit","主題檢查":"專項檢查缺失 Special Inspection"};
 async function buildDocBody(r,ctx,replyOf){
   const P=buildDocx_photos(ctx),W=14678;
