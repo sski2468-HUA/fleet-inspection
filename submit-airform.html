@@ -404,7 +404,7 @@ function factorSplit(v){return (v||"").split(/[、,，]/).map(s=>s.trim()).filte
 const RANK_OPTIONS=["Master船長","C/O大副","2/O二副","3/O三副","C/E輪機長","2/E大管","3/E二管","4/E三管",
   "BSN水手長","AB幹練水手","OS普通水手","COOK廚師","FTR銅匠","OLR加油匠","PM泵匠",
   "A.Capt.見習船長","A.C/O見習大副","A.2/O見習二副","A.3/O見習三副","A.C/E見習輪機長","A.2/E見習大管","A.3/E見習二管","A.4/E見習三管",
-  "其他(請聯繫海技新增)"];
+  "公司","其他(請聯繫海技新增)"]; // 「公司」＝責任在公司（岸上）而非個別船員，不需填姓名
 const NC_OPINION_OPTS=[["none","無"],["inspector_opinion","檢查員個人意見"],["best_practice","Best Practice（建議做法）"]];
 
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -821,11 +821,19 @@ function leafOptsHtml(main,sel){
   const list=NCDB_LEAF[main]||[];
   return `<option value="">${main?"請選擇":"（先選大類）"}</option>`+list.map(l=>`<option${sel===l?" selected":""}>${esc(l)}</option>`).join("");
 }
+// 選到「公司」時隱藏並清空姓名欄（公司不用填人名）；改回其他職稱再顯示
+document.addEventListener("change",e=>{
+  const sel=e.target;
+  if(!sel.matches||!sel.matches(".people-row select"))return;
+  const inp=sel.closest(".people-row").querySelector("input[type=text]");
+  if(!inp)return;
+  if(sel.value==="公司"){inp.value="";inp.style.display="none";}else inp.style.display="";
+});
 function peopleRowHtml(rank,person,cls){
   cls = cls || "d";
   return `<div class="people-row">
     <select class="${cls}-rank">${RANK_OPTIONS.map(r=>`<option${rank===r?" selected":""}>${esc(r)}</option>`).join("")}</select>
-    <input type="text" class="${cls}-person" placeholder="姓名" value="${esc(person||"")}">
+    <input type="text" class="${cls}-person" placeholder="姓名" value="${esc(person||"")}"${rank==="公司"?' style="display:none"':""}>
     <button type="button" class="rmPerson" title="移除">✕</button>
   </div>`;
 }
@@ -923,7 +931,7 @@ function renderPreview(){
   }).join("") || `<p class="hint">尚未新增任何缺失。</p>`;
   const posRows = payload.posComments.map((p,i)=>{
     const miss = posMissingFields(p), ok = miss.length===0;
-    const peopleTxt = (p.people||[]).map(x=>x.person).filter(Boolean).join("、");
+    const peopleTxt = (p.people||[]).map(x=>x.person||(x.rank==="公司"?"公司":"")).filter(Boolean).join("、");
     return `<div class="itemrow${ok?" filled":""}"><div class="idx2" style="background:#eaf6ee;color:#1f6b4a">${i+1}</div><div class="body">
       <div class="finding2${p.comment?"":" empty"}">${esc(p.comment||"尚未填寫正向評論內容")}</div>
       <div class="meta2">${peopleTxt?`相關人員：${esc(peopleTxt)}`:""}${miss.length?`<br><span style="color:var(--bad)">缺：${esc(miss.join("、"))}</span>`:""}</div>
@@ -1103,7 +1111,7 @@ function addDefectRow(data){
   refreshPSCBoxes();
 
   const peopleWrap = div.querySelector(".peopleWrap");
-  const people = (data.people && data.people.length) ? data.people : [{rank:RANK_OPTIONS[0],person:""}];
+  const people = (data.people && data.people.length) ? data.people : []; // 預設不帶空白人員列，要新增才按「＋ 新增人員」
   people.forEach(p=>{ peopleWrap.insertAdjacentHTML("beforeend", peopleRowHtml(p.rank,p.person,"d")); });
 
   // 分類：設備大類/具體(多選)、作業大類/具體(多選)、根因(多選,自動帶三要素)
@@ -1132,8 +1140,7 @@ function addDefectRow(data){
     }
     else if(act === "addPerson"){ peopleWrap.insertAdjacentHTML("beforeend", peopleRowHtml(RANK_OPTIONS[0],"","d")); scheduleAutoSave(); }
     else if(e.target.classList.contains("rmPerson")){
-      const rows = peopleWrap.querySelectorAll(".people-row");
-      if(rows.length>1) e.target.closest(".people-row").remove();
+      e.target.closest(".people-row").remove();
       scheduleAutoSave();
     }
   });
@@ -1428,7 +1435,7 @@ function collectPayload(){
     const people = [...box.querySelectorAll(".people-row")].map(r=>({
       rank: r.querySelector(".d-rank").value,
       person: r.querySelector(".d-person").value.trim()
-    })).filter(p=>p.person);
+    })).filter(p=>p.person||p.rank==="公司");
     defects.push({
       code: box.querySelector(".d-code").value.trim(),
       psc: pscBoxRead(box),
@@ -1468,7 +1475,7 @@ function collectPayload(){
     const people = [...box.querySelectorAll(".people-row")].map(r=>({
       rank: r.querySelector(".p-rank").value,
       person: r.querySelector(".p-person").value.trim()
-    })).filter(p=>p.person);
+    })).filter(p=>p.person||p.rank==="公司");
     posComments.push({
       code: box.querySelector(".p-code").value.trim(),
       item: box.querySelector(".p-item").value.trim(),

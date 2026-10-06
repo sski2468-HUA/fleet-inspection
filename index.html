@@ -11559,7 +11559,7 @@ let SHIPINFO=(function(){
 const RANK_OPTIONS=["Master船長","C/O大副","2/O二副","3/O三副","C/E輪機長","2/E大管","3/E二管","4/E三管",
   "BSN水手長","AB幹練水手","OS普通水手","COOK廚師","FTR銅匠","OLR加油匠","PM泵匠",
   "A.Capt.見習船長","A.C/O見習大副","A.2/O見習二副","A.3/O見習三副","A.C/E見習輪機長","A.2/E見習大管","A.3/E見習二管","A.4/E見習三管",
-  "其他(請聯繫海技新增)"];
+  "公司","其他(請聯繫海技新增)"]; // 「公司」＝責任在公司（岸上），不需填姓名；線上填單同步提供這個選項
 function rankOptionsHtml(cur){
   const v=(cur||"").trim();
   let opts=`<option value="">（未設定）</option>`;
@@ -14693,7 +14693,7 @@ const Defs={
           <div class="dfe-detail"><b class="hint" style="font-size:11px">缺失內容</b><br>${esc(d.detail||"")||'<span class="hint">（未填）</span>'}</div>
           <div class="dfe-detail"><b class="hint" style="font-size:11px">實際情形</b><br>${esc(d.actual||"")||'<span class="hint">（未填）</span>'}</div>
           <div class="dfe-pp-row">
-            <div><b class="hint" style="font-size:11px">責任人</b><br>${d.person?esc(d.person)+(d.rank?"（"+esc(d.rank)+"）":""):'<span class="hint">（未填）</span>'}</div>
+            <div><b class="hint" style="font-size:11px">責任人</b><br>${d.person?esc(d.person)+(d.rank?"（"+esc(d.rank)+"）":""):(d.rank?esc(d.rank):'<span class="hint">（未填）</span>')}</div>
             <div><b class="hint" style="font-size:11px">檢查地點</b><br>${d.place?esc(d.place):'<span class="hint">（未填）</span>'}</div>
           </div>
         </div>
@@ -17005,7 +17005,7 @@ const SirePos={
     const totalCountOf=name=>name?App.sirePos.filter(d=>d.person===name).length:0;
     const cardsHtml=cards.map(c=>`
       <tr><td><div class="sirenews-card">
-        <span class="sirenews-name">${esc(c.person)||"（未填姓名）"}</span>
+        <span class="sirenews-name">${esc(c.person)||(c.rank==="公司"?"公司":"（未填姓名）")}</span>
         <span class="sirenews-meta">　${esc(c.rank)||"—"}｜${esc(shipName(c.ship))}｜${esc(c.date)}</span>
         ${c.person?`<span class="sirenews-total">累計獲評 ${totalCountOf(c.person)} 次</span>`:""}
         ${c.code||c.item?`<div class="sirenews-cat">${c.code?esc(c.code)+" ":""}${(c.item||"").length<=60?esc(c.item):""}</div>`:""}
@@ -20151,6 +20151,14 @@ const AuditDash={
     return rows;
   },
   sort(k){if(this.sortKey===k)this.sortAsc=!this.sortAsc;else{this.sortKey=k;this.sortAsc=true;}this.render();},
+  _open2:{},
+  openAuditor2(id){this._open2[id]=true;this.render();},
+  closeAuditor2(id){
+    delete this._open2[id];
+    const row=this.rowsRaw().find(r=>r.id===id);
+    if(row&&row.auditor2)this.setField(id,"auditor2","");
+    this.render();
+  },
   setField(id,field,val){
     if(typeof EditLock!=="undefined"&&!EditLock.guard("auditDash"))return;
     if(!this.requireEdit())return;
@@ -20316,12 +20324,13 @@ const AuditDash={
         <td style="text-align:center">${r.defCount||"-"}</td>
         <td style="text-align:center"><input type="checkbox" ${r.closedOut?"checked":""} ${dis} onchange="AuditDash.setField(${r.id},'closedOut',this.checked)"></td>
         <td style="font-size:11.5px;white-space:nowrap;min-width:66px">${esc(r.cso)||"-"}</td>
-        <td><select style="font-size:11.5px;min-width:78px" ${dis} onchange="AuditDash.setField(${r.id},'auditor',this.value)" title="稽核員（第 1 位）">
+        <td style="white-space:nowrap"><select style="font-size:11.5px;min-width:78px;width:auto" ${dis} onchange="AuditDash.setField(${r.id},'auditor',this.value)" title="稽核員（第 1 位）">
           <option value="">—</option>${this.AUDITORS.map(a=>`<option ${a===r.auditor?"selected":""}>${esc(a)}</option>`).join("")}
         </select>
-        ${r.auditor2||r.auditor?`<select style="font-size:11.5px;min-width:78px;margin-top:3px" ${dis} onchange="AuditDash.setField(${r.id},'auditor2',this.value)" title="第 2 位稽核員（兩位稽核員一起登輪時才選）">
-          <option value="">＋ 第 2 位（選填）</option>${this.AUDITORS.filter(a=>a!==r.auditor).map(a=>`<option ${a===r.auditor2?"selected":""}>${esc(a)}</option>`).join("")}
-        </select>`:""}</td>
+        ${r.auditor&&!(r.auditor2||this._open2[r.id])&&!dis?`<button class="btn sm" style="padding:1px 7px;margin-left:3px" title="兩位稽核員一起登輪時，點這裡新增第 2 位" onclick="AuditDash.openAuditor2(${r.id})">＋</button>`:""}
+        ${r.auditor&&(r.auditor2||this._open2[r.id])?`<div style="margin-top:3px;white-space:nowrap"><select style="font-size:11.5px;min-width:78px" ${dis} onchange="AuditDash.setField(${r.id},'auditor2',this.value)" title="第 2 位稽核員">
+          <option value="">— 第 2 位</option>${this.AUDITORS.filter(a=>a!==r.auditor).map(a=>`<option ${a===r.auditor2?"selected":""}>${esc(a)}</option>`).join("")}
+        </select>${dis?"":`<button class="btn sm" style="padding:1px 6px;margin-left:3px" title="移除第 2 位" onclick="AuditDash.closeAuditor2(${r.id})">×</button>`}</div>`:""}</td>
         <td style="text-align:left">${flagBadge}${exemptBadge}${remarkPreview} <button class="btn sm" onclick="AuditDash.openRemark(${r.id})">${canEdit?"✎":"👁"}</button></td>
         <td style="white-space:nowrap"><button class="btn sm" ${dis} onclick="AuditDash.addRowCopy('${esc(r.ship)}',${r.id})" title="新增下一輪（若此列已完成,會自動帶入實際檢查日當下一輪基準）">➕</button> <button class="btn sm" ${dis} onclick="AuditDash.delRow(${r.id})" title="刪除此列">🗑</button></td>
       </tr>`;
