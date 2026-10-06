@@ -821,19 +821,20 @@ function leafOptsHtml(main,sel){
   const list=NCDB_LEAF[main]||[];
   return `<option value="">${main?"請選擇":"（先選大類）"}</option>`+list.map(l=>`<option${sel===l?" selected":""}>${esc(l)}</option>`).join("");
 }
-// 選到「公司」時隱藏並清空姓名欄（公司不用填人名）；改回其他職稱再顯示
+// 選到「公司」時姓名欄自動帶「公司」並隱藏（不用填人名，後續統計／匯出都當作責任人＝公司）；改回其他職稱再顯示並清掉
 document.addEventListener("change",e=>{
   const sel=e.target;
   if(!sel.matches||!sel.matches(".people-row select"))return;
   const inp=sel.closest(".people-row").querySelector("input[type=text]");
   if(!inp)return;
-  if(sel.value==="公司"){inp.value="";inp.style.display="none";}else inp.style.display="";
+  if(sel.value==="公司"){inp.value="公司";inp.style.display="none";}
+  else{if(inp.value==="公司")inp.value="";inp.style.display="";}
 });
 function peopleRowHtml(rank,person,cls){
   cls = cls || "d";
   return `<div class="people-row">
     <select class="${cls}-rank">${RANK_OPTIONS.map(r=>`<option${rank===r?" selected":""}>${esc(r)}</option>`).join("")}</select>
-    <input type="text" class="${cls}-person" placeholder="姓名" value="${esc(person||"")}"${rank==="公司"?' style="display:none"':""}>
+    <input type="text" class="${cls}-person" placeholder="姓名" value="${esc(rank==="公司"?"公司":(person||""))}"${rank==="公司"?' style="display:none"':""}>
     <button type="button" class="rmPerson" title="移除">✕</button>
   </div>`;
 }
