@@ -32,7 +32,13 @@ header p{margin:5px 0 0;font-size:14px;color:#b9c8d6;line-height:1.6}
    「＋新增檢查記錄」這種真正的建立/動作類按鈕，兩種按鈕意義不同、顏色也該分開。 */
 .toolbar #btnList.primary,.toolbar #btnReview.primary,.toolbar #btnSugg.primary{background:var(--navy);border-color:var(--navy)}
 #btnSuggCount{display:inline-block;margin-left:6px;background:var(--bad);color:#fff;border-radius:10px;padding:1px 8px;font-size:12px;font-weight:800}
-.sgcase{margin:0 0 12px;padding:14px 16px;border-left:5px solid var(--signal)}
+.sgcase{margin:0 0 12px;padding:0;border-left:5px solid var(--signal);display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);overflow:hidden}
+.sgl{padding:14px 16px;border-right:1px solid var(--line)}
+.sgr{padding:14px 16px;background:#f7f9fb;display:flex;flex-direction:column;gap:10px}
+.sgd{border:1px solid var(--line);border-radius:8px;background:#fff;padding:10px 12px}
+.sgkv{display:grid;grid-template-columns:92px minmax(0,1fr);gap:3px 8px;font-size:13px;line-height:1.65}
+.sgkv span:nth-child(odd){color:var(--ink-3);font-weight:600}
+@media(max-width:760px){.sgcase{grid-template-columns:1fr}.sgl{border-right:0;border-bottom:1px solid var(--line)}}
 .sgcase.closed{border-left-color:var(--ok)}.sgcase.new{border-left-color:var(--bad)}
 .sgtbl{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
 .sgtbl th{background:#eef3f6;color:var(--navy);text-align:left;padding:6px 8px;font-size:12.5px}
@@ -2045,22 +2051,28 @@ function renderSuggPage(){
   box.innerHTML=items.length?items.map(c=>{
     const photos=(c.s.photos||[]);
     return `<div class="card sgcase ${c.st}">
-      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;min-width:260px">
-          <div style="font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${esc(shipLabel(c.r.ship))}　${esc(dateText(c.r))} <span class="stat" style="${SG_ST_CSS[c.st]}">${SG_ST_LBL[c.st]}</span></div>
-          <div class="hint">檢查人：${esc(c.r.inspector||"")}　地點：${esc(c.r.psn||"")}　負責部門：<b>${esc(c.rows.map(x=>x.dept).join("、"))}</b></div>
-          <div style="margin-top:6px;font-size:13px;line-height:1.7"><b>現狀：</b>${esc(c.s.situation||"")}<br><b>建議：</b>${esc(c.s.suggestion||"")}</div>
-          ${photos.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${photos.map(ph=>`<img src="${ph.dataUrl}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);cursor:pointer" onclick="openLightbox(this.src)">`).join("")}</div>`:""}
+      <div class="sgl">
+        <div style="display:flex;align-items:flex-start;gap:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;color:var(--navy)">${esc(shipLabel(c.r.ship))}　${esc(dateText(c.r))} <span class="stat" style="${SG_ST_CSS[c.st]}">${SG_ST_LBL[c.st]}</span></div>
+            <div class="hint" style="margin-top:2px">檢查人：${esc(c.r.inspector||"")}　地點：${esc(c.r.psn||"")}</div>
+            <div class="hint">負責部門：<b>${esc(c.rows.map(x=>x.dept).join("、"))}</b></div>
+          </div>
+          <button class="btn sm" onclick="editDef0(${c.r.id})" title="開啟這張登錄單">✎ 查看登錄</button>
         </div>
-        <button class="btn sm" onclick="editDef0(${c.r.id})" title="開啟這張登錄單">✎ 查看登錄</button>
+        <div style="margin-top:10px;font-size:13px;line-height:1.7"><b>現狀：</b>${esc(c.s.situation||"")}<br><b>建議：</b>${esc(c.s.suggestion||"")}</div>
+        ${photos.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${photos.map(ph=>`<img src="${ph.dataUrl}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);cursor:pointer" onclick="openLightbox(this.src)">`).join("")}</div>`:""}
       </div>
-      <div style="overflow:auto"><table class="sgtbl"><thead><tr><th style="width:80px">負責部門</th><th style="width:100px">承辦人</th><th>初步回應／計畫</th><th>處理結果</th><th style="width:76px">狀態</th><th style="width:96px">結案日期</th><th style="width:110px">操作</th></tr></thead><tbody>
-      ${c.rows.map(x=>{const p=(x.rp&&x.rp.payload)||{},stt=suggRowState(x.rp),lk=suggLockInfo(x.rp);
-        return `<tr><td><b>${esc(x.dept)}</b></td><td>${esc(p.owner||"—")}</td><td style="white-space:pre-line">${esc(p.plan||"—")}</td><td style="white-space:pre-line">${esc(p.result||"—")}</td><td><span class="stat" style="${SG_ST_CSS[stt]}">${SG_ST_LBL[stt]}</span></td><td>${esc(p.closedAt||"")}</td>
-          <td>${lk?`<span class="hint">🔒 ${esc(lk.by)} 編輯中</span>`:`<button class="btn sm ${stt==="closed"?"":"dark"}" onclick="openSuggEdit(${c.r.id},'${c.uid}','${esc(x.dept)}')">${stt==="new"?"✎ 承辦":"✎ 編輯／處理"}</button>`}</td></tr>`;}).join("")}
-      </tbody></table></div>
-    </div>`;
-  }).join(""):`<div class="banner">${suggStatusFlt==="active"?"🎉 目前沒有未結案的訴求／建議。":"目前沒有符合條件的訴求／建議。"}（只有「已送出」的登錄單才會立案；草稿不會出現在這裡。）</div>`;
+      <div class="sgr">
+        <div class="hint" style="font-weight:700">辦理情形（每個部門各自處理）</div>
+        ${c.rows.map(x=>{const p=(x.rp&&x.rp.payload)||{},stt=suggRowState(x.rp),lk=suggLockInfo(x.rp);
+          return `<div class="sgd">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b>${esc(x.dept)}</b><span class="stat" style="${SG_ST_CSS[stt]}">${SG_ST_LBL[stt]}</span><span style="flex:1"></span>
+              ${lk?`<span class="hint">🔒 ${esc(lk.by)} 編輯中</span>`:`<button class="btn sm ${stt==="closed"?"":"dark"}" onclick="openSuggEdit(${c.r.id},'${c.uid}','${esc(x.dept)}')">${stt==="new"?"✎ 承辦":"✎ 編輯／處理"}</button>`}</div>
+            <div class="sgkv"><span>承辦人</span><span>${esc(p.owner||"—")}</span><span>初步回應／計畫</span><span style="white-space:pre-line">${esc(p.plan||"—")}</span><span>處理結果</span><span style="white-space:pre-line">${esc(p.result||"—")}</span><span>結案日期</span><span>${esc(p.closedAt||"—")}</span></div>
+          </div>`;}).join("")}
+      </div>
+    </div>`;  }).join(""):`<div class="banner">${suggStatusFlt==="active"?"🎉 目前沒有未結案的訴求／建議。":"目前沒有符合條件的訴求／建議。"}（只有「已送出」的登錄單才會立案；草稿不會出現在這裡。）</div>`;
 }
 function editDef0(rid){const r=Store.rows.find(x=>x.id===rid);if(r)editRec(rid);}
 function suggMe(){
