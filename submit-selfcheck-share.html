@@ -194,6 +194,23 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
   </div>
 </div>
 
+<!-- 「不適用」說明視窗 -->
+<div class="mbg" id="naModal">
+  <div class="mbox" style="max-width:560px">
+    <div class="mh">➖ 本船不適用</div>
+    <div class="mb">
+      <div class="refbox" id="naItem" style="margin-top:0"></div>
+      <label style="font-size:13px">不適用原因（選填）</label>
+      <textarea id="naReason" rows="3" placeholder="例：本船為散裝船，不適用此油輪項目／本船無此設備"></textarea>
+      <div class="simhint ok" style="margin-top:12px">填寫後按「確認」即可，原因可以不填。</div>
+    </div>
+    <div class="mf">
+      <button type="button" class="btn" onclick="naCancel()">取消</button>
+      <button type="button" class="btn primary" onclick="naConfirm()">確認</button>
+    </div>
+  </div>
+</div>
+
 <!-- 「有，需處理」說明視窗 -->
 <div class="mbg" id="simModal">
   <div class="mbox" style="max-width:640px">
@@ -301,7 +318,7 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
   <text x="810" y="586" text-anchor="middle" font-size="25" font-weight="700" fill="#52656f">– 不適用</text>
   <text x="810" y="624" text-anchor="middle" font-size="16" fill="#15262f">船型或設備不同</text>
   <text x="810" y="650" text-anchor="middle" font-size="16" fill="#15262f">本船沒有此項目</text>
-  <text x="810" y="680" text-anchor="middle" font-size="15" fill="#52656f">可簡述原因（選填）</text>
+  <text x="810" y="680" text-anchor="middle" font-size="15" fill="#52656f">會跳出視窗，可簡述原因（選填）</text>
 
   <!-- 合流 -->
   <line x1="190" y1="704" x2="190" y2="732" stroke="#1c3a5e" stroke-width="3"/>
@@ -319,7 +336,7 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
   <!-- Step 4 -->
   <rect x="180" y="772" width="640" height="104" rx="12" fill="#e9f1f8" stroke="#1c3a5e" stroke-width="2"/>
   <circle cx="180" cy="824" r="22" fill="#1c3a5e"/><text x="180" y="832" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">4</text>
-  <text x="500" y="810" text-anchor="middle" font-size="22" font-weight="700" fill="#1c3a5e">答完最後一題 → 自動跳出「預覽作答清單」</text>
+  <text x="500" y="810" text-anchor="middle" font-size="22" font-weight="700" fill="#1c3a5e">答完最後一題（按確認）→ 自動跳出「預覽作答清單」</text>
   <text x="500" y="840" text-anchor="middle" font-size="15" fill="#52656f">逐題核對答案；要修改的點該題就會回到那一題</text>
   <text x="500" y="862" text-anchor="middle" font-size="15" fill="#52656f">紅色＝還沒作答的題目，請先補答</text>
   <line x1="500" y1="876" x2="500" y2="912" stroke="#1c3a5e" stroke-width="3" marker-end="url(#ar)"/>
@@ -355,7 +372,7 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
       <div class="helpans">
         <div><b style="color:var(--ok)">✅ 沒有</b><br>本船沒有這種情形，自動跳下一題。</div>
         <div><b style="color:var(--warn)">⚠️ 有，需處理</b><br>會跳出視窗，請填「本船的實際狀況」「打算怎麼處理」，並選<b>處理中</b>或<b>已結案</b>。<b>處理中也要先送出</b>，處理完再回來結案。</div>
-        <div><b style="color:var(--ink-2)">➖ 不適用</b><br>船型或設備不同、本船沒有此項目；可簡述原因。</div>
+        <div><b style="color:var(--ink-2)">➖ 不適用</b><br>船型或設備不同、本船沒有此項目；會跳出視窗，可簡述原因（選填），按「確認」。</div>
       </div>
       <p class="hint" style="margin:-4px 0 14px;font-size:13px;background:#eef4fa;border-radius:8px;padding:8px 12px;color:var(--navy-3)">※ 合併分享（缺失來自多艘船）時，若某題缺失就是本船被查到的，該題系統會自動標為「🚩 當事船」，不須作答，引導作答會自動跳過。</p>
       <div class="helpstep"><div class="hn">3</div><div><b>預覽作答內容</b><br>答完<b>最後一題</b>，畫面會自動跳出<b>預覽清單</b>（也可按最後一題的「完成，預覽作答內容」）。逐題確認，要修改的點該題就會回到那一題。</div></div>
@@ -909,11 +926,12 @@ function setStatus(i,status){
   updateProgress();
   scheduleAutoSave();
   renderWrapup();
-  if(viewMode==="guide"&&status!=="similar"){
+  if(viewMode==="guide"&&status==="ok"){
     // 答完最後一題：自動跳出預覽清單讓船上逐題核對，再選「已作答完成」送出
     setTimeout(()=>{ if(guideIdx!==i)return; const j=nextGuide(i); if(j>=0){guideIdx=j;applyViewMode();}else openReview(); },350);
   }
-  if(status==="similar")setTimeout(()=>openSimModal(i,prevStatus),120); // 選「有，需處理」→ 跳出視窗問實際狀況、處理方式、是否結案
+  if(status==="similar")setTimeout(()=>openSimModal(i,prevStatus),120);
+  else if(status==="na")setTimeout(()=>openNaModal(i,prevStatus),120); // 不適用 → 跳視窗問原因（選填），按確認後才往下／跳預覽 // 選「有，需處理」→ 跳出視窗問實際狀況、處理方式、是否結案
 }
 function onFieldInput(ta){
   const i=+ta.dataset.idx, field=ta.dataset.field;
@@ -1003,7 +1021,38 @@ function simConfirm(){
   const i=simCtx.i;simCtx=null;
   renderItems();updateProgress();scheduleAutoSave();
   notify(simClosed?"✓ 已記錄（已結案），全部答完後直接送出即可":"✓ 已記錄（處理中）：請記得先送出，處理完畢後再回來結案","ok2");
+  afterAnswerSaved(i);
+}
+function afterAnswerSaved(i){
   if(viewMode==="guide"){guideIdx=i;applyViewMode();setTimeout(()=>{const j=nextGuide(i);if(j>=0){guideIdx=j;applyViewMode();}else openReview();},500);}
+}
+/* 「不適用」說明視窗：不適用原因為選填，按「確認」才算作答完成；最後一題確認後跳預覽清單。 */
+let naCtx=null;
+function openNaModal(i,prev){
+  const it=(draft.items||[])[i];if(!it)return;
+  naCtx={i,prev};
+  document.getElementById("naItem").textContent=(it.code?"CODE "+it.code+"　":"")+String(it.detail||"").slice(0,90)+((it.detail||"").length>90?"…":"");
+  document.getElementById("naReason").value=it.naNote||"";
+  document.getElementById("naModal").classList.add("show");
+  setTimeout(()=>document.getElementById("naReason").focus(),80);
+}
+function naConfirm(){
+  const it=(draft.items||[])[naCtx.i];if(!it)return;
+  it.naNote=document.getElementById("naReason").value.trim();
+  const cn=getCheckerName();it.checkedBy=cn||it.checkedBy||"";it.checkedAt=new Date().toISOString().slice(0,10);
+  document.getElementById("naModal").classList.remove("show");
+  const i=naCtx.i;naCtx=null;
+  renderItems();updateProgress();scheduleAutoSave();
+  notify("✓ 已記錄（不適用）","ok2");
+  afterAnswerSaved(i);
+}
+function naCancel(){
+  document.getElementById("naModal").classList.remove("show");
+  if(!naCtx)return;
+  const it=(draft.items||[])[naCtx.i];
+  // 第一次選「不適用」就取消 → 恢復成選之前的狀態；已經填過原因（重新編輯）則保留
+  if(it&&!it.naNote&&naCtx.prev!=="na"){it.status=naCtx.prev||"pending";renderItems();updateProgress();scheduleAutoSave();}
+  naCtx=null;
 }
 function simCancel(){
   document.getElementById("simModal").classList.remove("show");
