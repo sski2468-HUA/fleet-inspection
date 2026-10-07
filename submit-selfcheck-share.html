@@ -89,6 +89,9 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
 .rvconfirm.bad{animation:rvflash .5s 4;border-color:var(--bad);background:#fdecea}
 @keyframes rvflash{50%{box-shadow:0 0 0 5px rgba(192,57,43,.35)}}
 #simItem,#naItem{font-size:13.5px;color:var(--ink-2)}
+.floatnext{position:fixed;right:18px;bottom:56px;z-index:30;border:0;border-radius:30px;padding:14px 24px;font-size:16px;font-weight:700;font-family:var(--sans);cursor:pointer;color:#fff;background:var(--navy-3);box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.floatnext.final{background:var(--signal);font-size:17px;padding:16px 28px;animation:fnpulse 1.8s ease-in-out infinite}
+@keyframes fnpulse{50%{box-shadow:0 6px 18px rgba(0,0,0,.3),0 0 0 8px rgba(232,132,44,.25)}}
 .simopts{display:flex;gap:8px;flex-wrap:wrap}
 .simopt{flex:1;min-width:180px;border:2px solid var(--line-2);background:#fff;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:var(--ink-2);cursor:pointer;font-family:var(--sans)}
 .simopt.on{border-color:var(--navy-3);background:#e9f1f8;color:var(--navy)}
@@ -192,6 +195,7 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
     </div>
     <div class="card wrapupcard" id="wrapupCard" style="display:none"></div>
     <div id="itemsWrap"></div>
+    <button type="button" id="floatNext" class="floatnext" onclick="floatNextClick()">下一題 →</button>
   </div>
 </div>
 
@@ -875,6 +879,14 @@ function setViewMode(mode){
   applyViewMode();
   renderWrapup();
 }
+function floatNextClick(){ if(viewMode==="guide")guideNext(); else openReview(); }
+function updateFloatNext(){
+  const fb=document.getElementById("floatNext");if(!fb||!draft)return;
+  if(viewMode==="list"){fb.className="floatnext final";fb.textContent="下一步：預覽並送出 →";return;}
+  const isLast=nextGuide(guideIdx)<0;
+  fb.className="floatnext"+(isLast?" final":"");
+  fb.textContent=isLast?"下一步：預覽並送出 →":"下一題 →";
+}
 function applyViewMode(){
   const cards=document.querySelectorAll(".itemcard");
   if(viewMode==="list"){
@@ -886,10 +898,12 @@ function applyViewMode(){
     const n=(draft.items||[]).length;
     document.getElementById("guideCounter").textContent=`第 ${guideIdx+1} / ${n} 題`;
     const nb=document.getElementById("guideNextBtn");
-    if(nb)nb.textContent=nextGuide(guideIdx)<0?"完成，預覽作答內容 →":"下一題 →";
+    const isLast=nextGuide(guideIdx)<0;
+    if(nb){nb.textContent=isLast?"下一步：預覽並送出 →":"下一題 →";nb.className=isLast?"btn primary":"btn";nb.style.cssText=isLast?"font-size:16px;padding:12px 22px":"";}
     const card=document.querySelector(`.itemcard[data-idx="${guideIdx}"]`);
     if(card)card.scrollIntoView({behavior:"smooth",block:"start"});
   }
+  updateFloatNext();
 }
 /* 當事船（缺失來源船）的題目由系統自動標為「🚩 當事船」，不需要作答——引導作答會自動跳過這些題目。
    舊資料沒有 autoSelf 旗標時，用「狀態是當事船、而且從沒人動過（沒有回答日期）」判斷。 */
