@@ -158,7 +158,8 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
 </head>
 <body>
 <div class="wrap">
-  <header>
+  <header style="position:relative">
+    <a href="./" title="回到主系統" style="position:absolute;top:16px;right:18px;color:#fff;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);border-radius:8px;padding:7px 14px;font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap">← 返回系統</a>
     <h1>🛠 內部檢查缺失登錄</h1>
     <p>督導、內部稽核員上船檢查發現的缺失在這裡建檔。資料獨立存放，不會與主系統同步作業互相干擾；建檔完成後由海技在主系統匯入檢查紀錄／缺失紀錄。</p>
   </header>
@@ -169,8 +170,6 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
     <button class="btn" id="btnReview" onclick="leaveFormGuard(showReview)">🔎 改善單審核清單<span class="n" id="btnReviewCount" style="display:none"></span></button>
     <button class="btn" id="btnSugg" onclick="leaveFormGuard(showSugg)">📌 船舶訴求/建議清單<span class="n" id="btnSuggCount" style="display:none"></span></button>
     <button class="btn lg" id="btnNew" onclick="newForm()">＋ 新增檢查記錄</button>
-    <span style="flex:1"></span>
-    <a class="btn sm" href="./" title="回到主系統">← 返回系統</a>
   </div>
 
   <!-- ══════ 登錄紀錄 ══════ -->
@@ -290,6 +289,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
       <select id="rvMode" onchange="renderReview()" style="width:auto"><option value="">全部結案方式</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
       <input type="text" id="rvQ" placeholder="搜尋船名／分類／缺失描述／回報人" oninput="renderReview()" style="flex:1;min-width:160px">
       <button class="btn sm" onclick="Store.loadReplies().then(renderReview)">🔄 重新整理</button>
+      <button class="btn sm dark" onclick="exportReviewXlsx()" title="把改善單審核清單（所有審核狀態）匯出成 Excel 總清單；有選船舶／檢查人／結案方式／搜尋時，只匯出符合的">⬇ 匯出 Excel 總清單</button>
     </div>
     <div id="rvStatusChips" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 14px 10px"></div>
     <div style="margin:0 14px"><span class="hint" id="rvStat"></span></div>
@@ -306,11 +306,13 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
        一項訴求一案；每個部門各自一筆處理紀錄，不同部門互不影響，同一部門同一時間只允許一人編輯（鎖定＋版本檢查）。══════ -->
   <div id="suggPage" style="display:none">
     <div class="banner">登錄單<b>送出後</b>，船舶訴求／建議會依<b>負責部門</b>在這裡立案；各負責部門填寫<b>承辦人、初步回應／計畫</b>，處理完成再填<b>處理結果</b>並結案。涉及多個部門時，<b>每個部門各自處理、各自結案</b>，全部部門都結案，這項訴求才算結案。同一筆同一時間只有一個人能編輯（會顯示「🔒 誰在編輯中」）。</div>
+    <div id="sgDeptStats" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 14px 12px"></div>
     <div class="toolbar">
       <select id="sgShip" onchange="renderSuggPage()" style="width:auto"><option value="">全部船舶</option></select>
       <select id="sgDept" onchange="renderSuggPage()" style="width:auto"><option value="">全部負責部門</option></select>
       <input type="text" id="sgQ" placeholder="搜尋船名／訴求內容／承辦人" oninput="renderSuggPage()" style="flex:1;min-width:160px">
       <button class="btn sm" onclick="Store.loadReplies().then(()=>{renderSuggPage();toast('✓ 已重新整理');})">🔄 重新整理</button>
+      <button class="btn sm dark" onclick="exportSuggXlsx()" title="把船舶訴求／建議與各部門辦理情形匯出成 Excel 總清單（所有處理狀態）；有選船舶／部門／搜尋時，只匯出符合的">⬇ 匯出 Excel 總清單</button>
     </div>
     <div id="sgStatusChips" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 14px 10px"></div>
     <div style="margin:0 14px"><span class="hint" id="sgStat"></span></div>
@@ -480,6 +482,7 @@ const Store={
     this.replies={};
     if(this.mode!=="cloud")return;
     try{const rows=await api("intaudit_replies?select=id,record_id,def_uid,status,payload,updated_at&limit=5000");(rows||[]).forEach(x=>{this.replies[x.id]=x;});}catch(e){}
+    try{updateSuggBadge();}catch(e){} // 回報資料更新後，順便更新「船舶訴求/建議清單」上的未結案數徽章
   },
   async load(){
     try{
@@ -1907,7 +1910,7 @@ function renderSugg(){
    開啟編輯視窗就先「鎖定」（寫入 payload.lock，15 分鐘自動失效），儲存時再用 updated_at 版本檢查，
    對不上就拒絕儲存，不會覆蓋別人的內容。 */
 const SUGG_LOCK_MIN=15, SUGG_TOKEN=Math.random().toString(36).slice(2)+Date.now().toString(36);
-let suggStatusFlt="all",suggCtx=null;
+let suggStatusFlt="active",suggCtx=null; // 預設只看未結案（待承辦＋處理中），已結案要看再點「已結案」
 const suggKey=(rid,uid,dept)=>`${rid}_s_${uid}_${dept}`;
 const suggReply=(rid,uid,dept)=>Store.replies[suggKey(rid,uid,dept)];
 const SG_ST_LBL={new:"待承辦",open:"處理中",closed:"已結案"};
@@ -1941,6 +1944,64 @@ function updateSuggBadge(){
   const n=suggCases().filter(c=>c.st!=="closed").length;
   if(n){el.textContent=n;el.style.display="";}else el.style.display="none";
 }
+const fmtTs=t=>t?new Date(t).toLocaleString("zh-TW",{hour12:false}):"";
+/* 匯出「船舶訴求／建議」總清單：每個「訴求×負責部門」一列，含承辦人、初步回應／計畫、處理結果、狀態、結案日期；
+   另有「處理歷程」「部門統計」兩個分頁。套用目前的船舶／部門／搜尋篩選（不受狀態快捷籤影響，所以是完整的總清單）。 */
+function exportSuggXlsx(){
+  if(typeof XLSX==="undefined"){toast("⚠ Excel 元件載入失敗，請確認網路後重新整理頁面",true);return;}
+  const fs=$("#sgShip").value,fd=$("#sgDept").value,q=$("#sgQ").value.trim().toLowerCase();
+  const cases=suggCases().filter(c=>{
+    if(fs&&c.r.ship!==fs)return false;
+    if(fd&&!c.rows.some(x=>x.dept===fd))return false;
+    if(q){const hay=[shipLabel(c.r.ship),c.s.situation,c.s.suggestion,c.rows.map(x=>((x.rp&&x.rp.payload)||{}).owner||"").join(" ")].join(" ").toLowerCase();if(!hay.includes(q))return false;}
+    return true;
+  });
+  if(!cases.length){toast("⚠ 目前篩選條件下沒有訴求／建議可匯出",true);return;}
+  const rows=[],hist=[],deptSt={};
+  cases.forEach((c,ci)=>{
+    c.rows.forEach(x=>{
+      if(fd&&x.dept!==fd)return;
+      const p=(x.rp&&x.rp.payload)||{},st=suggRowState(x.rp);
+      rows.push({"船舶":shipLabel(c.r.ship),"檢查日期":dateText(c.r),"檢查人":c.r.inspector||"","地點":c.r.psn||"",
+        "現狀 Situation":c.s.situation||"","建議 Suggestion":c.s.suggestion||"","照片數":(c.s.photos||[]).length,
+        "負責部門":x.dept,"承辦人":p.owner||"","初步回應／計畫":p.plan||"","處理結果":p.result||"","處理狀態":SG_ST_LBL[st],"結案日期":p.closedAt||"",
+        "最後編輯人":p.updatedBy||"","最後編輯時間":fmtTs(p.updatedAt),"整案狀態":SG_ST_LBL[c.st]});
+      const d=deptSt[x.dept]=deptSt[x.dept]||{n:0,new:0,open:0,closed:0};d.n++;d[st]++;
+      (p.history||[]).forEach(h=>hist.push({"船舶":shipLabel(c.r.ship),"檢查日期":dateText(c.r),"訴求（現狀）":(c.s.situation||"").slice(0,60),"負責部門":x.dept,"時間":fmtTs(h.at),"編輯人":h.by||"","動作":h.action||""}));
+    });
+  });
+  const wb=XLSX.utils.book_new();
+  const add=(data,name,wch)=>{const ws=XLSX.utils.json_to_sheet(data.length?data:[{"（無資料）":""}]);if(wch)ws["!cols"]=wch.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,name);};
+  add(rows,"訴求建議總清單",[20,18,10,16,40,40,8,10,12,40,40,10,12,12,20,10]);
+  add(Object.keys(deptSt).map(d=>({"負責部門":d,"件數":deptSt[d].n,"待承辦":deptSt[d].new,"處理中":deptSt[d].open,"已結案":deptSt[d].closed})),"部門統計",[12,8,8,8,8]);
+  add(hist,"處理歷程",[20,18,40,10,20,12,10]);
+  XLSX.writeFile(wb,`船舶訴求建議總清單_${todayIso()}.xlsx`);
+  toast(`✓ 已匯出 ${rows.length} 列（${cases.length} 項訴求／建議）`);
+}
+/* 匯出「改善單審核清單」總清單：所有審核狀態（待審核／已結案／已退回）都在內；套用船舶／檢查人／結案方式／搜尋篩選，
+   不受狀態快捷籤影響。含船上改善措施、審核人與時間、退回原因、是否已套用到主系統。 */
+function exportReviewXlsx(){
+  if(typeof XLSX==="undefined"){toast("⚠ Excel 元件載入失敗，請確認網路後重新整理頁面",true);return;}
+  const items=reviewBaseItems();
+  if(!items.length){toast("⚠ 目前篩選條件下沒有改善單可匯出",true);return;}
+  const SL={submitted:"待審核",reviewed:"已結案",returned:"已退回待重填"};
+  const rows=items.map(({r,d,rp})=>{
+    const p=rp.payload||{},td=typeDef(d.type);
+    return {"船舶":shipLabel(r.ship),"檢查日期":dateText(r),"檢查人":r.inspector||"","地點":r.psn||"",
+      "檢查種類":td?td.label:(d.type||""),"內稽類別/主題":topicText(d)||"","分類 Category":d.category||"","風險":d.risk||"","結案方式":d.closeMode||"",
+      "缺失內容":d.finding||"","審核狀態":SL[rp.status]||rp.status,
+      "船上改善措施":p.action||"","船上完成日期":p.corrected||"","船上備註":p.evidence||"","改善後照片數":(p.photos||[]).length,
+      "回報人":p.by||"","回報人職稱":p.title||"","回報時間":fmtTs(p.at),
+      "督導審核人":p.reviewedBy||"","審核時間":fmtTs(p.reviewedAt),"退回原因":p.returnNote||"",
+      "已套用到主系統缺失紀錄":p.appliedAt?`${p.appliedBy||""} ${fmtTs(p.appliedAt)}`:""};
+  });
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws["!cols"]=[20,18,10,16,14,16,16,6,11,50,12,40,12,30,8,10,12,20,12,20,30,26].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws,"改善單審核總清單");
+  XLSX.writeFile(wb,`改善單審核總清單_${todayIso()}.xlsx`);
+  toast(`✓ 已匯出 ${rows.length} 筆改善單（含所有審核狀態）`);
+}
 function showSugg(){
   stopAutoSave();
   $("#listPage").style.display="none";$("#formPage").style.display="none";$("#reviewPage").style.display="none";$("#suggPage").style.display="";
@@ -1951,6 +2012,22 @@ function showSugg(){
   renderSuggPage();
 }
 function setSuggStatusFlt(k){suggStatusFlt=k;renderSuggPage();}
+function pickSuggDept(d){$("#sgDept").value=($("#sgDept").value===d)?"":d;renderSuggPage();}
+/* 部門統計：每個部門名下的訴求件數（涉及多部門的案件，每個部門各算一件）與處理進度；點部門卡片可篩選該部門 */
+function renderSuggDeptStats(){
+  const box=$("#sgDeptStats");if(!box)return;
+  const cur=$("#sgDept").value,all=suggCases();
+  const names=SUGG_DEPTS.concat(all.some(c=>c.rows.some(x=>x.dept==="未指定"))?["未指定"]:[]);
+  const st={};names.forEach(d=>st[d]={n:0,new:0,open:0,closed:0});
+  all.forEach(c=>c.rows.forEach(x=>{const s=st[x.dept];if(!s)return;const k=suggRowState(x.rp);s.n++;s[k]++;}));
+  const tot={n:0,new:0,open:0,closed:0};names.forEach(d=>{["n","new","open","closed"].forEach(k=>tot[k]+=st[d][k]);});
+  [tot,...names.map(d=>st[d])].forEach(s=>{s.n=s.new+s.open;}); // 統計只算未結案（待承辦＋處理中），已結案不計入
+  const card=(label,s,on,click)=>`<div onclick="${click}" title="點一下只看這個部門（再點一次取消）" style="cursor:pointer;min-width:118px;border:1.5px solid ${on?"var(--navy)":"var(--line-2)"};background:${on?"#e9f1f8":"#fff"};border-radius:10px;padding:8px 12px">
+    <div style="font-size:12.5px;font-weight:700;color:var(--navy)">${label}</div>
+    <div style="font-family:var(--mono);font-size:22px;font-weight:800;line-height:1.2;color:${s.n?"var(--ink)":"var(--ink-3)"}">${s.n}<span style="font-size:11px;font-weight:600;color:var(--ink-3)"> 件未結案</span></div>
+    <div style="font-size:11.5px;line-height:1.5;margin-top:2px"><span style="color:${s.new?"#c0392b":"var(--ink-3)"}">待承辦 ${s.new}</span>・<span style="color:${s.open?"#7a5a10":"var(--ink-3)"}">處理中 ${s.open}</span></div></div>`;
+  box.innerHTML=card("全部部門",tot,!cur,"pickSuggDept('"+(cur||"")+"')")+names.map(d=>card(d,st[d],cur===d,"pickSuggDept('"+d+"')")).join("")+`<div class="hint" style="align-self:center;max-width:220px;line-height:1.5">件數＝各部門名下「未結案」的訴求（待承辦＋處理中）；涉及多個部門的案件，每個部門各算一件。</div>`;
+}
 function renderSuggPage(){
   const box=$("#suggBody");if(!box)return;
   const fs=$("#sgShip").value,fd=$("#sgDept").value,q=$("#sgQ").value.trim().toLowerCase();
@@ -1960,10 +2037,11 @@ function renderSuggPage(){
     if(q){const hay=[shipLabel(c.r.ship),c.s.situation,c.s.suggestion,c.rows.map(x=>((x.rp&&x.rp.payload)||{}).owner||"").join(" ")].join(" ").toLowerCase();if(!hay.includes(q))return false;}
     return true;
   });
-  const defs=[["all","全部"],["new","待承辦"],["open","處理中"],["closed","已結案"]];
-  $("#sgStatusChips").innerHTML=defs.map(([k,l])=>{const n=k==="all"?base.length:base.filter(c=>c.st===k).length;return `<span class="fchip ${suggStatusFlt===k?"on":""}" onclick="setSuggStatusFlt('${k}')">${l}<b>${n}</b></span>`;}).join("");
-  const items=suggStatusFlt==="all"?base:base.filter(c=>c.st===suggStatusFlt);
-  $("#sgStat").textContent=`顯示 ${items.length} 項訴求／建議（共 ${base.length} 項）`;
+  const defs=[["active","未結案"],["new","待承辦"],["open","處理中"],["closed","已結案"],["all","全部"]];
+  $("#sgStatusChips").innerHTML=defs.map(([k,l])=>{const n=k==="all"?base.length:k==="active"?base.filter(c=>c.st!=="closed").length:base.filter(c=>c.st===k).length;return `<span class="fchip ${suggStatusFlt===k?"on":""}" onclick="setSuggStatusFlt('${k}')">${l}<b>${n}</b></span>`;}).join("");
+  renderSuggDeptStats();
+  const items=suggStatusFlt==="all"?base:suggStatusFlt==="active"?base.filter(c=>c.st!=="closed"):base.filter(c=>c.st===suggStatusFlt);
+  $("#sgStat").textContent=`顯示 ${items.length} 項訴求／建議（${suggStatusFlt==="active"?"未結案，已結案的請點上方「已結案」查看":"共 "+base.length+" 項"}）`;
   box.innerHTML=items.length?items.map(c=>{
     const photos=(c.s.photos||[]);
     return `<div class="card sgcase ${c.st}">
@@ -1982,7 +2060,7 @@ function renderSuggPage(){
           <td>${lk?`<span class="hint">🔒 ${esc(lk.by)} 編輯中</span>`:`<button class="btn sm ${stt==="closed"?"":"dark"}" onclick="openSuggEdit(${c.r.id},'${c.uid}','${esc(x.dept)}')">${stt==="new"?"✎ 承辦":"✎ 編輯／處理"}</button>`}</td></tr>`;}).join("")}
       </tbody></table></div>
     </div>`;
-  }).join(""):`<div class="banner">目前沒有符合條件的訴求／建議。（只有「已送出」的登錄單才會立案；草稿不會出現在這裡。）</div>`;
+  }).join(""):`<div class="banner">${suggStatusFlt==="active"?"🎉 目前沒有未結案的訴求／建議。":"目前沒有符合條件的訴求／建議。"}（只有「已送出」的登錄單才會立案；草稿不會出現在這裡。）</div>`;
 }
 function editDef0(rid){const r=Store.rows.find(x=>x.id===rid);if(r)editRec(rid);}
 function suggMe(){
