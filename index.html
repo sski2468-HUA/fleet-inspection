@@ -12532,15 +12532,25 @@ const Todo={
     const items=[];
     // 全船隊的檢查管控項目已逾期（僅計「已逾期」，即將到期的量通常較大，避免管理層每次都被一堆黃色警示洗版）
     if(typeof InspCtrl!=="undefined"){
-      const overdueIC=(App.inspCtrl||[]).map(d=>InspCtrl.computeRow(d)).filter(r=>r.status==="逾期").length;
-      if(overdueIC>0)items.push({icon:"🔔",text:`檢查排程：全船隊有 ${overdueIC} 項檢查已逾期`,
+      // 只算自己負責的：船舶資料的「海技負責人」是自己，或檢查管控的「檢查安排人」是自己；
+      // 兩邊都沒指定負責人的項目，所有維護者都看得到，避免沒人處理。
+      const meM=(typeof Role!=="undefined"&&Role.personName)?String(Role.personName()||"").trim():"";
+      const mgrOfShip=code=>{const s=(typeof SHIPINFO!=="undefined")?SHIPINFO.find(x=>x.code===code):null;return s?String(s.mgr||"").trim():"";};
+      const overdueIC=(App.inspCtrl||[]).map(d=>InspCtrl.computeRow(d)).filter(r=>r.status==="逾期")
+        .filter(r=>{const m=mgrOfShip(r.ship),o=String(r.owner||"").trim();return (!m&&!o)||m===meM||o===meM;}).length;
+      if(overdueIC>0)items.push({icon:"🔔",text:`檢查排程：您負責的船有 ${overdueIC} 項檢查已逾期`,
         action:()=>goToTab("inspctrl",()=>{InspCtrl.quickStatus="逾期";InspCtrl.render();})});
     }
     // 線上填單：完全還沒轉入檢查紀錄／缺失紀錄／正向評論的填單，最容易在填完基本資料後
     // 就忘記按「→轉入紀錄」，資料停在填單清單裡、沒有真正進到系統的統計與分析裡。
     if(typeof App!=="undefined"&&Array.isArray(App.air)&&typeof Air!=="undefined"){
-      const untouched=App.air.filter(d=>[d.usedInsp,d.usedDef,d.usedPos].filter(Boolean).length===0).length;
-      if(untouched>0)items.push({icon:"📥",text:`線上填單：有 ${untouched} 筆完全還沒轉入檢查紀錄／缺失紀錄，請確認是否忘記轉入`,
+      // 只算「自己負責的船」（船舶資料的「海技負責人」＝自己）的填單，不然每位維護者／海技
+      // 都會被全船隊的未轉入填單洗版；船舶資料沒填海技負責人的船，所有維護者都看得到，避免沒人處理。
+      const me=(typeof Role!=="undefined"&&Role.personName)?String(Role.personName()||"").trim():"";
+      const mgrOf=code=>{const s=(typeof SHIPINFO!=="undefined")?SHIPINFO.find(x=>x.code===code):null;return s?String(s.mgr||"").trim():"";};
+      const untouched=App.air.filter(d=>[d.usedInsp,d.usedDef,d.usedPos].filter(Boolean).length===0)
+        .filter(d=>{const m=mgrOf(d.ship);return !m||m===me;}).length;
+      if(untouched>0)items.push({icon:"📥",text:`線上填單：您負責的船有 ${untouched} 筆完全還沒轉入檢查紀錄／缺失紀錄，請確認是否忘記轉入`,
         action:()=>goToTab("air",()=>{if(Air.ms&&Air.ms.status)Air.ms.status.set(["待處理"]);Air.page=1;Air.renderList();})});
     }
     return items;
