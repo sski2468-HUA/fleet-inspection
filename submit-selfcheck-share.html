@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>船隊分享自查 — FPMC</title>
+<title>船隊檢查缺失分享及自查 — FPMC</title>
 <style>
 :root{
   --navy:#1c3a5e; --navy-2:#234a72; --navy-3:#2f6690;
@@ -70,6 +70,29 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
 .wstatus.closed{background:#e5f3ec;color:var(--ok)}
 @keyframes itemFlash{0%{box-shadow:0 0 0 3px rgba(28,58,94,.55)}100%{box-shadow:0 0 0 3px transparent}}
 .itemcard.jump-flash{animation:itemFlash 1.1s ease-out}
+.btn.primary.soft-disabled{background:#c3ced5;border-color:#c3ced5;color:#fff}
+.mbg{position:fixed;inset:0;background:rgba(15,30,45,.55);display:none;align-items:center;justify-content:center;z-index:70;padding:14px}
+.mbg.show{display:flex}
+.mbox{background:#fff;border-radius:12px;width:100%;max-width:760px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.mbox .mh{padding:14px 18px;border-bottom:1px solid var(--line);font-weight:700;font-size:16px;color:var(--navy);display:flex;align-items:center;gap:8px}
+.mbox .mb{padding:14px 18px;overflow:auto;flex:1}
+.mbox .mf{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.rvrow{display:flex;gap:10px;align-items:flex-start;padding:10px 8px;border-top:1px solid var(--line);cursor:pointer}
+.rvrow:first-child{border-top:none}
+.rvrow:hover{background:#f5f8fa}
+.rvrow.un{background:#fdf0ee}
+.rvn{flex:none;background:var(--navy);color:#fff;font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;margin-top:2px}
+.rvst{display:inline-block;color:#fff;font-size:12px;font-weight:700;border-radius:12px;padding:2px 10px}
+.rvx{font-size:12.5px;line-height:1.7;color:var(--ink-2);margin-top:5px;background:#fafbfc;border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+.rvconfirm{display:flex;align-items:center;gap:10px;margin-top:14px;padding:14px;border:2px solid var(--navy-3);border-radius:10px;background:#f0f5fa;font-size:15px;font-weight:700;color:var(--navy);cursor:pointer}
+.rvconfirm input{width:22px;height:22px;flex:none}
+.rvconfirm.bad{animation:rvflash .5s 4;border-color:var(--bad);background:#fdecea}
+@keyframes rvflash{50%{box-shadow:0 0 0 5px rgba(192,57,43,.35)}}
+.helpstep{display:flex;gap:12px;margin:0 0 12px}
+.helpstep .hn{flex:none;width:28px;height:28px;border-radius:50%;background:var(--navy);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px}
+.helpstep b{color:var(--navy)}
+.helpans{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin:8px 0 14px}
+.helpans>div{border:1.5px solid var(--line-2);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.6}
 #printArea{display:none}
 @media print{
   body *{visibility:hidden}
@@ -90,7 +113,10 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
 <body>
 <div class="wrap">
   <header>
-    <h1>📮 船隊分享自查</h1>
+    <div style="display:flex;align-items:center;gap:10px">
+      <h1 style="flex:1">📮 船隊檢查缺失分享及自查</h1>
+      <button type="button" class="btn sm" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.45);color:#fff" onclick="openHelp()">📖 操作說明</button>
+    </div>
     <p id="hdr-note">讀取中…</p>
     <div class="progressbar" id="gateProgressWrap" style="display:none"><div id="progressFill" style="width:0%"></div></div>
   </header>
@@ -152,12 +178,164 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
       <div class="hint" id="guideCounter" style="margin-bottom:8px"></div>
       <div style="display:flex;gap:10px;justify-content:center">
         <button class="btn" onclick="guidePrev()">← 上一題</button>
-        <button class="btn" onclick="guideNext()">下一題 →</button>
+        <button class="btn" id="guideNextBtn" onclick="guideNext()">下一題 →</button>
         <button class="btn" onclick="guideJumpUnanswered()">⏭ 跳到未答</button>
       </div>
     </div>
     <div class="card wrapupcard" id="wrapupCard" style="display:none"></div>
     <div id="itemsWrap"></div>
+  </div>
+</div>
+
+<!-- 預覽作答清單：引導作答答完最後一題後跳出 -->
+<div class="mbg" id="reviewModal">
+  <div class="mbox">
+    <div class="mh">📋 預覽作答內容　<span class="hint" style="font-weight:400">確認無誤後送出</span></div>
+    <div class="mb" id="reviewScroll"><div id="reviewBody"></div></div>
+    <div class="mf">
+      <button type="button" class="btn" id="rvBackBtn" onclick="closeReview()">← 返回修改</button>
+      <button type="button" class="btn primary soft-disabled" id="rvSubmitBtn" onclick="reviewSubmit()">✓ 已作答完成，送出</button>
+      <button type="button" class="btn primary" id="rvCloseBtn" style="display:none" onclick="closeReview()">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- 操作說明 -->
+<div class="mbg" id="helpModal" onclick="if(event.target===this)closeHelp()">
+  <div class="mbox">
+    <div class="mh">📖 操作說明　<span class="hint" style="font-weight:400">船隊檢查缺失分享及自查</span></div>
+    <div class="mb" id="helpScroll">
+      <div style="border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0 0 14px"><svg id="helpFlowSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1330" style="width:100%;height:auto;display:block" font-family="Microsoft JhengHei,Noto Sans TC,PingFang TC,sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1c3a5e"/></marker>
+    <marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#c96a14"/></marker>
+  </defs>
+  <rect style="width:100%;height:auto;display:block" fill="#ffffff"/>
+
+  <!-- 標題 -->
+  <rect width="1000" height="96" fill="#1c3a5e"/>
+  <text x="500" y="46" text-anchor="middle" font-size="30" font-weight="700" fill="#ffffff">船隊檢查缺失分享及自查　作業流程</text>
+  <text x="500" y="76" text-anchor="middle" font-size="16" fill="#b9c8d6">船上作業共 5 步驟｜內容自動儲存，中途離開重開同一條連結即可接著填</text>
+
+  <!-- Step 1 -->
+  <rect x="220" y="124" width="560" height="84" rx="12" fill="#e9f1f8" stroke="#1c3a5e" stroke-width="2"/>
+  <circle cx="220" cy="166" r="22" fill="#1c3a5e"/><text x="220" y="174" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">1</text>
+  <text x="510" y="160" text-anchor="middle" font-size="22" font-weight="700" fill="#1c3a5e">收到公司 mail，點開連結</text>
+  <text x="510" y="188" text-anchor="middle" font-size="15" fill="#52656f">連結內是這次要自查的缺失清單（同一條連結全船隊共用）</text>
+  <line x1="500" y1="208" x2="500" y2="244" stroke="#1c3a5e" stroke-width="3" marker-end="url(#ar)"/>
+
+  <!-- Step 2 -->
+  <rect x="220" y="246" width="560" height="96" rx="12" fill="#e9f1f8" stroke="#1c3a5e" stroke-width="2"/>
+  <circle cx="220" cy="294" r="22" fill="#1c3a5e"/><text x="220" y="302" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">2</text>
+  <text x="510" y="284" text-anchor="middle" font-size="22" font-weight="700" fill="#1c3a5e">選「本船船名」＋填寫人資料</text>
+  <text x="510" y="312" text-anchor="middle" font-size="15" fill="#52656f">填寫人姓名、職稱（必填，沒填無法送出）</text>
+  <text x="510" y="332" text-anchor="middle" font-size="15" fill="#52656f">按「開始／繼續填答」</text>
+  <line x1="500" y1="342" x2="500" y2="378" stroke="#1c3a5e" stroke-width="3" marker-end="url(#ar)"/>
+
+  <!-- Step 3 -->
+  <rect x="180" y="380" width="640" height="112" rx="12" fill="#fff4e8" stroke="#c96a14" stroke-width="2.5"/>
+  <circle cx="180" cy="436" r="22" fill="#e8842c"/><text x="180" y="444" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">3</text>
+  <text x="500" y="416" text-anchor="middle" font-size="22" font-weight="700" fill="#c96a14">引導作答：一題一題對照本船現況</text>
+  <text x="500" y="446" text-anchor="middle" font-size="15" fill="#52656f">每題先看「缺失詳情」與「實際情況」，再回答：</text>
+  <text x="500" y="476" text-anchor="middle" font-size="20" font-weight="700" fill="#15262f">本船目前有同樣或類似的情形嗎？</text>
+
+  <!-- 分支線 -->
+  <line x1="500" y1="492" x2="500" y2="516" stroke="#1c3a5e" stroke-width="3"/>
+  <line x1="147" y1="516" x2="853" y2="516" stroke="#1c3a5e" stroke-width="3"/>
+  <line x1="147" y1="516" x2="147" y2="546" stroke="#1c3a5e" stroke-width="3" marker-end="url(#ar)"/>
+  <line x1="382" y1="516" x2="382" y2="546" stroke="#1c3a5e" stroke-width="3" marker-end="url(#ar)"/>
+  <line x1="618" y1="516" x2="618" y2="546" stroke="#1c3a5e" stroke-width="3" marker-end="url(#ar)"/>
+  <line x1="853" y1="516" x2="853" y2="546" stroke="#1c3a5e" stroke-width="3" marker-end="url(#ar)"/>
+
+  <!-- 四個答案 -->
+  <rect x="40" y="548" width="215" height="156" rx="12" fill="#eaf5ee" stroke="#2e8b57" stroke-width="2.5"/>
+  <text x="147" y="584" text-anchor="middle" font-size="24" font-weight="700" fill="#2e8b57">✔ 沒有</text>
+  <text x="147" y="618" text-anchor="middle" font-size="15" fill="#15262f">本船沒有這種情形</text>
+  <text x="147" y="644" text-anchor="middle" font-size="15" fill="#52656f">不用再填什麼</text>
+  <text x="147" y="670" text-anchor="middle" font-size="15" fill="#52656f">自動跳下一題</text>
+
+  <rect x="275" y="548" width="215" height="156" rx="12" fill="#fff6dc" stroke="#c99a1f" stroke-width="2.5"/>
+  <text x="382" y="584" text-anchor="middle" font-size="24" font-weight="700" fill="#a67c00">▲ 有，需處理</text>
+  <text x="382" y="616" text-anchor="middle" font-size="15" fill="#15262f">填「本船的實際狀況」</text>
+  <text x="382" y="640" text-anchor="middle" font-size="15" fill="#15262f">與「打算怎麼處理」</text>
+  <text x="382" y="668" text-anchor="middle" font-size="14" font-weight="700" fill="#c0392b">處理完要回來結案 ↓（見下方）</text>
+  <text x="382" y="690" text-anchor="middle" font-size="13" fill="#52656f">可先送出，之後再補</text>
+
+  <rect x="510" y="548" width="215" height="156" rx="12" fill="#e9edf7" stroke="#2f6690" stroke-width="2.5"/>
+  <text x="618" y="584" text-anchor="middle" font-size="24" font-weight="700" fill="#2f6690">⚑ 當事船</text>
+  <text x="618" y="618" text-anchor="middle" font-size="15" fill="#15262f">這筆缺失就是</text>
+  <text x="618" y="642" text-anchor="middle" font-size="15" fill="#15262f">本船被查到的</text>
+  <text x="618" y="670" text-anchor="middle" font-size="15" fill="#52656f">不用再自查</text>
+
+  <rect x="745" y="548" width="215" height="156" rx="12" fill="#eef0f4" stroke="#52656f" stroke-width="2.5"/>
+  <text x="853" y="584" text-anchor="middle" font-size="24" font-weight="700" fill="#52656f">– 不適用</text>
+  <text x="853" y="618" text-anchor="middle" font-size="15" fill="#15262f">船型或設備不同</text>
+  <text x="853" y="642" text-anchor="middle" font-size="15" fill="#15262f">本船沒有此項目</text>
+  <text x="853" y="670" text-anchor="middle" font-size="15" fill="#52656f">可簡述原因（選填）</text>
+
+  <!-- 合流 -->
+  <line x1="147" y1="704" x2="147" y2="732" stroke="#1c3a5e" stroke-width="3"/>
+  <line x1="382" y1="704" x2="382" y2="732" stroke="#1c3a5e" stroke-width="3"/>
+  <line x1="618" y1="704" x2="618" y2="732" stroke="#1c3a5e" stroke-width="3"/>
+  <line x1="853" y1="704" x2="853" y2="732" stroke="#1c3a5e" stroke-width="3"/>
+  <line x1="147" y1="732" x2="853" y2="732" stroke="#1c3a5e" stroke-width="3"/>
+  <line x1="500" y1="732" x2="500" y2="770" stroke="#1c3a5e" stroke-width="3" marker-end="url(#ar)"/>
+  <text x="520" y="756" font-size="14" fill="#52656f">每一題都答完</text>
+
+  <!-- Step 4 -->
+  <rect x="180" y="772" width="640" height="104" rx="12" fill="#e9f1f8" stroke="#1c3a5e" stroke-width="2"/>
+  <circle cx="180" cy="824" r="22" fill="#1c3a5e"/><text x="180" y="832" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">4</text>
+  <text x="500" y="810" text-anchor="middle" font-size="22" font-weight="700" fill="#1c3a5e">答完最後一題 → 自動跳出「預覽作答清單」</text>
+  <text x="500" y="840" text-anchor="middle" font-size="15" fill="#52656f">逐題核對答案；要修改的點該題就會回到那一題</text>
+  <text x="500" y="862" text-anchor="middle" font-size="15" fill="#52656f">紅色＝還沒作答的題目，請先補答</text>
+  <line x1="500" y1="876" x2="500" y2="912" stroke="#1c3a5e" stroke-width="3" marker-end="url(#ar)"/>
+
+  <!-- Step 5 -->
+  <rect x="180" y="914" width="640" height="104" rx="12" fill="#fff4e8" stroke="#c96a14" stroke-width="2.5"/>
+  <circle cx="180" cy="966" r="22" fill="#e8842c"/><text x="180" y="974" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">5</text>
+  <text x="500" y="952" text-anchor="middle" font-size="22" font-weight="700" fill="#c96a14">勾選「已作答完成」→ 按「送出」</text>
+  <text x="500" y="982" text-anchor="middle" font-size="15" fill="#52656f">沒勾選按送出，系統會提醒；送出後可按「下載 Excel／PDF」留底</text>
+  <line x1="500" y1="1018" x2="500" y2="1052" stroke="#1c3a5e" stroke-width="3" marker-end="url(#ar)"/>
+
+  <!-- 完成 -->
+  <rect x="300" y="1054" width="400" height="68" rx="34" fill="#2e8b57"/>
+  <text x="500" y="1086" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">✓ 已完成送出</text>
+  <text x="500" y="1108" text-anchor="middle" font-size="14" fill="#e3f4ea">公司端已收到本船作答</text>
+
+  <!-- 結案補充 -->
+  <line x1="700" y1="1088" x2="760" y2="1088" stroke="#c96a14" stroke-width="3" stroke-dasharray="7 5"/>
+  <line x1="760" y1="1088" x2="760" y2="1160" stroke="#c96a14" stroke-width="3" stroke-dasharray="7 5" marker-end="url(#ar2)"/>
+  <rect x="40" y="1162" width="920" height="96" rx="12" fill="#fff8f0" stroke="#c96a14" stroke-width="2.5" stroke-dasharray="9 6"/>
+  <text x="70" y="1196" font-size="19" font-weight="700" fill="#c96a14">📌 若有「有，需處理」的項目還沒處理完：</text>
+  <text x="70" y="1226" font-size="16" fill="#15262f">先照上面送出 → 處理完成後，回到<tspan font-weight="700">同一條連結</tspan> → 在該項勾「已完成改善（結案）」並填改善情形、日期</text>
+  <text x="70" y="1248" font-size="16" fill="#15262f">→ 再按一次「送出」即可（會覆蓋更新，不會重複）</text>
+
+  <!-- 頁尾 -->
+  <text x="500" y="1300" text-anchor="middle" font-size="14" fill="#8195a0">有問題請洽海技　｜　頁面右上角「📖 操作說明」有完整文字說明</text>
+</svg></div>
+      <div style="font-weight:700;color:var(--navy);font-size:15px;margin:0 0 10px;padding-bottom:6px;border-bottom:2px solid var(--line-2)">▼ 文字說明</div>
+      <p class="hint" style="margin:0 0 12px;font-size:13px">公司把其他船（或本船）被檢查發現的缺失分享給全船隊，請各船對照本船現況，自查有沒有同樣或類似的情形。<b>內容會自動儲存</b>，中途離開或斷線都不會遺失，重開同一條連結即可接著填。</p>
+      <div class="helpstep"><div class="hn">1</div><div><b>選本船船名、填寫人</b><br>打開 mail 裡的連結，選擇<b>本船船名</b>，輸入<b>填寫人姓名</b>與<b>職稱</b>（姓名與職稱必填，沒填無法送出）。同一台裝置下次會記得本船船名。</div></div>
+      <div class="helpstep"><div class="hn">2</div><div><b>逐題作答（引導作答）</b><br>每一題會顯示缺失內容與實際情況，請回答「<b>本船目前有同樣或類似的情形嗎？</b>」：</div></div>
+      <div class="helpans">
+        <div><b style="color:var(--ok)">✅ 沒有</b><br>本船沒有這種情形，自動跳下一題。</div>
+        <div><b style="color:var(--warn)">⚠️ 有，需處理</b><br>填「本船的實際狀況」與「打算怎麼處理」；處理完成後勾「已完成改善（結案）」。</div>
+        <div><b style="color:var(--navy-3)">🚩 當事船</b><br>這筆缺失就是本船被查到的，不用再自查。</div>
+        <div><b style="color:var(--ink-2)">➖ 不適用</b><br>船型或設備不同、本船沒有此項目；可簡述原因。</div>
+      </div>
+      <div class="helpstep"><div class="hn">3</div><div><b>預覽作答內容</b><br>答完<b>最後一題</b>，畫面會自動跳出<b>預覽清單</b>（也可按最後一題的「完成，預覽作答內容」）。逐題確認，要修改的點該題就會回到那一題。</div></div>
+      <div class="helpstep"><div class="hn">4</div><div><b>勾「已作答完成」並送出</b><br>確認無誤後，勾選「<b>已作答完成</b>」，再按「<b>送出</b>」。沒勾選按送出，系統會提醒你。</div></div>
+      <div class="helpstep"><div class="hn">5</div><div><b>有「需處理」的項目，處理完要回來結案</b><br>「有，需處理」的項目可以先送出；處理完成後，<b>回到同一條連結</b>，勾「已完成改善（結案）」，填改善情形與日期，再送出一次（會覆蓋更新，不會重複）。</div></div>
+      <p class="hint" style="margin:10px 0 4px;font-size:13px"><b>其他功能</b></p>
+      <ul class="hint" style="margin:0;padding-left:20px;font-size:13px;line-height:1.9">
+        <li><b>清單模式</b>：一次看到所有題目，適合快速瀏覽或補答；<b>引導作答</b>是一題一題來。</li>
+        <li><b>跳到未答</b>：自動跳到還沒回答的題目。</li>
+        <li><b>下載 Excel／PDF</b>：把目前作答內容存檔留底。</li>
+        <li><b>我的自查記錄</b>：看本船所有自查活動與進度。</li>
+        <li>畫面最下方會顯示儲存狀態；若顯示「連不上雲端」，內容已存在本機，恢復網路會自動補送。</li>
+      </ul>
+    </div>
+    <div class="mf"><button type="button" class="btn primary" onclick="closeHelp()">我知道了</button></div>
   </div>
 </div>
 
@@ -280,7 +458,7 @@ async function init(){
     document.getElementById("gateBtn").textContent="▶ 查看本船記錄";
     document.getElementById("gateBtn").onclick=enterMyList;
     document.getElementById("gate").style.display="";
-    document.getElementById("hdr-note").textContent="船隊分享自查";
+    document.getElementById("hdr-note").textContent="船隊檢查缺失分享及自查";
     const last=(function(){try{return localStorage.getItem(GLOBAL_SHIP_KEY)||"";}catch(e){return "";}})();
     if(last&&(!SHIP_OPTS.length||SHIP_OPTS.some(s=>s.code===last))){
       document.getElementById("gateShip").value=last;
@@ -305,7 +483,7 @@ async function init(){
     return;
   }
   await loadShipOpts();
-  document.getElementById("hdr-note").textContent=campaign.title||"船隊分享自查";
+  document.getElementById("hdr-note").textContent=campaign.title||"船隊檢查缺失分享及自查";
   document.getElementById("gateTitle").textContent=campaign.title||"";
   document.getElementById("gateDesc").textContent=`共 ${(campaign.items||[]).length} 項查核項目，請先選擇本船船名開始填答。`;
   fillShipSelect();
@@ -520,7 +698,7 @@ function preparePrint(){
     <td>${esc(it.actual||"")}</td>
   </tr>`;
   document.getElementById("printArea").innerHTML=`
-    <h2>船隊分享自查　${esc(d.title)}</h2>
+    <h2>船隊檢查缺失分享及自查　${esc(d.title)}</h2>
     <div class="pmeta">船舶：${esc(d.shipTxt)}　填寫人：${esc(d.checker)}（${esc(d.checkerTitle)}）　查核項目數：${d.total}　其中需處理：${d.needN}　已送出 ${d.submitCount} 次　最後送出：${esc(d.submittedAt)}　匯出時間：${esc(d.exportedAt)}</div>
     <table><thead><tr><th class="pnum">#</th><th>查核項目（缺失內容／實際情況）</th><th class="pst">本船查核結果</th><th>本船實際狀況</th><th>打算怎麼處理</th></tr></thead>
     <tbody>${d.items.map(rowHtml).join("")}</tbody></table>`;
@@ -642,12 +820,14 @@ function applyViewMode(){
     document.getElementById("guideNav").style.display="";
     const n=(draft.items||[]).length;
     document.getElementById("guideCounter").textContent=`第 ${guideIdx+1} / ${n} 題`;
+    const nb=document.getElementById("guideNextBtn");
+    if(nb)nb.textContent=guideIdx>=n-1?"完成，預覽作答內容 →":"下一題 →";
     const card=document.querySelector(`.itemcard[data-idx="${guideIdx}"]`);
     if(card)card.scrollIntoView({behavior:"smooth",block:"start"});
   }
 }
 function guidePrev(){ if(guideIdx>0){guideIdx--;applyViewMode();} }
-function guideNext(){ const n=(draft.items||[]).length; if(guideIdx<n-1){guideIdx++;applyViewMode();} }
+function guideNext(){ const n=(draft.items||[]).length; if(guideIdx<n-1){guideIdx++;applyViewMode();}else openReview(); }
 function guideJumpUnanswered(silent){
   const items=draft.items||[];
   const idx=items.findIndex(it=>!it.status||it.status==="pending");
@@ -677,7 +857,8 @@ function setStatus(i,status){
   scheduleAutoSave();
   renderWrapup();
   if(viewMode==="guide"&&status!=="similar"){
-    setTimeout(()=>{ const n=items.length; if(guideIdx<n-1){guideIdx++;applyViewMode();} },350);
+    // 答完最後一題：自動跳出預覽清單讓船上逐題核對，再選「已作答完成」送出
+    setTimeout(()=>{ const n=items.length; if(guideIdx<n-1){guideIdx++;applyViewMode();}else if(guideIdx===i)openReview(); },350);
   }else if(viewMode==="guide"&&status==="similar"){
     const ta=document.querySelector(`#detail-${i} textarea[data-field="note"]`);
     if(ta)setTimeout(()=>ta.focus(),100);
@@ -730,6 +911,82 @@ async function flushAutoSave(){
 }
 window.addEventListener("beforeunload",()=>{ if(autoSaveTimer)flushAutoSave(); });
 
+/* ════════ 預覽作答清單：引導作答答完最後一題（或按「完成，預覽作答內容」）時跳出，
+   逐題核對後勾「已作答完成」再送出。點任一題可回到那題修改。 ════════ */
+const ST_COLOR={ok:"#2e8b57",similar:"#c99a1f",self:"#234a72",na:"#52656f",pending:"#c0392b"};
+function openReview(){
+  if(!draft)return;
+  const items=draft.items||[];
+  const unans=items.filter(it=>!it.status||it.status==="pending").length;
+  const openN=items.filter(it=>it.status==="similar"&&!it.closed).length;
+  const rows=items.map((it,i)=>{
+    const st=it.status||"pending";
+    const extra=st==="similar"
+      ?`<div class="rvx">實際狀況：${esc(it.note||"（未填）")}<br>處理措施：${esc(it.actual||"（未填）")}<br>${it.closed?`<b style="color:var(--ok)">✓ 已完成改善（結案）</b>${it.closedAt?"　"+esc(it.closedAt):""}${it.closeNote?"<br>改善情形："+esc(it.closeNote):""}`:`<b style="color:var(--bad)">尚未結案</b>`}</div>`
+      :(st==="na"&&it.naNote?`<div class="rvx">不適用原因：${esc(it.naNote)}</div>`:"");
+    return `<div class="rvrow ${st==="pending"?"un":""}" onclick="reviewGoto(${i})">
+      <div class="rvn">#${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px"><b>${esc(it.code?"CODE "+it.code:"")}</b> ${esc((it.detail||"").slice(0,110))}${(it.detail||"").length>110?"…":""}</div>
+        <div style="margin-top:4px"><span class="rvst" style="background:${ST_COLOR[st]}">${esc(ST_LABEL_DL[st])}</span></div>
+        ${extra}
+      </div>
+      <div class="hint" style="flex:none">修改 ›</div>
+    </div>`;
+  }).join("");
+  document.getElementById("reviewBody").innerHTML=`
+    <p class="hint" style="margin:0 0 8px">請逐題確認答案是否正確，要修改請點該題。全部確認後，勾選下方「已作答完成」再按送出。</p>
+    ${unans?`<p class="hint warn" style="margin:0 0 8px">⚠ 還有 <b>${unans}</b> 題尚未作答（紅色），請先點該題補答，或確認真的要先送出。</p>`:""}
+    ${openN?`<p class="hint" style="margin:0 0 8px;color:var(--signal-d)">📌 有 <b>${openN}</b> 項「有，需處理」尚未結案：可以先送出，等處理完成後回到同一條連結勾選「已完成改善（結案）」，再送出一次。</p>`:""}
+    <div>${rows}</div>
+    <label class="rvconfirm" id="rvConfirmRow"><input type="checkbox" id="rvConfirm" onchange="document.getElementById('rvSubmitBtn').classList.toggle('soft-disabled',!this.checked)">我已確認以上作答內容，<b>已作答完成</b></label>`;
+  const b=document.getElementById("rvSubmitBtn");b.classList.add("soft-disabled");b.style.display="";
+  document.getElementById("rvBackBtn").style.display="";
+  document.getElementById("rvCloseBtn").style.display="none";
+  document.getElementById("reviewModal").classList.add("show");
+  document.getElementById("reviewScroll").scrollTop=0;
+}
+function closeReview(){document.getElementById("reviewModal").classList.remove("show");}
+function reviewGoto(i){
+  closeReview();
+  guideIdx=i;
+  if(viewMode!=="guide")setViewMode("guide");else applyViewMode();
+}
+async function reviewSubmit(){
+  const chk=document.getElementById("rvConfirm");
+  if(!chk.checked){
+    const row=document.getElementById("rvConfirmRow");
+    row.classList.add("bad");setTimeout(()=>row.classList.remove("bad"),2500);
+    row.scrollIntoView({behavior:"smooth",block:"center"});
+    notify("⚠ 請先勾選「已作答完成」才能送出","err");
+    return;
+  }
+  const nameNow=(document.getElementById("bodyChecker").value||"").trim();
+  const titleNow=(document.getElementById("bodyCheckerTitle").value||"").trim();
+  if(!nameNow||!titleNow){
+    closeReview();window.scrollTo({top:0,behavior:"smooth"});
+    notify("⚠ 請先填寫「填寫人姓名」與「填寫人職稱」，再按送出","err");
+    (nameNow?document.getElementById("bodyCheckerTitle"):document.getElementById("bodyChecker")).focus();
+    return;
+  }
+  document.getElementById("rvSubmitBtn").style.display="none";
+  document.getElementById("rvBackBtn").style.display="none";
+  document.getElementById("reviewBody").innerHTML=`<div style="text-align:center;padding:30px 10px"><div style="font-size:36px">⏳</div><h3 style="margin:8px 0;color:var(--navy)">送出中…</h3><p class="hint">請稍候，正在送出給公司</p></div>`;
+  const ok=await submitAll();
+  if(ok){
+    const openN=(draft.items||[]).filter(it=>it.status==="similar"&&!it.closed).length;
+    document.getElementById("reviewBody").innerHTML=`<div style="text-align:center;padding:24px 10px"><div style="font-size:40px;color:var(--ok)">✓</div><h3 style="margin:8px 0;color:var(--ok)">已完成送出</h3>
+      <p class="hint" style="text-align:left;background:#f7f9f9;border-radius:8px;padding:10px 12px;line-height:1.8">公司端已經收到本船這次的作答。${openN?`<br>📌 還有 <b>${openN}</b> 項「有，需處理」尚未結案，處理完成後請回到同一條連結勾選「已完成改善（結案）」，再按一次送出。`:"<br>目前沒有未結案的項目，不需要再做任何事。"}<br>如需留存，可按頁面上的「下載 Excel／PDF」。</p></div>`;
+    document.getElementById("rvCloseBtn").style.display="";
+  }else{
+    document.getElementById("rvCloseBtn").style.display="";
+    document.getElementById("reviewBody").innerHTML=`<div style="text-align:center;padding:24px 10px"><div style="font-size:36px">⚠</div><h3 style="margin:8px 0;color:var(--bad)">送出沒有成功</h3><p class="hint">您的作答內容已安全存在本機，沒有遺失。請確認網路後，重新按「送出」，或稍後重新打開同一條連結會自動補送。</p></div>`;
+  }
+}
+/* ════════ 操作說明 ════════ */
+function openHelp(){document.getElementById("helpModal").classList.add("show");document.getElementById("helpScroll").scrollTop=0;}
+function closeHelp(){document.getElementById("helpModal").classList.remove("show");}
+
 async function submitAll(){
   // 姓名／職稱為必填才可送出（不是提醒，是硬性擋下）：讀 body 畫面上目前的值，
   // 而不是只信任本機記住的舊值——萬一這次換了填寫人，畫面上輸入框才是當下真正的來源。
@@ -739,7 +996,7 @@ async function submitAll(){
     notify("⚠ 請先填寫「填寫人姓名」與「填寫人職稱」才能送出","err");
     if(!nameNow&&document.getElementById("bodyChecker"))document.getElementById("bodyChecker").focus();
     else if(document.getElementById("bodyCheckerTitle"))document.getElementById("bodyCheckerTitle").focus();
-    return;
+    return false;
   }
   onCheckerNameInput(nameNow);
   onCheckerTitleInput(titleNow);
@@ -758,11 +1015,14 @@ async function submitAll(){
     draft.submitted_at=now; draft.submit_count=(draft.submit_count||0)+1;
     document.getElementById("taskMeta").textContent=`船舶：${shipLabel(draft.ship)}　已送出 ${draft.submit_count} 次　最後送出：${new Date(now).toLocaleString("zh-TW",{hour12:false})}`;
     notify("✓ 已送出，公司端可以查看到這次結果了","ok2");
+    btn.disabled=false;
+    return true;
   }catch(e){
     notify("送出失敗，內容已安全存在本機，恢復連線後重新打開此頁會自動重送："+e.message,"err");
     retryTimer=setTimeout(()=>{ if(dirty)submitAll(); },15000);
   }
   btn.disabled=false;
+  return false;
 }
 
 init();
