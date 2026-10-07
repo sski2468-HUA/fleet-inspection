@@ -2604,7 +2604,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     <!-- ════════ 2.5 SIRE正向評論 ════════ -->
     <section id="tab-sirepos" class="tabpage">
-      <div class="banner">收錄 SIRE／第三方檢查／內稽／訪船等各類檢查中，檢查員或督導給予的<b>正向評論（Positive Comment）</b>，依<b>時間區間（年.月）／年.月／船舶／職稱／人名</b>篩選，圖表統計各職稱及各人員獲正向評論次數排名；下方為明細清單，可新增／批量匯入／編輯／刪除。</div>
+      <div class="banner">收錄 SIRE／第三方檢查／內稽／訪船等各類檢查中，檢查員或督導給予的<b>正向評論（Positive Comment）</b>，依<b>時間區間（年.月）／年.月／船舶／檢查來源／職稱／人名</b>篩選，圖表統計各職稱及各人員獲正向評論次數排名；下方為明細清單，可新增／批量匯入／編輯／刪除。</div>
       <div class="toolbar">
         <span class="lbl">時間區間</span>
         <select id="sire-ymfrom" onchange="SirePos.page=1;SirePos.render()"></select>
@@ -2613,6 +2613,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <span class="lbl" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px;margin-left:8px">篩選</span>
         <div class="msel" id="ms-sire-ym"></div>
         <div class="msel" id="ms-sire-ship"></div>
+        <div class="msel" id="ms-sire-itype"></div>
         <div class="msel" id="ms-sire-rank"></div>
         <div class="msel" id="ms-sire-person"></div>
         <button class="btn sm" onclick="SirePos.clearFilters()">清除篩選</button>
@@ -2654,6 +2655,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <th style="width:34px"><input type="checkbox" id="sire-selall" onchange="SirePos.toggleSelAll(this.checked)" title="全選本頁"></th>
             <th style="cursor:pointer" onclick="SirePos.sortBy('ship')">船名<span id="sh-ship" class="sort-ind"></span></th>
             <th style="cursor:pointer" onclick="SirePos.sortBy('date')">日期<span id="sh-date" class="sort-ind"></span></th>
+            <th style="cursor:pointer" onclick="SirePos.sortBy('itype')">檢查來源<span id="sh-itype" class="sort-ind"></span></th>
             <th style="cursor:pointer" onclick="SirePos.sortBy('code')">CODE<span id="sh-code" class="sort-ind"></span></th>
             <th style="cursor:pointer" onclick="SirePos.sortBy('item')">評論項目<span id="sh-item" class="sort-ind"></span></th>
             <th style="width:32%;cursor:pointer" onclick="SirePos.sortBy('comment')">正向評論內容<span id="sh-comment" class="sort-ind"></span></th>
@@ -2739,6 +2741,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="fgrid">
             <label>船名<select id="se-ship"></select></label>
             <label>日期<input type="text" id="se-date" placeholder="2026/1/15"></label>
+            <label>檢查來源<select id="se-itype"></select></label>
             <label>CODE（章節）<input type="text" id="se-code" list="dl-sire-chapters" placeholder="輸入數字或關鍵字搜尋章節，例：5.5"></label>
             <label class="fw">評論項目（檢查問項）<textarea id="se-item"></textarea></label>
             <label class="fw">檢查員正向評論內容<textarea id="se-comment"></textarea></label>
@@ -16406,7 +16409,7 @@ const ImportUI={
     if(this.target==="insp"){
       ["ship","vtype","itype","date","loc","inspector","unit","ndef","flagType","detain"].forEach(k=>n[k]=String(o[k]??o[{loc:"place",unit:"oilco"}[k]]??"").trim());
     }else if(this.target==="sirepos"){
-      ["ship","date","code","item","comment","rank","person"].forEach(k=>n[k]=String(o[k]??"").trim());
+      ["ship","date","itype","code","item","comment","rank","person"].forEach(k=>n[k]=String(o[k]??"").trim());
       n.ym=ymOf(n.date);
     }else{
       ["ship","vtype","itype","ym","date","place","inspector","oilco","psc","code","detail","actual","opComment","opCommentReply","immediateCause","immediateCauseReply","corrective","correctiveReply","rootCause","rootCauseReply","preventive","preventiveReply","ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","rank","person","risk"].forEach(k=>n[k]=String(o[k]??"").trim());
@@ -16554,9 +16557,18 @@ const SirePos={
     this.populateYm();
     this.ms.ym=MSel("ms-sire-ym","年月",()=>[...new Set(App.sirePos.map(d=>d.ym||ymOf(d.date)))].filter(Boolean).sort().reverse(),rerun);
     this.ms.ship=MSel("ms-sire-ship","船舶",()=>[...new Set(App.sirePos.map(d=>d.ship))].filter(Boolean).sort(),rerun,shipFullLabel);
+    this.ms.itype=MSel("ms-sire-itype","檢查來源",()=>[...new Set(App.sirePos.flatMap(d=>this.itypeOf(d).split("、")))].filter(Boolean).sort(),rerun);
     this.ms.rank=MSel("ms-sire-rank","職稱",()=>[...new Set(App.sirePos.map(d=>d.rank))].filter(Boolean).sort(),rerun);
     this.ms.person=MSel("ms-sire-person","人名",()=>[...new Set(App.sirePos.map(d=>d.person))].filter(Boolean).sort(),rerun);
     this.render();
+  },
+  /* 檢查來源：新資料直接存在 itype；舊資料（以前都是 SIRE 時期匯入的，沒有這個欄位）依
+     「同船＋同日期」去對檢查紀錄／填單的檢查來源補上，仍找不到的顯示空白（可在編輯視窗補選）。
+     一次登錄單帶多種檢查來源時，以「、」串在一起。 */
+  itypeOf(d){
+    if(d.itype)return d.itype;
+    const hit=App.insp.find(x=>x.ship===d.ship&&(x.date||"")===(d.date||""))||App.air.find(x=>x.ship===d.ship&&(x.date||"")===(d.date||""));
+    return hit&&hit.itype?hit.itype:"";
   },
   sortBy(key){
     if(this.sortKey===key){this.sortDir=this.sortDir==="asc"?"desc":"asc";}
@@ -16564,7 +16576,7 @@ const SirePos={
     this.page=1;this.render();
   },
   updateSortIndicators(){
-    ["ship","date","code","item","comment","rank","person"].forEach(k=>{
+    ["ship","date","itype","code","item","comment","rank","person"].forEach(k=>{
       const el=$("#sh-"+k);if(!el)return;
       el.textContent=this.sortKey===k?(this.sortDir==="asc"?"▲":"▼"):"";
     });
@@ -16593,6 +16605,7 @@ const SirePos={
       if(t&&ym>t)return false;
       if(!this.ms.ym.pass(ym))return false;
       if(!this.ms.ship.pass(d.ship))return false;
+      if(this.ms.itype&&this.ms.itype.sel.size&&!this.itypeOf(d).split("、").some(x=>this.ms.itype.sel.has(x)))return false;
       if(!this.ms.rank.pass(d.rank))return false;
       if(!this.ms.person.pass(d.person))return false;
       return true;
@@ -16609,7 +16622,7 @@ const SirePos={
           if(!ad&&bd)return 1*dir;
           return 0;
         }
-        const av=(a[k]||"").toString(),bv=(b[k]||"").toString();
+        const av=(k==="itype"?this.itypeOf(a):(a[k]||"")).toString(),bv=(k==="itype"?this.itypeOf(b):(b[k]||"")).toString();
         return av.localeCompare(bv,"zh-Hant")*dir;
       });
     }else{
@@ -16705,7 +16718,7 @@ const SirePos={
     const page=groups.slice(start,start+this.PER);
     const tb=$("#sire-tbody");
     if(!tb)return;
-    if(!page.length){tb.innerHTML=`<tr><td colspan="9" style="text-align:center;color:#8195a0">尚無資料</td></tr>`;}
+    if(!page.length){tb.innerHTML=`<tr><td colspan="10" style="text-align:center;color:#8195a0">尚無資料</td></tr>`;}
     else tb.innerHTML=page.map(g=>{
       const people=g.people.filter(p=>(p.rank||"").trim()||(p.person||"").trim());
       const list=people.length?people:[{rank:"",person:""}];
@@ -16716,6 +16729,7 @@ const SirePos={
       <td><input type="checkbox" ${this.sel.has(gid)?"checked":""} onchange="SirePos.toggleSel(${gid},this.checked)"></td>
       <td><b>${esc(shipFullLabel(g.ship))}</b></td>
       <td style="font-family:var(--mono);white-space:nowrap">${esc(g.date)}</td>
+      <td style="font-size:11.5px;white-space:nowrap">${esc(this.itypeOf(g))||"<span class='hint'>—</span>"}</td>
       <td style="font-size:11.5px;max-width:130px;word-break:break-word">${esc(g.code)}</td>
       <td class="cell-wide" style="font-size:11.5px">${esc(g.item)}</td>
       <td class="cell-wide" style="white-space:pre-line">${esc(g.comment)}</td>
@@ -16804,6 +16818,10 @@ const SirePos={
     const set=(i,v)=>$(i).value=v||"";
     $("#se-ship").innerHTML=shipOptionsHtml(d.ship||"");
     set("#se-date",d.date);set("#se-code",d.code);
+    { const cur=id==null?"":this.itypeOf(d);
+      const opts=withItypeExtras(App.insp.map(x=>x.itype).concat(App.sirePos.map(x=>x.itype).filter(Boolean)));
+      if(cur&&!opts.includes(cur))opts.push(cur);
+      $("#se-itype").innerHTML=`<option value="">（請選擇檢查來源）</option>`+opts.map(s=>`<option ${s===cur?"selected":""}>${esc(s)}</option>`).join(""); }
     bindDatePicker("se-date");
     set("#se-item",d.item);set("#se-comment",d.comment);
     // 找出同一筆評論（船名/日期/CODE/評論項目/評論內容皆相同）下的所有受評人員
@@ -16834,7 +16852,7 @@ const SirePos={
     // ⚠ 這裡本來就漏了組出 shared 這個物件的那一行，導致下面一用 shared.ship 就直接
     // 噴 ReferenceError（shared 根本沒被宣告過），存檔函式從頭到尾就沒真的執行過，
     // 難怪不管改哪個欄位（包含職稱），按「儲存」都完全沒反應——連錯誤訊息使用者都看不到。
-    const shared={ship:g("#se-ship"),date:g("#se-date"),code:g("#se-code"),item:g("#se-item"),comment:g("#se-comment")};
+    const shared={ship:g("#se-ship"),date:g("#se-date"),itype:g("#se-itype"),code:g("#se-code"),item:g("#se-item"),comment:g("#se-comment")};
     if(!shared.ship){toast("⚠ 請填寫船名");return;}
     if(!shared.date){toast("⚠ 請填寫日期");return;}
     let people=(this._people||[]).filter(p=>(p.rank||"").trim()||(p.person||"").trim());
@@ -16873,14 +16891,14 @@ const SirePos={
   },
   exportSet(){return this.filtered();},
   rowsToAoa(rows){
-    const cols=[["ship","船名"],["date","日期"],["code","CODE"],["item","評論項目"],["comment","檢查員正向評論內容"],["rank","職稱"],["person","名字"]];
-    return [cols.map(c=>c[1]),...rows.map(d=>cols.map(c=>d[c[0]]??""))];
+    const cols=[["ship","船名"],["date","日期"],["itype","檢查來源"],["code","CODE"],["item","評論項目"],["comment","檢查員正向評論內容"],["rank","職稱"],["person","名字"]];
+    return [cols.map(c=>c[1]),...rows.map(d=>cols.map(c=>c[0]==="itype"?this.itypeOf(d):(d[c[0]]??"")))];
   },
   exportXlsx(){
     if(!hasXLSX())return;
     const rows=this.exportSet();
     const ws=XLSX.utils.aoa_to_sheet(this.rowsToAoa(rows));
-    ws["!cols"]=[{wch:10},{wch:12},{wch:30},{wch:45},{wch:55},{wch:10},{wch:14}];
+    ws["!cols"]=[{wch:10},{wch:12},{wch:16},{wch:30},{wch:45},{wch:55},{wch:10},{wch:14}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"SIRE正向評論");
     XLSX.writeFile(wb,`SIRE正向評論_篩選_${todayStr()}.xlsx`);toast(`已匯出 ${rows.length} 筆`);
   },
@@ -16892,7 +16910,7 @@ const SirePos={
   exportXlsxAll(){
     if(!hasXLSX())return;
     const ws=XLSX.utils.aoa_to_sheet(this.rowsToAoa(App.sirePos));
-    ws["!cols"]=[{wch:10},{wch:12},{wch:30},{wch:45},{wch:55},{wch:10},{wch:14}];
+    ws["!cols"]=[{wch:10},{wch:12},{wch:16},{wch:30},{wch:45},{wch:55},{wch:10},{wch:14}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"SIRE正向評論");
     XLSX.writeFile(wb,`SIRE正向評論_全庫_${todayStr()}.xlsx`);toast(`已匯出 ${App.sirePos.length} 筆`);
   },
@@ -16901,11 +16919,11 @@ const SirePos={
     if(!hasExcelJS())return;
     const wb=new ExcelJS.Workbook();
     const ws=wb.addWorksheet("SIRE正向評論");
-    const header=["船名","日期","CODE","評論項目","檢查員正向評論內容","職稱","名字"];
+    const header=["船名","日期","CODE","評論項目","檢查員正向評論內容","職稱","名字","檢查來源"];
     ws.addRow(header);
-    ws.addRow(["F31","2026/1/15","5.5. Permits to work","Were the Master, officers and ratings familiar with the company enclosed space entry procedures…","人員評等：超出一般期望。受觀察人員詳細描述了進入密閉空間的程序，包括緊急程序。","C/O","王小明"]);
-    ws.addRow(["B105","2026/2/3","10.3. Safety Management","Were engineer officers and ratings familiar with the safety precautions for the use of electric welding equipment…","受觀察人員能清楚解釋更高標準的熱工作要求與條件。","3/E","李大華"]);
-    [10,12,30,45,55,10,14].forEach((w,i)=>{ws.getColumn(i+1).width=w;});
+    ws.addRow(["F31","2026/1/15","5.5. Permits to work","Were the Master, officers and ratings familiar with the company enclosed space entry procedures…","人員評等：超出一般期望。受觀察人員詳細描述了進入密閉空間的程序，包括緊急程序。","C/O","王小明","SIRE"]);
+    ws.addRow(["B105","2026/2/3","10.3. Safety Management","Were engineer officers and ratings familiar with the safety precautions for the use of electric welding equipment…","受觀察人員能清楚解釋更高標準的熱工作要求與條件。","3/E","李大華","onboard visit"]);
+    [10,12,30,45,55,10,14,16].forEach((w,i)=>{ws.getColumn(i+1).width=w;});
     ws.getColumn(2).numFmt="@"; // 日期強制文字格式
     const wsList=wb.addWorksheet("下拉選單資料");wsList.state="veryHidden";
     wsList.getColumn(1).values=[...SHIPINFO].sort((a,b)=>a.code.localeCompare(b.code)).map(s=>s.code);
@@ -16921,8 +16939,11 @@ const SirePos={
     for(let r=2;r<=200;r++){
       ws.getCell(`F${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_rank"]};
     }
+    { const itl=withItypeExtras(App.insp.map(x=>x.itype)); wsList.getColumn(3).values=itl;
+      wb.definedNames.add(`'下拉選單資料'!$C$1:$C$${itl.length}`,"lst_itype");
+      for(let r=2;r<=200;r++){ws.getCell(`H${r}`).dataValidation={type:"list",allowBlank:true,formulae:["=lst_itype"]};} }
     const wsInstr=wb.addWorksheet("填寫說明");
-    [["SIRE正向評論 匯入範本 — 填寫說明"],[""],
+    [["SIRE正向評論 匯入範本 — 填寫說明"],[""],["0. 檢查來源（H欄）請用下拉選單選擇這則正向評論是在哪一種檢查發生的（SIRE／onboard visit／Internal audit…），之後可依檢查來源篩選。"],
      ["1. 船名、日期為必填，船名請用下拉選單選擇。日期請維持「YYYY/M/D」文字格式，不要用 Excel 的日期選取器。"],
      ["2. CODE為SIRE檢查問項編號；評論項目為檢查問項原文；檢查員正向評論內容為實際評語；職稱請用下拉選單選擇，名字為受評人員姓名。"]
     ].forEach(r=>wsInstr.addRow(r));
@@ -17585,6 +17606,14 @@ const InspCtrl={
       return av.localeCompare(bv,"zh-Hant")*dir;
     });
     return rows;
+  },
+  /* 檢查來源：新資料直接存在 itype；舊資料（以前都是 SIRE 時期匯入的，沒有這個欄位）依
+     「同船＋同日期」去對檢查紀錄／填單的檢查來源補上，仍找不到的顯示空白（可在編輯視窗補選）。
+     一次登錄單帶多種檢查來源時，以「、」串在一起。 */
+  itypeOf(d){
+    if(d.itype)return d.itype;
+    const hit=App.insp.find(x=>x.ship===d.ship&&(x.date||"")===(d.date||""))||App.air.find(x=>x.ship===d.ship&&(x.date||"")===(d.date||""));
+    return hit&&hit.itype?hit.itype:"";
   },
   sortBy(key){
     if(this.sortKey===key){this.sortDir=this.sortDir==="asc"?"desc":"asc";}
@@ -22090,6 +22119,14 @@ const Air={
       return av.localeCompare(bv,"zh-Hant")*dir;
     });
   },
+  /* 檢查來源：新資料直接存在 itype；舊資料（以前都是 SIRE 時期匯入的，沒有這個欄位）依
+     「同船＋同日期」去對檢查紀錄／填單的檢查來源補上，仍找不到的顯示空白（可在編輯視窗補選）。
+     一次登錄單帶多種檢查來源時，以「、」串在一起。 */
+  itypeOf(d){
+    if(d.itype)return d.itype;
+    const hit=App.insp.find(x=>x.ship===d.ship&&(x.date||"")===(d.date||""))||App.air.find(x=>x.ship===d.ship&&(x.date||"")===(d.date||""));
+    return hit&&hit.itype?hit.itype:"";
+  },
   sortBy(key){
     if(this.sortKey===key){this.sortDir=this.sortDir==="asc"?"desc":"asc";}
     else{this.sortKey=key;this.sortDir="asc";}
@@ -23512,7 +23549,7 @@ const Air={
       const prevIds=Array.isArray(r.pushedPosIds)?r.pushedPosIds:[];
       const newIds=[];
       list.forEach((p,i)=>{
-        const payload={ship:d.ship,date:d.date,ym:ymOf(d.date),code:r.code||"",item:r.item||"",comment:r.comment||"",rank:p.rank||"",person:p.person||"",_impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
+        const payload={ship:d.ship,date:d.date,itype:d.itype||"",ym:ymOf(d.date),code:r.code||"",item:r.item||"",comment:r.comment||"",rank:p.rank||"",person:p.person||"",_impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
         const existing=(mode==="overwrite"&&prevIds[i]!=null)?App.sirePos.find(x=>x.id===prevIds[i]):null;
         if(existing){
           Object.assign(existing,payload);
@@ -23853,7 +23890,7 @@ const Air={
           const prevIds=Array.isArray(pc.pushedPosIds)?pc.pushedPosIds:[];
           const newIds=[];
           list.forEach((p,i)=>{
-            const payload={ship:d.ship,date:normDateSlash(d.date),ym:ymOf(normDateSlash(d.date)),code:pc.code||"",item:pc.item||"",comment:pc.comment||"",rank:p.rank||"",person:p.person||"",_impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
+            const payload={ship:d.ship,date:normDateSlash(d.date),itype:d.itype||"",ym:ymOf(normDateSlash(d.date)),code:pc.code||"",item:pc.item||"",comment:pc.comment||"",rank:p.rank||"",person:p.person||"",_impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
             const existing=(mode==="overwrite"&&prevIds[i]!=null)?App.sirePos.find(x=>x.id===prevIds[i]):null;
             if(existing){
               Object.assign(existing,payload);
@@ -25732,7 +25769,7 @@ const IntAuditQueue={
     let pAdd=0,pUpd=0;
     (r.best||[]).forEach(b=>{
       if(!b.category&&!b.brief&&!b.people)return;
-      const payload=Object.assign({ship:r.ship,date,ym,code:"",item:b.category||"",comment:b.brief||"",rank:b.rank||"",person:b.people||""},meta);
+      const payload=Object.assign({ship:r.ship,date,ym,itype:(r.types||[]).join("、"),code:"",item:b.category||"",comment:b.brief||"",rank:b.rank||"",person:b.people||""},meta);
       const ex=b.importedPosId!=null?App.sirePos.find(x=>String(x.id)===String(b.importedPosId)):null;
       if(ex){Object.assign(ex,payload);pUpd++;}
       else{const pid=(typeof SirePos!=="undefined")?SirePos.nextId():(App.sirePos.reduce((m,x)=>Math.max(m,+x.id||0),0)+1);
