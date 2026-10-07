@@ -30,7 +30,14 @@ header p{margin:5px 0 0;font-size:14px;color:#b9c8d6;line-height:1.6}
 .btn.primary{background:var(--signal);border-color:var(--signal);color:#fff}
 /* 上方頂層導覽（檢查紀錄登錄清單／改善單審核清單）用深藍標示目前所在頁籤，橘色留給
    「＋新增檢查記錄」這種真正的建立/動作類按鈕，兩種按鈕意義不同、顏色也該分開。 */
-.toolbar #btnList.primary,.toolbar #btnReview.primary{background:var(--navy);border-color:var(--navy)}
+.toolbar #btnList.primary,.toolbar #btnReview.primary,.toolbar #btnSugg.primary{background:var(--navy);border-color:var(--navy)}
+#btnSuggCount{display:inline-block;margin-left:6px;background:var(--bad);color:#fff;border-radius:10px;padding:1px 8px;font-size:12px;font-weight:800}
+.sgcase{margin:0 0 12px;padding:14px 16px;border-left:5px solid var(--signal)}
+.sgcase.closed{border-left-color:var(--ok)}.sgcase.new{border-left-color:var(--bad)}
+.sgtbl{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+.sgtbl th{background:#eef3f6;color:var(--navy);text-align:left;padding:6px 8px;font-size:12.5px}
+.sgtbl td{padding:7px 8px;border-top:1px solid var(--line);vertical-align:top}
+.sgm label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--ink-2);margin-top:10px}
 #btnReviewCount{display:inline-block;margin-left:6px;background:var(--bad);color:#fff;border-radius:10px;padding:1px 8px;font-size:12px;font-weight:800}
 .btn.dark{background:var(--navy);border-color:var(--navy);color:#fff}
 .btn.sm{padding:5px 11px;font-size:13.5px}
@@ -160,6 +167,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
   <div class="toolbar">
     <button class="btn primary" id="btnList" onclick="leaveFormGuard('list')">📋 檢查紀錄登錄清單</button>
     <button class="btn" id="btnReview" onclick="leaveFormGuard(showReview)">🔎 改善單審核清單<span class="n" id="btnReviewCount" style="display:none"></span></button>
+    <button class="btn" id="btnSugg" onclick="leaveFormGuard(showSugg)">📌 船舶訴求/建議清單<span class="n" id="btnSuggCount" style="display:none"></span></button>
     <button class="btn lg" id="btnNew" onclick="newForm()">＋ 新增檢查記錄</button>
     <span style="flex:1"></span>
     <a class="btn sm" href="./" title="回到主系統">← 返回系統</a>
@@ -178,7 +186,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
         <button class="btn sm" onclick="clearFilters()">清除篩選</button>
         <button class="btn sm" onclick="expandAll(true)">▾ 全部展開</button><button class="btn sm" onclick="expandAll(false)">▸ 全部收合</button>
         <button class="btn sm" onclick="reloadList()">🔄 重新整理</button>
-        <button class="btn sm dark" onclick="exportAllXlsx()" title="把目前篩選出來的所有登錄紀錄與缺失明細，完整匯出成一份 Excel（兩個分頁）">⬇ 匯出全部 Excel</button>
+        <button class="btn sm dark" onclick="exportAllXlsx()" title="把目前篩選出來的登錄紀錄完整匯出成一份 Excel（6 個分頁：基本資料／總體評價／優良案例／缺失明細／船舶訴求建議／發改善單）">⬇ 匯出全部 Excel</button>
         <span class="hint" id="listStat"></span>
       </div>
     </div>
@@ -293,8 +301,40 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
     </div>
     <div id="reviewBody" style="margin:0 14px"></div>
   </div>
+
+  <!-- ══════ 船舶訴求／建議清單：登錄單送出後，船上提出的訴求／建議依「負責部門」立案，由各部門填承辦人、初步回應／計畫、處理結果並結案。
+       一項訴求一案；每個部門各自一筆處理紀錄，不同部門互不影響，同一部門同一時間只允許一人編輯（鎖定＋版本檢查）。══════ -->
+  <div id="suggPage" style="display:none">
+    <div class="banner">登錄單<b>送出後</b>，船舶訴求／建議會依<b>負責部門</b>在這裡立案；各負責部門填寫<b>承辦人、初步回應／計畫</b>，處理完成再填<b>處理結果</b>並結案。涉及多個部門時，<b>每個部門各自處理、各自結案</b>，全部部門都結案，這項訴求才算結案。同一筆同一時間只有一個人能編輯（會顯示「🔒 誰在編輯中」）。</div>
+    <div class="toolbar">
+      <select id="sgShip" onchange="renderSuggPage()" style="width:auto"><option value="">全部船舶</option></select>
+      <select id="sgDept" onchange="renderSuggPage()" style="width:auto"><option value="">全部負責部門</option></select>
+      <input type="text" id="sgQ" placeholder="搜尋船名／訴求內容／承辦人" oninput="renderSuggPage()" style="flex:1;min-width:160px">
+      <button class="btn sm" onclick="Store.loadReplies().then(()=>{renderSuggPage();toast('✓ 已重新整理');})">🔄 重新整理</button>
+    </div>
+    <div id="sgStatusChips" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 14px 10px"></div>
+    <div style="margin:0 14px"><span class="hint" id="sgStat"></span></div>
+    <div id="suggBody" style="margin:10px 14px 0"></div>
+  </div>
 </div>
 
+<!-- 船舶訴求／建議：部門處理視窗（開啟時鎖定，儲存或取消才解鎖） -->
+<div class="modal" id="suggModal" style="align-items:center"><div class="box sgm" style="width:min(720px,96vw)">
+  <h3 style="margin:0 0 6px;color:var(--navy)" id="sgmTitle">船舶訴求／建議處理</h3>
+  <div class="banner warn" style="margin:0 0 8px">🔒 您正在編輯這一筆，其他人暫時無法編輯同一部門的這筆；離開前請按「儲存」或「取消」解除鎖定（超過 15 分鐘沒動作會自動解鎖）。</div>
+  <div id="sgmCase" style="background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.7"></div>
+  <div id="sgmOthers" class="hint" style="margin-top:6px"></div>
+  <label>承辦人 <span class="req">*</span><input type="text" id="sgmOwner" placeholder="負責承辦這項訴求的人員姓名"></label>
+  <label>初步回應／計畫 <span class="req">*</span><textarea id="sgmPlan" rows="3" placeholder="公司對這項訴求的初步回應，以及預計怎麼處理"></textarea></label>
+  <label>處理結果<textarea id="sgmResult" rows="3" placeholder="處理完成後填寫實際處理結果（結案時必填）"></textarea></label>
+  <label style="flex-direction:row;align-items:center;gap:8px;margin-top:12px;background:#fdf2e0;border:1px solid #f0dba9;border-radius:8px;padding:10px 12px;cursor:pointer"><input type="checkbox" id="sgmClosed" onchange="document.getElementById('sgmClosedAtWrap').style.display=this.checked?'':'none';if(this.checked&&!document.getElementById('sgmClosedAt').value)document.getElementById('sgmClosedAt').value=todayIso();" style="width:18px;height:18px">✓ 本部門已處理完成，結案</label>
+  <label id="sgmClosedAtWrap" style="display:none">結案日期<input type="date" id="sgmClosedAt"></label>
+  <div class="toolbar" style="justify-content:flex-end;margin:14px 0 0">
+    <span class="hint" id="sgmMe" style="margin-right:auto"></span>
+    <button class="btn" onclick="cancelSuggEdit()">取消</button>
+    <button class="btn lg" style="padding:9px 22px;font-size:15px" onclick="saveSuggEdit()">💾 儲存</button>
+  </div>
+</div></div>
 <!-- 儲存進度提示（存檔期間蓋住畫面，避免使用者沒看到結果就按掉／離開，以為存好了其實還沒完成） -->
 <div class="modal" id="savingModal" style="align-items:center">
   <div class="box" style="width:min(300px,90vw);text-align:center;padding:30px 20px">
@@ -450,6 +490,7 @@ const Store={
       this.mode="local";this._loadErr=e&&e.message||String(e);
       try{this.rows=JSON.parse(localStorage.getItem(LOCAL_KEY)||"[]");}catch(e2){this.rows=[];}
     }
+    this.rows.forEach(r=>(r.sugg||[]).forEach((s,i)=>{if(!s.uid)s.uid="L"+i;}));
     const b=$("#modeBanner");
     if(this.mode==="local"){
       b.style.display="";
@@ -521,8 +562,8 @@ function download(blob,name){const a=document.createElement("a");a.href=URL.crea
 /* ══════ 登錄紀錄（清單） ══════ */
 function showList(){
   stopAutoSave();
-  $("#listPage").style.display="";$("#formPage").style.display="none";$("#reviewPage").style.display="none";
-  $("#btnList").classList.add("primary");$("#btnNew").classList.remove("primary");$("#btnReview").classList.remove("primary");
+  $("#listPage").style.display="";$("#formPage").style.display="none";$("#reviewPage").style.display="none";$("#suggPage").style.display="none";
+  $("#btnList").classList.add("primary");$("#btnNew").classList.remove("primary");$("#btnReview").classList.remove("primary");$("#btnSugg").classList.remove("primary");
   renderList();
 }
 function clearFilters(){$("#fShip").value="";if($("#fInsp"))$("#fInsp").value="";$("#fMode").value="";$("#fStatus").value="";$("#fQ").value="";renderList();}
@@ -546,43 +587,74 @@ function exportAllXlsx(){
   if(typeof XLSX==="undefined"){toast("⚠ Excel 元件載入失敗，請確認網路後重新整理頁面",true);return;}
   const groups=filteredForExport();
   if(!groups.length){toast("⚠ 目前篩選條件下沒有符合的登錄紀錄",true);return;}
-  const recRows=groups.map(({r})=>{
+  const fmt=t=>t?new Date(t).toLocaleString("zh-TW",{hour12:false}):"";
+  const typesOf=r=>(r.types||[]).map(k=>{const t=typeDef(k)||{label:k};return t.label+(t.sarForm?"："+t.sarForm:"");}).join("、");
+  const head=r=>({"船舶":shipLabel(r.ship),"檢查日期":dateText(r),"檢查人":r.inspector||"","地點":r.psn||""});
+  // ① 基本資料（含「是否已發改善單給船」）
+  const basicRows=groups.map(({r})=>{
     const cnt=k=>(r.defs||[]).filter(d=>d.closeMode===k).length;
-    const types=(r.types||[]).map(k=>{const t=typeDef(k)||{label:k};return t.label+(t.sarForm?"："+t.sarForm:"");}).join("、");
-    return {
-      "船舶":shipLabel(r.ship),"檢查日期(起)":slash(r.dateFrom||""),"檢查日期(迄)":slash(r.dateTo||""),
-      "檢查人":r.inspector||"","地點":r.psn||"","檢查種類":types,
+    return Object.assign(head(r),{
+      "檢查日期(起)":slash(r.dateFrom||""),"檢查日期(迄)":slash(r.dateTo||""),"檢查種類":typesOf(r),
       "船長":r.master||"","大副":r.co||"","輪機長":r.ce||"","大管輪":r.e2||"",
       "優良案例數":(r.best||[]).length,"船舶訴求數":(r.sugg||[]).length,
       "缺失-FLOW":cnt("FLOW"),"缺失-內控":cnt("內控"),"缺失-系統內結案":cnt("系統內結案"),"缺失合計":(r.defs||[]).length,
       "狀態":r.draft?"草稿":"已送出",
-      "發改善單時間":r.issuedAt?new Date(r.issuedAt).toLocaleString("zh-TW",{hour12:false}):"",
-      "已匯入主系統":r.imported?`${r.imported.by||""} ${new Date(r.imported.at).toLocaleString("zh-TW",{hour12:false})}`:""
-    };
+      "是否已發改善單給船":r.issuedAt?"是":"否","發改善單時間":fmt(r.issuedAt),
+      "已匯入主系統":r.imported?`${r.imported.by||""} ${fmt(r.imported.at)}`:""
+    });
   });
+  // ② 總體評價
+  const overallRows=groups.map(({r})=>Object.assign(head(r),{
+    "總體評價":r.overall||"","TOP4 合照說明":(r.top4&&r.top4.cap)||"","TOP4 照片數":((r.top4&&r.top4.photos)||[]).length,
+    "表現亮眼船員":(r.goodCrew||[]).map(c=>[c.name,c.rank&&"（"+c.rank+"）",c.brief&&"："+c.brief].filter(Boolean).join("")).join("；"),
+    "表現較差船員":(r.poorCrew||[]).map(c=>[c.name,c.rank&&"（"+c.rank+"）",c.brief&&"："+c.brief].filter(Boolean).join("")).join("；")
+  }));
+  // ③ 優良案例
+  const bestRows=[];
+  groups.forEach(({r})=>(r.best||[]).forEach((b,i)=>{
+    const ps=(b.persons&&b.persons.length)?b.persons:[{name:b.people||"",rank:b.rank||""}];
+    bestRows.push(Object.assign(head(r),{"No.":i+1,"分類 Category":b.category||"","涉及人員":ps.map(p=>p.name).filter(Boolean).join("、"),"職務":ps.map(p=>p.rank).filter(Boolean).join("、"),"描述 Brief":b.brief||"","照片數":(b.photos||[]).length}));
+  }));
+  // ④ 缺失明細（含船上改善回報與審核狀態）
   const defRows=[];
-  groups.forEach(({r,ds})=>{
-    ds.forEach(d=>{
-      const td=typeDef(d.type);
-      defRows.push({
-        "船舶":shipLabel(r.ship),"檢查日期":dateText(r),"檢查人":r.inspector||"","地點":r.psn||"",
-        "檢查種類":td?td.label:d.type,"內稽類別/主題":topicText(d)||"",
-        "分類 Category":d.category||"","風險":d.risk||"","發現日期":slash(d.reported||""),
-        "待改善描述":d.finding||"","結案方式":d.closeMode||"","目前狀態":effStatus(r,d)||""
-      });
+  groups.forEach(({r,ds})=>ds.forEach(d=>{
+    const td=typeDef(d.type),rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null,pl=(rp&&rp.payload)||{};
+    defRows.push(Object.assign(head(r),{
+      "檢查種類":td?td.label:d.type,"內稽類別/主題":topicText(d)||"","分類 Category":d.category||"","風險":d.risk||"","發現日期":slash(d.reported||""),
+      "待改善描述":d.finding||"","結案方式":d.closeMode||"","目前狀態":effStatus(r,d)||"",
+      "船上改善措施":pl.action||"","船上完成日期":pl.corrected||"","船上備註":pl.evidence||"","回報人":pl.by||"","督導審核人":pl.reviewedBy||"","照片數":(d.photos||[]).length
+    }));
+  }));
+  // ⑤ 船舶訴求／建議（一項訴求×負責部門 一列，含承辦與處理進度）
+  const suggRows=[];
+  groups.forEach(({r})=>(r.sugg||[]).forEach((s,i)=>{
+    if(!(s.situation||s.suggestion))return;
+    const uid=s.uid||("L"+i),depts=(s.depts&&s.depts.length)?s.depts:["未指定"];
+    depts.forEach(d=>{
+      const rp=suggReply(r.id,uid,d),p=(rp&&rp.payload)||{},st=r.draft?"（登錄單草稿，尚未立案）":SG_ST_LBL[suggRowState(rp)];
+      suggRows.push(Object.assign(head(r),{"No.":i+1,"現狀 Situation":s.situation||"","建議 Suggestion":s.suggestion||"","負責部門":d,"承辦人":p.owner||"","初步回應／計畫":p.plan||"","處理結果":p.result||"","處理狀態":st,"結案日期":p.closedAt||"","最後編輯人":p.updatedBy||"","照片數":(s.photos||[]).length}));
+    });
+  }));
+  // ⑥ 發改善單（是否已發、船上回報進度）
+  const issueRows=groups.map(({r})=>{
+    const ds=(r.defs||[]).filter(d=>d.closeMode&&d.closeMode!=="FLOW"),st=ds.map(d=>effStatus(r,d));
+    return Object.assign(head(r),{
+      "是否已發改善單給船":r.issuedAt?"是":"否","發改善單時間":fmt(r.issuedAt),"登錄單狀態":r.draft?"草稿":"已送出",
+      "需船上改善項數":ds.length,"待船上改善":st.filter(x=>x==="待船上改善").length,"船上已回報待審核":st.filter(x=>x==="船上已回報").length,"已退回待重填":st.filter(x=>x==="已退回待重填").length,"已審核結案":st.filter(x=>x==="已結案").length,
+      "船上填寫連結":r.issuedAt?replyUrl(r):""
     });
   });
   const wb=XLSX.utils.book_new();
-  const ws1=XLSX.utils.json_to_sheet(recRows);
-  ws1["!cols"]=[{wch:20},{wch:11},{wch:11},{wch:10},{wch:16},{wch:26},{wch:10},{wch:10},{wch:10},{wch:10},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},{wch:8},{wch:8},{wch:20},{wch:22}];
-  XLSX.utils.book_append_sheet(wb,ws1,"登錄紀錄");
-  const ws2=XLSX.utils.json_to_sheet(defRows);
-  ws2["!cols"]=[{wch:20},{wch:18},{wch:10},{wch:16},{wch:14},{wch:16},{wch:16},{wch:6},{wch:11},{wch:50},{wch:12},{wch:14}];
-  XLSX.utils.book_append_sheet(wb,ws2,"缺失明細");
+  const add=(rows,name,wch)=>{const ws=XLSX.utils.json_to_sheet(rows.length?rows:[{"（無資料）":""}]);if(wch)ws["!cols"]=wch.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,name);};
+  add(basicRows,"基本資料",[20,18,10,16,11,11,26,10,10,10,10,8,8,8,8,8,8,8,10,20,22]);
+  add(overallRows,"總體評價",[20,18,10,16,60,26,10,40,40]);
+  add(bestRows,"優良案例",[20,18,10,16,5,16,16,14,60,8]);
+  add(defRows,"缺失明細",[20,18,10,16,14,16,16,6,11,50,12,14,40,12,30,10,10,8]);
+  add(suggRows,"船舶訴求建議",[20,18,10,16,5,40,40,10,10,40,40,12,12,10,8]);
+  add(issueRows,"發改善單",[20,18,10,16,12,20,10,10,10,12,10,10,50]);
   XLSX.writeFile(wb,`內部檢查缺失登錄_全部匯出_${todayIso()}.xlsx`);
-  toast(`✓ 已匯出 ${recRows.length} 張登錄單、${defRows.length} 筆缺失`);
-}
-async function reloadList(){await Store.load();await Store.loadReplies();renderList();toast("✓ 已重新整理");}
+  toast(`✓ 已匯出 ${basicRows.length} 張登錄單（6 個分頁：基本資料／總體評價／優良案例／缺失明細／船舶訴求建議／發改善單）`);
+}async function reloadList(){await Store.load();await Store.loadReplies();renderList();toast("✓ 已重新整理");}
 const expanded=new Set(); // 已展開缺失明細的登錄單 id（預設全部收合）；篩選／搜尋中一律展開
 function toggleRec(id){if(expanded.has(id))expanded.delete(id);else expanded.add(id);renderList();}
 function expandAll(on){expanded.clear();if(on)Store.rows.forEach(r=>expanded.add(r.id));renderList();}
@@ -759,7 +831,9 @@ function orphanReplies(){
     const idx=key.indexOf("_");if(idx<0)return;
     const rid=key.slice(0,idx),uid=key.slice(idx+1);
     const r=Store.rows.find(x=>String(x.id)===rid);
-    const exists=r&&(r.defs||[]).some(d=>d.uid===uid);
+    const rpx=Store.replies[key],kp=rpx&&rpx.payload;
+    // 船舶訴求／建議的處理紀錄（kind:"sugg"）：訴求還在就不是孤兒，不是缺失回報
+    const exists=(kp&&kp.kind==="sugg")?!!(r&&(r.sugg||[]).some((s,i)=>(s.uid||("L"+i))===kp.suggUid)):(r&&(r.defs||[]).some(d=>d.uid===uid));
     if(!exists)list.push({key,rid,uid,rp:Store.replies[key]});
   });
   return list;
@@ -778,13 +852,14 @@ async function cleanupOrphanReplies(){
 }
 function updateReviewBadge(){
   const n=reviewItems().filter(x=>x.rp.status==="submitted").length;
+  updateSuggBadge();
   const el=$("#btnReviewCount");if(!el)return;
   if(n){el.textContent=n;el.style.display="";}else{el.style.display="none";}
 }
 function showReview(){
   stopAutoSave();
-  $("#listPage").style.display="none";$("#formPage").style.display="none";$("#reviewPage").style.display="";
-  $("#btnList").classList.remove("primary");$("#btnNew").classList.remove("primary");$("#btnReview").classList.add("primary");
+  $("#listPage").style.display="none";$("#formPage").style.display="none";$("#reviewPage").style.display="";$("#suggPage").style.display="none";
+  $("#btnList").classList.remove("primary");$("#btnNew").classList.remove("primary");$("#btnReview").classList.add("primary");$("#btnSugg").classList.remove("primary");
   $("#rvShip").innerHTML='<option value="">全部船舶</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}">${esc(s.label)}</option>`).join("");
   const inspectors=[...new Set(reviewItems().map(x=>x.r.inspector).filter(Boolean))].sort();
   $("#rvInspector").innerHTML='<option value="">全部檢查人</option>'+inspectors.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
@@ -1167,7 +1242,7 @@ function recordPreviewHtml(r){
     </div>`;
   const sugg=`<div class="card" style="margin:0 0 10px">
     <div class="ih" style="margin-bottom:8px">⑤ 船舶訴求／建議（共 ${(r.sugg||[]).length} 項）</div>
-    ${(r.sugg||[]).length?(r.sugg||[]).map((s,i)=>`<div style="font-size:13px;line-height:1.7;padding:6px 0;${i?"border-top:1px dashed var(--line)":""}"><b>現狀：</b>${esc(s.situation||"")}<br><b>建議：</b>${esc(s.suggestion||"")}</div>`).join(""):`<span class="hint">（無）</span>`}
+    ${(r.sugg||[]).length?(r.sugg||[]).map((s,i)=>`<div style="font-size:13px;line-height:1.7;padding:6px 0;${i?"border-top:1px dashed var(--line)":""}"><b>現狀：</b>${esc(s.situation||"")}<br><b>建議：</b>${esc(s.suggestion||"")}<br><b>負責部門：</b>${esc((s.depts||[]).join("、")||"（未選）")}</div>`).join(""):`<span class="hint">（無）</span>`}
     </div>`;
   return basic+overall+best+defsHtml+sugg;
 }
@@ -1184,7 +1259,7 @@ function renderDownloadTab(){
       <span class="hint">下載／發改善單／送出前，建議先在這裡完整核對一次內容</span>
     </div>
     ${previewOpen?`<div style="margin-bottom:16px">${recordPreviewHtml(cur)}</div>`:""}
-    <div class="banner">請依照下面的順序操作：<b>① 先送出海技入系統 → ② 再發改善單給船</b>；下載檔案是選用，隨時都可以做。<br>
+    <div class="banner">請依照下面的順序操作：<b>① 先送出海技入系統 → ② 再發改善單給船 → ③ 把完整訪船報告提供一份給海技</b>；下載內控 JSON 是選用。<br>
       這張單要先確定正式送出、海技看得到了，才讓船上開始填改善單，避免船上填的內容對應到一張還沒送出的草稿。</div>
     <div style="display:flex;flex-direction:column;gap:14px;max-width:720px;margin-top:4px">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -1197,16 +1272,21 @@ function renderDownloadTab(){
         <button class="btn ${cur.draft===false?"":"soft-disabled"}" style="min-width:220px" ${nIssue?"":"disabled"} onclick="issueOrderInTab()">📨 發改善單給船</button>
         <span class="hint">${cur.draft!==false?'<b style="color:var(--bad)">請先完成上一步「送出海技入系統」，才能發改善單給船上</b><br>':""}${nIssue?`共 ${nIssue} 項待改善；會複製好內容供貼到郵件，船上打開連結後也能在那頁完整下載這次的檢查報告 WORD`:"這張單沒有需要船上改善的缺失"}${cur.issuedAt?`<br><b style="color:var(--ok)">✓ 已於 ${fmtT(cur.issuedAt)} 發送</b>`:""}</span>
       </div>
+      <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:12px 14px;border:2px solid var(--signal);border-radius:10px;background:#fff7ee">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--signal);color:#fff;font-weight:700;font-size:13px;flex:none">3</span>
+        <div style="flex:1;min-width:260px">
+          <div style="font-weight:800;color:#a8570f;font-size:15px">📎 最後一步：請把「完整的訪船報告」也提供一份給海技</div>
+          <div class="hint" style="margin:4px 0 8px;color:var(--ink-2)">下載下面的完整報告 WORD（含照片、每筆缺失獨立一頁），<b>另外 mail 或轉給海技</b>留存；系統裡的資料不含完整報告檔案。</div>
+          <button class="btn lg" style="padding:9px 20px;font-size:15px" onclick="dlWordInTab()">⬇ 下載完整報告 WORD</button>
+          <span class="hint" style="margin-left:8px">${cur.wordDlAt?`<b style="color:var(--ok)">✓ ${esc(cur.wordDlBy||cur.inspector||"")} 已於 ${fmtT(cur.wordDlAt)} 下載；別忘了再轉給海技</b>`:`<b style="color:var(--bad)">尚未下載</b>`}</span>
+        </div>
+      </div>
       <div style="padding-top:12px;border-top:1px dashed var(--line-2)">
-        <div class="hint" style="font-weight:700;margin-bottom:8px">選用：下載檔案（隨時可下載）</div>
+        <div class="hint" style="font-weight:700;margin-bottom:8px">選用：下載內控 JSON</div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
             <button class="btn" style="min-width:220px" ${nIc?"":"disabled"} onclick="dlIcJsonInTab()">⬇ 下載內控 JSON</button>
             <span class="hint">${nIc?`含 ${nIc} 筆內控異常；下載後請帶去「船舶動態與早會待辦系統」登入建檔`:"這張單目前沒有結案方式為「內控」的缺失"}${cur.icJsonDlAt?`<br><b style="color:var(--ok)">✓ ${esc(cur.icJsonDlBy||cur.inspector||"")} 已於 ${fmtT(cur.icJsonDlAt)} 下載</b>`:""}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <button class="btn" style="min-width:220px" onclick="dlWordInTab()">⬇ 下載完整報告 WORD</button>
-            <span class="hint">含照片，每筆缺失獨立一頁，下載後請自行保存留底${cur.wordDlAt?`<br><b style="color:var(--ok)">✓ ${esc(cur.wordDlBy||cur.inspector||"")} 已於 ${fmtT(cur.wordDlAt)} 下載</b>`:""}</span>
           </div>
         </div>
       </div>
@@ -1314,8 +1394,8 @@ function updatePrimaryBtns(){
 }
 function openForm(sec){
   secTab=sec||"basic";defFilter="";
-  $("#listPage").style.display="none";$("#formPage").style.display="";$("#reviewPage").style.display="none";
-  $("#btnList").classList.remove("primary");$("#btnNew").classList.add("primary");$("#btnReview").classList.remove("primary");$("#errBox").style.display="none";
+  $("#listPage").style.display="none";$("#formPage").style.display="";$("#reviewPage").style.display="none";$("#suggPage").style.display="none";
+  $("#btnList").classList.remove("primary");$("#btnNew").classList.add("primary");$("#btnReview").classList.remove("primary");$("#btnSugg").classList.remove("primary");$("#errBox").style.display="none";
   $("#fShipSel").innerHTML='<option value="">— 請選擇船舶 —</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}" ${cur.ship===s.code?"selected":""}>${esc(s.label)}</option>`).join("");
   const insp=SUPERVISORS.slice();if(cur.inspector&&!insp.includes(cur.inspector))insp.unshift(cur.inspector);
   $("#fInspector").innerHTML='<option value="">— 請選擇檢查人 —</option>'+insp.map(n=>`<option ${cur.inspector===n?"selected":""}>${esc(n)}</option>`).join("");
@@ -1804,7 +1884,10 @@ function confirmBatch(){
   toast(`✓ 已加入 ${rows.length} 筆缺失`+(missing?`；其中 ${missing} 筆還有必填欄位沒填，送出前會提醒`:"")+(nIc?`；${nIc} 筆「內控」記得補內控欄位`:""));
 }
 /* 船舶訴求／建議 */
-function addSugg(){collect();cur.sugg.push({situation:"",suggestion:"",photos:[]});renderSugg();updateCounts();}
+const SUGG_DEPTS=["海技","安衛","航運","船員","船工","資材","營業","管理"]; // 船舶訴求／建議的負責部門（可多選）
+function newSuggUid(){return "s"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function addSugg(){collect();cur.sugg.push({uid:newSuggUid(),situation:"",suggestion:"",depts:[],photos:[]});renderSugg();updateCounts();}
+function toggleSuggDept(i,d,on){const s=cur.sugg[i];s.depts=s.depts||[];const ix=s.depts.indexOf(d);if(on&&ix<0)s.depts.push(d);if(!on&&ix>=0)s.depts.splice(ix,1);}
 function delSugg(i){collect();cur.sugg.splice(i,1);renderSugg();updateCounts();}
 function setS(i,f,v){cur.sugg[i][f]=v;}
 function renderSugg(){
@@ -1812,14 +1895,185 @@ function renderSugg(){
   $("#suggList").innerHTML=cur.sugg.length?cur.sugg.map((x,i)=>`<div class="item" id="sugg-${i}"><div class="ih">No.${i+1}<span class="sp"></span><button class="btn sm danger" onclick="delSugg(${i})">🗑 刪除</button></div>
     <div class="fgrid"><label style="grid-column:span 2">現狀 Situation<textarea oninput="setS(${i},'situation',this.value)">${esc(x.situation)}</textarea></label>
     <label>建議 Suggestion<textarea oninput="setS(${i},'suggestion',this.value)">${esc(x.suggestion)}</textarea></label>
+    <div class="fld fw">負責部門（公司內由哪個部門處理，可多選）<span class="req">*</span>
+      <div class="checks">${SUGG_DEPTS.map(d=>`<label><input type="checkbox" ${(x.depts||[]).includes(d)?"checked":""} onchange="toggleSuggDept(${i},'${d}',this.checked)">${d}</label>`).join("")}</div>
+      <span class="hint" style="font-weight:400">送出後會依所選部門在「船舶訴求/建議清單」立案，由各部門填寫承辦人、初步回應／計畫與處理結果。</span></div>
     <div class="fld fw">照片 Photos（選填）${phHtml("sugg",i,0)}</div></div></div>`).join(""):`<p class="hint">尚無船舶訴求／建議。</p>`;
 }
+/* ══════════ 船舶訴求／建議清單 ══════════
+   登錄單送出（非草稿）後，每一項船舶訴求／建議依「負責部門」立案。一項訴求一案；每個「訴求×部門」各自存成
+   intaudit_replies 的一列（id＝登錄單id_s_訴求uid_部門，payload.kind="sugg"，status＝sugg_new／sugg_open／sugg_closed），
+   所以涉及第二個部門時，兩個部門各改各的，不會互相蓋掉。同一部門同一筆同一時間只允許一人編輯：
+   開啟編輯視窗就先「鎖定」（寫入 payload.lock，15 分鐘自動失效），儲存時再用 updated_at 版本檢查，
+   對不上就拒絕儲存，不會覆蓋別人的內容。 */
+const SUGG_LOCK_MIN=15, SUGG_TOKEN=Math.random().toString(36).slice(2)+Date.now().toString(36);
+let suggStatusFlt="all",suggCtx=null;
+const suggKey=(rid,uid,dept)=>`${rid}_s_${uid}_${dept}`;
+const suggReply=(rid,uid,dept)=>Store.replies[suggKey(rid,uid,dept)];
+const SG_ST_LBL={new:"待承辦",open:"處理中",closed:"已結案"};
+const SG_ST_CSS={new:"background:#fde8e6;color:#c0392b",open:"background:#fff3cd;color:#7a5a10",closed:"background:#e2f3e8;color:#2e8b57"};
+function suggRowState(rp){
+  const p=rp&&rp.payload;if(!p)return "new";
+  if(p.closed)return "closed";
+  return (p.owner||p.plan||p.result)?"open":"new";
+}
+function suggLockInfo(rp){const l=rp&&rp.payload&&rp.payload.lock;return (l&&l.by&&Date.now()-l.at<SUGG_LOCK_MIN*60000)?l:null;}
+function suggCases(){
+  const out=[];
+  Store.rows.forEach(r=>{
+    if(r.draft)return;
+    (r.sugg||[]).forEach((s,i)=>{
+      if(!(s.situation||s.suggestion))return;
+      const uid=s.uid||("L"+i);
+      const depts=(s.depts&&s.depts.length)?s.depts:["未指定"];
+      const rows=depts.map(d=>({dept:d,rp:suggReply(r.id,uid,d)}));
+      const states=rows.map(x=>suggRowState(x.rp));
+      const st=states.every(x=>x==="closed")?"closed":(states.some(x=>x!=="new")?"open":"new");
+      out.push({r,s,uid,i,rows,st});
+    });
+  });
+  const rk={new:0,open:1,closed:2};
+  out.sort((a,b)=>rk[a.st]-rk[b.st]||String(b.r.dateFrom||"").localeCompare(String(a.r.dateFrom||"")));
+  return out;
+}
+function updateSuggBadge(){
+  const el=$("#btnSuggCount");if(!el)return;
+  const n=suggCases().filter(c=>c.st!=="closed").length;
+  if(n){el.textContent=n;el.style.display="";}else el.style.display="none";
+}
+function showSugg(){
+  stopAutoSave();
+  $("#listPage").style.display="none";$("#formPage").style.display="none";$("#reviewPage").style.display="none";$("#suggPage").style.display="";
+  $("#btnList").classList.remove("primary");$("#btnNew").classList.remove("primary");$("#btnReview").classList.remove("primary");$("#btnSugg").classList.add("primary");
+  $("#sgShip").innerHTML='<option value="">全部船舶</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}">${esc(s.label)}</option>`).join("");
+  $("#sgDept").innerHTML='<option value="">全部負責部門</option>'+SUGG_DEPTS.concat(["未指定"]).map(d=>`<option>${d}</option>`).join("");
+  Store.loadReplies().then(renderSuggPage);
+  renderSuggPage();
+}
+function setSuggStatusFlt(k){suggStatusFlt=k;renderSuggPage();}
+function renderSuggPage(){
+  const box=$("#suggBody");if(!box)return;
+  const fs=$("#sgShip").value,fd=$("#sgDept").value,q=$("#sgQ").value.trim().toLowerCase();
+  const base=suggCases().filter(c=>{
+    if(fs&&c.r.ship!==fs)return false;
+    if(fd&&!c.rows.some(x=>x.dept===fd))return false;
+    if(q){const hay=[shipLabel(c.r.ship),c.s.situation,c.s.suggestion,c.rows.map(x=>((x.rp&&x.rp.payload)||{}).owner||"").join(" ")].join(" ").toLowerCase();if(!hay.includes(q))return false;}
+    return true;
+  });
+  const defs=[["all","全部"],["new","待承辦"],["open","處理中"],["closed","已結案"]];
+  $("#sgStatusChips").innerHTML=defs.map(([k,l])=>{const n=k==="all"?base.length:base.filter(c=>c.st===k).length;return `<span class="fchip ${suggStatusFlt===k?"on":""}" onclick="setSuggStatusFlt('${k}')">${l}<b>${n}</b></span>`;}).join("");
+  const items=suggStatusFlt==="all"?base:base.filter(c=>c.st===suggStatusFlt);
+  $("#sgStat").textContent=`顯示 ${items.length} 項訴求／建議（共 ${base.length} 項）`;
+  box.innerHTML=items.length?items.map(c=>{
+    const photos=(c.s.photos||[]);
+    return `<div class="card sgcase ${c.st}">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:260px">
+          <div style="font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${esc(shipLabel(c.r.ship))}　${esc(dateText(c.r))} <span class="stat" style="${SG_ST_CSS[c.st]}">${SG_ST_LBL[c.st]}</span></div>
+          <div class="hint">檢查人：${esc(c.r.inspector||"")}　地點：${esc(c.r.psn||"")}　負責部門：<b>${esc(c.rows.map(x=>x.dept).join("、"))}</b></div>
+          <div style="margin-top:6px;font-size:13px;line-height:1.7"><b>現狀：</b>${esc(c.s.situation||"")}<br><b>建議：</b>${esc(c.s.suggestion||"")}</div>
+          ${photos.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${photos.map(ph=>`<img src="${ph.dataUrl}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);cursor:pointer" onclick="openLightbox(this.src)">`).join("")}</div>`:""}
+        </div>
+        <button class="btn sm" onclick="editDef0(${c.r.id})" title="開啟這張登錄單">✎ 查看登錄</button>
+      </div>
+      <div style="overflow:auto"><table class="sgtbl"><thead><tr><th style="width:80px">負責部門</th><th style="width:100px">承辦人</th><th>初步回應／計畫</th><th>處理結果</th><th style="width:76px">狀態</th><th style="width:96px">結案日期</th><th style="width:110px">操作</th></tr></thead><tbody>
+      ${c.rows.map(x=>{const p=(x.rp&&x.rp.payload)||{},stt=suggRowState(x.rp),lk=suggLockInfo(x.rp);
+        return `<tr><td><b>${esc(x.dept)}</b></td><td>${esc(p.owner||"—")}</td><td style="white-space:pre-line">${esc(p.plan||"—")}</td><td style="white-space:pre-line">${esc(p.result||"—")}</td><td><span class="stat" style="${SG_ST_CSS[stt]}">${SG_ST_LBL[stt]}</span></td><td>${esc(p.closedAt||"")}</td>
+          <td>${lk?`<span class="hint">🔒 ${esc(lk.by)} 編輯中</span>`:`<button class="btn sm ${stt==="closed"?"":"dark"}" onclick="openSuggEdit(${c.r.id},'${c.uid}','${esc(x.dept)}')">${stt==="new"?"✎ 承辦":"✎ 編輯／處理"}</button>`}</td></tr>`;}).join("")}
+      </tbody></table></div>
+    </div>`;
+  }).join(""):`<div class="banner">目前沒有符合條件的訴求／建議。（只有「已送出」的登錄單才會立案；草稿不會出現在這裡。）</div>`;
+}
+function editDef0(rid){const r=Store.rows.find(x=>x.id===rid);if(r)editRec(rid);}
+function suggMe(){
+  let me="";try{me=localStorage.getItem("intaudit_me")||"";}catch(e){}
+  if(!me){me=(prompt("請輸入您的姓名（會記錄為編輯人，也用來顯示「誰正在編輯」）：")||"").trim();if(me){try{localStorage.setItem("intaudit_me",me);}catch(e){}}}
+  return me;
+}
+async function suggFetch(key){const a=await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}&select=id,record_id,def_uid,status,payload,updated_at`);return a&&a[0]||null;}
+async function openSuggEdit(rid,uid,dept){
+  const me=suggMe();if(!me)return;
+  const key=suggKey(rid,uid,dept);
+  let row;
+  try{row=await suggFetch(key);}catch(e){toast("⚠ 讀取失敗："+e.message,true);return;}
+  const now=Date.now(),lk=row&&row.payload&&row.payload.lock;
+  if(lk&&lk.by&&now-lk.at<SUGG_LOCK_MIN*60000&&lk.token!==SUGG_TOKEN){
+    if(row)Store.replies[key]=row;renderSuggPage();
+    alert(`🔒 這一筆目前由「${lk.by}」編輯中（${new Date(lk.at).toLocaleTimeString("zh-TW",{hour12:false})} 開始）。\n\n為避免互相覆蓋，請等對方儲存或離開後再編輯（超過 ${SUGG_LOCK_MIN} 分鐘沒動作會自動解鎖）。`);
+    return;
+  }
+  const base=row?row.payload:{kind:"sugg",suggUid:uid,dept,owner:"",plan:"",result:"",closed:false,closedAt:"",history:[]};
+  const np=Object.assign({},base,{lock:{by:me,at:now,token:SUGG_TOKEN}});
+  try{
+    if(row){
+      const res=await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}&updated_at=eq.${row.updated_at}`,{method:"PATCH",headers:H({"Prefer":"return=representation"}),body:JSON.stringify({payload:np,updated_at:now})});
+      if(!res||!res.length)throw new Error("CONFLICT");
+    }else{
+      await api("intaudit_replies",{method:"POST",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify([{id:key,record_id:+rid,def_uid:"s_"+uid,status:"sugg_new",payload:np,updated_at:now}])});
+    }
+  }catch(e){
+    await Store.loadReplies();renderSuggPage();
+    alert("剛剛有其他人搶先操作這一筆，請稍後再試一次（畫面已更新成最新狀態）。");return;
+  }
+  Store.replies[key]={id:key,record_id:+rid,def_uid:"s_"+uid,status:row?row.status:"sugg_new",payload:np,updated_at:now};
+  suggCtx={rid,uid,dept,key,me,expected:now,base};
+  const r=Store.rows.find(x=>x.id===rid)||{},s=(r.sugg||[]).find((x,i)=>(x.uid||("L"+i))===uid)||{};
+  $("#sgmTitle").textContent=`船舶訴求／建議處理　負責部門：${dept}`;
+  $("#sgmCase").innerHTML=`<b>${esc(shipLabel(r.ship))}</b>　${esc(dateText(r))}　檢查人：${esc(r.inspector||"")}<br><b>現狀：</b>${esc(s.situation||"")}<br><b>建議：</b>${esc(s.suggestion||"")}`;
+  const others=(s.depts||[]).filter(d=>d!==dept).map(d=>{const o=suggReply(rid,uid,d),st=suggRowState(o);return `${d}（${SG_ST_LBL[st]}）`;});
+  $("#sgmOthers").innerHTML=others.length?`此案還涉及其他部門：${esc(others.join("、"))}。各部門各自處理、各自結案，互不影響。`:"";
+  $("#sgmOwner").value=base.owner||"";$("#sgmPlan").value=base.plan||"";$("#sgmResult").value=base.result||"";
+  $("#sgmClosed").checked=!!base.closed;$("#sgmClosedAt").value=base.closedAt||"";
+  $("#sgmClosedAtWrap").style.display=base.closed?"":"none";
+  $("#sgmMe").textContent=`編輯人：${me}`;
+  $("#suggModal").style.display="flex";
+  renderSuggPage();
+}
+async function releaseSuggLock(){
+  if(!suggCtx)return;
+  const c=suggCtx;suggCtx=null;
+  try{
+    const np=Object.assign({},c.base);delete np.lock;np.lock=null;
+    await api(`intaudit_replies?id=eq.${encodeURIComponent(c.key)}&updated_at=eq.${c.expected}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({payload:np,updated_at:Date.now()})});
+  }catch(e){/* 解鎖失敗（例如已逾時被接手）不影響，15 分鐘後自動失效 */}
+  await Store.loadReplies();renderSuggPage();
+}
+function cancelSuggEdit(){$("#suggModal").style.display="none";releaseSuggLock();}
+async function saveSuggEdit(){
+  if(!suggCtx)return;
+  const owner=$("#sgmOwner").value.trim(),plan=$("#sgmPlan").value.trim(),result=$("#sgmResult").value.trim(),closed=$("#sgmClosed").checked,closedAt=$("#sgmClosedAt").value;
+  if(!owner){toast("⚠ 請填寫「承辦人」",true);$("#sgmOwner").focus();return;}
+  if(!plan){toast("⚠ 請填寫「初步回應／計畫」",true);$("#sgmPlan").focus();return;}
+  if(closed&&!result){toast("⚠ 結案前請先填寫「處理結果」",true);$("#sgmResult").focus();return;}
+  if(closed&&!closedAt){toast("⚠ 請填寫「結案日期」",true);$("#sgmClosedAt").focus();return;}
+  const c=suggCtx,now=Date.now();
+  const hist=(Array.isArray(c.base.history)?c.base.history.slice(-29):[]);
+  hist.push({at:now,by:c.me,action:closed?"結案":"儲存"});
+  const np={kind:"sugg",suggUid:c.uid,dept:c.dept,owner,plan,result,closed,closedAt:closed?closedAt:"",updatedBy:c.me,updatedAt:now,history:hist,lock:null};
+  try{
+    const res=await api(`intaudit_replies?id=eq.${encodeURIComponent(c.key)}&updated_at=eq.${c.expected}`,{method:"PATCH",headers:H({"Prefer":"return=representation"}),body:JSON.stringify({status:closed?"sugg_closed":"sugg_open",payload:np,updated_at:now})});
+    if(!res||!res.length)throw new Error("CONFLICT");
+  }catch(e){
+    $("#suggModal").style.display="none";suggCtx=null;
+    await Store.loadReplies();renderSuggPage();
+    alert("儲存失敗：您編輯的這段期間，這一筆已被其他人改動（可能是鎖定逾時被接手），為避免覆蓋別人的內容，這次沒有儲存。\n\n畫面已更新成最新內容，請再開啟一次重新填寫。");
+    return;
+  }
+  suggCtx=null;$("#suggModal").style.display="none";
+  await Store.loadReplies();renderSuggPage();updateSuggBadge();
+  toast(closed?"✓ 已儲存並結案":"✓ 已儲存");
+}
+window.addEventListener("pagehide",()=>{ // 關閉分頁時盡量解鎖（來不及也沒關係，15 分鐘自動失效）
+  if(!suggCtx)return;const c=suggCtx;const np=Object.assign({},c.base,{lock:null});
+  try{fetch(`${CLOUD.url}/rest/v1/intaudit_replies?id=eq.${encodeURIComponent(c.key)}&updated_at=eq.${c.expected}`,{method:"PATCH",keepalive:true,headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({payload:np,updated_at:Date.now()})});}catch(e){}
+});
 /* ══════ 送出前檢查：明確指出第幾筆的哪個欄位 ══════ */
 function validate(){
   collect();const errs=[];
   [["ship","訪問船舶","#fShipSel"],["dateFrom","檢查日期（起）","#fDateFrom"],["inspector","檢查人","#fInspector"],["psn","地點 Ship's PSN","#fPsn"]].forEach(([f,l,s])=>{if(!cur[f])errs.push({msg:`表頭：「${l}」未填`,sel:s});});
   if(!cur.types.length)errs.push({msg:"表頭：「檢查種類」至少勾選一種",sel:"#typeBox"});
   if(!cur.defs.length)errs.push({msg:"缺失明細：至少需要一筆缺失",sel:"#defTabs"});
+  cur.sugg.forEach((s,i)=>{if((s.situation||s.suggestion)&&!(s.depts&&s.depts.length))errs.push({msg:`船舶訴求／建議 No.${i+1}：請選擇「負責部門」（至少一個）`,sel:"#sugg-"+i});});
   cur.types.forEach(k=>{
     const ds=cur.defs.map((d,i)=>i).filter(i=>cur.defs[i].type===k);
     ds.forEach((i,seq)=>{
@@ -1899,7 +2153,7 @@ async function submitForm(){
   const nIssue=cur.defs.filter(d=>d.closeMode!=="FLOW").length;
   saveDone(`✅ 已送出！共 ${cur.defs.length} 筆缺失${nIssue?`，接著請在這一頁發改善單給船上`:""}`);
   hideSaving(1400);
-  toast(`✓ 已送出，海技可以開始匯入主系統了（共 ${cur.defs.length} 筆缺失）`);
+  toast(`✓ 已送出（共 ${cur.defs.length} 筆缺失）。別忘了：發改善單給船，並把「完整訪船報告 WORD」也提供一份給海技`);
   // 流程是「先送出 → 再發改善單」：送出成功後留在⑥頁並解鎖「發改善單給船」，
   // 不要直接跳回清單，讓督導還得自己再找路回來發改善單。
   cur.draft=false;
