@@ -390,7 +390,7 @@ function renderTable(){
     const trackPill=st.openTrack?`<span class="pill bad">⚠ ${st.openTrack} 項未結案</span>`:(st.closedTrack?`<span class="pill ok">✓ ${st.closedTrack} 項已結案</span>`:`<span class="pill na">—</span>`);
     const editUrl=`submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(s.code)}`;
     rowsHtml.push(`
-      <tr class="${st.openTrack?'track':(submitted&&st.total&&st.done===st.total?'done':'')}" data-ship="${esc(s.code)}">
+      <tr class="${st.openTrack?'track':(submitted&&st.total&&st.done===st.total?'done':'')}" data-ship="${esc(s.code)}" style="cursor:pointer" onclick="rowClick(event,'${esc(s.code)}')" title="點這一列查看這艘船的作答內容">
         <td>${esc(s.label||s.name||"")}</td>
         <td>${resp?esc(resp.checker_name||"—")+(resp.checker_title?`<div class="hint">${esc(resp.checker_title)}</div>`:""):"<span class='hint'>尚未開始</span>"}</td>
         <td>${resp?`${st.done} / ${st.total}（${pct}%）`:"<span class='hint'>0 / "+(curCampaign.items||[]).length+"</span>"}</td>
@@ -398,8 +398,7 @@ function renderTable(){
         <td>${resp?(resp.submit_count||0):0}</td>
         <td>${resp&&resp.submitted_at?esc(new Date(resp.submitted_at).toLocaleString("zh-TW",{hour12:false})):"<span class='hint'>未送出</span>"}</td>
         <td style="white-space:nowrap">
-          ${resp?`<button class="btn sm" onclick="toggleDetail('${esc(s.code)}')">📄 明細</button>`:""}
-          <a class="btn sm" href="${editUrl}" target="_blank" rel="noopener">✎ 填答</a>
+          <button class="btn sm" onclick="toggleDetail('${esc(s.code)}')">📄 查看</button>
           ${st.openTrack?`<button class="btn sm" style="border-color:var(--warn);color:#a05a10" onclick="openTrackReminder('${esc(s.code)}')" title="編輯內容後複製，發給船上追蹤這幾項是否已改善">🔔 提醒追蹤</button>`:""}
           ${resp?`<button class="btn sm" style="color:var(--bad);border-color:var(--bad)" onclick="deleteResponse('${esc(s.code)}')" title="刪除這艘船在本活動的填答內容">🗑</button>`:""}
         </td>
@@ -534,6 +533,14 @@ function exportPdf(){
   window.print();
 }
 
+function rowClick(ev,ship){
+  if(ev.target.closest("button,a,input,select,textarea"))return; // 點到列內的按鈕不重複觸發
+  toggleDetail(ship);
+}
+function copyShipLink(ship){
+  const url=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(ship)}`;
+  safeCopyText(url,`✓ 已複製「${shipLabel(ship)}」專屬連結`);
+}
 const ST_LABEL={ok:"✅ 沒有",similar:"⚠️ 有，需處理",self:"🚩 當事船",na:"➖ 不適用",pending:"（未作答）"};
 function toggleDetail(ship){
   const row=document.getElementById("detail-"+ship);
@@ -543,10 +550,22 @@ function toggleDetail(ship){
   document.querySelectorAll(".detailrow.show").forEach(r=>r.classList.remove("show"));
   if(!open)return;
   const resp=responses.find(r=>r.ship===ship);
-  if(!resp)return;
+  const editUrl=`submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(ship)}`;
+  // 編輯（代填）與專屬連結放在「查看」展開的內容裡：這頁只有海技／督導看得到，
+  // 平常是看內容，真的要代船上修改才進入編輯；船上不會看到這個頁面。
+  const actions=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px">
+      <a class="btn sm primary" href="${editUrl}" target="_blank" rel="noopener" title="開新視窗進入這艘船的填答畫面，可代為填寫或修改">✎ 編輯／代填這艘船</a>
+      <button class="btn sm" onclick="copyShipLink('${esc(ship)}')" title="複製這艘船專屬連結，船上點開會直接進到本船、不用再選船名">🔗 複製本船專屬連結</button>
+    </div>`;
+  if(!resp){
+    row.querySelector("td").innerHTML=`<div style="padding:8px 4px">${actions}<div class="hint">這艘船還沒有開始填答，沒有內容可以查看。</div></div>`;
+    row.classList.add("show");
+    return;
+  }
   const items=resp.items||[];
   row.querySelector("td").innerHTML=`
     <div style="padding:6px 4px">
+      ${actions}
       ${items.map((it,i)=>`
         <div class="itemline">
           <b>#${i+1}</b> ${esc(it.code?("CODE "+it.code):"")}${srcTag(it)} <span class="stbadge ${it.status||'pending'}">${ST_LABEL[it.status||"pending"]}</span>${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'):""}
