@@ -243,9 +243,12 @@ async function loadCampaignList(){
   }
   showListView();
 }
+/* 當事船（缺失來源船）不須自查：活動的題目全部來自同一艘船時，那艘船不計入「應填船」。 */
+const srcShipOf=it=>String(it&&it.src||"").trim().split(/\s+/)[0]||"";
+const selfOnlyShip=(c,code)=>{const its=(c&&c.items)||[];return its.length>0&&its.every(it=>srcShipOf(it)===code);};
 function campaignStats(c){
   const resp=allResponses.filter(r=>String(r.campaign_id)===String(c.id));
-  const total=(c.ship_scope&&c.ship_scope.length)?c.ship_scope.length:(shipOpts.length||resp.length);
+  const total=targetShipsFor(c,resp).length;
   const submitted=resp.filter(r=>r.submitted_at).length;
   let track=0;
   resp.forEach(r=>{ track+=(r.items||[]).filter(it=>it.status==="similar"&&!it.closed).length; });
@@ -354,8 +357,10 @@ async function loadCampaign(id){
 function shipLabel(code){const s=shipOpts.find(x=>x.code===code);return s?s.label:(code||"");}
 function targetShips(){
   const scope=(curCampaign.ship_scope&&curCampaign.ship_scope.length)?curCampaign.ship_scope:null;
-  if(scope)return scope.map(code=>{const hit=shipOpts.find(s=>s.code===code);return {code,name:hit?hit.name:code,label:hit?hit.label:code};});
-  return shipOpts.length?shipOpts:responses.map(r=>({code:r.ship,name:r.ship,label:r.ship}));
+  let base;
+  if(scope)base=scope.map(code=>{const hit=shipOpts.find(s=>s.code===code);return {code,name:hit?hit.name:code,label:hit?hit.label:code};});
+  else base=shipOpts.length?shipOpts:responses.map(r=>({code:r.ship,name:r.ship,label:r.ship}));
+  return base.filter(s=>!selfOnlyShip(curCampaign,s.code));
 }
 
 function rowStat(resp){
@@ -408,7 +413,7 @@ function renderTable(){
   });
   tbody.innerHTML=rowsHtml.join("")||`<tr><td colspan="7" class="hint" style="text-align:center;padding:20px">找不到符合條件的船舶</td></tr>`;
   document.getElementById("kpis").innerHTML=`
-    <div class="kpi"><div class="v">${responses.length} / ${targetShips().length}</div><div class="l">已開始填答／應填船數</div></div>
+    <div class="kpi"><div class="v">${responses.filter(r=>targetShips().some(s=>s.code===r.ship)).length} / ${targetShips().length}</div><div class="l">已開始填答／應填船數</div></div>
     <div class="kpi"><div class="v">${nSubmitted}</div><div class="l">已送出</div></div>
     <div class="kpi"><div class="v">${nDone}</div><div class="l">全部題目已作答</div></div>
     <div class="kpi" style="${nTrackOpen?'border-color:var(--bad)':''}"><div class="v" style="${nTrackOpen?'color:var(--bad)':''}">${nTrackOpen}</div><div class="l">艘船有未結案追蹤項目</div></div>
@@ -449,8 +454,10 @@ function collectReport(){
 /* 目標船舶清單（可指定活動，用於跨活動彙整；不傳則用目前活動） */
 function targetShipsFor(c,resp){
   const scope=(c.ship_scope&&c.ship_scope.length)?c.ship_scope:null;
-  if(scope)return scope.map(code=>{const hit=shipOpts.find(s=>s.code===code);return {code,name:hit?hit.name:code};});
-  return shipOpts.length?shipOpts:resp.map(r=>({code:r.ship,name:r.ship}));
+  let base;
+  if(scope)base=scope.map(code=>{const hit=shipOpts.find(s=>s.code===code);return {code,name:hit?hit.name:code};});
+  else base=shipOpts.length?shipOpts:resp.map(r=>({code:r.ship,name:r.ship}));
+  return base.filter(s=>!selfOnlyShip(c,s.code));
 }
 function rowStatFor(resp,totalItems){
   if(!resp)return {done:0,total:totalItems,openTrack:0,closedTrack:0};
