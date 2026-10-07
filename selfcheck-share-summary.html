@@ -241,8 +241,17 @@ async function loadCampaignList(){
     notify("⚠ 活動清單讀取失敗："+e.message,"err");
     return;
   }
+  // 瀏覽器重新整理（F5）後停在原本的畫面：網址帶 #c=活動編號 就直接回到那個活動的明細，不跳回活動列表
+  const m=/[#&]c=(\d+)/.exec(location.hash||"");
+  if(m&&campaigns.find(c=>String(c.id)===m[1])){
+    document.getElementById("listView").style.display="none";
+    document.getElementById("detailView").style.display="";
+    loadCampaign(m[1]);
+    return;
+  }
   showListView();
 }
+function setHash(h){try{history.replaceState(null,"",location.pathname+location.search+(h||""));}catch(e){}}
 /* 當事船（缺失來源船）不須自查：活動的題目全部來自同一艘船時，那艘船不計入「應填船」。 */
 const srcShipOf=it=>String(it&&it.src||"").trim().split(/\s+/)[0]||"";
 const selfOnlyShip=(c,code)=>{const its=(c&&c.items)||[];return its.length>0&&its.every(it=>srcShipOf(it)===code);};
@@ -255,6 +264,7 @@ function campaignStats(c){
   return {started:resp.length,total,submitted,track};
 }
 function showListView(){
+  setHash("");
   document.getElementById("listView").style.display="";
   document.getElementById("detailView").style.display="none";
   renderListView();
@@ -333,6 +343,7 @@ async function deleteCampaign(id){
 }
 
 function openDetail(id){
+  setHash("#c="+id);
   document.getElementById("listView").style.display="none";
   document.getElementById("detailView").style.display="";
   loadCampaign(id);
