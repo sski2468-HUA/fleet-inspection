@@ -88,6 +88,7 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
 .rvconfirm input{width:22px;height:22px;flex:none}
 .rvconfirm.bad{animation:rvflash .5s 4;border-color:var(--bad);background:#fdecea}
 @keyframes rvflash{50%{box-shadow:0 0 0 5px rgba(192,57,43,.35)}}
+#simItem,#naItem{font-size:13.5px;color:var(--ink-2)}
 .simopts{display:flex;gap:8px;flex-wrap:wrap}
 .simopt{flex:1;min-width:180px;border:2px solid var(--line-2);background:#fff;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:var(--ink-2);cursor:pointer;font-family:var(--sans)}
 .simopt.on{border-color:var(--navy-3);background:#e9f1f8;color:var(--navy)}
@@ -982,11 +983,18 @@ window.addEventListener("beforeunload",()=>{ if(autoSaveTimer)flushAutoSave(); }
 
 /* ════════ 「有，需處理」說明視窗：選了「有，需處理」就跳出，問本船實際狀況、打算怎麼處理、是否已結案。
    處理中（未結案）也要先送出，公司才知道本船有類似情形；處理完再回同一條連結勾結案、重送一次。 ════════ */
+function modalRefHtml(it){
+  return `<div style="font-weight:700;color:var(--navy);margin-bottom:6px">${esc(it.code?"CODE "+it.code:"")}${srcTag(it)}</div>
+    <div style="max-height:34vh;overflow:auto;line-height:1.75">
+      <div><b>缺失詳情：</b>${esc(it.detail||"")}</div>
+      ${it.actual2?`<div style="margin-top:4px"><b>實際情況：</b>${esc(it.actual2)}</div>`:""}
+    </div>`;
+}
 let simCtx=null,simClosed=false;
 function openSimModal(i,prev){
   const it=(draft.items||[])[i];if(!it)return;
   simCtx={i,prev};
-  document.getElementById("simItem").textContent=(it.code?"CODE "+it.code+"　":"")+String(it.detail||"").slice(0,90)+((it.detail||"").length>90?"…":"");
+  document.getElementById("simItem").innerHTML=modalRefHtml(it);
   document.getElementById("simNote").value=it.note||"";
   document.getElementById("simAction").value=it.actual||"";
   document.getElementById("simCloseNote").value=it.closeNote||"";
@@ -1031,7 +1039,7 @@ let naCtx=null;
 function openNaModal(i,prev){
   const it=(draft.items||[])[i];if(!it)return;
   naCtx={i,prev};
-  document.getElementById("naItem").textContent=(it.code?"CODE "+it.code+"　":"")+String(it.detail||"").slice(0,90)+((it.detail||"").length>90?"…":"");
+  document.getElementById("naItem").innerHTML=modalRefHtml(it);
   document.getElementById("naReason").value=it.naNote||"";
   document.getElementById("naModal").classList.add("show");
   setTimeout(()=>document.getElementById("naReason").focus(),80);
