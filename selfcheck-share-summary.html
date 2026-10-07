@@ -201,7 +201,14 @@ function copyMailText(id){
 }
 
 /* 受檢船・檢查來源・日期（來源字串格式「船名 檢查來源 日期」），跟船上填單頁的顯示一致 */
-function fmtSrc(s){const p=String(s||"").trim().split(/\s+/);return p.length>=3?`${shipLabel(p[0])}・${p.slice(1,-1).join(" ")}・${p[p.length-1]}`:String(s||"");}
+function fmtSrc(s){
+  s=String(s||"").trim();const p=s.split(/\s+/);
+  if(p.length<3)return s;
+  if(shipOpts.some(o=>o.code===p[0]))return `${shipLabel(p[0])}・${p.slice(1,-1).join(" ")}・${p[p.length-1]}`;
+  const m=matchShipByName(s);
+  if(m){const rest=s.replace(m.n,"").trim().split(/\s+/);return `${shipLabel(m.code)}・${rest.slice(0,-1).join(" ")}・${rest[rest.length-1]}`;}
+  return `${shipLabel(p[0])}・${p.slice(1,-1).join(" ")}・${p[p.length-1]}`;
+}
 const srcTag=it=>it.src?`<span style="margin-left:8px;font-size:12px;font-weight:700;color:#1e7f8c;background:#e4f1f2;border-radius:10px;padding:1px 10px;white-space:nowrap">${esc(fmtSrc(it.src))}</span>`:"";
 let toastTimer;
 function notify(msg,tone){
@@ -229,7 +236,7 @@ async function loadShipOpts(){
   try{
     const rows=await api("app_db?select=payload&k=eq.ships");
     const list=rows&&rows[0]&&Array.isArray(rows[0].payload)?rows[0].payload:[];
-    shipOpts=list.filter(s=>!EXCLUDED_SHIPS.includes(s.code)).map(s=>({code:s.code,name:s.zh||s.name||s.code,label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));
+    shipOpts=list.filter(s=>!EXCLUDED_SHIPS.includes(s.code)).map(s=>({code:s.code,zh:s.zh||"",en:s.name||"",name:s.zh||s.name||s.code,label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));
   }catch(e){}
 }
 async function loadCampaignList(){
@@ -253,7 +260,23 @@ async function loadCampaignList(){
 }
 function setHash(h){try{history.replaceState(null,"",location.pathname+location.search+(h||""));}catch(e){}}
 /* 當事船（缺失來源船）不須自查：活動的題目全部來自同一艘船時，那艘船不計入「應填船」。 */
-const srcShipOf=it=>String(it&&it.src||"").trim().split(/\s+/)[0]||"";
+/* 缺失來源船判斷：新活動的 src 是「船代碼 檢查來源 日期」，但舊活動寫的是「中文船名 英文船名 檢查來源 日期」，
+   所以先看第一段是不是船代碼，不是就用船名（中文／英文／全名）比對船清單，兩種寫法都能認出是哪艘船。 */
+function matchShipByName(s){
+  let best=null,bl=0;
+  srcShipList().forEach(o=>{[o.label,o.zh,o.en].filter(Boolean).forEach(n=>{
+    if((s===n||s.startsWith(n+" ")||s.includes(" "+n+" ")||s.endsWith(" "+n))&&n.length>bl){best={code:o.code,n};bl=n.length;}
+  });});
+  return best;
+}
+function resolveSrcShip(it){
+  const s=String(it&&it.src||"").trim();if(!s)return "";
+  const first=s.split(/\s+/)[0];
+  if(srcShipList().some(o=>o.code===first))return first;
+  const m=matchShipByName(s);
+  return m?m.code:first;
+}const srcShipOf=it=>resolveSrcShip(it);
+const srcShipList=()=>shipOpts;
 const selfOnlyShip=(c,code)=>{const its=(c&&c.items)||[];return its.length>0&&its.every(it=>srcShipOf(it)===code);};
 function campaignStats(c){
   const resp=allResponses.filter(r=>String(r.campaign_id)===String(c.id));
