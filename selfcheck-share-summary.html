@@ -535,6 +535,10 @@ function exportAllCampaigns(){
     allIssues.push(...issues);
   });
   const wb=XLSX.utils.book_new();
+  const allItems=[];campaigns.forEach(c=>(c.items||[]).forEach((it,i)=>allItems.push({"活動":c.title||("活動 #"+c.id),"編號":i+1,"CODE":it.code||"","來源檢查":fmtSrc(it.src),"缺失內容":it.detail||"","來源實際情況":it.actual2||""})));
+  const wsItems=XLSX.utils.json_to_sheet(allItems.length?allItems:[{"（無資料）":""}]);
+  wsItems["!cols"]=[22,6,10,30,60,50].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,wsItems,"各活動自查項目");
   const ws1=XLSX.utils.json_to_sheet(allStatus.map(r=>({"活動":r.campaign,"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"填答進度":r.progress,"狀態":r.state,"送出次數":r.submitCount,"最後送出":r.submittedAt,"需處理項數":r.needN,"未結案數":r.openN})));
   ws1["!cols"]=[22,8,14,12,12,10,9,8,20,10,9].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws1,"各活動船隊狀況");
@@ -549,6 +553,10 @@ function exportExcel(){
   if(typeof XLSX==="undefined"){notify("⚠ Excel 元件載入失敗，請確認網路後重新整理頁面","err");return;}
   const {status,issues}=collectReport();
   const wb=XLSX.utils.book_new();
+  // 第一個分頁：這次分享自查的項目（缺失內容），後面才是各船完成狀況與需處理項目
+  const wsItems=XLSX.utils.json_to_sheet((curCampaign.items||[]).map((it,i)=>({"編號":i+1,"CODE":it.code||"","來源檢查":fmtSrc(it.src),"缺失內容":it.detail||"","來源實際情況":it.actual2||"","追蹤期限":it.trackDue||""})));
+  wsItems["!cols"]=[6,10,30,60,50,12].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,wsItems,"自查項目");
   const ws1=XLSX.utils.json_to_sheet(status.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"填答進度":r.progress,"狀態":r.state,"送出次數":r.submitCount,"最後送出":r.submittedAt,"需處理項數":r.needN,"未結案數":r.openN})));
   ws1["!cols"]=[8,14,12,12,10,9,8,20,10,9].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws1,"船隊完成狀況");
@@ -565,10 +573,13 @@ function exportPdf(){
   document.getElementById("printArea").innerHTML=`
     <h1>${esc(curCampaign.title||"分享自查")}</h1>
     <div>產出日期：${new Date().toLocaleString("zh-TW",{hour12:false})}　查核項目 ${(curCampaign.items||[]).length} 項　已送出 ${status.filter(r=>r.state==="已送出").length} / ${status.length} 艘　需處理 ${issues.length} 項（未結案 ${issues.filter(r=>r.closed==="未結案").length}）</div>
-    <h2>一、船隊完成狀況</h2>
+    <h2>一、本次自查項目（共 ${(curCampaign.items||[]).length} 項）</h2>
+    <table><thead><tr><th style="width:5%">#</th><th style="width:9%">CODE</th><th style="width:16%">來源檢查</th><th style="width:40%">缺失內容</th><th style="width:30%">來源實際情況</th></tr></thead><tbody>
+    ${(curCampaign.items||[]).map((it,i)=>`<tr><td>${i+1}</td><td>${c(it.code)}</td><td>${c(fmtSrc(it.src))}</td><td>${c(it.detail)}</td><td>${c(it.actual2)}</td></tr>`).join("")||`<tr><td colspan="5">（無）</td></tr>`}</tbody></table>
+    <h2>二、船隊完成狀況</h2>
     <table><thead><tr><th>船舶</th><th>填寫人</th><th>進度</th><th>狀態</th><th>最後送出</th><th>需處理</th><th>未結案</th></tr></thead><tbody>
     ${status.map(r=>`<tr><td>${c(r.name)}</td><td>${c(r.checker)}${r.title?"（"+c(r.title)+"）":""}</td><td>${c(r.progress)}</td><td>${r.state}</td><td>${c(r.submittedAt)}</td><td>${r.needN}</td><td>${r.openN}</td></tr>`).join("")}</tbody></table>
-    <h2>二、有類似情形、需處理項目（${issues.length} 項）</h2>
+    <h2>三、有類似情形、需處理項目（${issues.length} 項）</h2>
     ${issues.length?`<table><thead><tr><th style="width:11%">船舶</th><th style="width:26%">缺失內容</th><th style="width:20%">本船實際狀況</th><th style="width:29%">處理情況</th><th style="width:8%">結案</th></tr></thead><tbody>
     ${issues.map(r=>`<tr><td>${c(r.name)}</td><td>${c(r.detail)}${r.actual2?"<br><i>實際情況："+c(r.actual2)+"</i>":""}</td><td>${c(r.note)}</td><td>${c(r.handle)}</td><td>${r.closed}</td></tr>`).join("")}</tbody></table>`:"<div>目前沒有需處理項目。</div>"}`;
   window.print();
