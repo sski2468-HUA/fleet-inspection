@@ -349,7 +349,8 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
   <label style="flex-direction:row;align-items:center;gap:8px;margin-top:12px;background:#fdf2e0;border:1px solid #f0dba9;border-radius:8px;padding:10px 12px;cursor:pointer"><input type="checkbox" id="sgmClosed" onchange="document.getElementById('sgmClosedAtWrap').style.display=this.checked?'':'none';if(this.checked&&!document.getElementById('sgmClosedAt').value)document.getElementById('sgmClosedAt').value=todayIso();" style="width:18px;height:18px">✓ 本部門已處理完成，結案</label>
   <label id="sgmClosedAtWrap" style="display:none">結案日期<input type="date" id="sgmClosedAt"></label>
   <div class="toolbar" style="justify-content:flex-end;margin:14px 0 0">
-    <span class="hint" id="sgmMe" style="margin-right:auto"></span>
+    <span class="hint" id="sgmMe"></span>
+    <button class="btn danger" id="sgmReset" style="margin-right:auto" onclick="resetSuggEdit()" title="清空承辦人、初步回應、處理結果與結案狀態，這個部門這筆回到「待承辦」（測試資料或指派錯誤時使用）">↩ 取消承辦（清空，回到待承辦）</button>
     <button class="btn" onclick="cancelSuggEdit()">取消</button>
     <button class="btn lg" style="padding:9px 22px;font-size:15px" onclick="saveSuggEdit()">💾 儲存</button>
   </div>
@@ -2160,6 +2161,7 @@ async function openSuggEdit(rid,uid,dept){
   $("#sgmClosed").checked=!!base.closed;$("#sgmClosedAt").value=base.closedAt||"";
   $("#sgmClosedAtWrap").style.display=base.closed?"":"none";
   $("#sgmMe").textContent=`編輯人：${me}`;
+  $("#sgmReset").style.display=(base.owner||base.plan||base.result||base.closed)?"":"none"; // 還沒有任何承辦內容的，不需要「取消承辦」
   $("#suggModal").style.display="flex";
   renderSuggPage();
 }
@@ -2173,6 +2175,28 @@ async function releaseSuggLock(){
   await Store.loadReplies();renderSuggPage();
 }
 function cancelSuggEdit(){$("#suggModal").style.display="none";releaseSuggLock();}
+/* 取消承辦：把這個部門這一筆的承辦人／初步回應／處理結果／結案狀態全部清空，回到「待承辦」；
+   處理歷程保留一筆「取消承辦」紀錄。沿用編輯視窗的鎖定與版本檢查，不會蓋掉別人的內容。 */
+async function resetSuggEdit(){
+  if(!suggCtx)return;
+  if(!confirm(`確定要「取消承辦」嗎？\n\n會清空「${suggCtx.dept}」這一筆的承辦人、初步回應／計畫、處理結果與結案狀態，回到「待承辦」。其他部門的處理不受影響。`))return;
+  const c=suggCtx,now=Date.now();
+  const hist=(Array.isArray(c.base.history)?c.base.history.slice(-29):[]);
+  hist.push({at:now,by:c.me,action:"取消承辦（清空）"});
+  const np={kind:"sugg",suggUid:c.uid,dept:c.dept,owner:"",plan:"",result:"",closed:false,closedAt:"",updatedBy:c.me,updatedAt:now,history:hist,lock:null};
+  try{
+    const res=await api(`intaudit_replies?id=eq.${encodeURIComponent(c.key)}&updated_at=eq.${c.expected}`,{method:"PATCH",headers:H({"Prefer":"return=representation"}),body:JSON.stringify({status:"sugg_new",payload:np,updated_at:now})});
+    if(!res||!res.length)throw new Error("CONFLICT");
+  }catch(e){
+    $("#suggModal").style.display="none";suggCtx=null;
+    await Store.loadReplies();renderSuggPage();
+    alert("取消承辦失敗：這一筆在您編輯期間被其他人改動，為避免覆蓋別人的內容，這次沒有執行。畫面已更新成最新內容。");
+    return;
+  }
+  suggCtx=null;$("#suggModal").style.display="none";
+  await Store.loadReplies();renderSuggPage();updateSuggBadge();
+  toast("✓ 已取消承辦，回到「待承辦」");
+}
 async function saveSuggEdit(){
   if(!suggCtx)return;
   const owner=$("#sgmOwner").value.trim(),plan=$("#sgmPlan").value.trim(),result=$("#sgmResult").value.trim(),closed=$("#sgmClosed").checked,closedAt=$("#sgmClosedAt").value;
