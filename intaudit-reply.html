@@ -50,12 +50,12 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
 .chip{border:2px solid transparent;border-radius:999px;padding:6px 16px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans)}
 .chip b{font-size:17px;margin-left:5px}
 .chip.all{background:#fff;color:var(--ink-2);border-color:var(--line-2)}
-.chip.red{background:#fde8e6;color:#c0392b}.chip.yellow{background:#ffe38a;color:#6b4e00}.chip.green{background:#dff2e6;color:#20703f}
+.chip.sent{background:#e3ecf1;color:#1c3a5e}.chip.red{background:#fde8e6;color:#c0392b}.chip.yellow{background:#ffe38a;color:#6b4e00}.chip.green{background:#dff2e6;color:#20703f}
 .chip.on{border-color:var(--navy);box-shadow:0 0 0 2px rgba(28,58,94,.15)}
 /* 缺失列 */
 .rows{margin:12px 14px}
 .row{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);background:#fff;border:1px solid var(--line);border-left:7px solid var(--bad);border-radius:10px;margin:0 0 12px;scroll-margin-top:80px}
-.row.st-yellow{border-left-color:var(--warn)}.row.st-green{border-left-color:var(--ok)}.row.st-lock{border-left-color:#6b7f8c;background:#f6f8f9}
+.row.st-sent{border-left-color:var(--navy-3)}.row.st-yellow{border-left-color:var(--warn)}.row.st-green{border-left-color:var(--ok)}.row.st-lock{border-left-color:#6b7f8c;background:#f6f8f9}
 .row.info{grid-template-columns:1fr;border-left-color:#8195a0}
 .row.info .rl{border-right:none}
 .rl{padding:14px 16px;border-right:1px dashed var(--line)}
@@ -84,7 +84,7 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
 .globalbar .ghint{font-size:11.5px;color:#cfdcea;font-weight:400}
 .cmnote{background:var(--teal-l);border:1px solid #bfdde0;border-radius:8px;padding:10px 14px;font-size:13px;line-height:1.7;color:#22505a;margin:0 0 10px}
 .badge{display:inline-block;font-size:12px;font-weight:700;border-radius:10px;padding:2px 11px}
-.badge.red{background:#fde8e6;color:#c0392b}.badge.yellow{background:#ffe38a;color:#6b4e00}.badge.green{background:#dff2e6;color:#20703f}.badge.lock{background:#e3e8ec;color:#455a66}
+.badge.sent{background:#e3ecf1;color:#1c3a5e}.badge.red{background:#fde8e6;color:#c0392b}.badge.yellow{background:#ffe38a;color:#6b4e00}.badge.green{background:#dff2e6;color:#20703f}.badge.lock{background:#e3e8ec;color:#455a66}
 .two{display:grid;grid-template-columns:200px 1fr;gap:12px}
 /* 步驟導引（1填寫人 →2 FLOW項目 →3 系統填報 →4 預覽送出） */
 .stepbar{display:flex;gap:4px;margin:14px;flex-wrap:wrap;position:sticky;top:0;z-index:19;background:var(--paper);padding-top:4px}
@@ -166,7 +166,7 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
 
     <!-- Step 3：系統填報（內控／系統內結案，預設全部，可篩選檢查種類與結案方式） -->
     <div id="stepPanel3" style="display:none">
-      <div class="banner">請針對下列每一項待改善缺失，填寫<b>改善措施簡述</b>、<b>改善完成日期</b>，改善後照片<b>選填</b>（最多 3 張）。可以先填幾項、其餘之後再補，填寫內容會自動存成草稿。</div>
+      <div class="banner">請針對下列每一項待改善缺失，填寫<b>改善措施簡述</b>、<b>改善完成日期</b>，改善後照片<b>選填</b>（最多 3 張）。<b>不用一次填完</b>：先改善好幾項就先填那幾項、到第④步先送出，其餘之後再回來繼續；已送出的項目會標示為「已改善・已送出」，督導也只需審核送回來的這幾項。填寫內容會自動存成草稿。</div>
       <div class="mtabs" id="sysTypeTabs"></div>
       <div class="mtabs" id="modeTabs" style="margin-top:8px"></div>
       <div id="modeNote"></div>
@@ -284,12 +284,14 @@ const reopened={}; // 已結案項目，船上主動按「需要修改」解鎖�
 function stOf(d){
   const rp=rpOf(d);
   if(rp&&rp.status==="reviewed"&&!reopened[d.uid])return "lock";
+  if(rp&&rp.status==="submitted"&&isComplete(val(d))&&sameAsReply(val(d),rp.payload))return "sent"; // 已改善、已送出給督導（先送回來的項目）
   if(isComplete(val(d)))return "green";
   return "red";
 }
 function badgeText(d,st){
   const rp=rpOf(d);
   if(st==="lock")return "✓ 已結案";
+  if(st==="sent")return "✓ 已改善・已送出（待督導審核）";
   if(st==="green"){
     if(rp&&rp.status==="reviewed")return sameAsReply(val(d),rp.payload)?"已結案（修改中，內容尚未變動）":"已結案，修改中，尚未重新送出";
     if(rp&&rp.status==="returned")return "被退回，已填妥，請重新送出";
@@ -411,18 +413,19 @@ function paintStatus(uid){
   el.className="row st-"+st;el.dataset.st=st;
   const b=document.getElementById("bd-"+uid);if(b){b.className="badge "+st;b.textContent=badgeText(d,st);}
 }
-function counts(){const c={red:0,green:0,lock:0};subset().forEach(d=>{c[stOf(d)]++;});return c;}
+function counts(){const c={red:0,green:0,sent:0,lock:0};subset().forEach(d=>{c[stOf(d)]++;});return c;}
 function updateBar(){
   renderGlobalBar();
-  const c=counts(),n=subset().length,g=c.green+c.lock;
-  $("#bar").innerHTML=`<b style="color:var(--navy);margin-right:4px">共 ${n} 項　已填 ${g}　未填 ${c.red}</b>
+  const c=counts(),n=subset().length,done=c.sent+c.lock;
+  $("#bar").innerHTML=`<b style="color:var(--navy);margin-right:4px">共 ${n} 項　已改善（已送出）${done}　待送出 ${c.green}　未改善 ${c.red}</b>
     <button class="chip all ${flt==="all"?"on":""}" onclick="setFlt('all')">全部<b>${n}</b></button>
-    <button class="chip red ${flt==="red"?"on":""}" onclick="setFlt('red')">未填<b>${c.red}</b></button>
-    <button class="chip green ${flt==="green"?"on":""}" onclick="setFlt('green')">已填<b>${g}</b></button>
-    <span class="hint">${c.lock?`（已填含 ${c.lock} 項已結案）　`:""}紅＝尚未填寫　綠＝已填妥（徽章文字會標示是否已送出）</span>`;
+    <button class="chip red ${flt==="red"?"on":""}" onclick="setFlt('red')">未改善<b>${c.red}</b></button>
+    <button class="chip green ${flt==="green"?"on":""}" onclick="setFlt('green')">已填妥・待送出<b>${c.green}</b></button>
+    <button class="chip sent ${flt==="sent"?"on":""}" onclick="setFlt('sent')">已改善・已送出<b>${done}</b></button>
+    <span class="hint">紅＝還沒改善／沒填　綠＝已填妥但還沒送出　藍＝已送出給督導（含已結案）。<b>改善完幾項就先送幾項，其餘之後再回來，不用一次填完。</b></span>`;
 }
 function setFlt(k){flt=k;applyFlt();updateBar();}
-function applyFlt(){document.querySelectorAll("#defList .row").forEach(el=>{const st=el.dataset.st,g=st==="green"||st==="lock";el.style.display=(flt==="all"||flt===st||(flt==="green"&&g))?"":"none";});}
+function applyFlt(){document.querySelectorAll("#defList .row").forEach(el=>{const st=el.dataset.st;el.style.display=(flt==="all"||flt===st||(flt==="sent"&&st==="lock"))?"":"none";});}
 /* 結案方式快捷分頁：全部／FLOW／內控／系統結案。FLOW 沒有回報表單，只列出說明＋缺失內容給船上參考；
    內控／系統結案都是同一套回報表單——內控在督導登錄時就已匯出立案，這裡結案後海技還要多一步去內控系統標記結案；
    系統內結案則單純在本系統結案即可，差別放在各自分頁上方的提示文字。 */
@@ -456,12 +459,12 @@ function renderGlobalBar(){
   const items=nonFlow(rec);
   if(!items.length){ el.innerHTML=""; el.style.display="none"; return; }
   el.style.display="";
-  let done=0;
-  items.forEach(d=>{ const st=stOf(d); if(st==="green"||st==="lock") done++; });
-  const remain=items.length-done;
-  el.innerHTML=`<b>📋 全船應填報總計 ${items.length} 項</b>`+
-    `<span class="gstat ok">已填 ${done}</span>`+
-    (remain?`<span class="gstat warn">尚有 ${remain} 項未填完</span>`:`<span class="gstat ok">✓ 全部已填完</span>`)+
+  let sent=0,draft=0,todo=0;
+  items.forEach(d=>{ const st=stOf(d); if(st==="sent"||st==="lock")sent++; else if(st==="green")draft++; else todo++; });
+  el.innerHTML=`<b>📋 全船應改善總計 ${items.length} 項</b>`+
+    `<span class="gstat ok">已改善（已送出）${sent}</span>`+
+    (draft?`<span class="gstat warn">已填妥待送出 ${draft}</span>`:"")+
+    (todo?`<span class="gstat warn">未改善 ${todo}</span>`:`<span class="gstat ok">✓ 全部都已改善</span>`)+
     `<span class="ghint">（不受步驟／篩選影響，篩選只是方便分類查看，不會漏算）</span>`;
 }
 /* 步驟②：FLOW 填單項目——預設顯示全部 FLOW 缺失，可依檢查種類篩選；純提醒清單，不在這裡填寫。 */
@@ -516,7 +519,7 @@ function previewItemHtml(d,i){
 function renderPreview(){
   const items=nonFlow(rec);
   const flows=(rec.defs||[]).filter(d=>d.closeMode==="FLOW");
-  const c={red:0,green:0,lock:0};items.forEach(d=>{c[stOf(d)]++;});
+  const c={red:0,green:0,sent:0,lock:0};items.forEach(d=>{c[stOf(d)]++;});
   const g=c.green+c.lock;
   const readyCount=items.filter(d=>{const x=drafts[d.uid];return x&&isComplete(x)&&!(rpOf(d)&&sameAsReply(x,rpOf(d).payload));}).length;
   const nameVal=$("#fName").value.trim(),titleVal=$("#fTitle").value;
@@ -527,7 +530,7 @@ function renderPreview(){
     </div>
     ${flows.length?`<div class="banner">提醒：這張改善單另有 <b>${flows.length}</b> 項 FLOW 系統缺失，請自行至 FLOW 系統（DMP-FM01）辦理，本頁送出不包含這些項目。</div>`:""}
     <div class="ih" style="margin:14px 14px 0">📋 系統填報項目（共 ${items.length} 項）</div>
-    <div class="hint" style="font-size:13px;margin:4px 14px 0">已填 <b style="color:var(--ok)">${g}</b>　未填 <b style="color:var(--bad)">${c.red}</b>　本次按「送出」可送出 <b style="color:var(--navy)">${readyCount}</b> 項</div>
+    <div class="hint" style="font-size:13px;margin:4px 14px 0">已改善（已送出）<b style="color:var(--navy)">${c.sent+c.lock}</b>　已填妥待送出 <b style="color:var(--ok)">${c.green}</b>　未改善 <b style="color:var(--bad)">${c.red}</b>　<b>本次按「送出」會先送出 ${readyCount} 項</b>（其餘之後再回來補）</div>
     <div class="rows">${items.length?items.map((d,i)=>previewItemHtml(d,i)).join(""):`<div class="banner" style="margin:0 14px">這張改善單沒有需要船上改善的項目。</div>`}</div>`;
   const chk=$("#confirmChk");if(chk){chk.checked=false;}
   const btn=$("#btnSubmit");if(btn){btn.disabled=false;btn.classList.add("soft-disabled");}

@@ -2180,12 +2180,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="nav-group" data-group="forms">
       <div class="nav-group-label">填單</div>
       <div class="nav-item" data-tab="air"><span class="num">📝</span>填單紀錄</div>
-      <div class="nav-item" data-external="__air_intake__"><span class="num">🔗</span>前往線上填單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
       <div class="nav-item" data-tab="intaudit"><span class="num">🛠</span>內部檢查缺失登錄審查（海技）<span id="air-ia-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:auto"></span></div>
-      <div class="nav-item" data-external="__intaudit_new__"><span class="num">🛠</span>前往內部檢查缺失登錄（督導／稽核員用） <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
-      <div class="nav-item" data-external="__selfcheck_share_summary__"><span class="num">🔗</span>前往分享船舶缺失自查 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
       <div class="nav-item" data-tab="self"><span class="num">4</span>專案自查清單</div>
 
+    </div>
+    <div class="nav-group" data-group="goto">
+      <div class="nav-group-label">前往</div>
+      <div class="nav-item" data-external="__air_intake__"><span class="num">🔗</span>前往線上填單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
+      <div class="nav-item" data-external="__intaudit_new__"><span class="num">🛠</span>前往內部檢查缺失登錄（督導／稽核員用） <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
+      <div class="nav-item" data-external="__intaudit_sugg__"><span class="num">📌</span>前往船舶訴求建議清單 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
+      <div class="nav-item" data-external="__selfcheck_share_summary__"><span class="num">🔗</span>前往分享船舶缺失自查 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
     </div>
     <div class="nav-group" data-group="tools">
       <div class="nav-group-label">工具與參考</div>
@@ -2605,7 +2609,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <!-- ════════ 2.5 SIRE正向評論 ════════ -->
     <section id="tab-sirepos" class="tabpage">
       <div class="banner">收錄 SIRE／第三方檢查／內稽／訪船等各類檢查中，檢查員或督導給予的<b>正向評論（Positive Comment）</b>，依<b>時間區間（年.月）／年.月／船舶／檢查來源／職稱／人名</b>篩選，圖表統計各職稱及各人員獲正向評論次數排名；下方為明細清單，可新增／批量匯入／編輯／刪除。</div>
-      <div class="toolbar">
+      <div class="toolbar" id="sire-filterbar">
         <span class="lbl">時間區間</span>
         <select id="sire-ymfrom" onchange="SirePos.page=1;SirePos.render()"></select>
         <span>～</span>
@@ -2623,6 +2627,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="toolbar" style="margin:0 0 12px">
         <button type="button" class="btn lg df-tabbtn active" data-t="summary" onclick="SirePos.setSubTab('summary')">📊 統計排行</button>
         <button type="button" class="btn lg df-tabbtn" data-t="list" onclick="SirePos.setSubTab('list')">📋 清單列表</button>
+        <button type="button" class="btn lg df-tabbtn" data-t="crew" onclick="SirePos.setSubTab('crew')" title="內部檢查缺失登錄「總體評價」裡填寫的表現亮眼／表現較差船員">👥 表現亮眼／較差船員（內部檢查）</button>
       </div>
       <div id="sire-sub-summary">
       <div class="grid2">
@@ -2638,6 +2643,23 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         </h3>
         <div class="card-body"><div class="tblwrap" style="max-height:420px"><table class="tbl"><thead><tr><th style="width:6%">排名</th><th style="width:10%">姓名</th><th style="width:10%">職稱</th><th style="width:8%">次數</th><th>評論內容</th></tr></thead><tbody id="sire-person-rank"></tbody></table></div></div>
       </div>
+      </div>
+      <div id="sire-sub-crew" style="display:none">
+        <div class="banner" style="margin-bottom:10px">收錄「內部檢查缺失登錄」<b>已送出</b>的登錄單裡，②總體評價填寫的<b>表現亮眼船員</b>與<b>表現較差船員</b>（含職稱、說明）。資料直接來自督導端登錄單，要修改請在「內部檢查缺失登錄」改，這裡會同步更新。</div>
+        <div class="toolbar" style="margin:0 0 10px">
+          <select id="crew-ship" onchange="SirePos.renderCrew()" style="width:auto"><option value="">全部船舶</option></select>
+          <select id="crew-kind" onchange="SirePos.renderCrew()" style="width:auto"><option value="">表現亮眼＋較差</option><option value="good">只看表現亮眼</option><option value="poor">只看表現較差</option></select>
+          <select id="crew-rank" onchange="SirePos.renderCrew()" style="width:auto"><option value="">全部職稱</option></select>
+          <input type="text" id="crew-q" placeholder="搜尋姓名／說明／檢查人" oninput="SirePos.renderCrew()" style="flex:1;min-width:160px;max-width:320px">
+          <button class="btn sm" onclick="SirePos.loadCrew(true)">🔄 重新整理</button>
+          <button class="btn sm dark" onclick="SirePos.exportCrew()">⬇ 匯出 Excel</button>
+          <span class="statline" id="crew-stat"></span>
+        </div>
+        <div class="grid2">
+          <div class="card" style="margin-bottom:14px"><h3>個人統計（亮眼／較差次數）</h3><div class="tblwrap" style="max-height:300px"><table class="tbl"><thead><tr><th>姓名</th><th>職稱</th><th style="width:70px">亮眼</th><th style="width:70px">較差</th></tr></thead><tbody id="crew-person"></tbody></table></div></div>
+          <div class="card" style="margin-bottom:14px"><h3>各職稱次數</h3><div class="tblwrap" style="max-height:300px"><table class="tbl"><thead><tr><th>職稱</th><th style="width:70px">亮眼</th><th style="width:70px">較差</th></tr></thead><tbody id="crew-rankstat"></tbody></table></div></div>
+        </div>
+        <div class="card"><h3>表現亮眼／較差船員明細</h3><div class="tblwrap" style="max-height:520px"><table class="tbl"><thead><tr><th style="width:90px">類別</th><th>船名</th><th style="width:150px">檢查日期</th><th>檢查來源</th><th>檢查人</th><th>職稱</th><th>姓名</th><th style="width:36%">說明 Brief</th></tr></thead><tbody id="crew-tbody"></tbody></table></div></div>
       </div>
       <div id="sire-sub-list" style="display:none">
       <div class="card">
@@ -10999,6 +11021,11 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
       const folderIA=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
       window.open(folderIA+"intaudit.html","_blank");
     }
+    else if(n.dataset.external==="__intaudit_sugg__"){
+      // 開新分頁，直接停在「船舶訴求/建議清單」
+      const folderIA=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
+      window.open(folderIA+"intaudit.html?sugg=1","_blank");
+    }
     else if(n.dataset.external==="__selfcheck_share_summary__"){
       const folder=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
       window.open(folder+"selfcheck-share-summary.html","_blank");
@@ -16547,10 +16574,72 @@ const SirePos={
   setSubTab(t){
     this.subTab=t;
     $$("#tab-sirepos .df-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
-    const sp=$("#sire-sub-summary"),lp=$("#sire-sub-list");
+    const sp=$("#sire-sub-summary"),lp=$("#sire-sub-list"),cp=$("#sire-sub-crew"),fb=$("#sire-filterbar");
     if(sp)sp.style.display=t==="summary"?"":"none";
     if(lp)lp.style.display=t==="list"?"":"none";
-    this.render();
+    if(cp)cp.style.display=t==="crew"?"":"none";
+    if(fb)fb.style.display=t==="crew"?"none":""; // 船員子頁有自己的篩選
+    if(t==="crew")this.loadCrew(false);
+    else this.render();
+  },
+  /* ── 表現亮眼／較差船員（內部檢查）：直接讀「內部檢查缺失登錄」（intaudit_records）已送出的登錄單，
+     把 ②總體評價 的 goodCrew／poorCrew 展開成明細；不在主系統另存一份，登錄單改了這裡就跟著更新。 ── */
+  crewRows:[],crewLoaded:false,
+  async loadCrew(force){
+    if(this.crewLoaded&&!force){this.renderCrew();return;}
+    const st=$("#crew-stat");if(st)st.textContent="讀取中…";
+    try{
+      const rows=await Cloud.api("intaudit_records?select=id,payload&order=id.desc&limit=1000")||[];
+      const out=[];
+      rows.forEach(x=>{
+        const r=x.payload||{};
+        if(r.draft!==false)return; // 只收「已送出海技入系統」的登錄單
+        const date=String(r.dateFrom||"").replace(/-/g,"/")+(r.dateTo&&r.dateTo!==r.dateFrom?"～"+String(r.dateTo).replace(/-/g,"/"):"");
+        const itype=(r.types||[]).map(k=>String(k).replace(/^主題檢查::/,"專項檢查：")).join("、");
+        [["good",r.goodCrew],["poor",r.poorCrew]].forEach(([kind,arr])=>(arr||[]).forEach(c=>{
+          if(!(c.name||c.brief||c.rank))return;
+          out.push({kind,ship:r.ship||"",date,itype,inspector:r.inspector||"",rank:c.rank||"",name:c.name||"",brief:c.brief||"",rid:x.id});
+        }));
+      });
+      this.crewRows=out;this.crewLoaded=true;
+    }catch(e){
+      this.crewRows=[];if(st)st.textContent="⚠ 讀取內部檢查缺失登錄失敗："+e.message;return;
+    }
+    this.renderCrew();
+  },
+  crewFiltered(){
+    const fs=$("#crew-ship")?$("#crew-ship").value:"",fk=$("#crew-kind")?$("#crew-kind").value:"",fr=$("#crew-rank")?$("#crew-rank").value:"",q=($("#crew-q")?$("#crew-q").value:"").trim().toLowerCase();
+    return this.crewRows.filter(d=>(!fs||d.ship===fs)&&(!fk||d.kind===fk)&&(!fr||d.rank===fr)&&(!q||[d.name,d.brief,d.inspector,d.rank].join(" ").toLowerCase().includes(q)));
+  },
+  renderCrew(){
+    if(!$("#crew-tbody"))return;
+    // 下拉選項（保留目前選取）
+    const keep=(id,html)=>{const el=$(id),v=el.value;el.innerHTML=html;if([...el.options].some(o=>o.value===v))el.value=v;};
+    keep("#crew-ship",`<option value="">全部船舶</option>`+[...new Set(this.crewRows.map(d=>d.ship))].filter(Boolean).sort().map(s=>`<option value="${esc(s)}">${esc(shipFullLabel(s))}</option>`).join(""));
+    keep("#crew-rank",`<option value="">全部職稱</option>`+[...new Set(this.crewRows.map(d=>d.rank))].filter(Boolean).sort().map(s=>`<option>${esc(s)}</option>`).join(""));
+    const rows=this.crewFiltered();
+    const good=rows.filter(d=>d.kind==="good").length,poor=rows.length-good;
+    $("#crew-stat").textContent=`共 ${rows.length} 人次（亮眼 ${good}／較差 ${poor}；全部 ${this.crewRows.length} 人次）`;
+    const badge=k=>k==="good"?`<span class="stat" style="background:#e2f3e8;color:#2e8b57">表現亮眼</span>`:`<span class="stat" style="background:#fde8e6;color:#c0392b">表現較差</span>`;
+    $("#crew-tbody").innerHTML=rows.length?rows.map(d=>`<tr><td>${badge(d.kind)}</td><td><b>${esc(shipFullLabel(d.ship))}</b></td><td style="font-family:var(--mono);white-space:nowrap">${esc(d.date)}</td><td style="font-size:11.5px">${esc(d.itype)}</td><td>${esc(d.inspector)}</td><td>${esc(d.rank)}</td><td><b>${esc(d.name)}</b></td><td class="cell-wide" style="white-space:pre-line">${esc(d.brief)}</td></tr>`).join(""):`<tr><td colspan="8" style="text-align:center;color:#8195a0">${this.crewLoaded?"目前沒有符合條件的紀錄（只收錄已送出的登錄單）":"讀取中…"}</td></tr>`;
+    const pm=new Map(),rm=new Map();
+    rows.forEach(d=>{
+      const k=d.name+"‖"+d.rank;if(!pm.has(k))pm.set(k,{name:d.name,rank:d.rank,good:0,poor:0});pm.get(k)[d.kind]++;
+      const r=d.rank||"（未填）";if(!rm.has(r))rm.set(r,{rank:r,good:0,poor:0});rm.get(r)[d.kind]++;
+    });
+    const ps=[...pm.values()].sort((a,b)=>(b.good+b.poor)-(a.good+a.poor)||a.name.localeCompare(b.name,"zh-Hant"));
+    $("#crew-person").innerHTML=ps.length?ps.map(x=>`<tr><td><b>${esc(x.name||"（未填姓名）")}</b></td><td>${esc(x.rank)}</td><td style="color:#2e8b57;font-weight:700">${x.good||""}</td><td style="color:#c0392b;font-weight:700">${x.poor||""}</td></tr>`).join(""):`<tr><td colspan="4" style="text-align:center;color:#8195a0">尚無資料</td></tr>`;
+    const rs=[...rm.values()].sort((a,b)=>(b.good+b.poor)-(a.good+a.poor));
+    $("#crew-rankstat").innerHTML=rs.length?rs.map(x=>`<tr><td>${esc(x.rank)}</td><td style="color:#2e8b57;font-weight:700">${x.good||""}</td><td style="color:#c0392b;font-weight:700">${x.poor||""}</td></tr>`).join(""):`<tr><td colspan="3" style="text-align:center;color:#8195a0">尚無資料</td></tr>`;
+  },
+  exportCrew(){
+    if(!hasXLSX())return;
+    const rows=this.crewFiltered();
+    if(!rows.length){toast("⚠ 目前沒有可匯出的紀錄");return;}
+    const aoa=[["類別","船名","檢查日期","檢查來源","檢查人","職稱","姓名","說明"],...rows.map(d=>[d.kind==="good"?"表現亮眼":"表現較差",shipFullLabel(d.ship),d.date,d.itype,d.inspector,d.rank,d.name,d.brief])];
+    const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=[{wch:10},{wch:24},{wch:22},{wch:20},{wch:14},{wch:14},{wch:12},{wch:60}];
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"亮眼較差船員");
+    XLSX.writeFile(wb,`內部檢查_表現亮眼較差船員_${todayStr()}.xlsx`);toast(`已匯出 ${rows.length} 人次`);
   },
   init(){
     const rerun=()=>{this.page=1;this.render();};
@@ -16637,6 +16726,7 @@ const SirePos={
     return arr;
   },
   render(){
+    if(this.subTab==="crew"){if(this.crewLoaded)this.renderCrew();return;} // 船員子頁有自己的畫面，不跑下面的正向評論圖表／清單
     this.populateYm();
     const rows=this.filtered();
     if($("#sire-stat"))$("#sire-stat").textContent=`共 ${rows.length} 筆（全庫 ${App.sirePos.length} 筆）`;

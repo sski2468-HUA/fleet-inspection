@@ -228,7 +228,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
         <label>訪問船舶 Ship Visited <span class="req">*</span><select id="fShipSel"></select></label>
         <label>檢查日期（起）<span class="req">*</span><input type="date" id="fDateFrom" onchange="onDateChange()"></label>
         <label>檢查日期（迄）<span class="hint" style="font-weight:400">單日檢查可不填</span><input type="date" id="fDateTo"></label>
-        <label>檢查人 Auditor <span class="req">*</span><select id="fInspector"></select><span class="hint" style="font-weight:400">名單由主系統「系統管理→內部檢查人 Auditor 名單」維護；找不到請洽海技新增</span></label>
+        <div class="fld">檢查人 Auditor <span class="req">*</span><span class="hint" style="font-weight:400">（可複選，多位檢查人一起上船時全部勾選）</span><div class="checks" id="fInspector"></div><span class="hint" style="font-weight:400">名單由主系統「系統管理→內部檢查人 Auditor 名單」維護；找不到請洽海技新增</span></div>
         <label>地點 Ship's PSN <span class="req">*</span><input type="text" id="fPsn" list="dlPorts" placeholder="請用英文打幾個字選港口，例：Kaohsiung" autocomplete="off"><datalist id="dlPorts"></datalist></label>
         <div></div>
         <div class="fld fw">檢查種類 Audit Type <span class="req">*</span>（可複選；缺失明細會依所選種類分頁）
@@ -562,6 +562,8 @@ function effStatus(r,d){
   if(rp&&rp.status==="returned")return "已退回待重填";
   return d.status||"待船上改善";
 }
+/* 檢查人可複選：存成「、」串起來的字串（跟舊資料、主系統匯入、Word／Excel 匯出都相容），篩選時拆開比對 */
+const inspList=r=>String(r&&r.inspector||"").split("、").map(s=>s.trim()).filter(Boolean);
 const replyUrl=r=>`${location.href.replace(/[^/]*$/,"")}intaudit-reply.html?rid=${r.id}`;
 const statCls=s=>s==="FLOW 結案"?"s-flow":s==="待船上改善"?"s-wait":s==="船上已回報"?"s-rep":s==="已退回待重填"?"s-wait":"s-done";
 const rankSelect=(cur,onchange,extra)=>`<select ${extra||""} onchange="${onchange}"><option value="">— 職級 —</option>${RANK_OPTIONS.map(r=>`<option ${cur===r?"selected":""}>${esc(r)}</option>`).join("")}${cur&&!RANK_OPTIONS.includes(cur)?`<option selected>${esc(cur)}</option>`:""}</select>`;
@@ -584,7 +586,7 @@ function filteredForExport(){
   const out=[];
   Store.rows.forEach(r=>{
     if(fs&&r.ship!==fs)return;
-    if(fi&&r.inspector!==fi)return;
+    if(fi&&!inspList(r).includes(fi))return;
     const ds=(r.defs||[]).filter(d=>(!fm||d.closeMode===fm)&&(!fst||effStatus(r,d)===fst)&&
       (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,topicText(d)].join(" ").toLowerCase().includes(q)));
     if(!ds.length&&(fm||fst||q))return;
@@ -717,7 +719,7 @@ function renderList(){
   // （名單調整過也還是看得到舊紀錄的檢查人可以篩），每次重繪時保留使用者目前選取的值。
   const fInspEl=$("#fInsp");
   if(fInspEl){
-    const insps=[...new Set(rows.map(r=>r.inspector).filter(Boolean))].sort();
+    const insps=[...new Set(rows.flatMap(r=>inspList(r)))].sort();
     const curInsp=fInspEl.value;
     fInspEl.innerHTML='<option value="">全部檢查人</option>'+insps.map(n=>`<option ${n===curInsp?"selected":""}>${esc(n)}</option>`).join("");
   }
@@ -729,7 +731,7 @@ function renderList(){
   const filteredDefs=[];let matchedRecs=0;
   rows.forEach(r=>{
     if(fs&&r.ship!==fs)return;
-    if(fi&&r.inspector!==fi)return;
+    if(fi&&!inspList(r).includes(fi))return;
     const ds=(r.defs||[]).filter(d=>(!fm||d.closeMode===fm)&&(!fst||effStatus(r,d)===fst)&&
       (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,topicText(d)].join(" ").toLowerCase().includes(q)));
     if(!ds.length&&(fm||fst||q))return;
@@ -784,7 +786,7 @@ function renderList(){
   $("#listCounts").innerHTML=`<span class="hint" style="font-weight:700">${filtering?"篩選結果":"全部"}缺失結案方式</span>
     <span class="cchip flow">FLOW 系統（DMP-FM01）<b>${cnt("FLOW")}</b> 筆</span><span class="cchip ic">內控<b>${cnt("內控")}</b> 筆</span><span class="cchip sys">系統內結案<b>${cnt("系統內結案")}</b> 筆</span>
     <span class="hint">共 ${matchedRecs} 張登錄單、${filteredDefs.length} 筆缺失</span>
-    ${(()=>{const t={total:0,closed:0,open:0};rows.forEach(r=>{if(fs&&r.ship!==fs)return;if(fi&&r.inspector!==fi)return;const ds=filteredDefs.filter(d=>(r.defs||[]).includes(d));const c=closureCount(r,ds);t.total+=c.total;t.closed+=c.closed;t.open+=c.open;});
+    ${(()=>{const t={total:0,closed:0,open:0};rows.forEach(r=>{if(fs&&r.ship!==fs)return;if(fi&&!inspList(r).includes(fi))return;const ds=filteredDefs.filter(d=>(r.defs||[]).includes(d));const c=closureCount(r,ds);t.total+=c.total;t.closed+=c.closed;t.open+=c.open;});
       return `<span style="flex-basis:100%"></span><span class="hint" style="font-weight:700">${filtering?"篩選結果":"全部"}結案進度</span><span class="cchip" style="border-color:#20703f;color:#20703f">已結案<b>${t.closed}</b> 筆</span><span class="cchip" style="border-color:#c0392b;color:#c0392b">未結案<b>${t.open}</b> 筆</span><span class="hint">（內控＋系統內結案共 ${t.total} 筆；FLOW 由船上自行辦理，不列入）</span>`;})()}`;
   updateReviewBadge();
 }
@@ -821,7 +823,7 @@ function reviewBaseItems(){
   let items=reviewItems();
   const fs=$("#rvShip")?$("#rvShip").value:"",fi=$("#rvInspector")?$("#rvInspector").value:"",fm=$("#rvMode")?$("#rvMode").value:"",q=$("#rvQ")?$("#rvQ").value.trim().toLowerCase():"";
   if(fs)items=items.filter(x=>x.r.ship===fs);
-  if(fi)items=items.filter(x=>x.r.inspector===fi);
+  if(fi)items=items.filter(x=>inspList(x.r).includes(fi));
   if(fm)items=items.filter(x=>x.d.closeMode===fm);
   if(q)items=items.filter(x=>{const p=x.rp.payload||{};return [shipLabel(x.r.ship),x.r.inspector,x.d.category,x.d.finding,p.by].join(" ").toLowerCase().includes(q);});
   return items;
@@ -870,7 +872,7 @@ function showReview(){
   $("#listPage").style.display="none";$("#formPage").style.display="none";$("#reviewPage").style.display="";$("#suggPage").style.display="none";
   $("#btnList").classList.remove("primary");$("#btnNew").classList.remove("primary");$("#btnReview").classList.add("primary");$("#btnSugg").classList.remove("primary");
   $("#rvShip").innerHTML='<option value="">全部船舶</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}">${esc(s.label)}</option>`).join("");
-  const inspectors=[...new Set(reviewItems().map(x=>x.r.inspector).filter(Boolean))].sort();
+  const inspectors=[...new Set(reviewItems().flatMap(x=>inspList(x.r)))].sort();
   $("#rvInspector").innerHTML='<option value="">全部檢查人</option>'+inspectors.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
   reviewSel.clear();
   renderReview();
@@ -1406,8 +1408,8 @@ function openForm(sec){
   $("#listPage").style.display="none";$("#formPage").style.display="";$("#reviewPage").style.display="none";$("#suggPage").style.display="none";
   $("#btnList").classList.remove("primary");$("#btnNew").classList.add("primary");$("#btnReview").classList.remove("primary");$("#btnSugg").classList.remove("primary");$("#errBox").style.display="none";
   $("#fShipSel").innerHTML='<option value="">— 請選擇船舶 —</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}" ${cur.ship===s.code?"selected":""}>${esc(s.label)}</option>`).join("");
-  const insp=SUPERVISORS.slice();if(cur.inspector&&!insp.includes(cur.inspector))insp.unshift(cur.inspector);
-  $("#fInspector").innerHTML='<option value="">— 請選擇檢查人 —</option>'+insp.map(n=>`<option ${cur.inspector===n?"selected":""}>${esc(n)}</option>`).join("");
+  const picked=inspList(cur),insp=SUPERVISORS.slice();picked.forEach(n=>{if(!insp.includes(n))insp.unshift(n);}); // 名單裡已沒有的舊檢查人也保留可勾
+  $("#fInspector").innerHTML=insp.map(n=>`<label><input type="checkbox" value="${esc(n)}" ${picked.includes(n)?"checked":""}>${esc(n)}</label>`).join("")||'<span class="hint">檢查人名單讀取失敗，請重新整理頁面</span>';
   $("#fDateFrom").value=cur.dateFrom||"";$("#fDateTo").value=cur.dateTo||"";$("#fPsn").value=cur.psn||"";
   $("#fMaster").value=cur.master||"";$("#fCo").value=cur.co||"";$("#fCe").value=cur.ce||"";$("#f2e").value=cur.e2||"";
   $("#fOverall").value=cur.overall||"";$("#fTop4Cap").value=cur.top4.cap||"";
@@ -1487,7 +1489,7 @@ async function autoSave(){
 }
 function collect(){
   const g=id=>$(id).value.trim();
-  cur.ship=$("#fShipSel").value;cur.dateFrom=$("#fDateFrom").value;cur.dateTo=$("#fDateTo").value;cur.inspector=$("#fInspector").value;cur.psn=g("#fPsn");
+  cur.ship=$("#fShipSel").value;cur.dateFrom=$("#fDateFrom").value;cur.dateTo=$("#fDateTo").value;cur.inspector=[...document.querySelectorAll("#fInspector input:checked")].map(i=>i.value).join("、");cur.psn=g("#fPsn");
   cur.master=g("#fMaster");cur.co=g("#fCo");cur.ce=g("#fCe");cur.e2=g("#f2e");cur.overall=g("#fOverall");cur.top4.cap=g("#fTop4Cap");
   return cur;
 }
@@ -2031,8 +2033,8 @@ function renderSuggDeptStats(){
   const card=(label,s,on,click)=>`<div onclick="${click}" title="點一下只看這個部門（再點一次取消）" style="cursor:pointer;min-width:118px;border:1.5px solid ${on?"var(--navy)":"var(--line-2)"};background:${on?"#e9f1f8":"#fff"};border-radius:10px;padding:8px 12px">
     <div style="font-size:12.5px;font-weight:700;color:var(--navy)">${label}</div>
     <div style="font-family:var(--mono);font-size:22px;font-weight:800;line-height:1.2;color:${s.n?"var(--ink)":"var(--ink-3)"}">${s.n}<span style="font-size:11px;font-weight:600;color:var(--ink-3)"> 件未結案</span></div>
-    <div style="font-size:11.5px;line-height:1.5;margin-top:2px"><span style="color:${s.new?"#c0392b":"var(--ink-3)"}">待承辦 ${s.new}</span>・<span style="color:${s.open?"#7a5a10":"var(--ink-3)"}">處理中 ${s.open}</span></div></div>`;
-  box.innerHTML=card("全部部門",tot,!cur,"pickSuggDept('"+(cur||"")+"')")+names.map(d=>card(d,st[d],cur===d,"pickSuggDept('"+d+"')")).join("")+`<div class="hint" style="align-self:center;max-width:220px;line-height:1.5">件數＝各部門名下「未結案」的訴求（待承辦＋處理中）；涉及多個部門的案件，每個部門各算一件。</div>`;
+    <div style="font-size:11.5px;line-height:1.5;margin-top:2px"><span style="color:${s.new?"#c0392b":"var(--ink-3)"}">待承辦 ${s.new}</span>・<span style="color:${s.open?"#7a5a10":"var(--ink-3)"}">處理中 ${s.open}</span>・<span style="color:${s.closed?"#2e8b57":"var(--ink-3)"}">已結案 ${s.closed}</span></div></div>`;
+  box.innerHTML=card("全部部門",tot,!cur,"pickSuggDept('"+(cur||"")+"')")+names.map(d=>card(d,st[d],cur===d,"pickSuggDept('"+d+"')")).join("")+`<span class="hint" style="align-self:center;cursor:help;white-space:nowrap" title="大數字＝各部門名下「未結案」的訴求件數（待承辦＋處理中）；下方小字另外列出已結案件數，不計入大數字。涉及多個部門的案件，每個部門各算一件。點卡片可只看該部門。" onclick="alert(this.title)">ⓘ 說明</span>`;
 }
 function renderSuggPage(){
   const box=$("#suggBody");if(!box)return;
@@ -2249,7 +2251,7 @@ async function submitForm(){
   cur.draft=false;
   secTab="download";
   renderSecTabs();renderDownloadTab();
-  window.scrollTo({top:0,behavior:"smooth"});
+  // 送出後留在原本的捲動位置（⑥ 下面還有「發改善單」「提供完整檢查報告給海技」等步驟要接著操作），不要跳回最上面
   return true;
 }
 
@@ -2257,6 +2259,7 @@ async function submitForm(){
   await loadLists();await Store.load();await Store.loadReplies();
   // ?new=1（主系統左欄「前往新增內部檢查記錄」的快捷連結）：不看清單，直接開新增表單
   if(new URLSearchParams(location.search).get("new")==="1"){try{history.replaceState(null,"",location.pathname);}catch(e){}newForm();}
+  else if(new URLSearchParams(location.search).get("sugg")==="1"){try{history.replaceState(null,"",location.pathname);}catch(e){}showSugg();} // 從主系統「前往船舶訴求建議清單」進來，直接停在訴求清單
   else showList();
 })();
 /* 表單頁通常很長（一筆一筆缺失往下疊），右下角浮一個「回到最上面」的圓鈕，往下捲超過一屏才出現，
