@@ -3195,9 +3195,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <button class="btn primary" onclick="Air.exportDefectsDocx([Air.editId])">⬇ 匯出 Word（可匯入）<span style="display:block;font-size:11px;font-weight:400;opacity:.85">含完整內容與照片</span></button>
             <button class="btn primary" onclick="Air.exportJson([Air.editId])">⬇ 匯出 JSON（可匯入）<span style="display:block;font-size:11px;font-weight:400;opacity:.85">含完整內容與照片，檔案最小</span></button>
             <div class="divider" style="margin:10px 0"><div class="line"></div><div class="icon">其他格式（僅供閱讀，不支援匯入）</div><div class="line"></div></div>
-            <button class="btn" onclick="Air.exportRecordPdf(Air.editId)">🖨 PDF（列印/另存）</button>
+            <button class="btn" onclick="Air.exportRecordPdf(Air.editId)">🖨 PDF<span style="display:block;font-size:11px;font-weight:400;opacity:.8">僅船上填報的缺失回覆</span></button>
+            <button class="btn" onclick="Air.exportRecordPdf(Air.editId,true)">🖨 PDF<span style="display:block;font-size:11px;font-weight:400;opacity:.8">船上填報＋對外回覆內容都包含</span></button>
+            <div class="divider" style="margin:10px 0"><div class="line"></div><div class="icon">其他格式（僅對外回覆內容）</div><div class="line"></div></div>
             <button class="btn" onclick="Air.exportCarDocx(Air.editId,false)">⬇ Word CAR（純英文，官方格式）</button>
             <button class="btn" onclick="Air.exportCarDocx(Air.editId,true)">⬇ Word CAR（中英文，可回填對外回覆）</button>
+            <button class="btn" onclick="Air.exportShipDocx(Air.editId)">⬇ Word 中英文（給船上）<span style="display:block;font-size:11px;font-weight:400;opacity:.8">缺失內容＋對外回覆，中英文並排，純閱讀</span></button>
           </div>
         </div>
         <div class="card">
@@ -5832,9 +5835,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div id="air-export-single-only" style="display:none">
           <div class="divider" style="margin:10px 0"><div class="line"></div><div class="icon">其他格式（僅供閱讀，不支援匯入）</div><div class="line"></div></div>
           <div style="display:flex;flex-direction:column;gap:8px">
-            <div class="air-export-row" onclick="Air.exportRecordPdf(Air._exportId);Air.closeExportPickModal()"><button class="btn air-export-row-btn" tabindex="-1">🖨 PDF<br><span style="font-weight:400">（列印/另存）</span></button><div class="hint air-export-row-desc">給督導留存查看用，逐筆缺失含矯正前/後照片，瀏覽器列印視窗選「另存為 PDF」</div></div>
+            <div class="air-export-row" onclick="Air.exportRecordPdf(Air._exportId);Air.closeExportPickModal()"><button class="btn air-export-row-btn" tabindex="-1">🖨 PDF<br><span style="font-weight:400">（僅船上填報的缺失回覆）</span></button><div class="hint air-export-row-desc">給督導留存查看用，逐筆缺失含矯正前/後照片，只有船上填報的內容；瀏覽器列印視窗選「另存為 PDF」</div></div>
+            <div class="air-export-row" onclick="Air.exportRecordPdf(Air._exportId,true);Air.closeExportPickModal()"><button class="btn air-export-row-btn" tabindex="-1">🖨 PDF<br><span style="font-weight:400">（船上＋對外回覆都包含）</span></button><div class="hint air-export-row-desc">除了船上填報的內容與照片，每筆缺失下方也列出公司對外回覆（中文＋英文）；瀏覽器列印視窗選「另存為 PDF」</div></div>
+            <div class="divider" style="margin:10px 0"><div class="line"></div><div class="icon">其他格式（僅對外回覆內容）</div><div class="line"></div></div>
             <div class="air-export-row" onclick="Air.exportCarDocx(Air._exportId,false);Air.closeExportPickModal()"><button class="btn air-export-row-btn" tabindex="-1">⬇ Word CAR<br><span style="font-weight:400">（純英文，官方格式）</span></button><div class="hint air-export-row-desc">橫向排版，僅顯示對外回覆的英文內容，給外部/督導看，不支援匯入回填</div></div>
             <div class="air-export-row" onclick="Air.exportCarDocx(Air._exportId,true);Air.closeExportPickModal()"><button class="btn air-export-row-btn" tabindex="-1">⬇ Word CAR<br><span style="font-weight:400">（中英文，可回填對外回覆）</span></button><div class="hint air-export-row-desc">官方格式，中英文對照；改完用「✏對外回覆編輯→⬆匯入Word」讀回，只會更新對外回覆文字，不會動缺失明細本身</div></div>
+            <div class="air-export-row" onclick="Air.exportShipDocx(Air._exportId);Air.closeExportPickModal()"><button class="btn air-export-row-btn" tabindex="-1">⬇ Word<br><span style="font-weight:400">（中英文，給船上）</span></button><div class="hint air-export-row-desc">缺失內容＋公司對外回覆，左中文右英文並排，每筆缺失一頁；純閱讀版，不含匯入標記，不能匯入回填</div></div>
           </div>
         </div>
       </div>
@@ -25266,9 +25272,10 @@ const Air={
   },
   /* 匯出 PDF：走系統既有「列印區塊」機制（#printArea + doPrint），直接用瀏覽器的列印/另存PDF，
      中文排版與相容性最穩，也不需要額外載入任何 PDF 產生函式庫。內容含矯正前/後照片。 */
-  exportRecordPdf(id){
+  exportRecordPdf(id,withReply){
     const d=App.air.find(x=>x.id===id);
     if(!d){toast("⚠ 找不到資料");return;}
+    if(withReply)this.ensureReply(d); // 含對外回覆：先確保回覆資料結構存在
     const nl2br=s=>esc(s||"").replace(/\n/g,"<br/>");
     const photoBlock=(label,list)=>{
       if(!list||!list.length)return"";
@@ -25293,6 +25300,12 @@ const Air={
         <p><b>責任人：</b>${esc(df.rank)} ${esc(df.person)}</p>
         ${photoBlock("矯正前照片",df.photosBefore)}
         ${photoBlock("矯正後照片",df.photosAfter)}
+        ${withReply?(()=>{const rp=(d.reply&&d.reply.items&&d.reply.items[i])||{};
+          const row=(zh,cn,en)=>`<tr><td width="18%" style="background:#f2f2f2"><b>${zh}</b></td><td width="41%">${cn?nl2br(cn):"—"}</td><td width="41%">${en?nl2br(en):"—"}</td></tr>`;
+          return `<div style="margin-top:10px;border-top:2px solid #1c3a5e;padding-top:6px"><b style="color:#1c3a5e">公司對外回覆（中／英）</b>
+            <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:4px" border="1" cellpadding="5"><tr style="background:#1c3a5e;color:#fff"><td></td><td><b>中文</b></td><td><b>English</b></td></tr>
+            ${row("Initial Operator Comment",rp.opCommentCn,rp.opCommentEn)}${row("直接原因",rp.immediateCauseCn,rp.immediateCauseEn)}${row("根本原因",rp.rootCauseCn||df.rootCause,rp.rootCauseEn)}${row("改善措施",rp.correctiveCn||df.corrective,rp.correctiveEn)}${row("預防措施",rp.preventiveCn||df.preventive,rp.preventiveEn)}
+            ${rp.supportingMaterial?`<tr><td style="background:#f2f2f2"><b>Supporting Material</b></td><td colspan="2">${nl2br(rp.supportingMaterial)}</td></tr>`:""}</table></div>`;})():""}
       </div>`;
     });
     if(d.posComments&&d.posComments.length){
@@ -25305,7 +25318,7 @@ const Air={
     $("#printArea").innerHTML=body;
     doPrint(false);
     toast("✓ 已開啟列印視窗，請選擇「另存為 PDF」");
-    if(typeof Audit!=="undefined")Audit.log("匯出","AIR","PDF 報告 "+d.ship+" "+d.date);
+    if(typeof Audit!=="undefined")Audit.log("匯出","AIR","PDF 報告"+(withReply?"（含對外回覆）":"")+" "+d.ship+" "+d.date);
   },
   /* 官方 CAR（Corrective Action Report）格式匯出：橫向頁面，版面比照公司慣用的 CAR 範本
      （標題「M.V."船名" -檢查來源- Corrective Action Report (CAR)」，左欄為固定項目、右欄為內容）。
@@ -25377,6 +25390,48 @@ const Air={
     dl(blob,`CAR${bilingual?"雙語可回填":""}_${d.ship}_${(d.date||"").replace(/\//g,"-")}.doc`);
     if(typeof Audit!=="undefined")Audit.log("匯出","AIR CAR",`#${d.id} ${d.ship} ${d.date}（${d.defects.length} 筆缺失，${bilingual?"中英雙語可回填":"純英文"}）`);
     toast(bilingual?`✓ 已匯出中英文 CAR Word 檔（可用「⬆ 匯入 Word 回填」讀回，共 ${d.defects.length} 筆缺失）`:`✓ 已匯出 CAR Word 檔（純英文，橫向，共 ${d.defects.length} 筆缺失，每筆一頁）`);
+  },
+  /* Word 中英文（給船上）：純閱讀版。每條缺失一頁：上半是缺失內容（Description／實際情況／Action taken），
+     下半是公司對外回覆各欄位，左欄中文、右欄英文並排；沒有匯入用的隱藏標記，不能拿來「匯入 Word 回填」。 */
+  exportShipDocx(id){
+    const d=App.air.find(x=>x.id===id);
+    if(!d){toast("⚠ 找不到資料");return;}
+    if(!d.defects||!d.defects.length){toast("⚠ 此筆尚無缺失明細，無法匯出");return;}
+    this.ensureReply(d);
+    const shipObj=(typeof SHIPINFO!=="undefined")?SHIPINFO.find(x=>x.code===d.ship):null;
+    const vesselName=shipObj&&shipObj.name?shipObj.name:d.ship;
+    const nl2br=s=>esc(s||"").replace(/\n/g,"<br/>");
+    const F="font-family:Calibri,'Microsoft JhengHei',Arial,sans-serif;font-size:11.5pt";
+    const lab=(zh,en)=>`<td width="120" style="background:#eef3f7;${F}"><b>${en}</b><br/><span style="color:#555">${zh}</span></td>`;
+    const one=v=>`<td colspan="2" style="${F}">${v?nl2br(v):"<span style='color:#999'>—</span>"}</td>`;
+    const two=(cn,en)=>`<td width="46%" style="${F}">${cn?nl2br(cn):"<span style='color:#999'>（中文尚未填寫）</span>"}</td><td width="46%" style="${F}">${en?nl2br(en):"<span style='color:#999'>（English not filled in yet）</span>"}</td>`;
+    let body="";
+    d.defects.forEach((df,i)=>{
+      const rp=d.reply.items[i]||{};
+      if(i>0)body+='<br clear="all" style="page-break-before:always"/>';
+      body+=`
+        <p style="${F};font-size:16pt;font-weight:bold;margin-bottom:2px">M.V."${esc(vesselName)}" -${esc(d.itype)}- 缺失 ${i+1}／${d.defects.length}　Deficiency ${i+1} of ${d.defects.length}</p>
+        <p style="${F};margin-top:0;margin-bottom:10px">Port 港口: ${esc(d.place)}　　Inspection date 檢查日期: ${this.carDateFmt(d.date)}${df.code?`　　Code: ${esc(df.code)}`:""}</p>
+        <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%">
+          <tr>${lab("缺失詳情","Description")}${one(df.detail)}</tr>
+          ${df.actual?`<tr>${lab("實際情況","Actual situation")}${one(df.actual)}</tr>`:""}
+          ${df.psc?`<tr>${lab("處置","Action taken")}${one(df.psc)}</tr>`:""}
+          <tr><td style="background:#1c3a5e;color:#fff;${F}"><b>公司對外回覆<br/>Company reply</b></td><td width="46%" style="background:#1c3a5e;color:#fff;${F}"><b>中文</b></td><td width="46%" style="background:#1c3a5e;color:#fff;${F}"><b>English</b></td></tr>
+          <tr>${lab("初步意見","Initial operator's comments")}${two(rp.opCommentCn,rp.opCommentEn)}</tr>
+          <tr>${lab("直接原因","Immediate cause")}${two(rp.immediateCauseCn,rp.immediateCauseEn)}</tr>
+          <tr>${lab("根本原因分析","Root cause analysis")}${two(rp.rootCauseCn||df.rootCause,rp.rootCauseEn)}</tr>
+          <tr>${lab("改善措施","Corrective actions")}${two(rp.correctiveCn||df.corrective,rp.correctiveEn)}</tr>
+          <tr>${lab("預防措施","Preventive actions")}${two(rp.preventiveCn||df.preventive,rp.preventiveEn)}</tr>
+          ${rp.supportingMaterial?`<tr>${lab("佐證資料","Supporting material")}${one(rp.supportingMaterial)}</tr>`:""}
+        </table>`;
+    });
+    const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"><title>對外回覆（給船上）</title>
+      <style>@page Section1{size:29.7cm 21cm;mso-page-orientation:landscape;margin:1.8cm;}div.Section1{page:Section1;}</style></head>
+      <body><div class="Section1">${body}</div></body></html>`;
+    dl(new Blob(["\ufeff",html],{type:"application/msword"}),`對外回覆_中英文給船上_${d.ship}_${(d.date||"").replace(/\//g,"-")}.doc`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","AIR 中英文Word(給船上)",`#${d.id} ${d.ship} ${d.date}（${d.defects.length} 筆缺失）`);
+    toast(`✓ 已匯出「中英文 Word（給船上）」共 ${d.defects.length} 筆缺失，每筆一頁（純閱讀版，不能匯入回填）`);
   }
 };
 /* ══════════ AirQueue：外部線上填單網頁（submit-airform.html）送出的 air_submissions
