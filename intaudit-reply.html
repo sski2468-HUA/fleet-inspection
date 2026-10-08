@@ -516,12 +516,21 @@ function previewItemHtml(d,i){
   </div></div>`;
 }
 /* 步驟④：預覽並確認資料——彙整填寫人、FLOW 提醒、系統填報各項目前狀態，確認無誤才能送出。 */
-function renderPreview(){
+/* 預覽預設只列「本次要送出」的項目；用標籤切換「待改善（還沒填完）」「已改善（已送出／已結案）」 */
+let pvFlt="send";
+function setPvFlt(k){pvFlt=k;renderPreview(true);}
+function renderPreview(keepConfirm){
   const items=nonFlow(rec);
   const flows=(rec.defs||[]).filter(d=>d.closeMode==="FLOW");
   const c={red:0,green:0,sent:0,lock:0};items.forEach(d=>{c[stOf(d)]++;});
   const g=c.green+c.lock;
-  const readyCount=items.filter(d=>{const x=drafts[d.uid];return x&&isComplete(x)&&!(rpOf(d)&&sameAsReply(x,rpOf(d).payload));}).length;
+  const isReadyD=d=>{const x=drafts[d.uid];return x&&isComplete(x)&&!(rpOf(d)&&sameAsReply(x,rpOf(d).payload));};
+  const readyItems=items.filter(isReadyD),readyCount=readyItems.length;
+  const pendItems=items.filter(d=>stOf(d)==="red");
+  const doneItems=items.filter(d=>{const s=stOf(d);return s==="sent"||s==="lock";});
+  const lists={send:readyItems,pend:pendItems,done:doneItems};
+  const shown=lists[pvFlt]||readyItems;
+  const emptyMsg={send:"目前沒有要送出的項目：請回到第③步，把要先送出的項目填好<b>改善措施</b>與<b>改善完成日期</b>（兩項都填完才算），再回來送出。",pend:"🎉 沒有待改善的項目，全部都已填妥或已送出。",done:"還沒有已送出的項目。"}[pvFlt];
   const nameVal=$("#fName").value.trim(),titleVal=$("#fTitle").value;
   $("#previewBox").innerHTML=`
     <div class="card">
@@ -531,11 +540,17 @@ function renderPreview(){
     ${flows.length?`<div class="banner">提醒：這張改善單另有 <b>${flows.length}</b> 項 FLOW 系統缺失，請自行至 FLOW 系統（DMP-FM01）辦理，本頁送出不包含這些項目。</div>`:""}
     <div class="ih" style="margin:14px 14px 0">📋 系統填報項目（共 ${items.length} 項）</div>
     <div class="hint" style="font-size:13px;margin:4px 14px 0">已改善（已送出）<b style="color:var(--navy)">${c.sent+c.lock}</b>　已填妥待送出 <b style="color:var(--ok)">${c.green}</b>　未改善 <b style="color:var(--bad)">${c.red}</b>　<b>本次按「送出」會先送出 ${readyCount} 項</b>（其餘之後再回來補）</div>
-    <div class="rows">${items.length?items.map((d,i)=>previewItemHtml(d,i)).join(""):`<div class="banner" style="margin:0 14px">這張改善單沒有需要船上改善的項目。</div>`}</div>`;
-  const chk=$("#confirmChk");if(chk){chk.checked=false;}
-  const btn=$("#btnSubmit");if(btn){btn.disabled=false;btn.classList.add("soft-disabled");}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 14px 4px">
+      <button type="button" class="chip green ${pvFlt==="send"?"on":""}" onclick="setPvFlt('send')">本次要送出<b>${readyItems.length}</b></button>
+      <button type="button" class="chip red ${pvFlt==="pend"?"on":""}" onclick="setPvFlt('pend')">待改善<b>${pendItems.length}</b></button>
+      <button type="button" class="chip sent ${pvFlt==="done"?"on":""}" onclick="setPvFlt('done')">已改善・已送出<b>${doneItems.length}</b></button>
+    </div>
+    <div class="rows">${!items.length?`<div class="banner" style="margin:0 14px">這張改善單沒有需要船上改善的項目。</div>`:(shown.length?shown.map(d=>previewItemHtml(d,items.indexOf(d))).join(""):`<div class="banner" style="margin:0 14px">${emptyMsg}</div>`)}</div>`;
+  const chk=$("#confirmChk");if(chk&&!keepConfirm){chk.checked=false;}
+  const btn=$("#btnSubmit");if(btn){btn.disabled=false;btn.classList.toggle("soft-disabled",!(chk&&chk.checked));}
 }
 function goStep(n){
+  if(n===4&&currentStep!==4)pvFlt="send";
   currentStep=n;
   for(let i=1;i<=4;i++){
     const show=i===n;
