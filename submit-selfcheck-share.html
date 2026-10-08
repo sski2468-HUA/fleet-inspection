@@ -186,12 +186,18 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
         <button type="button" class="btn sm" onclick="preparePrint()">⬇ 下載 PDF</button>
       </div>
     </div>
-    <div id="guideNav" class="card" style="display:none;text-align:center">
-      <div class="hint" id="guideCounter" style="margin-bottom:8px"></div>
-      <div style="display:flex;gap:10px;justify-content:center">
-        <button class="btn" onclick="guidePrev()">← 上一題</button>
-        <button class="btn" id="guideNextBtn" onclick="guideNext()">下一題 →</button>
-        <button class="btn" onclick="guideJumpUnanswered()">⏭ 跳到未答</button>
+    <div id="answerBar" class="card" style="padding:9px 14px;margin:8px 14px 0">
+      <div style="display:flex;align-items:center;gap:12px">
+        <b id="answerBarText" style="white-space:nowrap;font-size:14px;color:var(--navy)"></b>
+        <div style="flex:1;background:#e3ecef;border-radius:20px;height:10px;overflow:hidden"><div id="progressFill2" style="background:#2e8b57;height:100%;width:0%;transition:width .3s"></div></div>
+      </div>
+    </div>
+    <div id="guideNav" class="card" style="display:none;padding:7px 12px;margin:8px 14px 10px">
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">
+        <span class="hint" id="guideCounter" style="white-space:nowrap"></span>
+        <button class="btn sm" style="padding:7px 14px;font-size:13.5px" onclick="guidePrev()">← 上一題</button>
+        <button class="btn sm" style="padding:7px 14px;font-size:13.5px" id="guideNextBtn" onclick="guideNext()">下一題 →</button>
+        <button class="btn sm" style="padding:7px 14px;font-size:13.5px" onclick="guideJumpUnanswered()">⏭ 跳到未答</button>
       </div>
     </div>
     <div class="card wrapupcard" id="wrapupCard" style="display:none"></div>
@@ -609,7 +615,7 @@ async function enterAsShip(){
   document.getElementById("gate").style.display="none";
   document.getElementById("myList").style.display="none";
   document.getElementById("body").style.display="";
-  document.getElementById("gateProgressWrap").style.display="";
+  document.getElementById("gateProgressWrap").style.display="none"; // 答題條已移到題目上方（#answerBar），標題列不再放進度條
   document.getElementById("taskTitle").textContent=campaign.title||"";
   document.getElementById("taskMeta").textContent=`船舶：${shipLabel(draft.ship)}　已送出 ${draft.submit_count||0} 次${draft.submitted_at?"　最後送出："+new Date(draft.submitted_at).toLocaleString("zh-TW",{hour12:false}):""}`;
   const bc=document.getElementById("bodyChecker");if(bc)bc.value=getCheckerName();
@@ -722,8 +728,11 @@ function updateProgress(){
   const done=items.filter(it=>it.status&&it.status!=="pending").length;
   const pct=items.length?Math.round(done/items.length*100):0;
   document.getElementById("progressFill").style.width=pct+"%";
+  const ab=document.getElementById("answerBarText"),pf=document.getElementById("progressFill2");
+  if(ab)ab.textContent=`已作答 ${done} / ${items.length} 題（${pct}%）`;
+  if(pf)pf.style.width=pct+"%";
   setHdrShip(draft.ship);
-  document.getElementById("hdr-note").textContent=`已作答 ${done} / ${items.length} 題（${pct}%）`;
+  document.getElementById("hdr-note").textContent=(campaign&&campaign.title)||"船隊檢查缺失分享及自查";
 }
 
 const ST_LABEL_DL={ok:"沒有",similar:"有，需處理",self:"當事船（本船缺失來源）",na:"不適用",pending:"未作答"};
@@ -938,7 +947,7 @@ function applyViewMode(){
     document.getElementById("guideCounter").textContent=`第 ${guideIdx+1} / ${n} 題`;
     const nb=document.getElementById("guideNextBtn");
     const isLast=nextGuide(guideIdx)<0;
-    if(nb){nb.textContent=isLast?"下一步：預覽並送出 →":"下一題 →";nb.className=isLast?"btn primary":"btn";nb.style.cssText=isLast?"font-size:16px;padding:12px 22px":"";}
+    if(nb){nb.textContent=isLast?"下一步：預覽並送出 →":"下一題 →";nb.className=isLast?"btn primary":"btn";nb.style.cssText=isLast?"font-size:14.5px;padding:8px 20px":"padding:7px 14px;font-size:13.5px";}
     const card=document.querySelector(`.itemcard[data-idx="${guideIdx}"]`);
     if(card)card.scrollIntoView({behavior:"smooth",block:"start"});
   }
