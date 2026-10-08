@@ -5790,9 +5790,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="mb">
       <p class="hint" id="air-push-summary" style="margin-bottom:10px;line-height:1.6"></p>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
-        <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer"><input type="checkbox" id="air-push-insp" style="width:16px;height:16px"> 檢查紀錄</label>
-        <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer"><input type="checkbox" id="air-push-defs" style="width:16px;height:16px"> 缺失紀錄總表</label>
-        <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer"><input type="checkbox" id="air-push-sirepos" style="width:16px;height:16px"> 正面評價/優秀案例記錄</label>
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer"><input type="checkbox" id="air-push-insp" style="width:16px;height:16px"> <span>檢查紀錄<br><span class="hint" id="air-push-hint-insp" style="font-size:11.5px"></span></span></label>
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer"><input type="checkbox" id="air-push-defs" style="width:16px;height:16px"> <span>缺失紀錄總表<br><span class="hint" id="air-push-hint-defs" style="font-size:11.5px"></span></span></label>
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer"><input type="checkbox" id="air-push-sirepos" style="width:16px;height:16px"> <span>正面評價/優秀案例記錄<br><span class="hint" id="air-push-hint-sirepos" style="font-size:11.5px"></span></span></label>
       </div>
       <div class="toolbar" style="justify-content:flex-end;gap:8px">
         <button class="btn" onclick="Air.closePushModal()">取消</button>
@@ -23790,6 +23790,13 @@ const Air={
       if(!this._pushScopeId&&!this.selected.size){toast("⚠ 請先勾選要轉入的項目");return;}
       $("#air-push-summary").textContent=this._pushScopeId?`將轉入這 1 筆填單紀錄，請選擇要轉入的地方（可複選）：`:`已勾選 ${this.selected.size} 筆填單紀錄，請選擇要轉入的地方（可複選）：`;
       $("#air-push-insp").checked=false;$("#air-push-defs").checked=false;$("#air-push-sirepos").checked=false;
+      // 先算好「這次勾選的填單裡，各目標分別有幾筆有內容可以轉」：沒有缺失明細／正面評價的填單，轉到對應總表時
+      // 會被自動略過，事先在選項下面標出來，不會勾了三個卻只轉到一個還不知道為什麼。
+      const sel=this._pushScopeId!=null?App.air.filter(d=>d.id===this._pushScopeId):App.air.filter(d=>this.selected.has(String(d.id)));
+      const hasPos=d=>(d.posComments||[]).some(pc=>pc.code||pc.item||pc.comment||pc.rank||pc.person||(pc.people||[]).some(p=>p.rank||p.person));
+      const nDef=sel.filter(d=>d.defects&&d.defects.length).length,nPos=sel.filter(hasPos).length;
+      const hint=(id,n,what)=>{const el=$("#air-push-hint-"+id);if(!el)return;el.innerHTML=n===sel.length?`✓ 選取的 ${sel.length} 筆都有${what}`:(n?`選取 ${sel.length} 筆中，<b>${n} 筆</b>有${what}（其餘 ${sel.length-n} 筆會略過）`:`<b style="color:var(--bad)">選取的 ${sel.length} 筆都沒有${what}，這項不會轉入任何資料</b>`);};
+      hint("insp",sel.length,"檢查基本資料");hint("defs",nDef,"缺失明細");hint("sirepos",nPos,"正面評價內容");
       $("#airPushModal").classList.add("show");
     }catch(e){
       console.error("openPushModal failed",e);
@@ -23827,11 +23834,12 @@ const Air={
     this.renderList(); // 用剛載入的最新資料重畫列表；勾選的 id 不變，仍對得上同一批紀錄
     // 依序轉入各個勾選的地方，沿用各自既有的驗證／重複轉入警示邏輯（每個地方跳一次確認視窗）；
     // 個別目標失敗時記下來繼續跑下一個，不要讓其中一個出錯就整批卡住，最後統一告知結果。
+    this._pushReport={}; // 每個目標的轉入結果（成功筆數／沒轉入的原因），最後彙整顯示
     const failed=[];
     const skipped=[]; // 被擋下（例如沒有缺失明細／正面評價可轉）的目標，pushSelected 內已經各自跳過提示，這裡只是不把它算進「已完成」
     const labelMap={insp:"檢查紀錄",defs:"缺失紀錄總表",sirepos:"正面評價/優秀案例記錄"};
     for(const t of targets){
-      try{ const ok=await this.pushSelected(t); if(ok===false)skipped.push(t); }
+      try{ const ok=await this.pushSelected(t,{fromBatch:true}); if(ok===false)skipped.push(t); }
       catch(e){ console.error("pushSelected failed for target="+t,e); failed.push(`${labelMap[t]}（${e.message}）`); }
     }
     const done=targets.filter(t=>!skipped.includes(t)).map(t=>labelMap[t]);
@@ -23841,8 +23849,14 @@ const Air={
           <p style="text-align:left;background:#fdf2f0;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7;white-space:pre-line">以下項目沒有成功轉入，請重新勾選再試一次，若持續失敗請截圖回報：\n${esc(failed.join("\n"))}</p>
           <button class="btn primary" style="margin-top:14px" onclick="Cloud.closeSyncModal()">確認</button>`;
       }else{
-        body.innerHTML=`<div style="font-size:34px;margin-bottom:10px;color:var(--ok)">✓</div><h3 style="margin:0 0 10px;color:var(--ok)">轉入成功</h3>
-          <p style="text-align:left;background:#f7f9f9;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7">${done.length?"已完成轉入："+esc(done.join("、")):"沒有項目被轉入（可能都被判定為沒有內容而跳過）"}</p>
+        const rep=this._pushReport||{};
+        const lines=targets.map(t=>{const r=rep[t];
+          if(!r)return `• ${labelMap[t]}：沒有執行`;
+          if(r.ok)return `✓ ${labelMap[t]}：已轉入 ${r.n} 筆${t==="defs"?`（共 ${r.m} 筆缺失明細）`:t==="sirepos"?`（共 ${r.m} 筆正面評價）`:""}${r.filtered?`；另有 ${r.filtered} 筆因為${t==="defs"?"沒有缺失明細":"沒有正面評價內容"}而略過`:""}`;
+          return `⚠ ${labelMap[t]}：<b>沒有轉入</b>——${r.reason}`;});
+        const allOk=targets.every(t=>rep[t]&&rep[t].ok);
+        body.innerHTML=`<div style="font-size:34px;margin-bottom:10px;color:${allOk?"var(--ok)":"var(--warn,#c99a1f)"}">${allOk?"✓":"⚠"}</div><h3 style="margin:0 0 10px;color:${allOk?"var(--ok)":"var(--warn,#a67c00)"}">${allOk?"轉入成功":"部分項目沒有轉入"}</h3>
+          <p style="text-align:left;background:#f7f9f9;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.9">${lines.join("<br>")}</p>
           <button class="btn primary" style="margin-top:14px" onclick="Cloud.closeSyncModal()">確認</button>`;
       }
     }else{
@@ -23853,10 +23867,14 @@ const Air={
     this._pushScopeId=null;
     this.selected.clear();this.renderList();
   },
-  async pushSelected(target){
-    if(!await Guard.require())return false;
+  async pushSelected(target,opts){
+    opts=opts||{};
+    const rep=this._pushReport=this._pushReport||{};
+    const fail=reason=>{rep[target]={ok:false,reason};return false;};
+    if(!await Guard.require())return fail("身分／權限驗證沒有通過（需維護者權限）");
     const scoped=this._pushScopeId!=null;
-    if(!scoped&&!this.selected.size){toast("⚠ 請先勾選要轉入的項目");return false;}
+    if(!scoped&&!this.selected.size){toast("⚠ 請先勾選要轉入的項目");return fail("沒有勾選任何項目");}
+    let filtered=0;
     let items=scoped?App.air.filter(d=>d.id===this._pushScopeId):App.air.filter(d=>this.selected.has(String(d.id)));
     if(!items.length){
       toast("⚠ 找不到勾選的紀錄（可能清單剛好被重新整理過），請重新勾選後再試一次");
@@ -23869,17 +23887,19 @@ const Air={
     if(target==="defs"){
       const before=items.length;
       items=items.filter(d=>d.defects&&d.defects.length);
+      filtered=before-items.length;
       if(!items.length){
         toast(before===1?"⚠ 這筆填單沒有缺失明細，無法轉入缺失紀錄總表":"⚠ 勾選的填單都沒有缺失明細，無法轉入缺失紀錄總表");
-        return false;
+        return fail(before===1?"這筆填單沒有缺失明細（缺失數為 0）":"勾選的填單都沒有缺失明細（缺失數為 0）");
       }
     }
     if(target==="sirepos"){
       const before=items.length;
       items=items.filter(d=>d.posComments&&d.posComments.length);
+      filtered=before-items.length;
       if(!items.length){
         toast(before===1?"⚠ 這筆填單沒有正面評價內容，無法轉入正面評價/優秀案例記錄":"⚠ 勾選的填單都沒有正面評價內容，無法轉入正面評價/優秀案例記錄");
-        return false;
+        return fail(before===1?"這筆填單沒有正面評價內容":"勾選的填單都沒有正面評價內容");
       }
     }
     if(target==="defs"&&typeof AirDefReq!=="undefined"){
@@ -23895,7 +23915,7 @@ const Air={
         });
         if(problems.length){
           alert(`⚠ 有 ${problems.length} 筆缺失明細未填妥必填欄位，無法轉入缺失紀錄總表：\n\n${problems.join("\n")}\n\n請回到各該筆填單補齊後再試一次。`);
-          return false;
+          return fail(`${problems.length} 筆缺失明細有必填欄位沒填（例如：${problems[0]}），為了資料品質，這一批缺失明細整批都沒有轉入，請補齊後再轉`);
         }
       }
     }
@@ -23912,13 +23932,14 @@ const Air={
       const confirmMsg=dupCount
         ?`⚠ 勾選的項目中有 ${dupCount} 筆先前已轉入過「檢查紀錄」，這些會直接同步更新原本那一筆（含缺失數／正面評論數／FLAG項目等最新內容），其餘 ${items.length-dupCount} 筆會新增，確定要繼續？`
         :`確定要將勾選的 ${items.length} 筆轉入「檢查紀錄」？`;
-      if(!confirm(confirmMsg))return false;
+      if(!opts.fromBatch&&!confirm(confirmMsg))return fail("您在確認視窗按了取消");
     }else if(dupCount){
       const msg=`勾選的 ${items.length} 筆填單中，有 ${dupCount} 筆先前已轉入過「${labelMap[target]}」。\n\n建議選「覆蓋」：系統會依上次轉入時的對應關係，直接更新原本那幾筆紀錄的內容（找不到對應舊紀錄——例如已被手動刪除——的視為新增一筆）；其餘 ${items.length-dupCount} 筆先前沒轉過的一律新增，不受影響。若您是刻意要另外多留一份，才選「另外新增」，這 ${dupCount} 筆會產生全新的重複紀錄。`;
       mode=await this.openPushModeModal(target,msg);
-      if(!mode)return false;
+      if(!mode)return fail("您在「覆蓋／另外新增」視窗按了取消");
     }else{
-      if(!confirm(`確定要將勾選的 ${items.length} 筆轉入「${labelMap[target]}」？`))return false;
+      // 批次轉入時，使用者已經在「轉入紀錄」視窗按過「確認轉入」，這裡不再多跳一個瀏覽器 confirm（連續多個對話方塊容易被瀏覽器擋掉，變成沒轉到）
+      if(!opts.fromBatch&&!confirm(`確定要將勾選的 ${items.length} 筆轉入「${labelMap[target]}」？`))return fail("您在確認視窗按了取消");
     }
     let n=0,m=0;
     if(target==="insp"){
@@ -24011,6 +24032,7 @@ const Air={
       if(typeof SirePos!=="undefined")SirePos.init();
     }
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
+    rep[target]={ok:true,n,m,filtered};
     toast(target==="insp"?`✓ 已將 ${n} 筆轉入檢查紀錄`:target==="defs"?`✓ 已將 ${n} 筆填單資料（共 ${m} 筆缺失明細）轉入缺失紀錄總表`:`✓ 已將 ${n} 筆填單資料（共 ${m} 筆正面評價）轉入正面評價/優秀案例記錄`);
     return true;
   },
