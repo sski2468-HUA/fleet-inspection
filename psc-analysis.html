@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PSC 檢查熱區分析 — FPMC</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
 :root{
   --navy:#1c3a5e; --navy-2:#234a72; --paper:#f5f7f8; --card:#ffffff; --line:#dde4e8; --line-2:#c3ced5;
@@ -104,6 +104,7 @@ svg text{font-family:var(--sans)}
     </div>
     <div class="bar" style="margin-top:10px">
       <label class="hint" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="onlyDet" onchange="render()"> <span data-i="onlyDet"></span></label>
+      <label class="hint" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="inclGone" onchange="render()"> <span data-i="inclGone"></span><span class="hint" id="goneN"></span></label>
       <label class="hint" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="inclNoLoc" checked onchange="render()"> <span data-i="inclNoLoc"></span></label>
       <span style="flex:1"></span>
       <button class="btn" onclick="clearAll()" data-i="clear"></button>
@@ -178,7 +179,7 @@ const TXT={
   title:["⚓ PSC 檢查熱區分析","⚓ PSC Inspection Hotspot Analysis"],
   intro:["從系統「檢查紀錄」中抓出檢查來源為 PSC 的紀錄，依檢查地點（港口／國家／PSC 區域）統計檢查次數、缺失數與平均缺失數。資料只讀取，不會修改系統內容。","PSC inspections taken from the fleet inspection records, analysed by location (port / country / PSC region): number of inspections, deficiencies and average deficiencies per inspection. Read-only — no data is changed."],
   date:["檢查日期","Inspection date"],q12:["近 12 個月","Last 12 months"],qty:["今年","This year"],qly:["去年","Last year"],qall:["全部期間","All time"],
-  onlyDet:["只看扣船","Detentions only"],inclNoLoc:["總數與趨勢包含「地點未填」的紀錄","Include records without location in totals & trend"],
+  onlyDet:["只看扣船","Detentions only"],inclGone:["包含已離開船隊的船（已售／不在船舶資料）","Include ships no longer in the fleet (sold / not in ship list)"],inclNoLoc:["總數與趨勢包含「地點未填」的紀錄","Include records without location in totals & trend"],
   clear:["清除篩選","Clear filters"],reload:["🔄 重新讀取","🔄 Reload"],export:["⬇ 匯出 Excel","⬇ Export Excel"],
   hzTitle:["檢查熱區","Inspection Hotspots"],
   hzSub:["「檢查最頻繁」看哪裡最常被查；「平均缺失最高」只列檢查 3 次以上的地點，避免一兩次的偶發結果排在前面。點表格任一列，可直接篩選該地點。","\"Most inspected\" shows where our ships are inspected most often. \"Highest average\" and \"Zero-deficiency\" only list locations with 3 or more inspections, so one-off results do not dominate. Click any row to filter by that location."],
@@ -226,7 +227,7 @@ let SHIPS=[],ROWS=[],zone="country",heatK="country",zoneSort={k:"n",d:-1},shipSo
 const sel={type:new Set(),ship:new Set(),region:new Set(),country:new Set(),port:new Set()};
 const parseDate=s=>{const m=String(s||"").match(/(\d{4})[\/\-\.](\d{1,2})(?:[\/\-\.](\d{1,2}))?/);return m?`${m[1]}-${m[2].padStart(2,"0")}-${(m[3]||"1").padStart(2,"0")}`:"";};
 const shipOf=c=>SHIPS.find(s=>s.code===c);
-const shipLabel=c=>{const s=shipOf(c);if(!s)return c;return LANG==="en"?(s.name||c):[s.zh,s.name].filter(Boolean).join(" ");};
+const shipLabel=c=>{const s=shipOf(c);if(!s)return c+L("（已離開船隊）"," (left fleet)");return LANG==="en"?(s.name||c):[s.zh,s.name].filter(Boolean).join(" ");};
 const portLabel=k=>{const r=ROWS.find(x=>x.port===k);return r?`${r.portName}（${cShort(r.country)}）`.replace("（",LANG==="en"?" (":"（").replace("）",LANG==="en"?")":"）"):k;};
 
 async function load(){
@@ -242,7 +243,7 @@ async function load(){
       const s=shipOf(p.ship)||{};const nd=parseInt(p.ndef,10);
       return {id:p.id,ship:p.ship,date:parseDate(p.date),loc,port:loc?`${port}, ${country}`:"",portName:port,country,region:regionOf(country),
         type:s.type1||(p.vtype==="bulk"?"BULK":p.vtype==="tanker"?"Tanker":"未分類"),vtype:s.vtype||p.vtype||"",
-        ndef:isNaN(nd)?0:nd,ndefBlank:isNaN(nd),detain:String(p.detain||"").toUpperCase().startsWith("Y"),inspector:p.inspector||"",unit:p.unit||""};
+        gone:!shipOf(p.ship),ndef:isNaN(nd)?0:nd,ndefBlank:isNaN(nd),detain:String(p.detain||"").toUpperCase().startsWith("Y"),inspector:p.inspector||"",unit:p.unit||""};
     }).filter(r=>r.date);
     ld.style.display="none";$("#main").style.display="";
     render();
@@ -274,12 +275,14 @@ function quick(k){
   else{const f=new Date(t);f.setFullYear(y-1);f.setDate(f.getDate()+1);$("#dFrom").value=iso(f);$("#dTo").value=iso(t);}
   render();
 }
-function clearAll(){Object.values(sel).forEach(s=>s.clear());$("#dFrom").value="";$("#dTo").value="";$("#onlyDet").checked=false;render();}
+function clearAll(){Object.values(sel).forEach(s=>s.clear());$("#inclGone").checked=false;$("#dFrom").value="";$("#dTo").value="";$("#onlyDet").checked=false;render();}
 
 /* 篩選：skip 指定哪個維度不套用（用來算該下拉選單的選項筆數，選項才不會因為自己被篩掉而消失） */
 function filt(skip){
   const f=$("#dFrom").value,t=$("#dTo").value,det=$("#onlyDet").checked;
+  const gone=$("#inclGone").checked;
   return ROWS.filter(r=>{
+    if(!gone&&r.gone)return false;
     if(f&&r.date<f)return false;if(t&&r.date>t)return false;
     if(det&&!r.detain)return false;
     if(skip!=="type"&&sel.type.size&&!sel.type.has(r.type))return false;
@@ -294,7 +297,7 @@ const cnt=(rows,f)=>{const m={};rows.forEach(r=>{const k=f(r);if(k)m[k]=(m[k]||0
 function buildFilters(){
   const ct=cnt(filt("type"),r=>r.type),types=[...new Set(ROWS.map(r=>r.type))].sort();
   msBuild("msType","type",L("船型","Ship type"),types.map(t=>({v:t,t:typeLabel(t),c:ct[t]||0,g:ROWS.find(r=>r.type===t).vtype==="bulk"?L("散裝船","Bulk carrier"):L("油輪","Tanker")})).sort((a,b)=>a.g.localeCompare(b.g)));
-  const cs=cnt(filt("ship"),r=>r.ship),ships=[...new Set(ROWS.map(r=>r.ship))].sort((a,b)=>shipLabel(a).localeCompare(shipLabel(b),"zh-Hant"));
+  const cs=cnt(filt("ship"),r=>r.ship),ships=[...new Set(ROWS.filter(r=>$("#inclGone").checked||!r.gone).map(r=>r.ship))].sort((a,b)=>shipLabel(a).localeCompare(shipLabel(b),"zh-Hant"));
   msBuild("msShip","ship",L("船舶","Ship"),ships.map(c=>({v:c,t:shipLabel(c),c:cs[c]||0})));
   const cr=cnt(filt("region"),r=>r.region),regs=[...new Set(ROWS.map(r=>r.region).filter(Boolean))].sort((a,b)=>rLabel(a).localeCompare(rLabel(b)));
   msBuild("msRegion","region",L("PSC 區域","PSC region"),regs.map(v=>({v,t:rLabel(v),c:cr[v]||0})));
@@ -318,6 +321,8 @@ const avgColor=v=>v<=0.5?"#2e8b57":v<=1.5?"#7a8a1a":v<=3?"#b5610f":"#c0392b";
 const avgBg=v=>v<=0.5?"#e2f3e8":v<=1.5?"#f1f3d9":v<=3?"#fdeed9":"#fde3e0";
 
 function render(){
+  const gs=[...new Set(ROWS.filter(r=>r.gone).map(r=>r.ship))];
+  $("#goneN").textContent=gs.length?L(`（${gs.join("、")}，共 ${ROWS.filter(r=>r.gone).length} 筆）`,` (${gs.join(", ")}; ${ROWS.filter(r=>r.gone).length} records)`):"";
   buildFilters();
   const all=filt(),withLoc=all.filter(r=>r.country),base=$("#inclNoLoc").checked?all:withLoc;
   const nD=base.reduce((s,r)=>s+r.ndef,0),zero=base.filter(r=>!r.ndef).length,det=base.filter(r=>r.detain).length;
@@ -415,24 +420,126 @@ function renderDetail(rows){
   $("#detTbl").innerHTML=`<thead><tr><th class="s" onclick="sortDet('date')">${L("檢查日期","Date")}${ar("date")}</th><th class="s" onclick="sortDet('ship')">${L("船舶","Ship")}${ar("ship")}</th><th class="s" onclick="sortDet('type')">${L("船型","Type")}${ar("type")}</th><th class="s" onclick="sortDet('loc')">${L("檢查地點","Location")}${ar("loc")}</th><th class="s" onclick="sortDet('region')">${L("PSC 區域","PSC region")}${ar("region")}</th><th class="s n" onclick="sortDet('ndef')">${L("缺失數","Deficiencies")}${ar("ndef")}</th><th>${L("扣船","Detained")}</th><th>${L("檢查員／單位","Inspector / authority")}</th></tr></thead><tbody>${detRows(rows).map(r=>`<tr><td style="white-space:nowrap">${sd(r.date)}</td><td>${esc(shipLabel(r.ship))}</td><td class="hint">${esc(typeLabel(r.type))}</td><td>${r.loc?esc(r.loc):`<span class="hint">${L("未填","none")}</span>`}</td><td class="hint">${esc(rLabel(r.region))}</td><td class="n"><b>${r.ndefBlank?'<span class="hint">—</span>':r.ndef}</b></td><td>${r.detain?`<span class="pill" style="background:#fde3e0;color:#c0392b">⚑ ${L("扣船","Detained")}</span>`:""}</td><td class="hint">${esc([r.inspector,r.unit].filter(Boolean).join(" / "))}</td></tr>`).join("")}</tbody>`;
 }
 
-/* 匯出 Excel：欄位名稱、分頁名稱跟著目前語言 */
-function exportXlsx(){
-  if(typeof XLSX==="undefined"){alert(L("Excel 元件載入失敗，請確認網路後重新整理","Excel library failed to load. Check the network and reload."));return;}
-  const all=filt(),withLoc=all.filter(r=>r.country),wb=XLSX.utils.book_new();
-  const add=(rows,name,w)=>{const ws=XLSX.utils.json_to_sheet(rows.length?rows:[{[L("（無資料）","(No data)")]:""}]);ws["!cols"]=w.map(x=>({wch:x}));XLSX.utils.book_append_sheet(wb,ws,name);};
-  const C={n:L("檢查次數","Inspections"),d:L("缺失數","Deficiencies"),avg:L("平均缺失","Avg. deficiencies"),max:L("單次最多","Max in one insp."),zr:L("零缺失比例(%)","Zero-deficiency rate (%)"),det:L("扣船","Detentions"),ns:L("船數","Ships"),last:L("最近檢查","Latest inspection")};
-  const zrow=(a,lbl,extra)=>a.sort((x,y)=>y.n-x.n).map(x=>Object.assign({[lbl]:x.k},extra?extra(x):{},{[C.n]:x.n,[C.d]:x.d,[C.avg]:+f2(x.avg),[C.max]:x.max,[C.zr]:+(x.zr*100).toFixed(1),[C.det]:x.det,[C.ns]:x.ns,[C.last]:sd(x.last)}));
+/* 匯出 Excel（ExcelJS，有格式）：
+   總覽（篩選條件、重點數字、Top 5）＋ 依國家／港口／區域／船型／船舶 ＋ 熱區×年度 ＋ 檢查明細。
+   欄位名稱、分頁名稱跟著目前語言；表頭凍結、可篩選、平均缺失依高低上色、扣船標紅。 */
+const XC={navy:"FF1C3A5E",teal:"FF1E7F8C",tealL:"FFE4F1F2",orange:"FFE8842C",line:"FFDDE4E8",zebra:"FFF7FAFB",ink:"FF15262F",ink3:"FF8195A0",bad:"FFC0392B",badL:"FFFDE3E0",warnL:"FFFFF6E0"};
+const argb=h=>"FF"+h.replace("#","").toUpperCase();
+async function exportXlsx(){
+  if(typeof ExcelJS==="undefined"){alert(L("Excel 元件載入失敗，請確認網路後重新整理","Excel library failed to load. Check the network and reload."));return;}
+  const all=filt(),withLoc=all.filter(r=>r.country),base=$("#inclNoLoc").checked?all:withLoc;
+  const FONT=LANG==="en"?"Arial":"Microsoft JhengHei";
+  const wb=new ExcelJS.Workbook();wb.creator="FPMC";wb.created=new Date();
+  const thin={style:"thin",color:{argb:XC.line}},box={top:thin,left:thin,bottom:thin,right:thin};
   const R=L("PSC 區域","PSC region");
-  add(zrow(agg(withLoc,r=>r.country),L("國家","Country"),x=>Object.assign(LANG==="en"?{}:{"中文":COUNTRY_ZH[x.k]||""},{[R]:rLabel(regionOf(x.k))})),L("依國家","By country"),[16,10,22,9,8,9,9,11,6,6,11]);
-  add(zrow(agg(withLoc,r=>r.port),L("港口","Port"),x=>{const r=ROWS.find(y=>y.port===x.k);return {[L("國家","Country")]:r?r.country:"",[R]:r?rLabel(r.region):""};}),L("依港口","By port"),[26,14,22,9,8,9,9,11,6,6,11]);
-  add(zrow(agg(withLoc,r=>r.region),R).map(o=>Object.assign(o,{[R]:rLabel(o[R])})),L("依區域","By region"),[26,9,8,9,9,11,6,6,11]);
-  add(zrow(agg(all,r=>r.type),L("船型","Ship type")).map(o=>{const k=L("船型","Ship type");o[k]=typeLabel(o[k]);return o;}),L("依船型","By ship type"),[14,9,8,9,9,11,6,6,11]);
-  add(zrow(agg(all,r=>r.ship),L("船舶代碼","Ship code"),x=>({[L("船名","Ship name")]:shipLabel(x.k)})),L("依船舶","By ship"),[8,22,9,8,9,9,11,6,6,11]);
-  add(detRows(all).map(r=>({[L("檢查日期","Date")]:sd(r.date),[L("船舶","Ship")]:shipLabel(r.ship),[L("船型","Ship type")]:typeLabel(r.type),[L("檢查地點","Location")]:r.loc||L("（未填）","(none)"),[L("國家","Country")]:r.country,[R]:rLabel(r.region),[C.d]:r.ndefBlank?"":r.ndef,[L("扣船","Detained")]:r.detain?"Y":"",[L("檢查員","Inspector")]:r.inspector,[L("單位","Authority")]:r.unit})),L("檢查明細","Details"),[11,22,12,28,14,24,8,8,14,14]);
-  const f=$("#dFrom").value,t=$("#dTo").value,span=`${f||L("全部","All")}${t?"~"+t:""}`;
-  XLSX.writeFile(wb,L(`PSC檢查熱區分析_${span}.xlsx`,`PSC_Hotspot_Analysis_${span}.xlsx`));
-}
-applyLang();
+  const C={n:L("檢查次數","Inspections"),d:L("缺失數","Deficiencies"),avg:L("平均缺失","Avg. deficiencies"),max:L("單次最多","Max in one insp."),zr:L("零缺失比例","Zero-deficiency rate"),det:L("扣船","Detentions"),ns:L("船數","Ships"),last:L("最近檢查","Latest inspection")};
+  const f=$("#dFrom").value,t=$("#dTo").value;
+  const period=(f||t)?`${f?sd(f):L("最早","earliest")} ～ ${t?sd(t):L("最新","latest")}`:L("全部期間","All time");
+  const selTxt=(k,lbl,fn)=>sel[k].size?`${lbl}：${[...sel[k]].map(fn).join("、")}`:"";
+  const filters=[selTxt("type",L("船型","Ship type"),typeLabel),selTxt("ship",L("船舶","Ship"),shipLabel),selTxt("region",R,rLabel),selTxt("country",L("國家","Country"),cLabel),selTxt("port",L("港口","Port"),portLabel),$("#onlyDet").checked?L("只看扣船","Detentions only"):"",$("#inclGone").checked?L("含已離開船隊的船","incl. ships no longer in fleet"):""].filter(Boolean).join("；")||L("無（全部資料）","None (all data)");
+
+  // 共用：建立一張「標題＋說明＋表格」的分頁
+  function sheet(name,title,note,cols,rows,opt){
+    opt=opt||{};
+    const ws=wb.addWorksheet(name,{views:[{state:"frozen",ySplit:4}],pageSetup:{orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9},properties:{defaultRowHeight:18}});
+    ws.columns=cols.map(c=>({key:c.k,width:c.w}));
+    const last=String.fromCharCode(64+cols.length);
+    ws.mergeCells(`A1:${last}1`);const t1=ws.getCell("A1");t1.value=title;t1.font={name:FONT,size:15,bold:true,color:{argb:"FFFFFFFF"}};t1.fill={type:"pattern",pattern:"solid",fgColor:{argb:XC.navy}};t1.alignment={vertical:"middle",indent:1};ws.getRow(1).height=30;
+    ws.mergeCells(`A2:${last}2`);const t2=ws.getCell("A2");t2.value=`${L("期間","Period")}：${period}　｜　${L("篩選","Filters")}：${filters}${note?"　｜　"+note:""}`;t2.font={name:FONT,size:10,color:{argb:XC.ink3}};t2.alignment={vertical:"middle",indent:1,wrapText:true};ws.getRow(2).height=30;
+    const hr=ws.getRow(4);
+    cols.forEach((c,i)=>{const cell=hr.getCell(i+1);cell.value=c.h;cell.font={name:FONT,size:10.5,bold:true,color:{argb:"FFFFFFFF"}};cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:XC.teal}};cell.alignment={vertical:"middle",horizontal:c.num?"center":"left",wrapText:true,indent:c.num?0:1};cell.border=box;});
+    hr.height=30;
+    rows.forEach((r,ri)=>{
+      const row=ws.getRow(5+ri);
+      cols.forEach((c,i)=>{const cell=row.getCell(i+1);cell.value=r[c.k]===undefined?"":r[c.k];
+        cell.font={name:FONT,size:10.5,color:{argb:XC.ink},bold:!!c.bold};cell.border=box;
+        cell.alignment={vertical:"middle",horizontal:c.num?"right":"left",indent:c.num?0:1,wrapText:!!c.wrap};
+        if(c.fmt)cell.numFmt=c.fmt;
+        if(ri%2)cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:XC.zebra}};
+        if(c.k==="avg"&&typeof r.avg==="number"){cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:argb(avgBg(r.avg))}};cell.font={name:FONT,size:10.5,bold:true,color:{argb:argb(avgColor(r.avg))}};cell.alignment={vertical:"middle",horizontal:"center"};}
+        if(c.k==="det"&&r.det){cell.font={name:FONT,size:10.5,bold:true,color:{argb:XC.bad}};}
+      });
+      if(opt.rowStyle)opt.rowStyle(row,r);
+      row.height=opt.rowH||22;
+    });
+    // 檢查次數加資料橫條，一眼看出熱區
+    const nIdx=cols.findIndex(c=>c.k==="n");
+    if(nIdx>=0&&rows.length){const col=String.fromCharCode(65+nIdx);ws.addConditionalFormatting({ref:`${col}5:${col}${4+rows.length}`,rules:[{type:"dataBar",cfvo:[{type:"min"},{type:"max"}],color:{argb:"FF5FB3BE"},gradient:false}]});}
+    if(rows.length)ws.autoFilter={from:{row:4,column:1},to:{row:4+rows.length,column:cols.length}};
+    return ws;
+  }
+  const zcols=(first)=>[...first,{k:"n",h:C.n,w:13,num:1,bold:1},{k:"d",h:C.d,w:11,num:1},{k:"avg",h:C.avg,w:12,num:1,fmt:"0.00"},{k:"max",h:C.max,w:11,num:1},{k:"zr",h:C.zr,w:12,num:1,fmt:"0%"},{k:"det",h:C.det,w:9,num:1},{k:"ns",h:C.ns,w:8,num:1},{k:"last",h:C.last,w:13}];
+  const zdata=(a,extra)=>a.sort((x,y)=>y.n-x.n).map(x=>Object.assign({n:x.n,d:x.d,avg:+x.avg.toFixed(2),max:x.max,zr:x.zr,det:x.det||"",ns:x.ns,last:sd(x.last)},extra(x)));
+
+  // ── 總覽 ──
+  const ov=wb.addWorksheet(L("總覽","Summary"),{pageSetup:{orientation:"portrait",fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9}});
+  ov.columns=[{width:4},{width:30},{width:16},{width:4},{width:34},{width:22}];
+  ov.mergeCells("A1:F1");const h1=ov.getCell("A1");h1.value=L("PSC 檢查熱區分析","PSC Inspection Hotspot Analysis");h1.font={name:FONT,size:18,bold:true,color:{argb:"FFFFFFFF"}};h1.fill={type:"pattern",pattern:"solid",fgColor:{argb:XC.navy}};h1.alignment={vertical:"middle",indent:1};ov.getRow(1).height=38;
+  const info=[[L("統計期間","Period"),period],[L("篩選條件","Filters"),filters],[L("匯出時間","Exported"),new Date().toLocaleString(LANG==="en"?"en-GB":"zh-TW",{hour12:false})]];
+  info.forEach((p,i)=>{const r=3+i;ov.getCell(`B${r}`).value=p[0];ov.getCell(`B${r}`).font={name:FONT,size:10.5,bold:true,color:{argb:XC.ink3}};ov.mergeCells(`C${r}:F${r}`);const c=ov.getCell(`C${r}`);c.value=p[1];c.font={name:FONT,size:10.5,color:{argb:XC.ink}};c.alignment={wrapText:true,vertical:"middle"};ov.getCell(`B${r}`).alignment={vertical:"middle"};ov.getRow(r).height=p[1].length>60?38:26;});
+  const nD=base.reduce((s,r)=>s+r.ndef,0),zero=base.filter(r=>!r.ndef).length,det=base.filter(r=>r.detain).length;
+  const kpis=[[L("PSC 檢查次數","PSC inspections"),base.length,"0"],[L("缺失總數","Total deficiencies"),nD,"0"],[L("平均缺失／次","Avg. deficiencies / inspection"),base.length?nD/base.length:0,"0.00"],[L("零缺失比例","Zero-deficiency rate"),base.length?zero/base.length:0,"0%"],[L("扣船次數","Detentions"),det,"0"],[L("涵蓋國家","Countries"),new Set(withLoc.map(r=>r.country)).size,"0"],[L("涵蓋港口","Ports"),new Set(withLoc.map(r=>r.port)).size,"0"],[L("受檢船數","Ships inspected"),new Set(base.map(r=>r.ship)).size,"0"]];
+  ov.getCell("B7").value=L("重點數字","Key figures");ov.getCell("B7").font={name:FONT,size:12.5,bold:true,color:{argb:XC.navy}};ov.getRow(7).height=24;
+  kpis.forEach((k,i)=>{const r=8+i;const a=ov.getCell(`B${r}`),b=ov.getCell(`C${r}`);a.value=k[0];b.value=k[1];b.numFmt=k[2];
+    a.font={name:FONT,size:11,color:{argb:XC.ink}};b.font={name:FONT,size:13,bold:true,color:{argb:i===4&&det?XC.bad:i===1?XC.orange:XC.navy}};b.alignment={horizontal:"right"};
+    [a,b].forEach(c=>{c.border={bottom:thin};c.fill={type:"pattern",pattern:"solid",fgColor:{argb:i%2?"FFFFFFFF":XC.tealL}};c.alignment=Object.assign({vertical:"middle"},c.alignment||{});});ov.getRow(r).height=26;});
+  const noLoc=all.length-withLoc.length;
+  let nr=8+kpis.length+1;
+  if(noLoc){ov.mergeCells(`B${nr}:F${nr}`);const c=ov.getCell(`B${nr}`);c.value=L(`⚠ 有 ${noLoc} 筆 PSC 紀錄沒有填檢查地點，無法列入熱區統計${$("#inclNoLoc").checked?"（已算進上方總數）":"（上方總數也不含）"}。`,`⚠ ${noLoc} PSC record(s) have no inspection location and are excluded from the hotspot analysis${$("#inclNoLoc").checked?" (included in the totals above)":" (also excluded from the totals above)"}.`);
+    c.font={name:FONT,size:10,color:{argb:"FF7A5A10"}};c.fill={type:"pattern",pattern:"solid",fgColor:{argb:XC.warnL}};c.alignment={wrapText:true,vertical:"middle",indent:1};ov.getRow(nr).height=32;nr++;}
+  // Top 5（依國家）
+  const ac=agg(withLoc,r=>r.country);
+  const tops=[[L("🔥 檢查最頻繁的國家","🔥 Most inspected countries"),[...ac].sort((x,y)=>y.n-x.n),x=>L(`${x.n} 次・平均 ${f2(x.avg)}`,`${x.n} insp. · avg ${f2(x.avg)}`)],
+    [L("⚠ 平均缺失最高的國家（≥3 次）","⚠ Highest avg. deficiencies (≥3 insp.)"),ac.filter(x=>x.n>=3).sort((x,y)=>y.avg-x.avg),x=>L(`平均 ${f2(x.avg)}・${x.n} 次`,`avg ${f2(x.avg)} · ${x.n} insp.`)],
+    [L("✓ 零缺失比例最高的國家（≥3 次）","✓ Highest zero-deficiency rate (≥3 insp.)"),ac.filter(x=>x.n>=3).sort((x,y)=>y.zr-x.zr||y.n-x.n),x=>L(`${pct(x.zr)}・${x.n} 次`,`${pct(x.zr)} · ${x.n} insp.`)]];
+  nr++;
+  tops.forEach(([ttl,arr,fmt])=>{ov.getCell(`B${nr}`).value=ttl;ov.getCell(`B${nr}`).font={name:FONT,size:12,bold:true,color:{argb:XC.navy}};nr++;
+    arr.slice(0,5).forEach((x,i)=>{ov.getCell(`A${nr}`).value=i+1;ov.getCell(`A${nr}`).font={name:FONT,size:10.5,color:{argb:XC.ink3}};ov.getCell(`B${nr}`).value=cLabel(x.k);ov.getCell(`B${nr}`).font={name:FONT,size:10.5};ov.getCell(`C${nr}`).value=fmt(x);ov.getCell(`C${nr}`).font={name:FONT,size:10,color:{argb:XC.ink3}};ov.getCell(`B${nr}`).border={bottom:thin};ov.getCell(`C${nr}`).border={bottom:thin};nr++;});
+    if(!arr.length){ov.getCell(`B${nr}`).value=L("資料不足","Not enough data");nr++;}
+    nr++;});
+  ov.mergeCells(`B${nr}:F${nr}`);const rn=ov.getCell(`B${nr}`);rn.value=L("註：PSC 區域依國家推估，僅供分組參考；缺失數取自檢查紀錄的「缺失數」欄位。","Note: PSC regions are assigned by country for grouping reference only; deficiency counts come from the inspection record's deficiency field.");rn.font={name:FONT,size:9.5,italic:true,color:{argb:XC.ink3}};rn.alignment={wrapText:true};ov.getRow(nr).height=28;
+
+  // ── 各維度 ──
+  sheet(L("依國家","By country"),L("PSC 檢查熱區：依國家","PSC Hotspots by Country"),"",
+    zcols([{k:"k",h:L("國家","Country"),w:24,bold:1},{k:"r",h:R,w:26}]),
+    zdata(agg(withLoc,r=>r.country),x=>({k:cLabel(x.k),r:rLabel(regionOf(x.k))})));
+  sheet(L("依港口","By port"),L("PSC 檢查熱區：依港口","PSC Hotspots by Port"),"",
+    zcols([{k:"k",h:L("港口","Port"),w:26,bold:1},{k:"c",h:L("國家","Country"),w:20},{k:"r",h:R,w:26}]),
+    zdata(agg(withLoc,r=>r.port),x=>{const r=ROWS.find(y=>y.port===x.k);return {k:r?r.portName:x.k,c:r?cLabel(r.country):"",r:r?rLabel(r.region):""};}));
+  sheet(L("依區域","By region"),L("PSC 檢查熱區：依 PSC 區域","PSC Hotspots by Region"),L("區域依國家推估","Regions assigned by country"),
+    zcols([{k:"k",h:R,w:30,bold:1}]),zdata(agg(withLoc,r=>r.region),x=>({k:rLabel(x.k)})));
+  sheet(L("依船型","By ship type"),L("PSC 檢查：依船型","PSC Inspections by Ship Type"),"",
+    zcols([{k:"k",h:L("船型","Ship type"),w:18,bold:1}]),zdata(agg(base,r=>r.type),x=>({k:typeLabel(x.k)})));
+  sheet(L("依船舶","By ship"),L("PSC 檢查：依船舶","PSC Inspections by Ship"),"",
+    zcols([{k:"k",h:L("船舶","Ship"),w:26,bold:1},{k:"t",h:L("船型","Type"),w:14}]),
+    zdata(agg(base,r=>r.ship),x=>{const sh=shipOf(x.k);return {k:shipLabel(x.k),t:sh?sh.type1:""};}));
+
+  // ── 熱區 × 年度（國家）──
+  const years=[...new Set(withLoc.map(r=>r.date.slice(0,4)))].sort();
+  const hcAgg=agg(withLoc,r=>r.country).sort((a,b)=>b.n-a.n);
+  const cell={};withLoc.forEach(r=>{const k=r.country+"|"+r.date.slice(0,4);(cell[k]=cell[k]||{n:0,d:0});cell[k].n++;cell[k].d+=r.ndef;});
+  const mx=Math.max(1,...Object.values(cell).map(c=>c.n));
+  const hcols=[{k:"k",h:L("國家","Country"),w:24,bold:1},...years.map(y=>({k:"y"+y,h:y,w:11,num:1})),{k:"tot",h:L("合計","Total"),w:10,num:1,bold:1},{k:"avg",h:C.avg,w:12,num:1,fmt:"0.00"}];
+  const hrows=hcAgg.map(x=>{const o={k:cLabel(x.k),tot:x.n,avg:+x.avg.toFixed(2),_k:x.k};years.forEach(y=>{const c=cell[x.k+"|"+y];o["y"+y]=c?c.n:"";});return o;});
+  sheet(L("熱區×年度","Hotspots x Year"),L("PSC 檢查次數：國家 × 年度","PSC Inspections: Country × Year"),L("顏色越深＝當年檢查越多","Darker = more inspections that year"),hcols,hrows,{rowStyle:(row,r)=>{
+    years.forEach((y,i)=>{const c=cell[r._k+"|"+y];const cl=row.getCell(2+i);cl.alignment={horizontal:"center",vertical:"middle"};
+      if(c){const a=c.n/mx;const mix=(v,w)=>Math.round(255-(255-v)*w);const w=0.15+a*0.85;
+        cl.fill={type:"pattern",pattern:"solid",fgColor:{argb:"FF"+[mix(0x1e,w),mix(0x7f,w),mix(0x8c,w)].map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase()}};
+        cl.font={name:FONT,size:10.5,bold:true,color:{argb:a>0.55?"FFFFFFFF":XC.ink}};}
+      else{cl.value="·";cl.font={name:FONT,size:10.5,color:{argb:"FFC3CED5"}};}});}});
+
+  // ── 檢查明細 ──
+  sheet(L("檢查明細","Details"),L("PSC 檢查明細","PSC Inspection Details"),L(`共 ${all.length} 筆`,`${all.length} record(s)`),
+    [{k:"date",h:L("檢查日期","Date"),w:12},{k:"ship",h:L("船舶","Ship"),w:24,bold:1},{k:"type",h:L("船型","Type"),w:13},{k:"loc",h:L("檢查地點","Location"),w:30},{k:"country",h:L("國家","Country"),w:18},{k:"region",h:R,w:26},{k:"nd",h:L("缺失數","Deficiencies"),w:10,num:1},{k:"dt",h:L("扣船","Detained"),w:9},{k:"insp",h:L("檢查員","Inspector"),w:16},{k:"unit",h:L("單位","Authority"),w:16}],
+    detRows(all).map(r=>({date:sd(r.date),ship:shipLabel(r.ship),type:typeLabel(r.type),loc:r.loc||L("（未填）","(none)"),country:r.country?cLabel(r.country):"",region:rLabel(r.region),nd:r.ndefBlank?"":r.ndef,dt:r.detain?L("⚑ 扣船","⚑ Yes"):"",insp:r.inspector,unit:r.unit,_det:r.detain,_noloc:!r.loc})),
+    {rowStyle:(row,r)=>{if(r._det)row.eachCell(c=>{c.fill={type:"pattern",pattern:"solid",fgColor:{argb:XC.badL}};c.font=Object.assign({},c.font,{color:{argb:XC.bad}});});
+      if(r._noloc)row.getCell(4).font={name:FONT,size:10.5,italic:true,color:{argb:XC.ink3}};}});
+
+  const span=`${f||L("全部","All")}${t?"~"+t:""}`;
+  const buf=await wb.xlsx.writeBuffer();
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+  a.download=L(`PSC檢查熱區分析_${span}.xlsx`,`PSC_Hotspot_Analysis_${span}.xlsx`);document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);
+}applyLang();
 load();
 </script>
 </body>
