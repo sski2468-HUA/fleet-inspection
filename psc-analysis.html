@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PSC 檢查熱區分析 — FPMC</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{
   --navy:#1c3a5e; --navy-2:#234a72; --paper:#f5f7f8; --card:#ffffff; --line:#dde4e8; --line-2:#c3ced5;
@@ -75,6 +77,20 @@ tr.click:hover td{background:#f7fafc}
 .heat td.lbl{text-align:left;font-family:var(--sans);white-space:nowrap;background:#fff;border-bottom:1px solid var(--line)}
 #load{margin:14px}
 svg text{font-family:var(--sans)}
+#map{height:520px;border-radius:8px;border:1px solid var(--line);background:#e9eef1}
+.mapwrap{display:grid;grid-template-columns:1fr 320px;gap:14px}
+@media(max-width:1000px){.mapwrap{grid-template-columns:1fr}}
+.risk-list{border:1px solid var(--line);border-radius:8px;max-height:520px;overflow:auto}
+.risk-list .ri{padding:9px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13.5px;line-height:1.5}
+.risk-list .ri:hover{background:#f7fafc}
+.leaflet-popup-content{font-family:var(--sans);font-size:13px;line-height:1.6;margin:10px 12px}
+.legend{background:#fff;padding:8px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:12px;line-height:1.7;font-family:var(--sans)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.lg2{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2);margin:4px 0 6px}
+.lg2 span{display:inline-flex;align-items:center;gap:6px}
+.lg2 i{display:inline-block;width:14px;height:3px;border-radius:2px}
+.catchip{display:inline-block;background:#eef3f7;color:var(--navy);border-radius:6px;padding:1px 7px;margin:1px 4px 1px 0;font-size:12.5px;white-space:nowrap}
+.catchip b{font-family:var(--mono);margin-left:4px}
 .notice{background:#fff6e0;border:1px solid #efd9a0;color:#7a5a10;border-radius:8px;padding:8px 12px;font-size:13.5px;line-height:1.7}
 </style>
 </head>
@@ -119,6 +135,14 @@ svg text{font-family:var(--sans)}
   </div>
 
   <div class="card">
+    <h3 data-i="mapTitle"></h3>
+    <p class="sub" data-i="mapSub"></p>
+    <div class="tabs" id="mapTabs"><button data-k="hot" class="on" onclick="setMapMode('hot')" data-i="mapHot"></button><button data-k="risk" onclick="setMapMode('risk')" data-i="mapRisk"></button></div>
+    <div class="mapwrap"><div id="map"></div><div><div class="hint" style="font-weight:700;margin-bottom:6px" id="riskHead"></div><div class="risk-list" id="riskList"></div></div></div>
+    <p class="hint" style="margin:8px 0 0" data-i="mapNote"></p>
+  </div>
+
+  <div class="card">
     <h3 data-i="hzTitle"></h3>
     <p class="sub" data-i="hzSub"></p>
     <div class="tops" id="tops"></div>
@@ -133,13 +157,28 @@ svg text{font-family:var(--sans)}
     <div class="card">
       <h3 data-i="trTitle"></h3>
       <p class="sub" data-i="trSub"></p>
+      <div class="tabs" id="trTabs"><button data-k="m" onclick="setTrendP('m')" data-i="pM"></button><button data-k="q" class="on" onclick="setTrendP('q')" data-i="pQ"></button><button data-k="y" onclick="setTrendP('y')" data-i="pY"></button></div>
       <div id="trend"></div>
+      <div id="trendAvg" style="margin-top:6px"></div>
     </div>
     <div class="card">
       <h3 data-i="tyTitle"></h3>
       <p class="sub" data-i="tySub"></p>
       <div id="types"></div>
     </div>
+  </div>
+
+  <div class="card">
+    <h3 data-i="dfTitle"></h3>
+    <p class="sub" id="dfSub"></p>
+    <div class="tabs" id="catTabs"><button data-k="chap" class="on" onclick="setCatMode('chap')" data-i="catChap"></button><button data-k="sys" onclick="setCatMode('sys')" data-i="catSys"></button></div>
+    <div class="grid2" style="gap:16px">
+      <div><div class="hint" style="font-weight:700;margin-bottom:6px" data-i="dfAll"></div><div id="catBars"></div></div>
+      <div><div class="hint" style="font-weight:700;margin-bottom:6px" data-i="dfYear"></div><div style="overflow:auto"><table class="heat" id="catYear"></table></div></div>
+    </div>
+    <div class="hint" style="font-weight:700;margin:16px 0 6px" data-i="dfPort"></div>
+    <div class="tabs" id="cpTabs"><button data-k="port" class="on" onclick="setCatPlace('port')" data-i="port"></button><button data-k="country" onclick="setCatPlace('country')" data-i="country"></button></div>
+    <div class="scroll" style="max-height:440px"><table id="catPort"></table></div>
   </div>
 
   <div class="card">
@@ -166,6 +205,8 @@ svg text{font-family:var(--sans)}
 <script>
 const CLOUD={url:"https://iqmbircjokdzdssouwkr.supabase.co",
   key:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY"};
+// Leaflet 的全域名稱也叫 L，這頁的中英文切換函式已經用了 L，所以把 Leaflet 另存成 L_
+const L_=(window.L&&window.L.map)?window.L:undefined;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const H={apikey:CLOUD.key,Authorization:"Bearer "+CLOUD.key};
@@ -185,8 +226,16 @@ const TXT={
   hzSub:["「檢查最頻繁」看哪裡最常被查；「平均缺失最高」只列檢查 3 次以上的地點，避免一兩次的偶發結果排在前面。點表格任一列，可直接篩選該地點。","\"Most inspected\" shows where our ships are inspected most often. \"Highest average\" and \"Zero-deficiency\" only list locations with 3 or more inspections, so one-off results do not dominate. Click any row to filter by that location."],
   byCountry:["依國家","By country"],byPort:["依港口","By port"],byRegion:["依 PSC 區域","By PSC region"],
   regionNote:["PSC 區域是依國家推估（例如澳洲、中國、越南屬 Tokyo MOU；美國為 USCG），僅供分組參考。","PSC regions are assigned by country (e.g. Australia, China, Vietnam → Tokyo MOU; USA → USCG) for grouping reference only."],
-  trTitle:["檢查次數與平均缺失趨勢","Inspections & Average Deficiencies Trend"],trSub:["長條＝每季 PSC 檢查次數；折線＝當季平均每次缺失數。","Bars = PSC inspections per quarter; line = average deficiencies per inspection in that quarter."],
+  trTitle:["檢查次數與平均缺失趨勢","Inspections & Average Deficiencies Trend"],trSub:["上圖＝每期 PSC 檢查次數（油輪／散裝分色）；下圖＝每期平均每次缺失數，分全部、油輪、散裝三條線。","Top: PSC inspections per period (tanker / bulk); bottom: average deficiencies per inspection — all ships, tankers and bulk carriers."],
   tyTitle:["各船型比較","By Ship Type"],tySub:["各船型的檢查次數、平均缺失與零缺失比例。","Inspections, average deficiencies and zero-deficiency rate by ship type."],
+  mapTitle:["檢查熱區地圖","Inspection Hotspot Map"],
+  mapSub:["圓圈越大＝檢查次數越多。「熱區」看哪裡最常被查；「高風險區」依平均缺失上色，紅色外框代表曾被扣船。點圓圈看該港口的統計與主要缺失類型。","Larger circle = more inspections. \"Hotspots\" shows where ships are inspected most; \"High-risk\" colours each port by average deficiencies, with a red outline where a detention occurred. Click a circle for port statistics and main deficiency types."],
+  mapHot:["🔥 檢查熱區","🔥 Hotspots"],mapRisk:["⚠ 高風險區","⚠ High-risk"],
+  mapNote:["港口位置為約略座標；找不到港口座標的，標在該國家中心。高風險＝檢查 2 次以上且平均缺失 ≥ 2，或曾被扣船。","Port positions are approximate; ports without known coordinates are placed at the country centre. High-risk = 2+ inspections with average ≥ 2 deficiencies, or any detention."],
+  pM:["月","Month"],pQ:["季","Quarter"],pY:["年","Year"],
+  dfTitle:["缺失類型分析","Deficiency Type Analysis"],
+  catChap:["PSC 章節（Tokyo MOU）","PSC chapter (Tokyo MOU)"],catSys:["設備／作業類別","Equipment / operation category"],
+  dfAll:["缺失類型分布","Deficiency types"],dfYear:["缺失類型 × 年度","Deficiency types × year"],dfPort:["各地點主要缺失類型","Main deficiency types by location"],
   htTitle:["熱區 × 年度","Hotspots × Year"],htSub:["每格數字＝該年在該地點的檢查次數，下方小字為平均缺失；顏色越深檢查越多。列出檢查次數前 15 名。","Each cell shows the number of inspections at that location in that year, with the average deficiencies below; darker = more inspections. Top 15 locations shown."],
   country:["國家","Country"],port:["港口","Port"],
   shTitle:["各船 PSC 紀錄","PSC Record by Ship"],shSub:["依目前篩選，每艘船的 PSC 檢查次數、缺失數與最近一次檢查。點列可只看該船。","PSC inspections, deficiencies and latest inspection for each ship under the current filters. Click a row to show that ship only."],
@@ -238,13 +287,15 @@ async function load(){
     let all=[],off=0,b;do{b=await get(`sync_insp?select=payload&order=id&offset=${off}&limit=1000`);all=all.concat(b);off+=1000;}while(b.length===1000);
     ROWS=all.map(x=>x.payload).filter(p=>p&&String(p.itype||"").toUpperCase()==="PSC").map(p=>{
       const loc=String(p.loc||"").trim(),parts=loc.split(",").map(s=>s.trim()).filter(Boolean);
-      let country=parts.length>1?parts[parts.length-1]:(parts[0]||"");country=COUNTRY_ALIAS[country]||country;
-      const port=loc?(parts.length>1?parts.slice(0,-1).join(", "):parts[0]):"";
+      let country=canonCountry(parts.length>1?parts[parts.length-1]:(parts[0]||""));
+      let port=parts.length>1?titleCase(parts.slice(0,-1).join(", ")):"";
+      if(!port&&parts.length===1&&canonCountry(parts[0])!==parts[0]&&!COUNTRY_ZH[parts[0]])port=titleCase(parts[0]);
       const s=shipOf(p.ship)||{};const nd=parseInt(p.ndef,10);
-      return {id:p.id,ship:p.ship,date:parseDate(p.date),loc,port:loc?`${port}, ${country}`:"",portName:port,country,region:regionOf(country),
+      return {id:p.id,ship:p.ship,date:parseDate(p.date),loc,port:port?`${port}, ${country}`:"",portName:port,country,region:regionOf(country),
         type:s.type1||(p.vtype==="bulk"?"BULK":p.vtype==="tanker"?"Tanker":"未分類"),vtype:s.vtype||p.vtype||"",
         gone:!shipOf(p.ship),ndef:isNaN(nd)?0:nd,ndefBlank:isNaN(nd),detain:String(p.detain||"").toUpperCase().startsWith("Y"),inspector:p.inspector||"",unit:p.unit||""};
     }).filter(r=>r.date);
+    await loadDefs();
     ld.style.display="none";$("#main").style.display="";
     render();
   }catch(e){ld.dataset.err="1";ld.textContent=L("⚠ 資料讀取失敗：","⚠ Failed to load data: ")+e.message+L("（請確認網路後按重新整理）"," (check the network and reload)");}
@@ -278,10 +329,10 @@ function quick(k){
 function clearAll(){Object.values(sel).forEach(s=>s.clear());$("#inclGone").checked=false;$("#dFrom").value="";$("#dTo").value="";$("#onlyDet").checked=false;render();}
 
 /* 篩選：skip 指定哪個維度不套用（用來算該下拉選單的選項筆數，選項才不會因為自己被篩掉而消失） */
-function filt(skip){
+function filt(skip,src){
   const f=$("#dFrom").value,t=$("#dTo").value,det=$("#onlyDet").checked;
   const gone=$("#inclGone").checked;
-  return ROWS.filter(r=>{
+  return (src||ROWS).filter(r=>{
     if(!gone&&r.gone)return false;
     if(f&&r.date<f)return false;if(t&&r.date>t)return false;
     if(det&&!r.detain)return false;
@@ -337,6 +388,7 @@ function render(){
       `⚠ <b>${noLoc}</b> PSC record(s) under the current filters have no inspection location and cannot be included in the hotspot analysis${inc?" (they are included in the totals and trend above)":" (they are also excluded from the totals above)"}. Locations can be filled in via Inspection Records in the main system.`)}</div>`:"")+
     (blank?`<div class="hint" style="margin-top:6px">${L(`另有 ${blank} 筆缺失數空白，以 0 計算。`,`${blank} record(s) have a blank deficiency count and are counted as 0.`)}</div>`:"");
   renderZone(withLoc);renderTrend(base);renderTypes(base);renderHeat(withLoc);renderShips(base);renderDetail(all);
+  const defs=filt(null,DEFS);renderMap(withLoc,defs);renderCats(defs);
 }
 
 function setZone(k){zone=k;document.querySelectorAll("#zoneTabs button").forEach(b=>b.classList.toggle("on",b.dataset.k===k));zoneSort={k:"n",d:-1};render();}
@@ -362,30 +414,149 @@ function renderZone(rows){
     top(byZero,L(`✓ 零缺失比例最高的${zt}（≥3 次）`,`✓ Highest zero-deficiency rate (≥3 insp.)`),x=>L(`${pct(x.zr)}・${x.n} 次`,`${pct(x.zr)} · ${x.n} insp.`));
 }
 
-function renderTrend(rows){
-  const q=r=>{const y=r.date.slice(0,4),m=+r.date.slice(5,7);return `${y} Q${Math.ceil(m/3)}`;};
-  const g={};rows.forEach(r=>{const k=q(r);(g[k]=g[k]||{n:0,d:0});g[k].n++;g[k].d+=r.ndef;});
-  let keys=Object.keys(g).sort();
-  if(!keys.length){$("#trend").innerHTML=`<div class="hint">${L("沒有資料","No data")}</div>`;return;}
-  // 補齊中間沒有檢查的季，避免時間軸跳號
-  const [y0,q0]=keys[0].split(" Q").map(Number),[y1,q1]=keys[keys.length-1].split(" Q").map(Number);keys=[];
-  for(let y=y0,qq=q0;y<y1||(y===y1&&qq<=q1);){keys.push(`${y} Q${qq}`);qq++;if(qq>4){qq=1;y++;}}
-  const W=640,Hh=260,Lm=40,R=44,T=16,B=46,iw=W-Lm-R,ih=Hh-T-B,bw=iw/keys.length;
-  const maxN=Math.max(1,...keys.map(k=>(g[k]||{}).n||0)),maxA=Math.max(1,...keys.map(k=>g[k]?g[k].d/g[k].n:0));
-  const niceN=Math.ceil(maxN/5)*5||5,niceA=Math.ceil(maxA);
-  let svg=`<svg viewBox="0 0 ${W} ${Hh}" style="width:100%;height:auto" role="img" aria-label="${L("每季 PSC 檢查次數與平均缺失","PSC inspections and average deficiencies per quarter")}">`;
-  for(let i=0;i<=5;i++){const y=T+ih-ih*i/5;svg+=`<line x1="${Lm}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#e8edf0"/><text x="${Lm-6}" y="${y+4}" font-size="10" text-anchor="end" fill="#8195a0">${Math.round(niceN*i/5)}</text><text x="${W-R+6}" y="${y+4}" font-size="10" fill="#b5610f">${(niceA*i/5).toFixed(1)}</text>`;}
-  const pts=[];
-  keys.forEach((k,i)=>{const v=g[k]||{n:0,d:0},h=ih*v.n/niceN,x=Lm+i*bw;
-    svg+=`<rect x="${x+bw*0.18}" y="${T+ih-h}" width="${bw*0.64}" height="${h}" rx="3" fill="#1e7f8c"><title>${L(`${k}：檢查 ${v.n} 次、缺失 ${v.d} 筆、平均 ${v.n?f2(v.d/v.n):"—"}`,`${k}: ${v.n} inspections, ${v.d} deficiencies, avg ${v.n?f2(v.d/v.n):"—"}`)}</title></rect>`;
-    if(v.n)pts.push([x+bw/2,T+ih-ih*(v.d/v.n)/niceA,k,v]);
-    const step=Math.ceil(keys.length/12);if(i%step===0)svg+=`<text x="${x+bw/2}" y="${Hh-B+16}" font-size="10" text-anchor="middle" fill="#52656f">${k.replace(" "," ")}</text>`;});
-  if(pts.length>1)svg+=`<polyline points="${pts.map(p=>p[0]+","+p[1]).join(" ")}" fill="none" stroke="#e8842c" stroke-width="2"/>`;
-  pts.forEach(p=>svg+=`<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="#e8842c" stroke="#fff" stroke-width="2"><title>${p[2]}：${L("平均","avg")} ${f2(p[3].d/p[3].n)}</title></circle>`);
-  svg+=`<text x="${Lm}" y="${Hh-6}" font-size="11" fill="#1e7f8c">■ ${L("檢查次數（左軸）","Inspections (left axis)")}</text><text x="${Lm+170}" y="${Hh-6}" font-size="11" fill="#e8842c">● ${L("平均缺失（右軸）","Avg. deficiencies (right axis)")}</text></svg>`;
-  $("#trend").innerHTML=svg;
+/* ══ 國家／港口名稱正規化（系統裡有「Lianyungang,CHINA」「JAKARTA,  INDONESIA」這類大小寫不一的寫法）══ */
+const _CANON=(()=>{const m={};Object.keys(COUNTRY_ZH).forEach(k=>m[k.toLowerCase()]=k);Object.keys(COUNTRY_ALIAS).forEach(k=>m[k.toLowerCase()]=COUNTRY_ALIAS[k]);return m;})();
+const canonCountry=c=>{c=String(c||"").trim();return _CANON[c.toLowerCase()]||c;};
+const titleCase=s=>{s=String(s||"").trim().replace(/\s+/g," ");return s===s.toUpperCase()?s.toLowerCase().replace(/(^|[\s\-.(])([a-z])/g,(m,a,b)=>a+b.toUpperCase()):s;};
+
+/* ══ 缺失明細（缺失紀錄總表的 PSC 缺失）：用「船＋檢查日期」對回檢查紀錄，取得港口／國家／扣船；
+   對不到的才用缺失本身填的地點 ══ */
+let DEFS=[];
+const PSC_CH={1:"證書及文件 Certificates & Documentation",2:"結構狀況 Structural Condition",3:"水密/風雨密設備 Water/Weathertight Condition",4:"應急系統 Emergency Systems",5:"無線電通信 Radio Communication",6:"貨物操作包括設備 Cargo Operations Including Equipment",7:"消防安全 Fire Safety",8:"警報 Alarms",9:"工作及生活條件 Working and Living Conditions",10:"航行安全 Safety of Navigation",11:"救生設備 Life-Saving Appliances",12:"危險品 Dangerous Goods",13:"推進及輔助機械 Propulsion and Auxiliary Machinery",14:"污染防止 Pollution Prevention",15:"安全管理系統 ISM",16:"船舶保安 ISPS",18:"勞動條件 Labour Conditions",19:"產業人員 Industrial Personnel",99:"其他 Other"};
+const chapKey=code=>{const m=String(code||"").trim().match(/^(\d+)/);if(!m)return "??";const two=+m[1].slice(0,2);return PSC_CH[two]?String(two).padStart(2,"0"):"??";};
+const CAT_EN={"救生、消防、应急及安全设备":"LSA / fire-fighting / emergency & safety equipment","机舱设备":"Engine room equipment","船体/结构":"Hull / structure","生活区/MLC设备":"Accommodation / MLC equipment","驾驶台设备":"Bridge equipment","货物操作设备":"Cargo handling equipment","防污染设备":"Pollution prevention equipment","甲板设备":"Deck equipment","通信设备":"Communication equipment","04.MLC和船员福利作业":"04. MLC & crew welfare operations","18.船舶管理":"18. Ship management","13.机舱作业":"13. Engine room operations","05.航行和通信作业":"05. Navigation & communication operations","21.张贴和标志":"21. Postings & signs","00.通用船舶设备作业":"00. General ship equipment operations"};
+const catKeySys=nc=>{const t=String(nc||"").split("‖")[0].trim();return t||"??";};
+let catMode="chap",catPlace="port",trendP="q",mapMode="hot";
+const catKey=d=>catMode==="chap"?d.chap:d.cat;
+function catLabel(k){
+  if(k==="??")return L("未分類（代碼空白或無法判讀）","Unclassified (blank / unreadable code)");
+  if(catMode==="chap"){const n=PSC_CH[+k]||"";const i=n.search(/[A-Za-z]/);const zh=i>0?n.slice(0,i).trim():n,en=i>0?n.slice(i).trim():n;return `${k} ${LANG==="en"?en:zh}`;}
+  return LANG==="en"?(CAT_EN[k]||k):k;
+}
+async function loadDefs(){
+  try{
+    let all=[],off=0,b;
+    do{b=await get(`sync_defs?select=payload->>ship,payload->>date,payload->>code,payload->>ncMain,payload->>place,payload->>itype&payload->>itype=ilike.psc&order=id&offset=${off}&limit=1000`);all=all.concat(b);off+=1000;}while(b.length===1000);
+    const idx={};ROWS.forEach(r=>{idx[r.ship+"|"+r.date]=r;});
+    DEFS=all.map(x=>{
+      const date=parseDate(x.date),r=idx[x.ship+"|"+date];
+      const base={ship:x.ship,date,chap:chapKey(x.code),cat:catKeySys(x.ncMain),joined:!!r};
+      if(r)return Object.assign(base,{country:r.country,port:r.port,portName:r.portName,region:r.region,type:r.type,vtype:r.vtype,gone:r.gone,detain:r.detain});
+      const parts=String(x.place||"").split(",").map(s=>s.trim()).filter(Boolean),country=canonCountry(parts.length>1?parts[parts.length-1]:(parts[0]||"")),pn=parts.length>1?titleCase(parts.slice(0,-1).join(", ")):"";
+      const s=shipOf(x.ship)||{};
+      return Object.assign(base,{country,port:pn?`${pn}, ${country}`:"",portName:pn,region:regionOf(country),type:s.type1||"未分類",vtype:s.vtype||"",gone:!shipOf(x.ship),detain:false});
+    }).filter(d=>d.date);
+  }catch(e){DEFS=[];console.warn("defs load failed",e);}
 }
 
+/* ══ 趨勢：上圖檢查次數（油輪／散裝堆疊），下圖平均缺失（全部／油輪／散裝三條線）══ */
+function setTrendP(p){trendP=p;document.querySelectorAll("#trTabs button").forEach(b=>b.classList.toggle("on",b.dataset.k===p));render();}
+const SER=[{k:"all",c:"#1c3a5e",zh:"全部",en:"All ships"},{k:"tanker",c:"#1e7f8c",zh:"油輪",en:"Tanker"},{k:"bulk",c:"#b0702a",zh:"散裝",en:"Bulk"}];
+function periodKeys(rows){
+  const pk=r=>{const y=r.date.slice(0,4),m=+r.date.slice(5,7);return trendP==="y"?y:trendP==="q"?`${y} Q${Math.ceil(m/3)}`:`${y}-${String(m).padStart(2,"0")}`;};
+  const ks=rows.map(pk).sort();if(!ks.length)return {pk,keys:[]};
+  const keys=[],first=ks[0],last=ks[ks.length-1];
+  if(trendP==="y"){for(let y=+first;y<=+last;y++)keys.push(String(y));}
+  else if(trendP==="q"){let [y,q]=first.split(" Q").map(Number);const [y1,q1]=last.split(" Q").map(Number);while(y<y1||(y===y1&&q<=q1)){keys.push(`${y} Q${q}`);q++;if(q>4){q=1;y++;}}}
+  else{let [y,m]=first.split("-").map(Number);const [y1,m1]=last.split("-").map(Number);while(y<y1||(y===y1&&m<=m1)){keys.push(`${y}-${String(m).padStart(2,"0")}`);m++;if(m>12){m=1;y++;}}}
+  return {pk,keys};
+}
+function renderTrend(rows){
+  const {pk,keys}=periodKeys(rows);
+  if(!keys.length){$("#trend").innerHTML=`<div class="hint">${L("沒有資料","No data")}</div>`;$("#trendAvg").innerHTML="";return;}
+  const g={};keys.forEach(k=>g[k]={n:0,d:0,tanker:{n:0,d:0},bulk:{n:0,d:0}});
+  rows.forEach(r=>{const o=g[pk(r)];if(!o)return;o.n++;o.d+=r.ndef;const v=r.vtype==="bulk"?"bulk":"tanker";o[v].n++;o[v].d+=r.ndef;});
+  const W=640,Lm=36,R=14,T=12,iw=W-Lm-R,bw=iw/keys.length,step=Math.ceil(keys.length/(trendP==="m"?10:12));
+  const xl=(k,i,y)=>i%step===0?`<text x="${Lm+i*bw+bw/2}" y="${y}" font-size="10" text-anchor="middle" fill="#52656f">${k.replace(" "," ")}</text>`:"";
+  // 上圖：堆疊長條
+  {const H=200,B=26,ih=H-T-B,maxN=Math.max(1,...keys.map(k=>g[k].n)),nice=Math.max(5,Math.ceil(maxN/5)*5);
+   let svg=`<div class="lg2"><span><i style="background:#1e7f8c;height:10px;width:10px"></i>${L("油輪","Tanker")}</span><span><i style="background:#b0702a;height:10px;width:10px"></i>${L("散裝","Bulk")}</span><span class="hint">${L("檢查次數","Inspections")}</span></div><svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="${L("每期 PSC 檢查次數","PSC inspections per period")}">`;
+   for(let i=0;i<=5;i++){const y=T+ih-ih*i/5;svg+=`<line x1="${Lm}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#e8edf0"/><text x="${Lm-6}" y="${y+4}" font-size="10" text-anchor="end" fill="#8195a0">${Math.round(nice*i/5)}</text>`;}
+   keys.forEach((k,i)=>{const o=g[k],x=Lm+i*bw+bw*0.16,w=Math.max(1,bw*0.68);let y=T+ih;
+     [["tanker","#1e7f8c"],["bulk","#b0702a"]].forEach(([v,c],j)=>{const h=ih*o[v].n/nice;if(!h)return;y-=h;svg+=`<rect x="${x}" y="${y+(j?0:0)}" width="${w}" height="${Math.max(0,h-(j?1.5:0))}" rx="2" fill="${c}"><title>${k}：${L(v==="tanker"?"油輪":"散裝",v==="tanker"?"Tanker":"Bulk")} ${o[v].n}</title></rect>`;});
+     svg+=`<rect x="${Lm+i*bw}" y="${T}" width="${bw}" height="${ih}" fill="transparent"><title>${L(`${k}：檢查 ${o.n} 次（油輪 ${o.tanker.n}／散裝 ${o.bulk.n}）`,`${k}: ${o.n} inspections (tanker ${o.tanker.n} / bulk ${o.bulk.n})`)}</title></rect>`;
+     svg+=xl(k,i,H-B+16);});
+   $("#trend").innerHTML=svg+"</svg>";}
+  // 下圖：平均缺失折線
+  {const H=210,B=26,ih=H-T-B;const val=(o)=>o.n?o.d/o.n:null;
+   const mx=Math.max(1,...keys.flatMap(k=>[val(g[k]),val(g[k].tanker),val(g[k].bulk)]).filter(v=>v!=null)),nice=Math.ceil(mx);
+   let svg=`<div class="lg2">${SER.map(s=>`<span><i style="background:${s.c}"></i>${L(s.zh,s.en)}</span>`).join("")}<span class="hint">${L("平均缺失／次","Avg. deficiencies / insp.")}</span></div><svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="${L("每期平均缺失","Average deficiencies per period")}">`;
+   for(let i=0;i<=4;i++){const y=T+ih-ih*i/4;svg+=`<line x1="${Lm}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#e8edf0"/><text x="${Lm-6}" y="${y+4}" font-size="10" text-anchor="end" fill="#8195a0">${(nice*i/4).toFixed(1)}</text>`;}
+   SER.forEach(s=>{const pts=keys.map((k,i)=>{const o=s.k==="all"?g[k]:g[k][s.k],v=val(o);return v==null?null:[Lm+i*bw+bw/2,T+ih-ih*v/nice,k,v,o.n];});
+     // 沒有檢查的期間斷線，不硬連
+     let seg=[];const segs=[];pts.forEach(p=>{if(p)seg.push(p);else{if(seg.length)segs.push(seg);seg=[];}});if(seg.length)segs.push(seg);
+     segs.forEach(sg=>{if(sg.length>1)svg+=`<polyline points="${sg.map(p=>p[0]+","+p[1]).join(" ")}" fill="none" stroke="${s.c}" stroke-width="${s.k==="all"?2.5:1.8}" ${s.k==="all"?"":'stroke-dasharray="0"'} opacity="${s.k==="all"?1:.85}"/>`;});
+     pts.forEach(p=>{if(p)svg+=`<circle cx="${p[0]}" cy="${p[1]}" r="${s.k==="all"?4:3}" fill="${s.c}" stroke="#fff" stroke-width="1.5"><title>${p[2]} ${L(s.zh,s.en)}：${L("平均","avg")} ${f2(p[3])}（${p[4]} ${L("次","insp.")}）</title></circle>`;});});
+   keys.forEach((k,i)=>svg+=xl(k,i,H-B+16));
+   $("#trendAvg").innerHTML=svg+"</svg>";}
+}
+
+/* ══ 缺失類型 ══ */
+function setCatMode(m){catMode=m;document.querySelectorAll("#catTabs button").forEach(b=>b.classList.toggle("on",b.dataset.k===m));render();}
+function setCatPlace(m){catPlace=m;document.querySelectorAll("#cpTabs button").forEach(b=>b.classList.toggle("on",b.dataset.k===m));render();}
+function catCount(defs){const m={};defs.forEach(d=>{const k=catKey(d);m[k]=(m[k]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]);}
+function topCatsHtml(defs,n){return catCount(defs).slice(0,n).map(([k,v])=>`<span class="catchip">${esc(catLabel(k))}<b>${v}</b></span>`).join("");}
+function renderCats(defs){
+  const joined=defs.filter(d=>d.joined).length;
+  $("#dfSub").textContent=L(`資料來源：缺失紀錄總表中檢查來源為 PSC 的缺失明細，共 ${defs.length} 筆（其中 ${joined} 筆對得到檢查紀錄）。缺失紀錄總表的筆數可能少於檢查紀錄上填的缺失數，早期紀錄沒有逐筆登錄明細。`,
+    `Source: PSC deficiency details in the deficiency register — ${defs.length} item(s) (${joined} matched to an inspection record). The register may hold fewer items than the deficiency counts on inspection records, as older inspections were not itemised.`);
+  const cc=catCount(defs),mx=Math.max(1,...cc.map(x=>x[1])),tot=defs.length||1;
+  $("#catBars").innerHTML=cc.length?`<table><tbody>${cc.slice(0,14).map(([k,v])=>`<tr><td style="width:46%">${esc(catLabel(k))}</td><td><div class="hbar" style="width:${v/mx*100}%;background:#1e7f8c"></div></td><td class="n" style="width:52px"><b>${v}</b></td><td class="n hint" style="width:52px">${(v/tot*100).toFixed(0)}%</td></tr>`).join("")}</tbody></table>`:`<div class="hint">${L("沒有資料","No data")}</div>`;
+  // 類型 × 年度
+  const years=[...new Set(defs.map(d=>d.date.slice(0,4)))].sort(),top=cc.slice(0,10).map(x=>x[0]);
+  const cy={};defs.forEach(d=>{const k=catKey(d)+"|"+d.date.slice(0,4);cy[k]=(cy[k]||0)+1;});const cmx=Math.max(1,...Object.values(cy));
+  $("#catYear").innerHTML=top.length?`<thead><tr><th>${L("類型","Type")}</th>${years.map(y=>`<th style="text-align:center">${y}</th>`).join("")}</tr></thead><tbody>${top.map(k=>`<tr><td class="lbl" style="max-width:260px;overflow:hidden;text-overflow:ellipsis" title="${esc(catLabel(k))}">${esc(catLabel(k))}</td>${years.map(y=>{const v=cy[k+"|"+y];if(!v)return `<td style="background:#f6f8f9;color:#c3ced5">·</td>`;const a=v/cmx;return `<td style="background:rgba(176,112,42,${0.12+a*0.8});color:${a>0.55?"#fff":"#15262f"}"><b>${v}</b></td>`;}).join("")}</tr>`).join("")}</tbody>`:`<tr><td class="hint">${L("沒有資料","No data")}</td></tr>`;
+  // 各地點主要缺失類型
+  const pf=d=>catPlace==="port"?d.port:d.country;
+  const groups={};defs.forEach(d=>{const k=pf(d);if(!k)return;(groups[k]=groups[k]||[]).push(d);});
+  const rows=Object.entries(groups).sort((a,b)=>b[1].length-a[1].length);
+  const insp=filt().filter(r=>pf(r));const ic={};insp.forEach(r=>{const k=pf(r);ic[k]=(ic[k]||0)+1;});
+  const lbl=k=>catPlace==="port"?portLabel(k):cLabel(k);
+  $("#catPort").innerHTML=`<thead><tr><th>${catPlace==="port"?L("港口","Port"):L("國家","Country")}</th><th class="n">${L("檢查次數","Inspections")}</th><th class="n">${L("缺失明細","Deficiency items")}</th><th>${L("主要缺失類型（前 3 名）","Top 3 deficiency types")}</th></tr></thead><tbody>${rows.map(([k,ds])=>`<tr class="click" onclick="sel['${catPlace}'].clear();sel['${catPlace}'].add(${JSON.stringify(k).replace(/"/g,"&quot;")});render();window.scrollTo({top:0,behavior:'smooth'})"><td><b>${esc(lbl(k))}</b></td><td class="n">${ic[k]||"—"}</td><td class="n"><b>${ds.length}</b></td><td>${topCatsHtml(ds,3)}</td></tr>`).join("")||`<tr><td colspan="4" class="hint" style="text-align:center;padding:20px">${L("沒有對得到地點的缺失明細","No deficiency items with a location")}</td></tr>`}</tbody>`;
+}
+
+/* ══ 地圖（Leaflet）══ 港口座標為約略位置 */
+const PORT_LL={"abbot point":[-19.88,148.08],"adelaide":[-34.80,138.50],"antwerp":[51.26,4.40],"balboa":[8.95,-79.57],"barranquilla":[11.10,-74.85],"basrah":[30.50,47.82],"bataan":[14.45,120.50],"brisbane":[-27.38,153.17],"cebu":[10.30,123.90],"chattogram":[22.30,91.80],"chittagong":[22.30,91.80],"coatzacoalcos":[18.15,-94.42],"conakry":[9.51,-13.71],"corpus christi":[27.81,-97.40],"dakar":[14.68,-17.43],"dampier":[-20.66,116.71],"djeno":[-4.94,11.85],"dong nai":[10.78,106.88],"dung quat":[15.40,108.80],"fazendinha":[-0.05,-51.12],"fos":[43.42,4.88],"freeport":[28.95,-95.31],"freetown":[8.49,-13.23],"fremantle":[-32.05,115.74],"gladstone":[-23.83,151.25],"gresik":[-7.15,112.65],"guangzhou":[22.75,113.60],"halul":[25.67,52.41],"hay point":[-21.28,149.30],"hon gai":[20.95,107.07],"houston":[29.73,-95.27],"immingham":[53.63,-0.19],"isabel":[10.93,124.42],"iskenderun":[36.59,36.17],"jakarta":[-6.10,106.88],"jebel ali":[25.01,55.06],"jiangyin":[31.93,120.27],"jieyang":[22.95,116.50],"jingtang":[39.21,119.00],"kamsar":[10.65,-14.61],"kaohsiung":[22.61,120.28],"kwangyang":[34.90,127.69],"gwangyang":[34.90,127.69],"la plata":[-34.85,-57.88],"lagos":[6.43,3.39],"lianyungang":[34.74,119.45],"london":[51.50,0.05],"los angeles":[33.74,-118.26],"mangalore":[12.92,74.81],"mesaieed":[24.99,51.55],"mina zayed":[24.52,54.38],"mormugao":[15.41,73.80],"nantong":[32.00,120.80],"new orleans":[29.95,-90.06],"new york":[40.67,-74.05],"newcastle":[-32.92,151.79],"ningbo":[29.93,121.85],"okinawa":[26.21,127.67],"ponta da madeira":[-2.57,-44.37],"port boffa":[10.18,-14.04],"port hedland":[-20.31,118.58],"puerto cortes":[15.85,-87.94],"qingdao":[36.07,120.32],"quang ninh":[21.02,107.36],"rayong":[12.67,101.15],"map ta phut":[12.67,101.15],"rotterdam":[51.95,4.13],"san diego":[32.70,-117.17],"san francisco":[37.80,-122.40],"sariaya":[13.90,121.53],"savannah":[32.08,-81.09],"shanghai":[31.35,121.60],"son duong":[18.06,106.43],"st. eustatius":[17.48,-62.98],"subic bay":[14.80,120.27],"sydney":[-33.97,151.20],"taicang":[31.62,121.20],"tarahan":[-5.55,105.35],"thames":[51.47,0.45],"tianjin":[38.98,117.75],"townsville":[-19.25,146.83],"trois-rivieres":[46.34,-72.54],"vung ang":[18.12,106.37],"zhoushan":[30.00,122.10],"singapore":[1.26,103.80],"busan":[35.10,129.04],"yokohama":[35.45,139.65],"hong kong":[22.30,114.17],"port kembla":[-34.47,150.90],"geelong":[-38.12,144.37],"melbourne":[-37.84,144.92],"darwin":[-12.47,130.84],"mackay":[-21.11,149.23],"weipa":[-12.67,141.86],"bunbury":[-33.32,115.65],"kwinana":[-32.20,115.76],"esperance":[-33.87,121.90],"caofeidian":[38.95,118.50],"rizhao":[35.38,119.55],"dalian":[38.93,121.65],"xiamen":[24.45,118.07],"zhanjiang":[21.20,110.40],"fangcheng":[21.60,108.35],"huizhou":[22.73,114.55],"yantai":[37.55,121.40],"tangshan":[39.20,118.50],"ho chi minh":[10.77,106.72],"hai phong":[20.86,106.69],"cam pha":[21.02,107.36],"paradip":[20.26,86.67],"kandla":[23.01,70.22],"sikka":[22.43,69.83],"fujairah":[25.17,56.36],"ras tanura":[26.64,50.16],"ras laffan":[25.90,51.58],"kuwait":[29.07,48.14],"sohar":[24.50,56.62],"durban":[-29.87,31.03],"richards bay":[-28.80,32.08],"santos":[-23.96,-46.30],"rio de janeiro":[-22.89,-43.18],"paranagua":[-25.50,-48.52],"itaqui":[-2.57,-44.37],"tubarao":[-20.28,-40.24],"montevideo":[-34.90,-56.21],"cartagena":[10.40,-75.53],"manzanillo":[19.06,-104.31],"veracruz":[19.20,-96.13],"long beach":[33.75,-118.20],"baltimore":[39.26,-76.58],"philadelphia":[39.90,-75.14],"mobile":[30.69,-88.04],"beaumont":[30.08,-94.09],"port arthur":[29.87,-93.93],"lake charles":[30.22,-93.24],"seattle":[47.60,-122.34],"portland":[45.60,-122.70],"vancouver":[49.29,-123.11],"amsterdam":[52.40,4.83],"hamburg":[53.54,9.97],"gdansk":[54.40,18.67],"algeciras":[36.13,-5.44],"gibraltar":[36.14,-5.35],"piraeus":[37.94,23.63],"aliaga":[38.80,26.95],"izmir":[38.44,27.14]};
+const COUNTRY_LL={Australia:[-25.3,133.8],Vietnam:[16.0,107.5],China:[31.0,118.0],USA:[37.1,-95.7],Guinea:[10.4,-13.0],Netherlands:[52.1,5.3],Philippines:[12.9,121.8],UK:[54.0,-2.0],UAE:[24.4,54.4],Taiwan:[23.7,121.0],Indonesia:[-2.5,118.0],Thailand:[13.0,101.0],Qatar:[25.3,51.2],Mexico:[23.6,-102.5],India:[20.6,78.9],Iraq:[30.5,47.8],Bangladesh:[23.7,90.4],Brazil:[-14.2,-51.9],France:[46.2,2.2],"Caribbean Netherlands":[17.5,-63.0],Korea:[35.9,127.8],Honduras:[15.2,-86.2],Canada:[56.1,-106.3],Colombia:[4.6,-74.3],Japan:[36.2,138.3],Congo:[-4.8,11.9],Panama:[8.5,-80.8],"Sierra Leone":[8.5,-11.8],Nigeria:[9.1,8.7],Belgium:[50.5,4.5],Argentina:[-38.4,-63.6],Senegal:[14.5,-14.5],Turkey:[39.0,35.2],Malaysia:[4.2,102.0],Singapore:[1.3,103.8],"Hong Kong":[22.3,114.2],Germany:[51.2,10.5],Spain:[40.5,-3.7],Italy:[41.9,12.6],Egypt:[26.8,30.8],Chile:[-35.7,-71.5],Peru:[-9.2,-75.0],"Saudi Arabia":[23.9,45.1],Oman:[21.5,55.9],Kuwait:[29.3,47.5],"South Africa":[-30.6,22.9],"New Zealand":[-40.9,174.9],Russia:[61.5,105.3],Ghana:[7.9,-1.0],"Ivory Coast":[7.5,-5.5],Cameroon:[7.4,12.4],Gabon:[-0.8,11.6],Angola:[-11.2,17.9],Mozambique:[-18.7,35.5],Kenya:[-0.02,37.9],Pakistan:[30.4,69.3],"Sri Lanka":[7.9,80.8],Myanmar:[21.9,95.9],Cambodia:[12.6,104.9],Norway:[60.5,8.5],Sweden:[60.1,18.6],Denmark:[56.3,9.5],Poland:[51.9,19.1],Greece:[39.1,21.8],Portugal:[39.4,-8.2],Ireland:[53.4,-8.2],Finland:[61.9,25.7],Ecuador:[-1.8,-78.2],Uruguay:[-32.5,-55.8],Venezuela:[6.4,-66.6],Jamaica:[18.1,-77.3],"Trinidad and Tobago":[10.7,-61.2],Jordan:[30.6,36.2],Israel:[31.0,34.9],Algeria:[28.0,1.7],Morocco:[31.8,-7.1],Bahrain:[26.0,50.6],Iran:[32.4,53.7],Fiji:[-17.7,178.1],"Papua New Guinea":[-6.3,143.9]};
+let MAP=null,MAPL=null;
+function setMapMode(m){mapMode=m;document.querySelectorAll("#mapTabs button").forEach(b=>b.classList.toggle("on",b.dataset.k===m));render();}
+function llOf(r){const p=PORT_LL[String(r.portName||"").toLowerCase()];if(p)return {ll:p,exact:true};const c=COUNTRY_LL[r.country];return c?{ll:c,exact:false}:null;}
+function focusPt(lat,lng){if(MAP){MAP.setView([lat,lng],6);document.getElementById("map").scrollIntoView({behavior:"smooth",block:"center"});}}
+function renderMap(rows,defs){
+  // 依「港口（找不到座標的併到國家中心）」彙總
+  const pts={};
+  rows.forEach(r=>{const g=llOf(r);if(!g)return;const key=g.exact?r.port:"@"+r.country;
+    const p=pts[key]=pts[key]||{key,ll:g.ll,exact:g.exact,name:g.exact?portLabel(r.port):cLabel(r.country)+L("（港口未定位）"," (port not located)"),country:r.country,rows:[],ports:new Set()};
+    p.rows.push(r);if(r.portName)p.ports.add(r.portName);});
+  const list=Object.values(pts).map(p=>{const a=agg(p.rows,()=>"x")[0];const ds=defs.filter(d=>p.exact?d.port===p.key:(d.country===p.country&&!PORT_LL[String(d.portName||"").toLowerCase()]));
+    return Object.assign(p,{n:a.n,d:a.d,avg:a.avg,det:a.det,last:a.last,ds,risk:(a.n>=2&&a.avg>=2)||a.det>0});});
+  // 高風險／熱區清單
+  const rk=mapMode==="risk"?list.filter(p=>p.risk).sort((a,b)=>b.det-a.det||b.avg-a.avg||b.n-a.n):[...list].sort((a,b)=>b.n-a.n).slice(0,15);
+  $("#riskHead").textContent=mapMode==="risk"?L(`⚠ 高風險地點（${rk.length}）`,`⚠ High-risk locations (${rk.length})`):L("🔥 檢查最頻繁的地點（前 15）","🔥 Most inspected locations (top 15)");
+  $("#riskList").innerHTML=rk.map(p=>`<div class="ri" onclick="focusPt(${p.ll[0]},${p.ll[1]})"><b>${esc(p.name)}</b>${p.det?` <span class="pill" style="background:#fde3e0;color:#c0392b">⚑ ${L("扣船","Detained")} ${p.det}</span>`:""}<br><span class="hint">${L(`檢查 ${p.n} 次・缺失 ${p.d}・平均`,`${p.n} insp. · ${p.d} def. · avg`)} </span><span class="pill" style="background:${avgBg(p.avg)};color:${avgColor(p.avg)}">${f2(p.avg)}</span>${p.ds.length?`<div style="margin-top:3px">${topCatsHtml(p.ds,2)}</div>`:""}</div>`).join("")||`<div class="hint" style="padding:12px">${mapMode==="risk"?L("目前條件下沒有高風險地點 🎉","No high-risk locations under the current filters 🎉"):L("沒有資料","No data")}</div>`;
+  if(typeof L_==="undefined"){$("#map").innerHTML=`<div class="hint" style="padding:20px">${L("地圖元件載入失敗（可能是網路阻擋），其他圖表不受影響。","The map library failed to load (possibly blocked by the network). Other charts are unaffected.")}</div>`;return;}
+  if(!MAP){MAP=L_.map("map",{worldCopyJump:true,scrollWheelZoom:false}).setView([15,110],2);
+    L_.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",{maxZoom:16,attribution:"Tiles &copy; Esri"}).addTo(MAP);
+    L_.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}",{maxZoom:16}).addTo(MAP);
+    MAP.on("focus",()=>MAP.scrollWheelZoom.enable());MAP.on("blur",()=>MAP.scrollWheelZoom.disable());
+    const lg=L_.control({position:"bottomleft"});lg.onAdd=()=>{const d=L_.DomUtil.create("div","legend");d.id="mapLegend";return d;};lg.addTo(MAP);}
+  if(MAPL)MAPL.remove();MAPL=L_.layerGroup().addTo(MAP);
+  const mxN=Math.max(1,...list.map(p=>p.n));
+  list.sort((a,b)=>b.n-a.n).forEach(p=>{
+    const r=6+Math.sqrt(p.n/mxN)*22;
+    const col=mapMode==="risk"?avgColor(p.avg):"#1e7f8c",fill=mapMode==="risk"?avgColor(p.avg):"#1e7f8c";
+    const op=mapMode==="risk"?0.55:0.25+0.5*p.n/mxN;
+    const c=L_.circleMarker(p.ll,{radius:r,color:p.det&&mapMode==="risk"?"#c0392b":col,weight:p.det&&mapMode==="risk"?3:1.5,fillColor:fill,fillOpacity:op,dashArray:p.exact?null:"4 3"});
+    c.bindPopup(`<b style="font-size:14px">${esc(p.name)}</b><br>${L("PSC 區域","PSC region")}：${esc(rLabel(regionOf(p.country)))}<br>${L("檢查","Inspections")}：<b>${p.n}</b>　${L("缺失","Deficiencies")}：<b>${p.d}</b>　${L("平均","Avg.")}：<b style="color:${avgColor(p.avg)}">${f2(p.avg)}</b>${p.det?`<br><b style="color:#c0392b">⚑ ${L("扣船","Detentions")} ${p.det}</b>`:""}<br>${L("最近檢查","Latest")}：${sd(p.last)}${!p.exact&&p.ports.size?`<br><span style="color:#8195a0">${L("包含","Includes")}：${esc([...p.ports].join(", "))}</span>`:""}${p.ds.length?`<div style="margin-top:6px"><b>${L("主要缺失類型","Main deficiency types")}</b><br>${topCatsHtml(p.ds,3)}</div>`:""}`);
+    c.bindTooltip(`${esc(p.name)}：${p.n} ${L("次","insp.")}`);
+    c.addTo(MAPL);});
+  const lgd=document.getElementById("mapLegend");
+  if(lgd)lgd.innerHTML=mapMode==="risk"?`<b>${L("平均缺失／次","Avg. def. / insp.")}</b><br><i style="background:#2e8b57"></i>≤ 0.5<br><i style="background:#7a8a1a"></i>0.5–1.5<br><i style="background:#b5610f"></i>1.5–3<br><i style="background:#c0392b"></i>&gt; 3<br><i style="background:#fff;border:3px solid #c0392b;width:8px;height:8px"></i>${L("曾被扣船","Detention")}<br><span style="color:#8195a0">${L("虛線＝港口未定位","Dashed = port not located")}</span>`
+    :`<b>${L("圓圈大小＝檢查次數","Circle size = inspections")}</b><br><span style="color:#8195a0">${L("顏色越深＝越常被查","Darker = inspected more often")}<br>${L("虛線＝港口未定位","Dashed = port not located")}</span>`;
+  // 篩選結果改變時自動縮放到所有圓圈；只是切換熱區／高風險時維持使用者目前的視野
+  const sig=list.map(p=>p.key).sort().join("|");
+  setTimeout(()=>{MAP.invalidateSize();if(sig!==MAP._sig&&list.length){MAP._sig=sig;MAP.fitBounds(L_.latLngBounds(list.map(p=>p.ll)).pad(0.15),{maxZoom:6});}},60);
+}
 function renderTypes(rows){
   const a=agg(rows,r=>r.type).sort((x,y)=>y.n-x.n),maxA=Math.max(0.01,...a.map(x=>x.avg));
   $("#types").innerHTML=a.length?`<table><thead><tr><th>${L("船型","Ship type")}</th><th class="n">${L("檢查次數","Inspections")}</th><th class="n">${L("缺失數","Deficiencies")}</th><th class="n">${L("平均缺失","Avg.")}</th><th style="width:28%"></th><th class="n">${L("零缺失","Zero-def.")}</th><th class="n">${L("扣船","Detained")}</th></tr></thead><tbody>${a.map(x=>`<tr class="click" onclick="sel.type.clear();sel.type.add(${JSON.stringify(x.k).replace(/"/g,"&quot;")});render()"><td><b>${esc(typeLabel(x.k))}</b></td><td class="n">${x.n}</td><td class="n">${x.d}</td><td class="n"><b>${f2(x.avg)}</b></td><td><div class="hbar" style="width:${x.avg/maxA*100}%;background:${avgColor(x.avg)}"></div></td><td class="n">${pct(x.zr)}</td><td class="n">${x.det||"—"}</td></tr>`).join("")}</tbody></table>`:`<div class="hint">${L("沒有資料","No data")}</div>`;
@@ -535,7 +706,16 @@ async function exportXlsx(){
     {rowStyle:(row,r)=>{if(r._det)row.eachCell(c=>{c.fill={type:"pattern",pattern:"solid",fgColor:{argb:XC.badL}};c.font=Object.assign({},c.font,{color:{argb:XC.bad}});});
       if(r._noloc)row.getCell(4).font={name:FONT,size:10.5,italic:true,color:{argb:XC.ink3}};}});
 
-  const span=`${f||L("全部","All")}${t?"~"+t:""}`;
+  // ── 缺失類型（依港口）──
+  {const defs=filt(null,DEFS),groups={};defs.forEach(d=>{if(!d.port)return;(groups[d.port]=groups[d.port]||[]).push(d);});
+   const ic={};withLoc.forEach(r=>{if(r.port)ic[r.port]=(ic[r.port]||0)+1;});
+   const top=(ds,i)=>{const c=catCount(ds)[i];return c?`${catLabel(c[0])}（${c[1]}）`:"";};
+   sheet(L("各港口缺失類型","Def. types by port"),L("各港口主要缺失類型","Main Deficiency Types by Port"),catMode==="chap"?L("分類：PSC 章節","Classification: PSC chapter"):L("分類：設備／作業類別","Classification: equipment / operation"),
+     [{k:"p",h:L("港口","Port"),w:26,bold:1},{k:"c",h:L("國家","Country"),w:20},{k:"n",h:C.n,w:12,num:1},{k:"dd",h:L("缺失明細","Deficiency items"),w:12,num:1},{k:"t1",h:L("第 1 名","Top 1"),w:40,wrap:1},{k:"t2",h:L("第 2 名","Top 2"),w:40,wrap:1},{k:"t3",h:L("第 3 名","Top 3"),w:40,wrap:1}],
+     Object.entries(groups).sort((a,b)=>b[1].length-a[1].length).map(([k,ds])=>({p:ds[0].portName,c:cLabel(ds[0].country),n:ic[k]||"",dd:ds.length,t1:top(ds,0),t2:top(ds,1),t3:top(ds,2)})),{rowH:30});
+   sheet(L("缺失類型分布","Def. types"),L("PSC 缺失類型分布","PSC Deficiency Types"),"",
+     [{k:"k",h:L("缺失類型","Deficiency type"),w:46,bold:1},{k:"v",h:L("缺失明細","Items"),w:12,num:1},{k:"p",h:L("占比","Share"),w:10,num:1,fmt:"0%"}],
+     catCount(defs).map(([k,v])=>({k:catLabel(k),v,p:v/(defs.length||1)})));}  const span=`${f||L("全部","All")}${t?"~"+t:""}`;
   const buf=await wb.xlsx.writeBuffer();
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
   a.download=L(`PSC檢查熱區分析_${span}.xlsx`,`PSC_Hotspot_Analysis_${span}.xlsx`);document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);
