@@ -3040,6 +3040,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             </span>
           </h3>
           <p class="hint" style="line-height:1.7">每一筆是船上用獨立填單網頁送出的資料，尚未寫入系統。點「👀 預覽」可展開查看內容；「✓ 匯入」會把這筆轉成正式的線上填單記錄（比照手動新增），並可接著進行對外回覆；「✕ 拒絕」僅標記為不匯入，不會刪除原始資料，之後可切到「已拒絕」分頁找回、按「↩ 恢復為待審核」重新排入審核。「已匯入」分頁列出標記為已匯入的紀錄——如果多人同時在系統中操作導致存檔互相覆蓋，匯入後卻在「線上填單記錄」找不到，不用回去重填，直接在這裡按「🔁 重新匯入」補建一筆即可（若原本其實已匯入成功，重新匯入會多一筆重複紀錄，動手前請先自行確認）。</p>
+          <div id="air-cq-mergebar" style="display:none;margin:4px 0 10px;padding:8px 12px;background:#fff6e9;border:1px solid #f0d3a8;border-radius:8px;align-items:center;gap:10px;flex-wrap:wrap"></div>
           <div id="air-cq-list"></div>
         </div>
       </div>
@@ -25468,8 +25469,9 @@ const AirQueue={
   TABLE:"air_submissions",
   rows:[],
   expandedId:null,
+  mergeSel:new Set(), // 待審核分頁勾選要「合併匯入」的筆數
   view:"pending", // "pending" 或 "imported" 或 "rejected"
-  setView(v){this.view=v;this.refresh();},
+  setView(v){this.view=v;this.mergeSel.clear();this.refresh();},
   open(){
     if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／維護者可使用線上填單審核佇列");return;}
     if(!$("#tab-air"))return;
@@ -25508,6 +25510,8 @@ const AirQueue={
   },
   render(){
     const box=$("#air-cq-list");if(!box)return;
+    [...this.mergeSel].forEach(id=>{if(!this.rows.some(r=>r.id===id))this.mergeSel.delete(id);});
+    this.renderMergeBar();
     if(!this.rows.length){box.innerHTML=`<p class="hint">${this.view==="rejected"?"目前沒有已拒絕的線上填單。":this.view==="imported"?"目前沒有已匯入的線上填單。":"目前沒有待審核的線上填單。"}</p>`;return;}
     box.innerHTML=this.rows.map(r=>{
       const p=r.payload||{};const b=p.basic||{};const defs=p.defects||[];const pos=p.posComments||[];
@@ -25520,7 +25524,9 @@ const AirQueue={
           <button class="btn sm" onclick="AirQueue.rejectRow(${r.id})">✕ 拒絕</button>`;
       return `<div class="card" style="margin-bottom:10px;background:#fafbfc">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          ${this.view==="pending"?`<input type="checkbox" title="勾選要合併匯入成同一筆的填單" style="width:17px;height:17px;cursor:pointer" ${this.mergeSel.has(r.id)?"checked":""} onchange="AirQueue.toggleMerge(${r.id},this.checked)">`:""}
           <b>${esc(b.ship?shipFullLabel(b.ship):"（未填船名）")}</b>
+          ${this.view==="imported"&&App.air.some(a=>(a.mergedQueueIds||[]).includes(r.id))?`<span class="hint" style="color:#b5610f;font-weight:700">（已合併匯入至 #${App.air.find(a=>(a.mergedQueueIds||[]).includes(r.id)).id}）</span>`:""}
           <span class="hint">${esc(b.itype||"")} ・ ${esc(b.date||"")} ・ ${esc(b.place||"")}</span>
           <span class="hint">缺失 ${defs.length} 筆・正面評論 ${pos.length} 筆</span>
           <span class="hint">送出時間 ${r.created_at?esc(new Date(r.created_at).toLocaleString("zh-TW",{hour12:false})):""}</span>
@@ -25570,7 +25576,75 @@ const AirQueue={
       importSource:"queue",createdBy:(typeof Audit!=="undefined")?Audit.user():""
     };
   },
-  async importRow(id){
+  /* ══ 合併匯入：船上把同一次檢查的缺失拆成好幾張單送出時，勾選這幾張合併成「一筆」線上填單記錄，
+     之後轉入檢查紀錄也只會有一筆。基本資料（檢查來源／日期／地點／檢查員…）以選定的那張為準，
+     缺失與正面評論依送出時間先後全部接在一起。原始送出資料不刪除，各張都標記為已匯入。 ══ */
+  toggleMerge(id,on){on?this.mergeSel.add(id):this.mergeSel.delete(id);this.render();},
+  renderMergeBar(){
+    const bar=$("#air-cq-mergebar");if(!bar)return;
+    if(this.view!=="pending"||!this.rows.length){bar.style.display="none";return;}
+    const n=this.mergeSel.size;
+    bar.style.display="flex";
+    bar.innerHTML=`<b style="color:#8a4b0f">🔗 合併匯入</b><span class="hint">船上把同一次檢查拆成多張單送出時，勾選這幾張，合併成同一筆填單紀錄（之後轉入檢查紀錄也只會有一筆）。</span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center"><span class="hint">已勾選 <b>${n}</b> 張</span>
+      <button class="btn sm dark" ${n<2?"disabled":""} onclick="AirQueue.openMerge()">🔗 合併匯入（${n} 張）</button>
+      ${n?`<button class="btn sm" onclick="AirQueue.mergeSel.clear();AirQueue.render()">清除勾選</button>`:""}</span>`;
+  },
+  openMerge(){
+    const rows=this.rows.filter(r=>this.mergeSel.has(r.id)).sort((a,b)=>String(a.created_at||"").localeCompare(String(b.created_at||"")));
+    if(rows.length<2){toast("⚠ 請至少勾選 2 張要合併的填單");return;}
+    const B=r=>(r.payload||{}).basic||{};
+    const ships=[...new Set(rows.map(r=>B(r).ship||""))];
+    if(ships.length>1){toast("⚠ 只能合併同一艘船的填單，目前勾選的船名不一樣");return;}
+    const F=[["itype","檢查來源"],["date","檢查日期"],["place","檢查地點"],["inspector","檢查員"],["oilco","單位／油公司"]];
+    const diff=F.filter(([k])=>new Set(rows.map(r=>String(B(r)[k]||"").trim())).size>1);
+    const nd=rows.reduce((s,r)=>s+((r.payload||{}).defects||[]).length,0),np=rows.reduce((s,r)=>s+((r.payload||{}).posComments||[]).length,0);
+    let ov=document.getElementById("airq-merge-modal");
+    if(!ov){ov=document.createElement("div");ov.id="airq-merge-modal";ov.style.cssText="position:fixed;inset:0;background:rgba(20,30,40,.45);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px";document.body.appendChild(ov);}
+    const ts=r=>r.created_at?new Date(r.created_at).toLocaleString("zh-TW",{hour12:false}):"";
+    ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:760px;width:100%;max-height:90vh;overflow:auto;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+      <h3 style="margin:0 0 6px;color:var(--navy)">🔗 合併匯入成一筆填單紀錄</h3>
+      <p class="hint" style="margin:0 0 12px;line-height:1.7">${esc(shipFullLabel(ships[0]))}：合併 <b>${rows.length}</b> 張，共 <b>${nd}</b> 筆缺失、<b>${np}</b> 筆正面評論。缺失依送出時間先後接在一起。</p>
+      ${diff.length?`<div style="background:#fff6e0;border:1px solid #efd9a0;color:#7a5a10;border-radius:8px;padding:8px 12px;font-size:13px;line-height:1.7;margin-bottom:10px">⚠ 這幾張的 <b>${diff.map(x=>x[1]).join("、")}</b> 不一樣，請確認真的是同一次檢查，並選擇要以哪一張的基本資料為準。</div>`:""}
+      <div style="font-weight:700;font-size:13.5px;margin-bottom:6px">基本資料以哪一張為準</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:#f1f5f8"><th style="padding:6px"></th><th style="padding:6px;text-align:left">送出時間</th>${F.map(([k,l])=>`<th style="padding:6px;text-align:left;${diff.some(x=>x[0]===k)?"color:#b5610f":""}">${l}</th>`).join("")}<th style="padding:6px">缺失</th><th style="padding:6px">正評</th></tr></thead>
+        <tbody>${rows.map((r,i)=>{const b=B(r);return `<tr style="border-top:1px solid var(--line)"><td style="padding:6px;text-align:center"><input type="radio" name="airq-merge-base" value="${r.id}" ${i===0?"checked":""}></td><td style="padding:6px;white-space:nowrap">${esc(ts(r))}</td>${F.map(([k])=>`<td style="padding:6px">${esc(b[k]||"")}</td>`).join("")}<td style="padding:6px;text-align:center">${((r.payload||{}).defects||[]).length}</td><td style="padding:6px;text-align:center">${((r.payload||{}).posComments||[]).length}</td></tr>`;}).join("")}</tbody>
+      </table>
+      <p class="hint" style="margin:10px 0 0;line-height:1.7">合併後只會產生 <b>1 筆</b>線上填單記錄，這 ${rows.length} 張原始送出資料都會標記為「已匯入」（不會刪除，可在「已匯入」分頁看到「已合併匯入至 #…」）。</p>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+        <button class="btn" onclick="document.getElementById('airq-merge-modal').remove()">取消</button>
+        <button class="btn dark" onclick="AirQueue.confirmMerge()">✓ 確認合併匯入</button>
+      </div></div>`;
+  },
+  async confirmMerge(){
+    if(!await Guard.require()){toast("⚠ 匯入僅限維護者操作");return;}
+    const rows=this.rows.filter(r=>this.mergeSel.has(r.id)).sort((a,b)=>String(a.created_at||"").localeCompare(String(b.created_at||"")));
+    if(rows.length<2)return;
+    const pick=document.querySelector('input[name="airq-merge-base"]:checked');
+    const base=rows.find(r=>String(r.id)===(pick?pick.value:""))||rows[0];
+    const bb=(base.payload||{}).basic||{};
+    if(!bb.ship||!bb.date){toast("⚠ 選定的那張缺少船名或日期，無法匯入");return;}
+    // 用選定那張的基本資料，缺失／正評依送出順序全部接起來，再沿用單筆匯入的轉換邏輯
+    const merged={id:base.id,payload:Object.assign({},base.payload,{
+      defects:rows.flatMap(r=>(r.payload||{}).defects||[]),
+      posComments:rows.flatMap(r=>(r.payload||{}).posComments||[])})};
+    const rec=this.buildAirRecFromQueueRow(merged);
+    rec.mergedQueueIds=rows.map(r=>r.id);
+    App.air.push(rec);
+    App.saveAll();if(App.refreshMeta)App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("合併匯入","AIR審核佇列",`#${rec.id} ${rec.ship} ${rec.date}（合併線上填單 ${rows.map(r=>"#"+r.id).join("、")}，共 ${rec.ndef} 筆缺失）`);
+    const by=(function(){try{return localStorage.getItem("vsm_user_v1")||"";}catch(e){return "";}})();
+    let fail=0;
+    for(const r of rows){
+      try{await Cloud.api(`${this.TABLE}?id=eq.${r.id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+        body:JSON.stringify({status:"imported",imported_at:new Date().toISOString(),imported_by:by})});}catch(e){fail++;console.warn("AirQueue merge mark failed",e);}
+    }
+    const ov=document.getElementById("airq-merge-modal");if(ov)ov.remove();
+    const ids=new Set(rows.map(r=>r.id));
+    this.rows=this.rows.filter(x=>!ids.has(x.id));this.mergeSel.clear();this.updateBadge();this.render();
+    toast(`✓ 已合併 ${rows.length} 張，匯入為線上填單記錄 #${rec.id}（共 ${rec.ndef} 筆缺失）`+(fail?`；⚠ 有 ${fail} 張標記已匯入失敗，請按重新整理確認`:""));
+  },  async importRow(id){
     if(!await Guard.require()){toast("⚠ 匯入僅限維護者操作");return;}
     const r=this.rows.find(x=>x.id===id);if(!r)return;
     const b=(r.payload||{}).basic||{};
@@ -25595,6 +25669,8 @@ const AirQueue={
     const r=this.rows.find(x=>x.id===id);if(!r)return;
     const b=(r.payload||{}).basic||{};
     if(!b.ship||!b.date){toast("⚠ 這筆資料缺少船名或日期，無法匯入");return;}
+    const mergedIn=App.air.find(a=>(a.mergedQueueIds||[]).includes(r.id));
+    if(mergedIn&&!confirm(`⚠ 這張是「合併匯入」的一部分，已經合併在線上填單記錄 #${mergedIn.id} 裡。\n\n重新匯入只會單獨補建這一張的內容，會跟 #${mergedIn.id} 重複。確定還是要單獨補建嗎？`))return;
     if(!confirm(`這筆先前已標記為「已匯入」（${shipFullLabel(b.ship)} ${b.date||""}）。\n\n如果是因為多人同時操作、存檔互相覆蓋導致實際上沒進到系統，才需要重新匯入補一筆；\n如果原本其實已經匯入成功，重新匯入會多出一筆重複紀錄，之後要自己去「線上填單記錄」手動刪掉多的那筆。\n\n請先確認「線上填單記錄」裡真的找不到這筆（船名／日期），確定後再繼續。\n\n要繼續重新匯入嗎？`))return;
     const rec=this.buildAirRecFromQueueRow(r);
     App.air.push(rec);
