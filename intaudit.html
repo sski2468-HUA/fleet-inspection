@@ -6,6 +6,8 @@
 <title>內部檢查缺失登錄 — FPMC</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="excel-style.js"></script>
 <script src="intaudit-word.js"></script>
 <style>
 :root{
@@ -72,6 +74,63 @@ header p{margin:5px 0 0;font-size:14px;color:#b9c8d6;line-height:1.6}
 .btn.soft-disabled{background:#eceff1;border-color:#eceff1;color:#8195a0}
 .btn.soft-disabled:hover{background:#eceff1}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px}
+/* ── 三個主要清單共用版面：子標籤列 → 篩選卡片 → 內容，三頁位置一致 ── */
+.subbar{display:flex;align-items:center;gap:12px;margin:4px 14px 10px;min-height:36px;flex-wrap:wrap}
+/* 子標籤用藍綠色系，跟上方深藍色的主要項目區分開，一眼看得出是「第二層」 */
+.segtabs{display:inline-flex;border:1.5px solid #9ccbd1;border-radius:9px;overflow:hidden;background:var(--teal-l)}
+.segtabs .btn{border:0;border-radius:0;padding:6px 16px;font-size:14px;background:transparent;color:#2a6b74;box-shadow:none}
+.segtabs .btn:hover{background:#d3e9ec}
+.segtabs .btn+.btn{border-left:1.5px solid #9ccbd1}
+.segtabs .btn.primary{background:var(--teal);color:#fff}
+.subbar .subhint{flex:1;min-width:200px}
+/* 篩選區用很淡的灰藍底，白色的下拉選單／搜尋框會浮出來，跟下方白色的內容卡片區分；不另外加新色相，避免畫面顏色太多 */
+.fcard{margin:0 14px 12px;padding:12px 14px;background:#eef3f6;border-color:#d8e2e8}
+.fcard .frow2{border-top-color:#cfdbe2}
+.frow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.frow .fq{flex:1;min-width:140px;max-width:380px}
+.frow select,.frow input[type=text],.frow input[type=date]{height:38px;padding-top:0;padding-bottom:0;font-size:14px}
+.frow select{max-width:150px}
+.frow input[type=date]{width:132px!important;padding-left:6px;padding-right:4px}
+.frow .msel>button{height:38px}
+.frow .fsp{flex:1}
+.frow2{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.helpbox{margin:0 14px 10px}
+/* 缺失清單列表：每列前面一個燈號，整列淡底色＝結案情形；FLOW 用暗灰色 */
+.dlt{table-layout:fixed;width:100%}
+.dlt td{vertical-align:top;line-height:1.5}
+.dlt tr.st-flow td{background:#e9ecef;color:#5f6b73}
+.dlt tr.st-done td{background:#f1f9f4}
+.dlt tr.st-sub td{background:#eef4fb}
+.dlt tr.st-ret td{background:#fdf1f0}
+.dlt tr.st-wait td{background:#fffaf0}
+.dlt tr.st-noissue td{background:#fff}
+.lamp{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:-2px;box-shadow:inset 0 -2px 0 rgba(0,0,0,.15)}
+.lamp.flow{background:#6b7780}.lamp.done{background:#2e8b57}.lamp.sub{background:#2f6fb5}.lamp.ret{background:#c0392b}.lamp.wait{background:#e0a020}.lamp.noissue{background:#fff;border:2px solid #9aa8b2;box-shadow:none}
+.stl{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px;white-space:nowrap}
+.dlchip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line-2);background:#fff;border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink-2)}
+.dlchip.on{border-color:var(--navy);background:#eef3f7;color:var(--navy)}
+.dlchip b{font-family:var(--mono)}
+/* 年度檢查一覽 */
+.yrchips{display:inline-flex;gap:6px;flex-wrap:wrap}
+.yrchips label{display:inline-flex;align-items:center;gap:5px;border:1.5px solid var(--line-2);border-radius:999px;padding:5px 12px;font-size:13.5px;font-weight:700;cursor:pointer;background:#fff;flex-direction:row!important;margin:0}
+.yrchips label.on{border-color:currentColor}
+.yrchips input{width:14px;height:14px;margin:0}
+.yrt{border-collapse:collapse;width:100%;font-size:12px;table-layout:fixed}
+.yrt th{background:var(--navy);color:#fff;font-weight:700;padding:6px 2px;text-align:center;position:sticky;top:0;z-index:2;white-space:nowrap;overflow:hidden;font-size:12px}
+.yrt th.cur{background:var(--signal)}
+.yrt td{border:1px solid var(--line);padding:2px 2px;vertical-align:top;overflow:hidden}
+.yrt td.sh{font-weight:700;padding:3px 5px;line-height:1.25;font-size:12.5px}
+.yrt th.sh{text-align:left;padding-left:5px}
+.yrt td.sh .en{display:block;color:var(--ink-3);font-weight:400;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.yrt tr:nth-child(even) td{background:#fafcfd}
+.yrt tr:nth-child(even) td.sh{background:#fafcfd}
+.yrt td.cur{background:#fff8ef!important}
+.yrt td.n{text-align:center;font-family:var(--mono);font-size:11.5px}
+.ye{display:block;border-radius:4px;padding:1px 3px;margin:1px 0;font-size:11px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ye b{margin-right:3px}
+.ye.ia{background:#efe6f7;color:#5b3290}.ye.ov{background:#e4f1f2;color:#176670}.ye.ac{background:#fdeed9;color:#9a520c}.ye.is{background:#e8edf3;color:#34506e}
+.ye.pend{background:#fff!important;border:1.5px dashed currentColor}
+.yrt tr.noia td.sh{box-shadow:inset 4px 0 0 #c0392b}
 input[type=text],input[type=date],select,textarea{padding:9px 11px;border:1px solid var(--line-2);border-radius:7px;font-size:16px;font-family:var(--sans);width:100%;background:#fff}
 textarea{min-height:74px;resize:vertical;line-height:1.5}
 .fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 12px}
@@ -168,6 +227,21 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
 .blrow .blbtns{flex:none;display:flex;gap:6px}
 .cmnote{margin-top:8px;font-size:12px;line-height:1.7;color:var(--navy);background:var(--teal-l);border:1px solid #bfdde0;border-radius:6px;padding:8px 10px}
 .cmnote.hint{color:var(--ink-2);background:#f7f9fb;border-color:var(--line)}
+.msel{position:relative;display:inline-block}
+.msel>button{background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 12px;font-size:14px;cursor:pointer;color:var(--ink);font-family:inherit;white-space:nowrap}
+.msel>button.on{border-color:var(--navy);background:#eef3f7;font-weight:700;color:var(--navy)}
+.msel .mp{display:none;position:absolute;z-index:50;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);min-width:260px;max-height:340px;overflow:auto;padding:6px}
+.msel .mp.open{display:block}
+.msel .mp label{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:14px;font-weight:400;margin:0}
+.msel .mp label:hover{background:#f1f5f8}
+.msel .mp .mh{display:flex;gap:6px;padding:2px 4px 6px;border-bottom:1px solid var(--line);margin-bottom:4px;position:sticky;top:-6px;background:#fff}
+.lt th{white-space:nowrap}
+/* 清單檢視的操作欄：按鈕上下排一欄、縮小高度，欄位才窄 */
+.lt .opcol{display:flex;flex-direction:column;gap:4px;width:86px}
+.lt .opcol .btn{padding:3px 6px;font-size:12.5px;line-height:1.3;width:100%;justify-content:center;white-space:nowrap}
+.lt .cl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lt td{vertical-align:top;padding:8px 10px;border-top:1px solid var(--line)}
+.lt tr.grp td{border-top:2px solid #cfd8de}
 @media(max-width:1000px){.drow{grid-template-columns:1fr}}
 @media(max-width:900px){.fgrid,.fgrid.c4{grid-template-columns:1fr 1fr}.crew-row{grid-template-columns:1fr}}
 @media(max-width:560px){.fgrid,.fgrid.c4{grid-template-columns:1fr}}
@@ -186,30 +260,95 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
     <button class="btn primary" id="btnList" onclick="leaveFormGuard('list')">📋 檢查紀錄登錄清單</button>
     <button class="btn" id="btnReview" onclick="leaveFormGuard(showReview)">🔎 改善單審核清單<span class="n" id="btnReviewCount" style="display:none"></span></button>
     <button class="btn" id="btnSugg" onclick="leaveFormGuard(showSugg)">📌 船舶訴求/建議清單<span class="n" id="btnSuggCount" style="display:none"></span></button>
-    <button class="btn lg" id="btnNew" onclick="newForm()">＋ 新增檢查記錄</button>
+    <span style="flex:1"></span>
+    <button class="btn lg" id="btnNew" onclick="newForm()" style="padding:10px 22px;font-size:16px">＋ 新增檢查記錄</button>
   </div>
 
   <!-- ══════ 登錄紀錄 ══════ -->
   <div id="listPage">
-    <div class="card">
-      <div class="cchips" id="listCounts"></div>
-      <div class="toolbar" style="margin:12px 0 0">
-        <select id="fShip" onchange="renderList()" style="width:auto"><option value="">全部船舶</option></select>
-        <select id="fInsp" onchange="renderList()" style="width:auto"><option value="">全部檢查人</option></select>
-        <select id="fMode" onchange="renderList()" style="width:auto"><option value="">全部結案方式</option><option value="FLOW">FLOW 系統（DMP-FM01）</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
-        <select id="fStatus" onchange="renderList()" style="width:auto"><option value="">全部狀態</option><option>FLOW 結案</option><option>待船上改善</option><option>船上已回報</option><option>已結案</option></select>
-        <input type="text" id="fQ" placeholder="🔍 搜尋船名／檢查人／分類／缺失描述…" oninput="renderList()" style="flex:1;min-width:220px;max-width:420px">
-        <button class="btn sm" onclick="clearFilters()">清除篩選</button>
-        <button class="btn sm" onclick="expandAll(true)">▾ 全部展開</button><button class="btn sm" onclick="expandAll(false)">▸ 全部收合</button>
-        <button class="btn sm" onclick="reloadList()">🔄 重新整理</button>
-        <button class="btn sm dark" onclick="exportAllXlsx()" title="把目前篩選出來的登錄紀錄完整匯出成一份 Excel（6 個分頁：基本資料／總體評價／優良案例／缺失明細／船舶訴求建議／發改善單）">⬇ 匯出全部 Excel</button>
-        <span class="hint" id="listStat"></span>
+    <div class="subbar">
+      <span class="segtabs"><button class="btn sm primary" id="lvCards" onclick="setListView('cards')">▤ 卡片檢視（登錄單）</button><button class="btn sm" id="lvTable" onclick="setListView('table')">▦ 檢查清單檢視</button><button class="btn sm" id="lvDefs" onclick="setListView('defs')">🚦 缺失清單列表</button><button class="btn sm" id="lvYear" onclick="setListView('year')">📅 年度檢查一覽</button></span>
+      <span class="hint subhint" id="lvHint">原本的登錄單清單，可展開缺失逐筆編輯</span>
+      <button class="btn sm" onclick="toggleHelp('lvHelp')">ⓘ 說明</button>
+    </div>
+    <div class="banner helpbox" id="lvHelp" style="display:none">督導、稽核員上船檢查後在這裡建檔。<b>卡片檢視</b>一張登錄單一張卡，可展開缺失逐筆編輯、發改善單；<b>清單檢視</b>每一列是「一張登錄單的一項檢查」，方便看各船各輪檢查的日期、檢查人與缺失結案情形。兩種檢視的船舶／檢查來源／檢查人篩選共用，切換時會保留。</div>
+    <div id="yearView" style="display:none">
+      <div class="card fcard">
+        <div class="frow">
+          <select id="yrYear" onchange="renderYearView()" title="年度"></select>
+          <span class="yrchips" id="yrTypes"></span>
+          <select id="yrVtype" onchange="renderYearView()"><option value="">全部船型</option></select>
+          <select id="yrInsp" onchange="renderYearView()"><option value="">全部檢查人</option></select>
+          <label class="hint" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="yrNoIA" onchange="renderYearView()"> 只看本年度尚未內稽的船</label>
+          <input type="text" class="fq" id="yrQ" placeholder="🔍 搜尋船名" oninput="renderYearView()">
+          <span class="fsp"></span>
+          <button class="btn sm" onclick="loadYearData(true)">🔄 重新讀取</button>
+          <button class="btn sm dark" onclick="exportYearXlsx()">⬇ 匯出 Excel</button>
+        </div>
+        <div class="frow2" id="yrSummary"></div>
+      </div>
+      <div class="card" style="padding:0;overflow:auto;margin:0 14px 12px"><table class="yrt" id="yrTable"></table></div>
+      <p class="hint" style="margin:0 14px 12px">資料來源：主系統「檢查紀錄」中的內稽／訪船／隨船（唯讀，不能在這裡編輯）；內部檢查缺失登錄裡已送出、但海技還沒匯入主系統的，也會列出並標「登錄中」。已離開船隊的船不列出。</p>
+    </div>
+    <div id="defsView" style="display:none">
+      <div class="card fcard">
+        <div class="frow">
+          <span class="msel" id="msShip3"></span><span class="msel" id="msSrc3"></span><span class="msel" id="msInsp3"></span>
+          <select id="dlMode" onchange="renderDefsList()"><option value="">全部結案方式</option><option value="FLOW">FLOW 系統（DMP-FM01）</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
+          <select id="dlRisk" onchange="renderDefsList()"><option value="">全部風險</option><option>高</option><option>中</option><option>低</option></select>
+          <input type="text" class="fq" id="dlQ" placeholder="🔍 搜尋船名／分類／缺失內容／改善措施…" oninput="renderDefsList()">
+          <span class="fsp"></span>
+          <button class="btn sm" onclick="clearDefsFilters()">清除篩選</button>
+          <button class="btn sm" onclick="reloadList()">🔄 重新整理</button>
+          <button class="btn sm dark" onclick="exportDefsList()">⬇ 匯出 Excel</button>
+        </div>
+        <div class="frow2" id="dlChips"></div>
+      </div>
+      <div class="card" style="padding:0;overflow:auto;margin:0 14px 12px"><table class="lt dlt" id="dlTable"></table></div>
+    </div>
+    <div id="tableView" style="display:none">
+      <div class="card fcard">
+        <div class="frow">
+          <span class="msel" id="msShip"></span><span class="msel" id="msSrc"></span><span class="msel" id="msInsp"></span>
+          <select id="stClose" onchange="renderStatTable()" style="width:auto"><option value="">全部結案情形</option><option value="open">還有未結案</option><option value="done">全部已結案</option><option value="na">無需追蹤（皆 FLOW／無缺失）</option></select>
+          <input type="date" id="stFrom" onchange="renderStatTable()" title="檢查日期起" style="width:auto"><span class="hint">～</span><input type="date" id="stTo" onchange="renderStatTable()" title="檢查日期迄" style="width:auto">
+          <input type="text" class="fq" id="stQ" placeholder="🔍 搜尋船名／地點／檢查人…" oninput="$('#fQ').value=this.value;renderList()">
+          <span class="fsp"></span>
+          <button class="btn sm" onclick="clearStFilters()">清除篩選</button>
+          <button class="btn sm" onclick="reloadList()">🔄 重新整理</button>
+          <button class="btn sm dark" onclick="exportStatTable()">⬇ 匯出 Excel</button>
+        </div>
+        <div class="frow2 cchips" id="stSummary"></div>
+      </div>      <div class="card" style="padding:0;overflow:auto">
+        <table id="stTable" class="lt"><thead><tr>
+          <th style="width:190px">船舶</th><th style="width:150px">檢查日期</th><th style="width:150px">地點</th><th style="width:210px">檢查來源</th><th style="width:140px">檢查人</th><th style="width:60px;text-align:center">缺失</th><th style="width:250px">缺失結案情形</th><th style="width:90px">登錄單</th><th style="width:70px">操作</th>
+        </tr></thead><tbody id="stBody"></tbody></table>
       </div>
     </div>
-    <div class="card" style="padding:0;overflow:auto">
+    <div id="cardView">
+    <div class="card fcard">
+      <div class="frow">
+        <span class="msel" id="msShip2"></span><span class="msel" id="msSrc2"></span><span class="msel" id="msInsp2"></span>
+        <select id="fMode" onchange="renderList()" style="width:auto"><option value="">全部結案方式</option><option value="FLOW">FLOW 系統（DMP-FM01）</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
+        <select id="fStatus" onchange="renderList()" style="width:auto"><option value="">全部狀態</option><option>FLOW 結案</option><option>待船上改善</option><option>船上已回報</option><option>已結案</option></select>
+        <input type="text" class="fq" id="fQ" placeholder="🔍 搜尋船名／檢查人／分類／缺失描述…" oninput="$('#stQ').value=this.value;renderList()">
+        <span class="fsp"></span>
+        <button class="btn sm" onclick="clearFilters()">清除篩選</button>
+        <button class="btn sm" onclick="reloadList()">🔄 重新整理</button>
+        <button class="btn sm dark" onclick="exportAllXlsx()" title="把目前篩選出來的登錄紀錄完整匯出成一份 Excel（6 個分頁：基本資料／總體評價／優良案例／缺失明細／船舶訴求建議／發改善單）">⬇ 匯出 Excel</button>
+      </div>
+      <div class="frow2">
+        <div class="cchips" id="listCounts" style="flex:1"></div>
+      </div>
+    </div>
+    <div class="subbar" style="margin-top:0">
+      <span class="hint" id="listStat"></span><span style="flex:1"></span>
+      <button class="btn sm" onclick="expandAll(true)">▾ 全部展開</button><button class="btn sm" onclick="expandAll(false)">▸ 全部收合</button>
+    </div>    <div class="card" style="padding:0;overflow:auto">
       <table><thead><tr>
         <th style="width:44px">No.</th><th style="width:170px">檢查類別／分類</th><th>待改善描述</th><th style="width:60px">風險</th><th style="width:130px">結案方式</th><th style="width:110px">狀態</th><th style="width:160px">後續</th><th style="width:130px">操作</th>
       </tr></thead><tbody id="listBody"></tbody></table>
+    </div>
     </div>
   </div>
 
@@ -299,18 +438,30 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
   <!-- ══════ 改善單審核清單：船上回報的改善內容在這裡由督導審核結案，審核通過後才算定案，
        主系統那邊只需要把已審核的內容套用進缺失紀錄總表，不再另外做審核判斷。══════ -->
   <div id="reviewPage" style="display:none">
-    <div class="banner">船上在改善單填寫、送出的改善措施會先出現在這裡，由督導逐筆或批量審核結案；<b>審核結案後才算定案</b>，之後主系統只需要把已審核的內容套用到缺失紀錄總表，不需要再另外審核一次。FLOW 類缺失船上另外在 FLOW 系統辦理，不會出現在這裡。</div>
-    <div class="toolbar">
-      <select id="rvShip" onchange="renderReview()" style="width:auto"><option value="">全部船舶</option></select>
-      <select id="rvInspector" onchange="renderReview()" style="width:auto"><option value="">全部檢查人</option></select>
-      <select id="rvMode" onchange="renderReview()" style="width:auto"><option value="">全部結案方式</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
-      <input type="text" id="rvQ" placeholder="搜尋船名／分類／缺失描述／回報人" oninput="renderReview()" style="flex:1;min-width:160px">
-      <button class="btn sm" onclick="Store.loadReplies().then(renderReview)">🔄 重新整理</button>
-      <button class="btn sm dark" onclick="exportReviewXlsx()" title="把改善單審核清單（所有審核狀態）匯出成 Excel 總清單；有選船舶／檢查人／結案方式／搜尋時，只匯出符合的">⬇ 匯出 Excel 總清單</button>
+    <div class="subbar">
+      <span class="segtabs"><button class="btn sm primary" id="rvCards" onclick="setPageView('rv','cards')">▤ 卡片檢視</button><button class="btn sm" id="rvTable" onclick="setPageView('rv','table')">▦ 清單檢視</button></span>
+      <span class="hint subhint">船上回報的改善措施，由督導審核結案；兩種檢視共用同一組篩選</span>
+      <button class="btn sm" onclick="toggleHelp('rvHelp')">ⓘ 說明</button>
     </div>
-    <div id="rvStatusChips" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 14px 10px"></div>
-    <div style="margin:0 14px"><span class="hint" id="rvStat"></span></div>
-    <div id="reviewToolbar2" class="toolbar" style="margin-top:0"></div>
+    <div class="banner helpbox" id="rvHelp" style="display:none">船上在改善單填寫、送出的改善措施會先出現在這裡，由督導逐筆或批量審核結案；<b>審核結案後才算定案</b>，之後主系統只需要把已審核的內容套用到缺失紀錄總表，不需要再另外審核一次。FLOW 類缺失船上另外在 FLOW 系統辦理，不會出現在這裡。</div>
+    <div class="card fcard">
+      <div class="frow">
+        <select id="rvShip" onchange="renderReview()" style="width:auto"><option value="">全部船舶</option></select>
+        <select id="rvSrc" onchange="reviewSel.clear();renderReview()" style="width:auto;font-weight:700" title="改善單依檢查來源分成內稽與非內稽，預設只看非內稽"><option value="non" selected>非內稽項目</option><option value="int">內稽項目</option><option value="">全部（含內稽）</option></select>
+        <select id="rvInspector" onchange="renderReview()" style="width:auto"><option value="">全部檢查人</option></select>
+        <select id="rvMode" onchange="renderReview()" style="width:auto"><option value="">全部結案方式</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
+        <input type="text" class="fq" id="rvQ" placeholder="🔍 搜尋船名／分類／缺失描述／回報人" oninput="renderReview()">
+        <span class="fsp"></span>
+        <button class="btn sm" onclick="clearReviewFilters()">清除篩選</button>
+        <button class="btn sm" onclick="Store.loadReplies().then(renderReview)">🔄 重新整理</button>
+        <button class="btn sm dark" onclick="exportReviewXlsx()" title="把改善單審核清單（所有審核狀態）匯出成 Excel 總清單；有選船舶／檢查人／結案方式／搜尋時，只匯出符合的">⬇ 匯出 Excel</button>
+      </div>
+      <div class="frow2"><div id="rvStatusChips" style="display:flex;gap:8px;flex-wrap:wrap"></div><span class="hint" id="rvStat" style="margin-left:6px"></span></div>
+    </div>    <div class="card" id="rvOverviewCard" style="margin:0 14px 12px;padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="color:var(--navy);font-size:15px">📊 各船改善單一覽</b><span class="hint" id="rvOvSum"></span><span style="flex:1"></span><button class="btn sm" id="rvOvBtn" onclick="toggleRvOverview()">▴ 收合</button></div>
+      <div id="rvOverview" style="margin-top:10px;overflow:auto"></div>
+    </div>
+    <div id="reviewToolbar2" class="toolbar" style="margin:0 14px 8px"></div>
     <div style="margin:0 14px">
       <label style="display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:13px;color:var(--ink-2);cursor:pointer;margin-bottom:8px">
         <input type="checkbox" id="rvSelAll" onchange="toggleAllReviewSel(this.checked)">全選目前顯示的待審核項目
@@ -322,18 +473,25 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
   <!-- ══════ 船舶訴求／建議清單：登錄單送出後，船上提出的訴求／建議依「負責部門」立案，由各部門填承辦人、初步回應／計畫、處理結果並結案。
        一項訴求一案；每個部門各自一筆處理紀錄，不同部門互不影響，同一部門同一時間只允許一人編輯（鎖定＋版本檢查）。══════ -->
   <div id="suggPage" style="display:none">
-    <div class="banner">登錄單<b>送出後</b>，船舶訴求／建議會依<b>負責部門</b>在這裡立案；各負責部門填寫<b>承辦人、初步回應／計畫</b>，處理完成再填<b>處理結果</b>並結案。涉及多個部門時，<b>每個部門各自處理、各自結案</b>，全部部門都結案，這項訴求才算結案。同一筆同一時間只有一個人能編輯（會顯示「🔒 誰在編輯中」）。</div>
-    <div id="sgDeptStats" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 14px 12px"></div>
-    <div class="toolbar">
-      <select id="sgShip" onchange="renderSuggPage()" style="width:auto"><option value="">全部船舶</option></select>
-      <select id="sgDept" onchange="renderSuggPage()" style="width:auto"><option value="">全部負責部門</option></select>
-      <input type="text" id="sgQ" placeholder="搜尋船名／訴求內容／承辦人" oninput="renderSuggPage()" style="flex:1;min-width:160px">
-      <button class="btn sm" onclick="Store.loadReplies().then(()=>{renderSuggPage();toast('✓ 已重新整理');})">🔄 重新整理</button>
-      <button class="btn sm dark" onclick="exportSuggXlsx()" title="把船舶訴求／建議與各部門辦理情形匯出成 Excel 總清單（所有處理狀態）；有選船舶／部門／搜尋時，只匯出符合的">⬇ 匯出 Excel 總清單</button>
+    <div class="subbar">
+      <span class="segtabs"><button class="btn sm primary" id="sgCards" onclick="setPageView('sg','cards')">▤ 卡片檢視</button><button class="btn sm" id="sgTable" onclick="setPageView('sg','table')">▦ 清單檢視</button></span>
+      <span class="hint subhint">船上提出的訴求／建議依負責部門立案處理；兩種檢視共用同一組篩選</span>
+      <button class="btn sm" onclick="toggleHelp('sgHelp')">ⓘ 說明</button>
     </div>
-    <div id="sgStatusChips" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 14px 10px"></div>
-    <div style="margin:0 14px"><span class="hint" id="sgStat"></span></div>
-    <div id="suggBody" style="margin:10px 14px 0"></div>
+    <div class="banner helpbox" id="sgHelp" style="display:none">登錄單<b>送出後</b>，船舶訴求／建議會依<b>負責部門</b>在這裡立案；各負責部門填寫<b>承辦人、初步回應／計畫</b>，處理完成再填<b>處理結果</b>並結案。涉及多個部門時，<b>每個部門各自處理、各自結案</b>，全部部門都結案，這項訴求才算結案。同一筆同一時間只有一個人能編輯（會顯示「🔒 誰在編輯中」）。</div>
+    <div class="card fcard">
+      <div class="frow">
+        <select id="sgShip" onchange="renderSuggPage()" style="width:auto"><option value="">全部船舶</option></select>
+        <select id="sgDept" onchange="renderSuggPage()" style="width:auto"><option value="">全部負責部門</option></select>
+        <input type="text" class="fq" id="sgQ" placeholder="🔍 搜尋船名／訴求內容／承辦人" oninput="renderSuggPage()">
+        <span class="fsp"></span>
+        <button class="btn sm" onclick="clearSuggFilters()">清除篩選</button>
+        <button class="btn sm" onclick="Store.loadReplies().then(()=>{renderSuggPage();toast('✓ 已重新整理');})">🔄 重新整理</button>
+        <button class="btn sm dark" onclick="exportSuggXlsx()" title="把船舶訴求／建議與各部門辦理情形匯出成 Excel 總清單（所有處理狀態）；有選船舶／部門／搜尋時，只匯出符合的">⬇ 匯出 Excel</button>
+      </div>
+      <div class="frow2"><div id="sgStatusChips" style="display:flex;gap:8px;flex-wrap:wrap"></div><span class="hint" id="sgStat" style="margin-left:6px"></span></div>
+    </div>
+    <div id="sgDeptStats" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 14px 12px"></div>    <div id="suggBody" style="margin:10px 14px 0"></div>
   </div>
 </div>
 
@@ -489,7 +647,6 @@ async function loadLists(){
   $("#dlPorts").innerHTML=PORTS.concat(["At Sea"]).map(p=>`<option value="${esc(p)}">`).join("");
   if(!SHIPS.length)toast("⚠ 船舶清單讀取失敗，請確認網路後重新整理頁面",true);
   if(!SUPERVISORS.length)toast("⚠ 檢查人名單讀取失敗，請確認網路後重新整理頁面",true);
-  $("#fShip").innerHTML='<option value="">全部船舶</option>'+SHIPS.map(s=>`<option value="${esc(s.code)}">${esc(s.label)}</option>`).join("");
 }
 
 /* ══════ 資料存取：優先寫雲端資料表 intaudit_records；資料表還沒建立時退回本機瀏覽器暫存並提示 ══════ */
@@ -615,25 +772,282 @@ function openLightbox(url){$("#lightboxImg").src=url;$("#lightbox").style.displa
 function download(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
 
 /* ══════ 登錄紀錄（清單） ══════ */
+function toggleHelp(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==="none"?"":"none";}
+function clearReviewFilters(){["#rvShip","#rvInspector","#rvMode"].forEach(s=>{if($(s))$(s).value="";});if($("#rvSrc"))$("#rvSrc").value="non";if($("#rvQ"))$("#rvQ").value="";reviewSel.clear();renderReview();}
+function clearSuggFilters(){$("#sgShip").value="";$("#sgDept").value="";$("#sgQ").value="";renderSuggPage();}
 function showList(){
   stopAutoSave();
   $("#listPage").style.display="";$("#formPage").style.display="none";$("#reviewPage").style.display="none";$("#suggPage").style.display="none";
   $("#btnList").classList.add("primary");$("#btnNew").classList.remove("primary");$("#btnReview").classList.remove("primary");$("#btnSugg").classList.remove("primary");
   renderList();
 }
-function clearFilters(){$("#fShip").value="";if($("#fInsp"))$("#fInsp").value="";$("#fMode").value="";$("#fStatus").value="";$("#fQ").value="";renderList();}
+/* ══════ 檢查統計表：一列＝一張登錄單的一項檢查（各輪各項檢查），可依船舶／檢查來源／檢查人多選篩選 ══════ */
+let listView="cards";
+const stSel={ship:new Set(),src:new Set(),insp:new Set()};
+/* ══ 年度檢查一覽：所有船 × 1～12 月，列出主系統檢查紀錄裡的內稽／訪船／隨船（＋可選 ISPS），誰做的、哪天做的。唯讀。 ══ */
+const YR_TYPES=[{k:"ia",t:"內稽",m:/^internal audit$/i,def:true},{k:"ov",t:"訪船",m:/^onboard visit$/i,def:true},{k:"ac",t:"隨船",m:/^accompanying ship$/i,def:true},{k:"is",t:"ISPS",m:/^isps audit$/i,def:false}];
+const yrOn=new Set(YR_TYPES.filter(x=>x.def).map(x=>x.k));
+let YR_DATA=null,YR_LOADING=false;
+const yrKind=it=>{const s=String(it||"").trim();const x=YR_TYPES.find(t=>t.m.test(s));return x?x.k:"";};
+const yrDate=s=>{const m=String(s||"").match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);return m?{y:+m[1],m:+m[2],d:+m[3],iso:`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`}:null;};
+async function loadYearData(force){
+  if(YR_LOADING)return;if(YR_DATA&&!force){renderYearView();return;}
+  YR_LOADING=true;$("#yrTable").innerHTML=`<tr><td style="padding:20px" class="hint">讀取主系統檢查紀錄中…</td></tr>`;
+  try{
+    let all=[],off=0,b;
+    do{b=await api(`sync_insp?select=payload->>itype,payload->>date,payload->>inspector,payload->>ship,payload->>loc&order=id&offset=${off}&limit=1000`)||[];all=all.concat(b);off+=1000;}while(b.length===1000);
+    const list=[];
+    all.forEach(x=>{const k=yrKind(x.itype),dt=yrDate(x.date);if(!k||!dt||!x.ship)return;list.push({ship:x.ship,k,dt,insp:x.inspector||"",loc:x.loc||"",pend:false});});
+    // 內部檢查缺失登錄：已送出但還沒匯入主系統的，也列出（主系統已有同船同日同類的就不重複）
+    const seen=new Set(list.map(e=>`${e.ship}|${e.k}|${e.dt.iso}`));
+    Store.rows.forEach(r=>{
+      if(r.draft||r.imported)return;const dt=yrDate(r.dateFrom);if(!dt)return;
+      (r.types||[]).forEach(t=>{const k=yrKind(t);if(!k)return;const key=`${r.ship}|${k}|${dt.iso}`;if(seen.has(key))return;seen.add(key);list.push({ship:r.ship,k,dt,insp:r.inspector||"",loc:r.psn||"",pend:true});});
+    });
+    YR_DATA=list;
+    if(force)toast("✓ 已重新讀取");
+  }catch(e){$("#yrTable").innerHTML=`<tr><td style="padding:20px;color:#c0392b">⚠ 讀取失敗：${esc(e.message)}</td></tr>`;YR_LOADING=false;return;}
+  YR_LOADING=false;renderYearView();
+}
+function yrToggleType(k,on){on?yrOn.add(k):yrOn.delete(k);renderYearView();}
+function yrFiltered(){
+  const y=+$("#yrYear").value,vt=$("#yrVtype").value,fi=$("#yrInsp").value,q=$("#yrQ").value.trim().toLowerCase();
+  const ships=SHIPS.filter(s=>(!vt||s.type1===vt)&&(!q||[s.label,s.code].join(" ").toLowerCase().includes(q)));
+  const ev=(YR_DATA||[]).filter(e=>e.dt.y===y&&yrOn.has(e.k)&&(!fi||String(e.insp).split(/[、,，\/]/).map(x=>x.trim()).includes(fi)));
+  return {y,ships,ev};
+}
+function renderYearView(){
+  if(!YR_DATA){loadYearData();return;}
+  // 年度、船型、檢查人選項
+  const ys=[...new Set(YR_DATA.map(e=>e.dt.y))].concat([new Date().getFullYear()]);const yrs=[...new Set(ys)].sort((a,b)=>b-a);
+  const ysel=$("#yrYear"),cy=ysel.value||String(new Date().getFullYear());ysel.innerHTML=yrs.map(y=>`<option value="${y}" ${String(y)===cy?"selected":""}>${y} 年度</option>`).join("");
+  const vsel=$("#yrVtype"),cv=vsel.value;vsel.innerHTML='<option value="">全部船型</option>'+[...new Set(SHIPS.map(s=>s.type1).filter(Boolean))].sort().map(t=>`<option ${t===cv?"selected":""}>${esc(t)}</option>`).join("");
+  const isel=$("#yrInsp"),ci=isel.value;const names=[...new Set(YR_DATA.flatMap(e=>String(e.insp).split(/[、,，\/]/).map(x=>x.trim())).filter(Boolean))].sort();
+  isel.innerHTML='<option value="">全部檢查人</option>'+names.map(n=>`<option ${n===ci?"selected":""}>${esc(n)}</option>`).join("");
+  $("#yrTypes").innerHTML=YR_TYPES.map(t=>`<label class="${yrOn.has(t.k)?"on":""}" style="color:${{ia:"#5b3290",ov:"#176670",ac:"#9a520c",is:"#34506e"}[t.k]}"><input type="checkbox" ${yrOn.has(t.k)?"checked":""} onchange="yrToggleType('${t.k}',this.checked)">${t.t}</label>`).join("");
+  const {y,ships,ev}=yrFiltered();
+  const allY=(YR_DATA||[]).filter(e=>e.dt.y===y);
+  const byShip={};ev.forEach(e=>{(byShip[e.ship]=byShip[e.ship]||[]).push(e);});
+  const iaShips=new Set(allY.filter(e=>e.k==="ia").map(e=>e.ship));
+  const lastIA={};(YR_DATA||[]).filter(e=>e.k==="ia").forEach(e=>{if(!lastIA[e.ship]||e.dt.iso>lastIA[e.ship])lastIA[e.ship]=e.dt.iso;});
+  const onlyNo=$("#yrNoIA").checked;
+  const rows=ships.filter(s=>!onlyNo||!iaShips.has(s.code));
+  const now=new Date(),curM=now.getFullYear()===y?now.getMonth()+1:0;
+  const cnt=k=>ev.filter(e=>e.k===k).length;
+  const noIA=ships.filter(s=>!iaShips.has(s.code)).length;
+  $("#yrSummary").innerHTML=`<span class="cchip">${y} 年度</span>${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>`<span class="cchip">${t.t} <b>${cnt(t.k)}</b> 次</span>`).join("")}<span class="cchip" style="border-color:#c0392b;color:#c0392b">本年度尚未內稽 <b>${noIA}</b> 艘</span><span class="hint">共 ${ships.length} 艘船${ev.some(e=>e.pend)?"・虛線框＝內部檢查缺失登錄已送出、尚未匯入主系統":""}</span>`;
+  const nT=YR_TYPES.filter(t=>yrOn.has(t.k)).length;
+  // 固定欄寬（百分比），整張表一個畫面放得下、不用左右拉
+  const cg=`<colgroup><col style="width:9.5%">${Array.from({length:12},()=>`<col style="width:${((100-9.5-6.5-nT*2.8)/12).toFixed(2)}%">`).join("")}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(()=>`<col style="width:2.8%">`).join("")}<col style="width:6.5%"></colgroup>`;
+  const head=cg+`<thead><tr><th class="sh">船舶</th>${Array.from({length:12},(_,i)=>`<th class="${i+1===curM?"cur":""}">${i+1}月</th>`).join("")}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>`<th title="${t.t}次數">${t.k==="is"?"ISPS":t.t.slice(0,1)}</th>`).join("")}<th>最近內稽</th></tr></thead>`;
+  const body=rows.map(s=>{
+    const es=(byShip[s.code]||[]).sort((a,b)=>a.dt.iso.localeCompare(b.dt.iso));
+    const months=Array.from({length:12},(_,i)=>{const list=es.filter(e=>e.dt.m===i+1);
+      return `<td class="${i+1===curM?"cur":""}">${list.map(e=>`<span class="ye ${e.k}${e.pend?" pend":""}" title="${esc(YR_TYPES.find(t=>t.k===e.k).t)}｜${e.dt.iso}｜${esc(e.insp)}｜${esc(e.loc)}${e.pend?"｜登錄中，尚未匯入主系統":""}"><b>${YR_TYPES.find(t=>t.k===e.k).t}</b>${e.dt.m}/${e.dt.d}<br>${esc(e.insp||"—")}</span>`).join("")}</td>`;}).join("");
+    const noia=!iaShips.has(s.code);
+    return `<tr class="${noia?"noia":""}"><td class="sh">${esc(s.name)}${noia?` <span title="本年度尚未內稽" style="color:#c0392b;font-size:10.5px;font-weight:800">●未稽</span>`:""}<span class="en">${esc(s.en)}</span></td>${months}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>{const n=es.filter(e=>e.k===t.k).length;return `<td class="n">${n||'<span style="color:#c3ced5">0</span>'}</td>`;}).join("")}<td class="n" style="white-space:nowrap">${lastIA[s.code]?lastIA[s.code].slice(2).replace(/-/g,"/"):"—"}</td></tr>`;
+  }).join("")||`<tr><td colspan="16" class="hint" style="padding:20px;text-align:center">沒有符合條件的船</td></tr>`;
+  $("#yrTable").innerHTML=head+`<tbody>${body}</tbody>`;
+}
+function exportYearXlsx(){
+  if(!YR_DATA){toast("資料還在讀取中",true);return;}
+  const {y,ships,ev}=yrFiltered(),onlyNo=$("#yrNoIA").checked;
+  const iaShips=new Set((YR_DATA||[]).filter(e=>e.dt.y===y&&e.k==="ia").map(e=>e.ship));
+  const T=YR_TYPES.filter(t=>yrOn.has(t.k));
+  const data=ships.filter(s=>!onlyNo||!iaShips.has(s.code)).map(s=>{
+    const es=ev.filter(e=>e.ship===s.code).sort((a,b)=>a.dt.iso.localeCompare(b.dt.iso));
+    const o={"船舶":s.label};
+    for(let m=1;m<=12;m++)o[`${m}月`]=es.filter(e=>e.dt.m===m).map(e=>`${YR_TYPES.find(t=>t.k===e.k).t} ${e.dt.m}/${e.dt.d} ${e.insp}${e.pend?"（登錄中）":""}`).join("\n");
+    T.forEach(t=>o[t.t]=es.filter(e=>e.k===t.k).length);
+    o["本年度內稽"]=iaShips.has(s.code)?"已內稽":"尚未內稽";
+    return o;
+  });
+  const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[{wch:26},...Array.from({length:12},()=>({wch:16})),...T.map(()=>({wch:7})),{wch:11}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`${y}年度`);
+  XlsxPretty.writeFile(wb,`年度檢查一覽_${y}_${todayIso()}.xlsx`);
+}/* ══ 缺失清單列表：一筆缺失一列，燈號＋整列底色＝結案情形，跟改善單審核連動 ══ */
+const DL_ST=[
+  {k:"noissue",t:"尚未發改善單",d:"內控／系統內結案，但這張登錄單還沒發改善單給船上"},
+  {k:"wait",t:"待船上改善",d:"已發改善單，船上還沒回報"},
+  {k:"sub",t:"待督導審核",d:"船上已回報，等督導在改善單審核清單審核"},
+  {k:"ret",t:"已退回待重填",d:"督導退回，等船上重新回報"},
+  {k:"done",t:"已結案",d:"督導已審核結案"},
+  {k:"flow",t:"FLOW（船上自行辦理）",d:"結案方式為 FLOW，由船上至 FLOW 系統辦理，本系統不追蹤結案"}
+];
+const dlOn=new Set();
+function dlStatus(r,d){
+  if(d.closeMode==="FLOW")return "flow";
+  const es=effStatus(r,d);
+  if(es==="已結案")return "done";if(es==="船上已回報")return "sub";if(es==="已退回待重填")return "ret";
+  return r.issuedAt?"wait":"noissue";
+}
+function dlRows(){
+  const fm=$("#dlMode").value,fr=$("#dlRisk").value,q=$("#dlQ").value.trim().toLowerCase(),out=[];
+  Store.rows.forEach(r=>{
+    if(r.draft||!recPass(r))return;
+    (r.defs||[]).forEach((d,i)=>{
+      if(!srcPass(d))return;if(fm&&d.closeMode!==fm)return;if(fr&&d.risk!==fr)return;
+      const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null,p=(rp&&rp.payload)||{};
+      if(q&&![shipLabel(r.ship),r.inspector,d.category,d.finding,topicText(d),p.action].join(" ").toLowerCase().includes(q))return;
+      out.push({r,d,i,rp,p,st:dlStatus(r,d)});
+    });
+  });
+  const ord={sub:0,ret:1,wait:2,noissue:3,done:4,flow:5};
+  out.sort((a,b)=>ord[a.st]-ord[b.st]||String(b.r.dateFrom||"").localeCompare(String(a.r.dateFrom||""))||a.i-b.i);
+  return out;
+}
+function dlToggle(k){dlOn.has(k)?dlOn.delete(k):dlOn.add(k);renderDefsList();}
+function clearDefsFilters(){stSel.ship.clear();stSel.src.clear();stSel.insp.clear();$("#dlMode").value="";$("#dlRisk").value="";$("#dlQ").value="";dlOn.clear();renderDefsList();}
+function renderDefsList(){
+  buildMsels();
+  const all=dlRows(),c={};all.forEach(x=>c[x.st]=(c[x.st]||0)+1);
+  const rows=dlOn.size?all.filter(x=>dlOn.has(x.st)):all;
+  const open=all.filter(x=>x.st!=="done"&&x.st!=="flow").length,trk=all.filter(x=>x.st!=="flow").length;
+  $("#dlChips").innerHTML=DL_ST.map(s=>`<span class="dlchip ${dlOn.has(s.k)?"on":""}" title="${s.d}（點一下篩選，可複選）" onclick="dlToggle('${s.k}')"><span class="lamp ${s.k}"></span>${s.t}<b>${c[s.k]||0}</b></span>`).join("")+`<span class="hint" style="margin-left:6px">共 ${all.length} 筆缺失・需追蹤 ${trk} 筆，未結案 <b style="color:#c0392b">${open}</b> 筆${dlOn.size?`・目前顯示 ${rows.length} 筆`:""}</span>`;
+  const thumbs=arr=>(arr||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${arr.map(ph=>`<img src="${ph.dataUrl}" style="width:34px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--line-2);cursor:zoom-in" onclick="openLightbox(this.src)">`).join("")}</div>`:"";
+  const lbl=k=>DL_ST.find(s=>s.k===k).t;
+  $("#dlTable").innerHTML=`<colgroup><col style="width:128px"><col style="width:150px"><col style="width:110px"><col style="width:130px"><col><col style="width:46px"><col style="width:92px"><col style="width:24%"><col style="width:82px"></colgroup>
+    <thead><tr><th>結案情形</th><th>船舶</th><th>檢查日期</th><th>檢查來源／分類</th><th>缺失內容</th><th>風險</th><th>結案方式</th><th>船上改善／審核</th><th>操作</th></tr></thead><tbody>${rows.map(({r,d,i,rp,p,st})=>{
+      const td=typeDef(d.type),m=modeOf(d.closeMode);
+      const imp=st==="flow"?`<span class="hint">船上自行至 FLOW 系統辦理</span>`:st==="noissue"?`<span class="hint">尚未發改善單</span>`:st==="wait"?`<span class="hint">已發單，等船上回報</span>`:
+        `${p.action?`<div style="white-space:pre-line">${esc(p.action)}</div>`:""}${thumbs(p.photos)}<div class="hint" style="font-size:11.5px">${esc(p.by||"")}${p.at?" "+esc(new Date(p.at).toLocaleDateString("zh-TW")):""}${st==="done"&&p.reviewedBy?`・審核 ${esc(p.reviewedBy)}`:""}</div>${st==="ret"&&p.returnNote?`<div style="color:var(--bad);font-size:12px">退回：${esc(p.returnNote)}</div>`:""}`;
+      return `<tr class="st-${st}"><td><span class="stl"><span class="lamp ${st}"></span>${lbl(st)}</span></td>
+        <td style="font-weight:700;line-height:1.35">${esc(shipLabel(r.ship)).replace(" ","<br>")}</td>
+        <td style="font-size:12.5px;line-height:1.4">${esc(dateText(r)).replace("～","<br>～")}</td>
+        <td>${esc(td?td.label:(d.type||""))}<div class="hint" style="font-size:12px">${esc(d.category||"")}${topicText(d)?"・"+esc(topicText(d)):""}</div></td>
+        <td style="white-space:pre-line">${esc(d.finding||"")}${thumbs(d.photos)}</td>
+        <td>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">${esc(d.risk)}</span>`:""}</td>
+        <td>${m?`<span class="mode ${m.cls}">${esc(m.label)}</span>`:""}</td>
+        <td style="font-size:12.5px">${imp}</td>
+        <td><div class="opcol" style="width:74px">${rp?`<button class="btn sm ${st==="sub"?"dark":""}" onclick="gotoReviewItem(${r.id},'${d.uid}')">➜ 審核</button>`:""}<button class="btn sm" onclick="editDef(${r.id},${i})">✎ 編輯</button></div></td></tr>`;}).join("")||`<tr><td colspan="9" class="hint" style="text-align:center;padding:20px">沒有符合條件的缺失</td></tr>`}</tbody>`;
+}
+function exportDefsList(){
+  const rows=dlOn.size?dlRows().filter(x=>dlOn.has(x.st)):dlRows();
+  if(!rows.length){toast("目前沒有資料可匯出",true);return;}
+  const data=rows.map(({r,d,p,st})=>{const td=typeDef(d.type);return {"結案情形":DL_ST.find(s=>s.k===st).t,"船舶":shipLabel(r.ship),"檢查日期":dateText(r),"檢查人":r.inspector||"","檢查來源":td?td.label:(d.type||""),"分類":d.category||"","缺失內容":d.finding||"","風險":d.risk||"","結案方式":d.closeMode||"","船上改善措施":p.action||"","回報人":p.by||"","回報日期":p.at?new Date(p.at).toLocaleDateString("zh-TW"):"","審核人":p.reviewedBy||"","退回原因":p.returnNote||""};});
+  const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[16,22,22,12,12,16,60,6,12,46,14,12,10,30].map(w=>({wch:w}));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"缺失清單");
+  XlsxPretty.writeFile(wb,`缺失清單列表_${todayIso()}.xlsx`);
+}function setListView(v){
+  listView=v;
+  $("#cardView").style.display=v==="cards"?"":"none";$("#tableView").style.display=v==="table"?"":"none";$("#yearView").style.display=v==="year"?"":"none";$("#defsView").style.display=v==="defs"?"":"none";
+  $("#lvCards").classList.toggle("primary",v==="cards");$("#lvTable").classList.toggle("primary",v==="table");$("#lvYear").classList.toggle("primary",v==="year");$("#lvDefs").classList.toggle("primary",v==="defs");
+  $("#lvHint").textContent=v==="cards"?"原本的登錄單清單，可展開缺失逐筆編輯":v==="table"?"每一列是「一張登錄單的一項檢查」，方便看各船各輪檢查的日期、檢查人和缺失結案情形":v==="defs"?"每一列是一筆缺失，前面的燈號＝結案情形（跟改善單審核連動）":"所有船 × 1～12 月，主系統的內稽／訪船／隨船紀錄（唯讀）";
+  renderList();
+}
+const typeLabel=k=>{const t=typeDef(k)||{label:k};return t.label+(t.sarForm?"："+t.sarForm:"");};
+/* 統計表的列：登錄單 × 檢查種類；沒勾任何檢查種類的登錄單也留一列（檢查來源顯示「未選」），才不會漏看 */
+function statRows(){
+  const out=[];
+  Store.rows.forEach(r=>{
+    const ks=(r.types||[]).length?r.types:[""];
+    ks.forEach(k=>{
+      const ds=(r.defs||[]).filter(d=>k?d.type===k:!d.type);
+      out.push({r,k,src:k?typeLabel(k):"（未選檢查種類）",ds,c:closureCount(r,ds),flow:ds.filter(d=>d.closeMode==="FLOW").length});
+    });
+  });
+  out.sort((a,b)=>String(b.r.dateFrom||"").localeCompare(String(a.r.dateFrom||""))||shipLabel(a.r.ship).localeCompare(shipLabel(b.r.ship))||(b.r.id-a.r.id));
+  return out;
+}
+function buildMsels(){
+  const ships=[...new Set(Store.rows.map(r=>r.ship))].filter(Boolean).sort((a,b)=>shipLabel(a).localeCompare(shipLabel(b)));
+  const srcs=[];const seen=new Set();statRows().forEach(x=>{if(!seen.has(x.k)){seen.add(x.k);srcs.push({v:x.k,t:x.src});}});
+  const insps=[...new Set(Store.rows.flatMap(r=>inspList(r)))].sort().map(n=>({v:n,t:n}));
+  [["msShip","msShip2","msShip3"],["msSrc","msSrc2","msSrc3"],["msInsp","msInsp2","msInsp3"]].forEach(([a,b,c],i)=>{
+    const key=["ship","src","insp"][i],label=["船舶","檢查來源","檢查人"][i],opts=[ships.map(c=>({v:c,t:shipLabel(c)})),srcs,insps][i];
+    msBuild(a,key,label,opts);msBuild(b,key,label,opts);if($("#"+c))msBuild(c,key,label,opts);
+  });
+}
+function msBuild(host,key,label,opts){
+  const set=stSel[key],el=$("#"+host);
+  // 保留還存在的選項，避免資料重新整理後留下已不存在的殘留選取
+  [...set].forEach(v=>{if(!opts.some(o=>o.v===v))set.delete(v);});
+  const n=set.size,open=el.querySelector(".mp.open")?true:false,sc=open?el.querySelector(".mp").scrollTop:0;
+  el.innerHTML=`<button type="button" class="${n?"on":""}" onclick="msToggle('${host}')">${label}${n?`（${n}）`:"：全部"} ▾</button>
+    <div class="mp ${open?"open":""}"><div class="mh"><button type="button" class="btn sm" onclick="msAll('${key}','${host}','${label}',true)">全選</button><button type="button" class="btn sm" onclick="msAll('${key}','${host}','${label}',false)">清除</button></div>
+    ${opts.map(o=>`<label><input type="checkbox" ${set.has(o.v)?"checked":""} onchange="msPick('${key}',this.dataset.v,this.checked)" data-v="${esc(o.v)}"><span>${esc(o.t)}</span></label>`).join("")||'<div class="hint" style="padding:8px">沒有選項</div>'}</div>`;
+  if(open)el.querySelector(".mp").scrollTop=sc;
+}
+function msToggle(host){document.querySelectorAll(".msel .mp.open").forEach(p=>{if(p.parentNode.id!==host)p.classList.remove("open");});$("#"+host).querySelector(".mp").classList.toggle("open");}
+function msPick(key,v,on){if(on)stSel[key].add(v);else stSel[key].delete(v);renderList();}
+function msAll(key,host,label,on){
+  const m={ship:()=>[...new Set(Store.rows.map(r=>r.ship))],src:()=>[...new Set(statRows().map(x=>x.k))],insp:()=>[...new Set(Store.rows.flatMap(r=>inspList(r)))]};
+  stSel[key].clear();if(on)m[key]().forEach(v=>stSel[key].add(v));renderList();
+}
+document.addEventListener("click",e=>{if(!e.target.closest(".msel"))document.querySelectorAll(".msel .mp.open").forEach(p=>p.classList.remove("open"));});
+function clearStFilters(){stSel.ship.clear();stSel.src.clear();stSel.insp.clear();$("#stClose").value="";$("#stQ").value="";$("#fQ").value="";$("#fMode").value="";$("#fStatus").value="";$("#stFrom").value="";$("#stTo").value="";renderList();}
+function statFiltered(){
+  const all=statRows(),q=$("#stQ").value.trim().toLowerCase(),cl=$("#stClose").value,f=$("#stFrom").value,t=$("#stTo").value;
+  return all.filter(x=>{
+    const r=x.r;
+    if(stSel.ship.size&&!stSel.ship.has(r.ship))return false;
+    if(stSel.src.size&&!stSel.src.has(x.k))return false;
+    if(stSel.insp.size&&!inspList(r).some(n=>stSel.insp.has(n)))return false;
+    if(cl==="open"&&!(x.c.open>0))return false;
+    if(cl==="done"&&!(x.c.total>0&&x.c.open===0))return false;
+    if(cl==="na"&&x.c.total>0)return false;
+    // 日期：只要檢查期間跟篩選區間有交集就算
+    const a=String(r.dateFrom||"").slice(0,10),b=String(r.dateTo||r.dateFrom||"").slice(0,10);
+    if(f&&b&&b<f)return false;if(t&&a&&a>t)return false;
+    if(q&&![shipLabel(r.ship),r.ship,r.psn,r.inspector].join(" ").toLowerCase().includes(q))return false;
+    return true;
+  });
+}
+function renderStatTable(){
+  buildMsels();
+  const rows=statFiltered();
+  const chip=(t,bg,fg)=>`<span style="background:${bg};color:${fg};border-radius:10px;padding:1px 9px;font-size:12px;font-weight:700;white-space:nowrap">${t}</span>`;
+  let prev="";
+  $("#stBody").innerHTML=rows.map(x=>{
+    const r=x.r,c=x.c,key=String(r.id),first=key!==prev;prev=key;
+    const closure=r.draft?chip("草稿","#fff1dc","#a05a00"):
+      (!x.ds.length?`<span class="hint">本項無缺失</span>`:
+       [c.total?chip(`已結案 ${c.closed}／${c.total}`,"#dff2e6","#20703f"):"",c.open?chip(`未結案 ${c.open}`,"#fde8e6","#c0392b"):(c.total?chip("✓ 全部結案","#dff2e6","#20703f"):""),c.submitted?chip(`待審核 ${c.submitted}`,"#e3ecf1","#1c3a5e"):"",c.returned?chip(`已退回 ${c.returned}`,"#fff1dc","#a05a00"):"",x.flow?chip(`FLOW ${x.flow}`,"#eceff1","#52656f"):""].filter(Boolean).join(" "));
+    const reg=r.draft?"草稿":(r.imported?`<span style="color:var(--ok);font-weight:700">已匯入</span>`:(r.issuedAt?"已發單":"未匯入"));
+    return `<tr class="${first?"grp":""}"><td>${first?`<b>${esc(shipLabel(r.ship))}</b>`:`<span class="hint">〃</span>`}</td>
+      <td style="white-space:nowrap">${first?esc(dateText(r)):`<span class="hint">〃</span>`}</td>
+      <td>${first?esc(r.psn||""):`<span class="hint">〃</span>`}</td>
+      <td><b>${esc(x.src)}</b></td>
+      <td>${first?esc(inspList(r).join("、")):`<span class="hint">〃</span>`}</td>
+      <td style="text-align:center;font-weight:700">${x.ds.length}</td>
+      <td><div style="display:flex;gap:5px;flex-wrap:wrap">${closure}</div></td>
+      <td>${reg}</td>
+      <td>${first?`<button class="btn sm" onclick="editRec(${r.id})">✎ 編輯</button>`:""}</td></tr>`;
+  }).join("")||`<tr><td colspan="9" style="text-align:center;color:#8195a0;padding:24px">沒有符合條件的檢查紀錄。</td></tr>`;
+  const recs=new Set(rows.map(x=>x.r.id)),shipN=new Set(rows.map(x=>x.r.ship));
+  const t={d:0,total:0,closed:0,open:0};rows.forEach(x=>{t.d+=x.ds.length;t.total+=x.c.total;t.closed+=x.c.closed;t.open+=x.c.open;});
+  $("#stSummary").innerHTML=`<span class="cchip">${recs.size}<span style="font-weight:400"> 張登錄單</span></span><span class="cchip">${rows.length}<span style="font-weight:400"> 項檢查</span></span><span class="cchip">${shipN.size}<span style="font-weight:400"> 艘船</span></span><span class="cchip">缺失 ${t.d} 筆</span>
+    <span class="cchip" style="border-color:#20703f;color:#20703f">已結案 ${t.closed} 筆</span><span class="cchip" style="border-color:#c0392b;color:#c0392b">未結案 ${t.open} 筆</span><span class="hint">（結案進度只算內控＋系統內結案共 ${t.total} 筆；FLOW 由船上自行辦理，不列入）</span>`;
+}
+function exportStatTable(){
+  const rows=statFiltered();
+  if(!rows.length){toast("目前沒有資料可匯出",true);return;}
+  const data=rows.map(x=>({"船舶":shipLabel(x.r.ship),"檢查日期":dateText(x.r),"地點":x.r.psn||"","檢查來源":x.src,"檢查人":inspList(x.r).join("、"),"缺失數":x.ds.length,"已結案":x.c.closed,"未結案":x.c.open,"FLOW（船上自行辦理）":x.flow,"登錄單狀態":x.r.draft?"草稿":(x.r.imported?"已匯入":(x.r.issuedAt?"已發改善單":"未匯入"))}));
+  const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[22,24,22,34,18,8,8,8,12,12].map(w=>({wch:w}));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"檢查統計表");
+  XlsxPretty.writeFile(wb,`各輪各項檢查統計_${todayIso()}.xlsx`);
+  toast(`✓ 已匯出 ${data.length} 列`);
+}
+function clearFilters(){clearStFilters();}
+/* 登錄單檢視與檢查統計表共用的篩選（船舶／檢查來源／檢查人／搜尋）：切換檢視時維持原本篩選 */
+function recPass(r){
+  if(stSel.ship.size&&!stSel.ship.has(r.ship))return false;
+  if(stSel.insp.size&&!inspList(r).some(n=>stSel.insp.has(n)))return false;
+  if(stSel.src.size&&!((r.types||[]).length?r.types:[""]).some(k=>stSel.src.has(k)))return false;
+  return true;
+}
+const srcPass=d=>!stSel.src.size||stSel.src.has(d.type||"");
 /* 匯出全部 Excel：套用目前畫面上的篩選條件（船舶／檢查人／結案方式／狀態／關鍵字），
    跟畫面上看到的登錄單、缺失完全一致——篩選清空的話就是匯出全部。兩個分頁：
    「登錄紀錄」一張單一列，「缺失明細」每筆缺失一列，方便督導自己留底或交接查核用。 */
 function filteredForExport(){
-  const fs=$("#fShip").value,fi=$("#fInsp")?$("#fInsp").value:"",fm=$("#fMode").value,fst=$("#fStatus").value,q=$("#fQ").value.trim().toLowerCase();
+  const fm=$("#fMode").value,fst=$("#fStatus").value,q=$("#fQ").value.trim().toLowerCase(),fsrc=stSel.src.size>0;
   const out=[];
   Store.rows.forEach(r=>{
-    if(fs&&r.ship!==fs)return;
-    if(fi&&!inspList(r).includes(fi))return;
-    const ds=(r.defs||[]).filter(d=>(!fm||d.closeMode===fm)&&(!fst||effStatus(r,d)===fst)&&
+    if(!recPass(r))return;
+    const ds=(r.defs||[]).filter(d=>srcPass(d)&&(!fm||d.closeMode===fm)&&(!fst||effStatus(r,d)===fst)&&
       (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,topicText(d)].join(" ").toLowerCase().includes(q)));
-    if(!ds.length&&(fm||fst||q))return;
+    if(!ds.length&&(fm||fst||q||fsrc))return;
     out.push({r,ds});
   });
   return out;
@@ -707,7 +1121,7 @@ function exportAllXlsx(){
   add(defRows,"缺失明細",[20,18,10,16,14,16,16,6,11,50,12,14,40,12,30,10,10,8]);
   add(suggRows,"船舶訴求建議",[20,18,10,16,5,40,40,10,10,40,40,12,12,10,8]);
   add(issueRows,"發改善單",[20,18,10,16,12,20,10,10,10,12,10,10,50]);
-  XLSX.writeFile(wb,`內部檢查缺失登錄_全部匯出_${todayIso()}.xlsx`);
+  XlsxPretty.writeFile(wb,`內部檢查缺失登錄_全部匯出_${todayIso()}.xlsx`);
   toast(`✓ 已匯出 ${basicRows.length} 張登錄單（6 個分頁：基本資料／總體評價／優良案例／缺失明細／船舶訴求建議／發改善單）`);
 }async function reloadList(){await Store.load();await Store.loadReplies();renderList();toast("✓ 已重新整理");}
 const expanded=new Set(); // 已展開缺失明細的登錄單 id（預設全部收合）；篩選／搜尋中一律展開
@@ -758,32 +1172,29 @@ function closureHtml(r){
   return `<span style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px"><b style="color:var(--navy)">結案進度：</b>${chip(`已結案 ${c.closed}／${c.total}`,"#dff2e6","#20703f")}${all?chip("✓ 全部結案","#dff2e6","#20703f"):chip(`未結案 ${c.open}`,"#fde8e6","#c0392b")}${c.submitted?chip(`待督導審核 ${c.submitted}`,"#e3ecf1","#1c3a5e"):""}${c.returned?chip(`已退回 ${c.returned}`,"#fff1dc","#a05a00"):""}${c.wait?chip(`待船上改善 ${c.wait}`,"#eef1f3","#4a5a66"):""}</span>`;
 }
 function renderList(){
+  if(listView==="table"){renderStatTable();updateReviewBadge();return;}
+  if(listView==="year"){renderYearView();updateReviewBadge();return;}
+  if(listView==="defs"){renderDefsList();updateReviewBadge();return;}
   const rows=Store.rows;
   // 檢查人篩選選項：直接從目前登錄單裡有出現過的檢查人整理，不限於目前的 SUPERVISORS 名單
   // （名單調整過也還是看得到舊紀錄的檢查人可以篩），每次重繪時保留使用者目前選取的值。
-  const fInspEl=$("#fInsp");
-  if(fInspEl){
-    const insps=[...new Set(rows.flatMap(r=>inspList(r)))].sort();
-    const curInsp=fInspEl.value;
-    fInspEl.innerHTML='<option value="">全部檢查人</option>'+insps.map(n=>`<option ${n===curInsp?"selected":""}>${esc(n)}</option>`).join("");
-  }
-  const fs=$("#fShip").value,fi=$("#fInsp")?$("#fInsp").value:"",fm=$("#fMode").value,fst=$("#fStatus").value,q=$("#fQ").value.trim().toLowerCase();
+  buildMsels();
+  const fm=$("#fMode").value,fst=$("#fStatus").value,q=$("#fQ").value.trim().toLowerCase(),fsrc=stSel.src.size>0;
   // ⚠ 上方「全部缺失結案方式」統計原本是用完全沒篩選過的 rows/all 算的，使用者下面篩選船舶／
   // 檢查人／結案方式／狀態／關鍵字之後，上面那排數字完全不會變，看起來像篩選沒作用在統計上。
   // 改成在同一個迴圈裡，把符合篩選條件的缺失一起收集起來，統計數字跟著篩選結果走。
   let html="",n=0;
   const filteredDefs=[];let matchedRecs=0;
   rows.forEach(r=>{
-    if(fs&&r.ship!==fs)return;
-    if(fi&&!inspList(r).includes(fi))return;
-    const ds=(r.defs||[]).filter(d=>(!fm||d.closeMode===fm)&&(!fst||effStatus(r,d)===fst)&&
+    if(!recPass(r))return;
+    const ds=(r.defs||[]).filter(d=>srcPass(d)&&(!fm||d.closeMode===fm)&&(!fst||effStatus(r,d)===fst)&&
       (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,topicText(d)].join(" ").toLowerCase().includes(q)));
-    if(!ds.length&&(fm||fst||q))return;
+    if(!ds.length&&(fm||fst||q||fsrc))return;
     matchedRecs++;filteredDefs.push(...ds);
     n+=ds.length;
     const types=(r.types||[]).map(k=>{const t=typeDef(k)||{label:k};return t.label+(t.sarForm?"："+t.sarForm:"");}).join("、");
     const hasIC=(r.defs||[]).some(d=>d.closeMode==="內控");
-    const filtering=!!(fm||fst||q),open=filtering||expanded.has(r.id);
+    const filtering=!!(fm||fst||q||fsrc),open=filtering||expanded.has(r.id);
     html+=`<tr class="rec"><td colspan="8"><div style="display:flex;align-items:flex-start;gap:14px">
       <div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         ${filtering?"":`<button class="btn sm" onclick="toggleRec(${r.id})" title="展開／收合這張登錄單的缺失明細">${open?"▾ 收合":"▸ 展開"}（${(r.defs||[]).length}）</button>`}
@@ -826,11 +1237,11 @@ function renderList(){
   $("#listBody").innerHTML=html||`<tr><td colspan="8" style="text-align:center;color:#8195a0;padding:24px">目前沒有登錄紀錄，請按上方「＋ 新增登錄」。</td></tr>`;
   $("#listStat").textContent=`顯示 ${n} 筆缺失`;
   const cnt=k=>filteredDefs.filter(d=>d.closeMode===k).length;
-  const filtering=!!(fs||fi||fm||fst||q);
+  const filtering=!!(stSel.ship.size||stSel.insp.size||fsrc||fm||fst||q);
   $("#listCounts").innerHTML=`<span class="hint" style="font-weight:700">${filtering?"篩選結果":"全部"}缺失結案方式</span>
     <span class="cchip flow">FLOW 系統（DMP-FM01）<b>${cnt("FLOW")}</b> 筆</span><span class="cchip ic">內控<b>${cnt("內控")}</b> 筆</span><span class="cchip sys">系統內結案<b>${cnt("系統內結案")}</b> 筆</span>
     <span class="hint">共 ${matchedRecs} 張登錄單、${filteredDefs.length} 筆缺失</span>
-    ${(()=>{const t={total:0,closed:0,open:0};rows.forEach(r=>{if(fs&&r.ship!==fs)return;if(fi&&!inspList(r).includes(fi))return;const ds=filteredDefs.filter(d=>(r.defs||[]).includes(d));const c=closureCount(r,ds);t.total+=c.total;t.closed+=c.closed;t.open+=c.open;});
+    ${(()=>{const t={total:0,closed:0,open:0};rows.forEach(r=>{if(!recPass(r))return;const ds=filteredDefs.filter(d=>(r.defs||[]).includes(d));const c=closureCount(r,ds);t.total+=c.total;t.closed+=c.closed;t.open+=c.open;});
       return `<span style="flex-basis:100%"></span><span class="hint" style="font-weight:700">${filtering?"篩選結果":"全部"}結案進度</span><span class="cchip" style="border-color:#20703f;color:#20703f">已結案<b>${t.closed}</b> 筆</span><span class="cchip" style="border-color:#c0392b;color:#c0392b">未結案<b>${t.open}</b> 筆</span><span class="hint">（內控＋系統內結案共 ${t.total} 筆；FLOW 由船上自行辦理，不列入）</span>`;})()}`;
   updateReviewBadge();
 }
@@ -863,9 +1274,13 @@ function reviewItems(){
 }
 /* 船舶／檢查人／結案方式／關鍵字這幾個篩選先套用（跟狀態無關），狀態快捷籤的筆數就是
    在這個基準上各別算出來的，才會跟畫面上實際篩出來的結果對得上。 */
+/* 內稽＝缺失的檢查種類是「Internal audit」（內部稽核）；其餘（訪船、專項檢查…）都算非內稽 */
+const isIntAudit=d=>d.type==="Internal audit";
 function reviewBaseItems(){
   let items=reviewItems();
   const fs=$("#rvShip")?$("#rvShip").value:"",fi=$("#rvInspector")?$("#rvInspector").value:"",fm=$("#rvMode")?$("#rvMode").value:"",q=$("#rvQ")?$("#rvQ").value.trim().toLowerCase():"";
+  const fsrc=$("#rvSrc")?$("#rvSrc").value:"non";
+  if(fsrc==="non")items=items.filter(x=>!isIntAudit(x.d));else if(fsrc==="int")items=items.filter(x=>isIntAudit(x.d));
   if(fs)items=items.filter(x=>x.r.ship===fs);
   if(fi)items=items.filter(x=>inspList(x.r).includes(fi));
   if(fm)items=items.filter(x=>x.d.closeMode===fm);
@@ -928,7 +1343,83 @@ function toggleAllReviewSel(on){
   reviewSel=on?new Set(list.map(x=>`${x.r.id}_${x.d.uid}`)):new Set();
   renderReview();
 }
-function renderReview(){
+/* 改善單審核清單／船舶訴求建議清單的「列表檢視」：跟卡片檢視共用同一組篩選與狀態快捷籤，只是換成一列一筆的表格 */
+const pageView={rv:"cards",sg:"cards"};
+function setPageView(k,v){
+  pageView[k]=v;
+  $(`#${k}Cards`).classList.toggle("primary",v==="cards");$(`#${k}Table`).classList.toggle("primary",v==="table");
+  if(k==="rv")renderReview();else renderSuggPage();
+}
+const clip=(t,n)=>{t=String(t||"");return t.length>n?t.slice(0,n)+"…":t;};
+function reviewTableHtml(items){
+  if(!items.length)return `<div class="banner">目前沒有符合條件的項目。</div>`;
+  const pill=(st)=>st==="reviewed"?'<span class="stat s-done">已結案</span>':st==="returned"?'<span class="stat" style="background:#fde8e6;color:var(--bad)">已退回</span>':'<span class="stat s-rep">待審核</span>';
+  // 長文字用 .cl 單行省略（滑過去看全文），欄寬由內容決定、不固定，字才不會互相擠壓
+  // 照片用小縮圖，點一下放大
+  const thumbs=(arr,lbl)=>(arr||[]).length?`<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:5px"><span class="hint" style="font-size:11.5px;margin-right:2px">${lbl}</span>${arr.map(ph=>`<img src="${ph.dataUrl}" title="點一下放大" style="width:40px;height:40px;object-fit:cover;border-radius:5px;border:1px solid var(--line-2);cursor:zoom-in" onclick="openLightbox(this.src)">`).join("")}</div>`:"";
+  const cl=(w,t,extra)=>`<div class="cl" style="max-width:${w}px;${extra||""}" title="${esc(t)}">${esc(t)}</div>`;
+  return `<div class="card" style="padding:0;overflow:auto"><table class="lt"><thead><tr><th></th><th>船舶</th><th>檢查日期</th><th>檢查來源／分類</th><th>缺失內容</th><th>風險</th><th>結案方式</th><th>狀態</th><th>回報／審核</th><th>操作</th></tr></thead><tbody>${items.map(({r,d,rp})=>{
+    const key=`${r.id}_${d.uid}`,p=rp.payload||{},m=modeOf(d.closeMode),td=typeDef(d.type),pend=rp.status==="submitted";
+    const src=td?td.label:(d.type||""),ret=rp.status==="returned"&&p.returnNote,note=ret?`退回：${p.returnNote}`:(p.action?`改善：${p.action}`:"");
+    const dt=esc(dateText(r)).replace("～","<br>～");
+    return `<tr id="rv-${key}"><td>${pend?`<input type="checkbox" ${reviewSel.has(key)?"checked":""} onchange="toggleReviewSel('${key}',this.checked)">`:""}</td>
+      <td style="font-weight:700;line-height:1.4;min-width:110px">${esc(shipLabel(r.ship)).replace(" ","<br>")}</td><td style="white-space:nowrap;line-height:1.5">${dt}</td>
+      <td><div style="white-space:nowrap">${isIntAudit(d)&&src!=="內稽"?`<span class="stat" style="background:#efe6f7;color:#6a3d99">內稽</span> `:""}${esc(src)}</div>${cl(160,d.category||"","color:var(--ink-3);font-size:12.5px")}</td>
+      <td style="min-width:300px;max-width:520px;white-space:pre-line;line-height:1.55">${esc(d.finding||"")}${thumbs(d.photos,"缺失照片")}${note?`<div style="margin-top:6px;padding-top:5px;border-top:1px dashed var(--line);font-size:12.5px;white-space:pre-line;${ret?"color:var(--bad)":"color:var(--ink-2)"}">${esc(note)}</div>`:""}${ret?"":thumbs(p.photos,"改善後照片")}</td>
+      <td>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">${esc(d.risk)}</span>`:""}</td>
+      <td style="white-space:nowrap">${m?`<span class="mode ${m.cls}">${esc(m.label)}</span>`:""}</td><td style="white-space:nowrap">${pill(rp.status)}</td>
+      <td>${cl(120,p.by||"")}<div class="hint" style="white-space:nowrap">${esc(fmtTs(p.at).slice(0,10))}</div>${p.reviewedBy?`<div class="hint" style="white-space:nowrap">審：${esc(p.reviewedBy)}</div>`:""}</td>
+      <td><div class="opcol">${pend?`<button class="btn sm dark" onclick="closeReplyAudit(${r.id},'${d.uid}')">✓ 結案</button><button class="btn sm" onclick="returnReplyAudit(${r.id},'${d.uid}')">↩ 退回</button>`:""}<button class="btn sm" onclick="editDef(${r.id},${(r.defs||[]).indexOf(d)})">✎ 查看登錄</button></div></td></tr>`;}).join("")}</tbody></table></div>`;
+}function suggTableHtml(items,fd){
+  if(!items.length)return `<div class="banner">目前沒有符合條件的訴求／建議。</div>`;
+  const lines=[];
+  items.forEach(c=>c.rows.forEach((x,xi)=>{if(fd&&x.dept!==fd)return;lines.push({c,x,first:!lines.length||lines[lines.length-1].c!==c});}));
+  return `<div class="card" style="padding:0;overflow:auto"><table class="lt"><thead><tr><th style="width:170px">船舶</th><th style="width:130px">檢查日期</th><th>現狀</th><th>建議</th><th style="width:90px">負責部門</th><th style="width:90px">承辦人</th><th>初步回應／處理結果</th><th style="width:80px">狀態</th><th style="width:100px">結案日期</th><th style="width:150px">操作</th></tr></thead><tbody>${lines.map(({c,x,first})=>{
+    const p=(x.rp&&x.rp.payload)||{},stt=suggRowState(x.rp),lk=suggLockInfo(x.rp);
+    return `<tr class="${first?"grp":""}"><td>${first?`<b>${esc(shipLabel(c.r.ship))}</b>`:`<span class="hint">〃</span>`}</td><td style="white-space:nowrap">${first?esc(dateText(c.r)):`<span class="hint">〃</span>`}</td>
+      <td style="white-space:pre-line" title="${esc(c.s.situation||"")}">${first?esc(clip(c.s.situation,80)):`<span class="hint">〃</span>`}</td><td style="white-space:pre-line" title="${esc(c.s.suggestion||"")}">${first?esc(clip(c.s.suggestion,80)):`<span class="hint">〃</span>`}</td>
+      <td><b>${esc(x.dept)}</b></td><td>${esc(p.owner||"—")}</td>
+      <td>${p.plan?`<div>${esc(clip(p.plan,60))}</div>`:""}${p.result?`<div class="hint">結果：${esc(clip(p.result,60))}</div>`:""}${!p.plan&&!p.result?"—":""}</td>
+      <td><span class="stat" style="${SG_ST_CSS[stt]}">${SG_ST_LBL[stt]}</span></td><td>${esc(p.closedAt||"—")}</td>
+      <td style="white-space:nowrap">${lk?`<span class="hint">🔒 ${esc(lk.by)} 編輯中</span>`:`<button class="btn sm ${stt==="closed"?"":"dark"}" onclick="openSuggEdit(${c.r.id},'${c.uid}','${esc(x.dept)}')">${stt==="new"?"✎ 承辦":"✎ 編輯"}</button>`} <button class="btn sm" onclick="editDef0(${c.r.id})">查看登錄</button></td></tr>`;}).join("")}</tbody></table></div>`;
+}/* ══ 各船改善單一覽：已發改善單的缺失（內控／系統內結案），依船統計 待改善／待審核／已退回／已結案。
+   套用上方的內稽／檢查人／結案方式篩選（不套用船舶篩選，才看得到全部船）；點船名可只看該船。 ══ */
+let rvOvOpen=(()=>{try{return localStorage.getItem("rv_ov_open")!=="0";}catch(e){return true;}})();
+function toggleRvOverview(){rvOvOpen=!rvOvOpen;try{localStorage.setItem("rv_ov_open",rvOvOpen?"1":"0");}catch(e){}renderRvOverview();}
+function pickRvShip(code){const el=$("#rvShip");el.value=el.value===code?"":code;reviewSel.clear();renderReview();}
+function renderRvOverview(){
+  const box=$("#rvOverview");if(!box)return;
+  const fsrc=$("#rvSrc")?$("#rvSrc").value:"non",fi=$("#rvInspector")?$("#rvInspector").value:"",fm=$("#rvMode")?$("#rvMode").value:"",cur=$("#rvShip")?$("#rvShip").value:"";
+  const by={};
+  Store.rows.forEach(r=>{
+    if(r.draft||!r.issuedAt)return;
+    if(fi&&!inspList(r).includes(fi))return;
+    (r.defs||[]).forEach(d=>{
+      if(d.closeMode==="FLOW"||!d.closeMode)return;
+      if(fm&&d.closeMode!==fm)return;
+      if(fsrc==="non"&&isIntAudit(d))return;if(fsrc==="int"&&!isIntAudit(d))return;
+      const es=effStatus(r,d),o=by[r.ship]=by[r.ship]||{wait:0,sub:0,ret:0,done:0,last:0};
+      if(es==="已結案")o.done++;else if(es==="船上已回報")o.sub++;else if(es==="已退回待重填")o.ret++;else o.wait++;
+      const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null,at=rp&&rp.payload&&rp.payload.at;if(at&&at>o.last)o.last=at;
+    });
+  });
+  const ships=Object.keys(by).sort((a,b)=>(by[b].sub-by[a].sub)||((by[b].wait+by[b].ret)-(by[a].wait+by[a].ret))||shipLabel(a).localeCompare(shipLabel(b)));
+  const T={wait:0,sub:0,ret:0,done:0};ships.forEach(k=>["wait","sub","ret","done"].forEach(f=>T[f]+=by[k][f]));
+  const tot=T.wait+T.sub+T.ret+T.done;
+  $("#rvOvSum").innerHTML=tot?`共 ${ships.length} 艘船・${tot} 案：<b style="color:#1c3a5e">待審核 ${T.sub}</b>　<b style="color:#7a5a10">待改善 ${T.wait}</b>　<b style="color:#c0392b">已退回 ${T.ret}</b>　<b style="color:#2e8b57">已結案 ${T.done}</b>`:"目前沒有已發改善單的項目";
+  $("#rvOvBtn").textContent=rvOvOpen?"▴ 收合":"▾ 展開";
+  box.style.display=rvOvOpen?"":"none";
+  if(!rvOvOpen)return;
+  if(!ships.length){box.innerHTML=`<div class="hint">目前條件下沒有已發改善單的項目。</div>`;return;}
+  const num=(v,c)=>v?`<b style="color:${c}">${v}</b>`:`<span style="color:#c3ced5">0</span>`;
+  const bar=o=>{const t=o.wait+o.sub+o.ret+o.done||1;return `<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:#eef1f3;min-width:120px">${[[o.done,"#2e8b57"],[o.sub,"#1c3a5e"],[o.ret,"#c0392b"],[o.wait,"#e0a83a"]].map(([v,c])=>v?`<span style="width:${v/t*100}%;background:${c}"></span>`:"").join("")}</div>`;};
+  box.innerHTML=`<table class="lt" style="font-size:13.5px"><thead><tr><th>船舶</th><th style="text-align:right">待審核</th><th style="text-align:right">待改善</th><th style="text-align:right">已退回</th><th style="text-align:right">已結案</th><th style="text-align:right">合計</th><th>結案進度</th><th style="text-align:right">結案率</th><th>最近回報</th></tr></thead><tbody>
+    ${ships.map(k=>{const o=by[k],t=o.wait+o.sub+o.ret+o.done,on=cur===k;return `<tr style="cursor:pointer;${on?"background:#e4f1f2":""}" onclick="pickRvShip('${esc(k)}')" title="${on?"再點一次取消":"點一下只看這艘船"}"><td><b>${esc(shipLabel(k))}</b>${on?' <span class="hint">（篩選中）</span>':""}</td><td style="text-align:right">${num(o.sub,"#1c3a5e")}</td><td style="text-align:right">${num(o.wait,"#7a5a10")}</td><td style="text-align:right">${num(o.ret,"#c0392b")}</td><td style="text-align:right">${num(o.done,"#2e8b57")}</td><td style="text-align:right"><b>${t}</b></td><td>${bar(o)}</td><td style="text-align:right">${Math.round(o.done/t*100)}%</td><td class="hint" style="white-space:nowrap">${o.last?new Date(o.last).toLocaleDateString("zh-TW"):"—"}</td></tr>`;}).join("")}
+    <tr style="background:#f1f5f8"><td><b>合計</b></td><td style="text-align:right"><b>${T.sub}</b></td><td style="text-align:right"><b>${T.wait}</b></td><td style="text-align:right"><b>${T.ret}</b></td><td style="text-align:right"><b>${T.done}</b></td><td style="text-align:right"><b>${tot}</b></td><td>${bar(T)}</td><td style="text-align:right"><b>${Math.round(T.done/(tot||1)*100)}%</b></td><td></td></tr>
+  </tbody></table>
+  <div class="hint" style="margin-top:6px;font-size:12px"><span style="color:#2e8b57">■</span> 已結案　<span style="color:#1c3a5e">■</span> 待審核（船上已回報）　<span style="color:#c0392b">■</span> 已退回待重填　<span style="color:#e0a83a">■</span> 待改善（船上還沒回報）　・只算已發改善單的內控／系統內結案缺失，FLOW 不列入</div>`;
+}function renderReview(){
+  renderRvOverview();
   const box=$("#reviewBody");if(!box)return;
   // 狀態快捷籤：筆數是在船舶／檢查人／結案方式／關鍵字這些篩選的基準上算的，跟畫面上
   // 實際篩出來的結果一致，不是整個系統的總數——不然點進某張船、再看籤上數字會對不起來。
@@ -946,6 +1437,7 @@ function renderReview(){
   const pendingShown=items.filter(x=>x.rp.status==="submitted");
   if(selAllBox)selAllBox.checked=pendingShown.length>0&&pendingShown.every(x=>reviewSel.has(`${x.r.id}_${x.d.uid}`));
   $("#reviewToolbar2").innerHTML=reviewSel.size?`<span class="hint">已勾選 ${reviewSel.size} 筆</span><button class="btn sm dark" onclick="batchCloseReview()">✓ 批量審核結案</button><button class="btn sm" onclick="batchReturnReview()">↩ 批量退回</button><button class="btn sm" onclick="reviewSel.clear();renderReview()">清除勾選</button>`:"";
+  if(pageView.rv==="table"){box.innerHTML=reviewTableHtml(items);return;}
   box.innerHTML=items.length?items.map(({r,d,rp})=>{
     const key=`${r.id}_${d.uid}`,p=rp.payload||{},closed=rp.status==="reviewed",returned=rp.status==="returned",pending=!closed&&!returned,m=modeOf(d.closeMode);
     const border=closed?"var(--ok)":returned?"var(--bad)":"var(--signal)";
@@ -954,7 +1446,7 @@ function renderReview(){
       <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
         ${pending?`<input type="checkbox" style="margin-top:4px" ${reviewSel.has(key)?"checked":""} onchange="toggleReviewSel('${key}',this.checked)">`:'<span style="width:18px"></span>'}
         <div style="flex:1;min-width:260px">
-          <div style="font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${esc(shipLabel(r.ship))}　${esc(dateText(r))}　${m?`<span class="mode ${m.cls}">${esc(m.label)}</span>`:""} ${statPill}</div>
+          <div style="font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${esc(shipLabel(r.ship))}　${esc(dateText(r))}　${m?`<span class="mode ${m.cls}">${esc(m.label)}</span>`:""} ${statPill}${isIntAudit(d)?` <span class="stat" style="background:#efe6f7;color:#6a3d99">內稽</span>`:""}</div>
           <div class="hint">${esc(d.category||"")}${d.topic?"・"+esc(d.topic):""}　檢查人：${esc(r.inspector||"")}</div>
           <div style="margin-top:6px;font-size:13px;line-height:1.6"><b>缺失內容：</b>${esc(d.finding||"")}</div>
           ${returned&&p.returnNote?`<div style="margin-top:8px;padding:8px 10px;background:#fdf0ee;border-radius:7px;font-size:12.5px;color:#8a2c1f"><b>退回原因：</b>${esc(p.returnNote)}</div>`:""}
@@ -1044,6 +1536,7 @@ async function batchCloseReview(){
 function gotoReviewItem(rid,uid){
   showReview();
   reviewStatusFlt="all";
+  const rs=$("#rvSrc");if(rs)rs.value="";  // 從登錄清單跳來的那筆不論內稽與否都要看得到
   renderReview();
   setTimeout(()=>{
     const el=document.getElementById(`rv-${rid}_${uid}`);
@@ -2026,7 +2519,7 @@ function exportSuggXlsx(){
   add(rows,"訴求建議總清單",[20,18,10,16,40,40,8,10,12,40,40,10,12,12,20,10]);
   add(Object.keys(deptSt).map(d=>({"負責部門":d,"件數":deptSt[d].n,"待承辦":deptSt[d].new,"處理中":deptSt[d].open,"已結案":deptSt[d].closed})),"部門統計",[12,8,8,8,8]);
   add(hist,"處理歷程",[20,18,40,10,20,12,10]);
-  XLSX.writeFile(wb,`船舶訴求建議總清單_${todayIso()}.xlsx`);
+  XlsxPretty.writeFile(wb,`船舶訴求建議總清單_${todayIso()}.xlsx`);
   toast(`✓ 已匯出 ${rows.length} 列（${cases.length} 項訴求／建議）`);
 }
 /* 匯出「改善單審核清單」總清單：所有審核狀態（待審核／已結案／已退回）都在內；套用船舶／檢查人／結案方式／搜尋篩選，
@@ -2050,7 +2543,7 @@ function exportReviewXlsx(){
   const ws=XLSX.utils.json_to_sheet(rows);
   ws["!cols"]=[20,18,10,16,14,16,16,6,11,50,12,40,12,30,8,10,12,20,12,20,30,26].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws,"改善單審核總清單");
-  XLSX.writeFile(wb,`改善單審核總清單_${todayIso()}.xlsx`);
+  XlsxPretty.writeFile(wb,`改善單審核總清單_${todayIso()}.xlsx`);
   toast(`✓ 已匯出 ${rows.length} 筆改善單（含所有審核狀態）`);
 }
 function showSugg(){
@@ -2093,6 +2586,7 @@ function renderSuggPage(){
   renderSuggDeptStats();
   const items=suggStatusFlt==="all"?base:suggStatusFlt==="active"?base.filter(c=>c.st!=="closed"):base.filter(c=>c.st===suggStatusFlt);
   $("#sgStat").textContent=`顯示 ${items.length} 項訴求／建議（${suggStatusFlt==="active"?"未結案，已結案的請點上方「已結案」查看":"共 "+base.length+" 項"}）`;
+  if(pageView.sg==="table"){box.innerHTML=suggTableHtml(items,fd);return;}
   box.innerHTML=items.length?items.map(c=>{
     const photos=(c.s.photos||[]);
     return `<div class="card sgcase ${c.st}">

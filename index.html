@@ -3588,6 +3588,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <button class="btn sm ig-tabbtn" data-p="audit" onclick="InspGroup.setPage('audit')">📋 內稽動態</button>
           <button class="btn sm ig-tabbtn" data-p="annual" onclick="InspGroup.setPage('annual')">📅 年度計畫暨執行情形</button>
           <button class="btn sm ig-tabbtn" data-p="enhlog" onclick="InspGroup.setPage('enhlog')">📜 加強管理歷史</button>
+          <button class="btn sm ig-tabbtn" data-p="execov" onclick="InspGroup.setPage('execov')">📊 執行情形一覽表</button>
           <span class="spacer" style="flex:1"></span>
           <button class="btn" onclick="InspGroup.openGuide()">📖 操作說明</button>
         </div>
@@ -3986,7 +3987,50 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
       <!-- ════════ 操演計畫表（ISPS操演計畫／船岸緊急應變計畫／操演紀錄）已拆分為獨立頁面 drill-plan.html ════════ -->
 
-      <div id="ig-page-enhlog" class="ig-subpage" style="display:none">
+      <div id="ig-page-execov" class="ig-subpage" style="display:none">
+        <style>
+          #ig-page-execov .eo-chips{display:inline-flex;gap:6px;flex-wrap:wrap}
+          #ig-page-execov .eo-chips label{display:inline-flex;flex-direction:row;align-items:center;gap:5px;border:1.5px solid var(--line);border-radius:999px;padding:4px 11px;font-size:12.5px;font-weight:700;cursor:pointer;background:#fff;margin:0}
+          #ig-page-execov .eo-chips label.on{border-color:currentColor}
+          #ig-page-execov .eo-chips input{width:13px;height:13px;margin:0}
+          .eot{border-collapse:collapse;width:100%;font-size:12.5px}
+          .eot th{background:#1c3a5e;color:#fff;font-weight:700;padding:6px 5px;text-align:center;position:sticky;top:0;z-index:2;white-space:nowrap}
+          .eot th.cur{background:#e8842c}
+          .eot td{border:1px solid #dde4e8;padding:3px 4px;vertical-align:top;min-width:74px}
+          .eot td.sh{position:sticky;left:0;background:#fff;z-index:1;white-space:nowrap;min-width:180px;font-weight:700}
+          .eot th.sh{left:0;z-index:3;text-align:left}
+          .eot td.sh .en{color:#8195a0;font-weight:400;font-size:11.5px;margin-left:4px}
+          .eot tr:nth-child(even) td,.eot tr:nth-child(even) td.sh{background:#fafcfd}
+          .eot td.cur{background:#fff8ef!important}
+          .eot td.n{text-align:center;font-family:var(--mono);min-width:40px}
+          .eot tr.noia td.sh{box-shadow:inset 4px 0 0 #c0392b}
+          .eoe{display:block;border-radius:5px;padding:2px 5px;margin:2px 0;font-size:11.5px;line-height:1.35;white-space:nowrap;cursor:default}
+          .eoe b{margin-right:3px}
+          .eoe.audit{background:#efe6f7;color:#5b3290}.eoe.visit{background:#e4f1f2;color:#176670}.eoe.accompany{background:#fdeed9;color:#9a520c}.eoe.isps{background:#e8edf3;color:#34506e}
+        </style>
+        <div class="card" style="margin-bottom:14px">
+          <div class="toolbar" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
+            <h3 style="margin:0">📊 執行情形一覽表</h3>
+            <span class="hint">所有船 × 1～12 月，依「檢查紀錄」列出內稽／訪船／隨船／ISPS AUDIT 的檢查日期與檢查人（唯讀）</span>
+          </div>
+          <div class="toolbar" style="margin-bottom:0;flex-wrap:wrap;gap:8px;align-items:center">
+            <select id="eo-year" onchange="ExecOverview.render()" style="padding:5px 8px"></select>
+            <span class="eo-chips" id="eo-types"></span>
+            <select id="eo-vtype" onchange="ExecOverview.render()" style="padding:5px 8px"><option value="">全部船型</option></select>
+            <select id="eo-deck" onchange="ExecOverview.render()" style="padding:5px 8px"><option value="">全部甲板督導</option></select>
+            <select id="eo-engine" onchange="ExecOverview.render()" style="padding:5px 8px"><option value="">全部機艙督導</option></select>
+            <select id="eo-insp" onchange="ExecOverview.render()" style="padding:5px 8px"><option value="">全部檢查人</option></select>
+            <label style="display:inline-flex;flex-direction:row;align-items:center;gap:5px;font-size:12.5px;color:#52656f;cursor:pointer;margin:0"><input type="checkbox" id="eo-noia" onchange="ExecOverview.render()"> 只看本年度尚未內稽的船</label>
+            <input type="text" id="eo-q" placeholder="🔍 搜尋船名／代碼" oninput="ExecOverview.render()" style="padding:5px 8px;width:160px">
+            <span class="spacer" style="flex:1"></span>
+            <button class="btn sm" onclick="ExecOverview.clear()">清除篩選</button>
+            <button class="btn sm dark" onclick="ExecOverview.exportXlsx()">⬇ 匯出 Excel</button>
+          </div>
+          <div id="eo-summary" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed #dde4e8"></div>
+        </div>
+        <div class="card" style="padding:0;overflow:auto;max-height:78vh"><table class="eot" id="eo-table"></table></div>
+        <p class="hint" style="margin:8px 2px">資料來源：「檢查紀錄」（App.insp），只能查看；要修改請到「檢查紀錄」編輯。滑鼠停在格子上可看完整日期、檢查人與地點。</p>
+      </div>      <div id="ig-page-enhlog" class="ig-subpage" style="display:none">
         <div class="banner">記錄每一次船舶被列入或解除「加強稽核」的事件，即使日後取消勾選也不會消失——想查某艘船以前是否曾被加強管理過、原因是什麼、維持了多久，來這裡查。這份紀錄由系統自動產生，不需手動新增。<b>此功能上線前就已經被列為加強稽核的船舶，請按右方「🔄 回填現有加強名單」補登一次即可，之後就會自動記錄。</b></div>
         <div class="card">
           <div class="toolbar" style="margin-bottom:10px">
@@ -16161,7 +16205,7 @@ const Defs={
     const ws=XLSX.utils.aoa_to_sheet(this.rowsToAoa(rows));
     ws["!cols"]=DEF_COLS.map(c=>({wch:["detail","actual","preventive","ncOpinion"].includes(c[0])?55:18}));
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"缺失紀錄");
-    XLSX.writeFile(wb,name);toast(`已匯出 ${rows.length} 筆`);
+    XlsxPretty.writeFile(wb,name,{noTitle:true});toast(`已匯出 ${rows.length} 筆`);
   },
   exportSet(){
     // this.selected 存的是字串化的 id（toggleSel/toggleAll 都用 String(d.id)），
@@ -16218,7 +16262,7 @@ const Defs={
     const ws=XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"]=cols.map(c=>({wch:["detail","actual","preventive","ncOpinion"].includes(c[0])?55:18}));
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"缺失紀錄（自訂欄位）");
-    XLSX.writeFile(wb,`缺失紀錄_自訂欄位_${todayStr()}.xlsx`);
+    XlsxPretty.writeFile(wb,`缺失紀錄_自訂欄位_${todayStr()}.xlsx`,{noTitle:true});
     toast(`✓ 已匯出 ${rows.length} 筆，共 ${cols.length} 個欄位`);
     this.closeCustomExportModal();
   },
@@ -17324,7 +17368,180 @@ const EnhAuditLog={
   }
 };
 
-const InspGroup={
+/* ════════ Excel 匯出美化（共用）════════
+   用法：原本 XLSX.writeFile(wb, 檔名) 改成 XlsxPretty.writeFile(wb, 檔名)。
+   wb 照舊用 SheetJS（XLSX.utils.json_to_sheet / book_append_sheet）組好，這裡把每個分頁的內容與欄寬
+   讀出來，改用 ExcelJS 重新產生有格式的檔案：
+   - 每頁上方深藍標題列（檔名＋分頁名）與匯出時間
+   - 表頭藍綠底白字、凍結、可篩選
+   - 框線、隔列底色、長文字自動換行、數字靠右
+   - 常見狀態字（已結案／未結案／待審核…）與風險（高／中／低）自動上色
+   - A4 橫向、列印寬度縮成一頁
+   需要先載入 ExcelJS；載入失敗時退回原本 SheetJS 的無格式匯出，不會匯不出來。 */
+const XlsxPretty=(()=>{
+  const C={navy:"FF1C3A5E",teal:"FF1E7F8C",line:"FFDDE4E8",zebra:"FFF5F8FA",ink:"FF15262F",ink3:"FF8195A0"};
+  const FONT="Microsoft JhengHei";
+  // 狀態字上色（只套在短字串，避免誤判長文字）
+  const STATUS=[
+    [/^(✓\s*)?(已結案|全部結案|結案|已審核|已處理|已匯入|已套用|Closed)$/i,"FFE2F3E8","FF20703F"],
+    [/^(未結案|待承辦|已退回|已退回待重填|退回|待船上改善|逾期|未匯入|⚑.*|扣船|Open)$/i,"FFFDE8E6","FFC0392B"],
+    [/^(處理中|待審核|待督導審核|船上已回報|審核中|進行中|已發改善單|已發單)$/,"FFFFF3CD","FF7A5A10"],
+    [/^(草稿|FLOW.*|不適用|—|-)$/,"FFEEF1F3","FF52656F"]
+  ];
+  const RISK={"高":["FFFDE3E0","FFC0392B"],"中":["FFFDEED9","FFB5610F"],"低":["FFE2F3E8","FF2E8B57"]};
+  const textLen=v=>{let n=0;for(const ch of String(v??""))n+=/[\u0000-ÿ]/.test(ch)?1:2;return n;};
+  const lastCol=n=>{let s="";n++;while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;};
+
+  function addSheet(ewb,name,ws,title,stamp,noTitle){
+    // noTitle：不加上方標題列，表頭留在第 1 列——給「匯出後可能再匯回系統」的檔案用，欄位位置跟原本一樣
+    const R0=noTitle?1:3;
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
+    const nCol=Math.max(1,...aoa.map(r=>r.length));
+    const sh=ewb.addWorksheet(name,{views:[{state:"frozen",ySplit:R0}],
+      pageSetup:{orientation:"landscape",paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.2,footer:0.2}}});
+    // 欄寬：沿用原本設定的 wch；沒有設定的依內容估算
+    const wch=(ws["!cols"]||[]).map(c=>c&&(c.wch||c.width));
+    const widths=[];
+    for(let c=0;c<nCol;c++){
+      let w=wch[c];
+      if(!w){w=Math.max(...aoa.slice(0,300).map(r=>textLen(r[c])),6)+2;}
+      widths.push(Math.min(Math.max(w,6),60));
+    }
+    sh.columns=widths.map(w=>({width:w}));
+    const L=lastCol(nCol-1);
+    if(!noTitle){
+    sh.mergeCells(`A1:${L}1`);
+    const t=sh.getCell("A1");t.value=`${title}　｜　${name}`;t.font={name:FONT,size:14,bold:true,color:{argb:"FFFFFFFF"}};
+    t.fill={type:"pattern",pattern:"solid",fgColor:{argb:C.navy}};t.alignment={vertical:"middle",indent:1};sh.getRow(1).height=28;
+    sh.mergeCells(`A2:${L}2`);
+    const s2=sh.getCell("A2");s2.value=`匯出時間：${stamp}　｜　共 ${Math.max(0,aoa.length-1)} 筆`;s2.font={name:FONT,size:9.5,color:{argb:C.ink3}};s2.alignment={vertical:"middle",indent:1};sh.getRow(2).height=18;
+    }
+    const thin={style:"thin",color:{argb:C.line}},box={top:thin,left:thin,bottom:thin,right:thin};
+    // 判斷哪幾欄是數字欄、哪幾欄是長文字欄
+    const body=aoa.slice(1);
+    const isNum=[],isLong=[];
+    for(let c=0;c<nCol;c++){
+      const vals=body.map(r=>r[c]).filter(v=>v!==""&&v!=null);
+      isNum[c]=vals.length>0&&vals.every(v=>typeof v==="number");
+      isLong[c]=widths[c]>=24||vals.some(v=>textLen(v)>widths[c]*1.2);
+    }
+    aoa.forEach((row,ri)=>{
+      const er=sh.getRow(R0+ri);
+      for(let c=0;c<nCol;c++){
+        const cell=er.getCell(c+1),v=row[c];
+        cell.value=(v===undefined||v===null)?"":v;
+        cell.border=box;
+        if(ri===0){
+          cell.font={name:FONT,size:10.5,bold:true,color:{argb:"FFFFFFFF"}};
+          cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:C.teal}};
+          cell.alignment={vertical:"middle",horizontal:"center",wrapText:true};
+          continue;
+        }
+        cell.font={name:FONT,size:10.5,color:{argb:C.ink}};
+        cell.alignment={vertical:"top",horizontal:isNum[c]?"right":"left",wrapText:!!isLong[c]};
+        if(ri%2===0)cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:C.zebra}};
+        const sv=typeof v==="string"?v.trim():"";
+        if(sv&&textLen(sv)<=14){
+          if(RISK[sv]){cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:RISK[sv][0]}};cell.font={name:FONT,size:10.5,bold:true,color:{argb:RISK[sv][1]}};cell.alignment={vertical:"top",horizontal:"center"};}
+          else for(const [re,bg,fg] of STATUS){if(re.test(sv)){cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:bg}};cell.font={name:FONT,size:10.5,bold:true,color:{argb:fg}};cell.alignment={vertical:"top",horizontal:"center"};break;}}
+        }
+      }
+      // 表頭字太長（例如「系統編號（請勿修改…）」）時自動加高，避免被切掉
+      if(ri===0)er.height=Math.max(30,...row.map((v,c)=>Math.ceil(textLen(v)/Math.max(widths[c]-1,4))*15+6));
+    });
+    if(aoa.length>1)sh.autoFilter={from:{row:R0,column:1},to:{row:R0-1+aoa.length,column:nCol}};
+    sh.headerFooter={oddFooter:`&L${title}&R&P / &N`};
+    return sh;
+  }
+
+  async function writeFile(wb,filename,opts){
+    opts=opts||{};
+    if(typeof ExcelJS==="undefined"){XLSX.writeFile(wb,filename);return;}
+    try{
+      const ewb=new ExcelJS.Workbook();ewb.creator="FPMC";ewb.created=new Date();
+      const title=opts.title||String(filename).replace(/\.xlsx?$/i,"").replace(/_\d{4}-\d{2}-\d{2}.*$/,"");
+      const stamp=new Date().toLocaleString("zh-TW",{hour12:false});
+      wb.SheetNames.forEach(n=>addSheet(ewb,n,wb.Sheets[n],title,stamp,!!opts.noTitle));
+      const buf=await ewb.xlsx.writeBuffer();
+      const a=document.createElement("a");
+      a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+      a.download=filename;document.body.appendChild(a);a.click();
+      setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+    }catch(e){
+      console.warn("XlsxPretty failed, fallback to plain export",e);
+      XLSX.writeFile(wb,filename);
+    }
+  }
+  return {writeFile};
+})();
+
+/* ════════ 執行情形一覽表（唯讀）════════
+   所有船 × 1～12 月，把「檢查紀錄」裡的內稽／訪船／隨船／ISPS AUDIT 依月份排出來，每格寫日期與檢查人。
+   跟「年度計畫暨執行情形」不同：這裡不排程、不能編輯，只看實際做了什麼，四種類型可以同時看。 */
+const ExecOverview={
+  TYPES:[{k:"audit",t:"內稽",it:"INTERNALAUDIT"},{k:"visit",t:"訪船",it:"ONBOARDVISIT"},{k:"accompany",t:"隨船",it:"ACCOMPANYINGSHIP"},{k:"isps",t:"ISPS",it:"ISPSAUDIT"}],
+  on:new Set(["audit","visit","accompany","isps"]),
+  ev(){
+    const map={};this.TYPES.forEach(t=>map[t.it]=t.k);
+    return (App.insp||[]).map(r=>{const k=map[normItype(r.itype)];const d=parseDate(r.date);if(!k||!d)return null;
+      return {ship:r.ship,k,y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate(),iso:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,insp:r.inspector||"",loc:r.loc||""};}).filter(Boolean);
+  },
+  names(s){return String(s||"").split(/[、,，\/]/).map(x=>x.trim()).filter(Boolean);},
+  toggle(k,v){v?this.on.add(k):this.on.delete(k);this.render();},
+  clear(){["#eo-vtype","#eo-deck","#eo-engine","#eo-insp","#eo-q"].forEach(s=>{if($(s))$(s).value="";});$("#eo-noia").checked=false;this.on=new Set(this.TYPES.map(t=>t.k));this.render();},
+  filtered(){
+    const all=this.ev(),y=+($("#eo-year").value||new Date().getFullYear());
+    const vt=$("#eo-vtype").value,dk=$("#eo-deck").value,en=$("#eo-engine").value,fi=$("#eo-insp").value,q=($("#eo-q").value||"").trim().toLowerCase();
+    const ships=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code)))
+      .filter(s=>(!vt||s.vtype===vt||s.type1===vt)&&(!dk||s.deckSup===dk)&&(!en||s.engineSup===en)&&(!q||[s.code,s.zh,s.name].join(" ").toLowerCase().includes(q)));
+    const ev=all.filter(e=>e.y===y&&this.on.has(e.k)&&(!fi||this.names(e.insp).includes(fi)));
+    const iaShips=new Set(all.filter(e=>e.y===y&&e.k==="audit").map(e=>e.ship));
+    const lastIA={};all.filter(e=>e.k==="audit").forEach(e=>{if(!lastIA[e.ship]||e.iso>lastIA[e.ship])lastIA[e.ship]=e.iso;});
+    return {all,y,ships,ev,iaShips,lastIA,rows:ships.filter(s=>!$("#eo-noia").checked||!iaShips.has(s.code))};
+  },
+  fillSelects(all){
+    const SI=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]);
+    const set=(id,label,vals)=>{const el=$(id),cur=el.value;el.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option ${v===cur?"selected":""}>${esc(v)}</option>`).join("");};
+    const ys=[...new Set(all.map(e=>e.y).concat([new Date().getFullYear()]))].sort((a,b)=>b-a);
+    const ye=$("#eo-year"),cy=ye.value||String(new Date().getFullYear());ye.innerHTML=ys.map(y=>`<option value="${y}" ${String(y)===cy?"selected":""}>${y} 年度</option>`).join("");
+    set("#eo-vtype","全部船型",[...new Set(SI.map(s=>s.type1||s.vtype).filter(Boolean))].sort());
+    set("#eo-deck","全部甲板督導",[...new Set(SI.map(s=>s.deckSup).filter(Boolean))].sort());
+    set("#eo-engine","全部機艙督導",[...new Set(SI.map(s=>s.engineSup).filter(Boolean))].sort());
+    set("#eo-insp","全部檢查人",[...new Set(all.flatMap(e=>this.names(e.insp)))].sort());
+    const col={audit:"#5b3290",visit:"#176670",accompany:"#9a520c",isps:"#34506e"};
+    $("#eo-types").innerHTML=this.TYPES.map(t=>`<label class="${this.on.has(t.k)?"on":""}" style="color:${col[t.k]}"><input type="checkbox" ${this.on.has(t.k)?"checked":""} onchange="ExecOverview.toggle('${t.k}',this.checked)">${t.t}</label>`).join("");
+  },
+  render(){
+    if(!$("#eo-table"))return;
+    this.fillSelects(this.ev());
+    const {y,ships,ev,iaShips,lastIA,rows}=this.filtered();
+    const T=this.TYPES.filter(t=>this.on.has(t.k));
+    const now=new Date(),curM=now.getFullYear()===y?now.getMonth()+1:0;
+    const by={};ev.forEach(e=>{(by[e.ship]=by[e.ship]||[]).push(e);});
+    const noIA=ships.filter(s=>!iaShips.has(s.code)).length;
+    $("#eo-summary").innerHTML=`<span class="chip">${y} 年度・共 ${ships.length} 艘船</span>${T.map(t=>`<span class="chip">${t.t} <b>${ev.filter(e=>e.k===t.k).length}</b> 次</span>`).join("")}<span class="chip" style="border-color:#c0392b;color:#c0392b">本年度尚未內稽 <b>${noIA}</b> 艘</span>`;
+    const tl=k=>this.TYPES.find(t=>t.k===k).t;
+    const head=`<thead><tr><th class="sh">船舶</th>${Array.from({length:12},(_,i)=>`<th class="${i+1===curM?"cur":""}">${i+1}月</th>`).join("")}${T.map(t=>`<th>${t.t}</th>`).join("")}<th>最近一次內稽</th></tr></thead>`;
+    const body=rows.map(s=>{
+      const es=(by[s.code]||[]).sort((a,b)=>a.iso.localeCompare(b.iso)),noia=!iaShips.has(s.code);
+      const cells=Array.from({length:12},(_,i)=>`<td class="${i+1===curM?"cur":""}">${es.filter(e=>e.m===i+1).map(e=>`<span class="eoe ${e.k}" title="${tl(e.k)}｜${e.iso}｜${esc(e.insp||"（未填檢查人）")}｜${esc(e.loc)}"><b>${tl(e.k)}</b>${e.m}/${e.d}<br>${esc(e.insp||"—")}</span>`).join("")}</td>`).join("");
+      return `<tr class="${noia?"noia":""}"><td class="sh">${esc(s.zh||s.code)}<span class="en">${esc(s.name||"")}</span>${noia?` <span class="eoe audit" style="display:inline-block;background:#fde8e6;color:#c0392b;margin:0 0 0 4px">本年未內稽</span>`:""}</td>${cells}${T.map(t=>{const n=es.filter(e=>e.k===t.k).length;return `<td class="n">${n||'<span style="color:#c3ced5">0</span>'}</td>`;}).join("")}<td class="n" style="white-space:nowrap">${lastIA[s.code]?lastIA[s.code].replace(/-/g,"/"):"—"}</td></tr>`;
+    }).join("")||`<tr><td colspan="18" style="padding:20px;text-align:center;color:#8195a0">沒有符合條件的船</td></tr>`;
+    $("#eo-table").innerHTML=head+`<tbody>${body}</tbody>`;
+  },
+  exportXlsx(){
+    const {y,ev,iaShips,rows}=this.filtered(),T=this.TYPES.filter(t=>this.on.has(t.k)),tl=k=>this.TYPES.find(t=>t.k===k).t;
+    const data=rows.map(s=>{const es=ev.filter(e=>e.ship===s.code).sort((a,b)=>a.iso.localeCompare(b.iso));
+      const o={"船舶":shipFullLabel(s.code)};
+      for(let m=1;m<=12;m++)o[`${m}月`]=es.filter(e=>e.m===m).map(e=>`${tl(e.k)} ${e.m}/${e.d} ${e.insp}`).join("\n");
+      T.forEach(t=>o[t.t]=es.filter(e=>e.k===t.k).length);
+      o["本年度內稽"]=iaShips.has(s.code)?"已內稽":"尚未內稽";return o;});
+    const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[{wch:26},...Array.from({length:12},()=>({wch:16})),...T.map(()=>({wch:7})),{wch:11}];
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`${y}年度`);
+    const fn=`執行情形一覽表_${y}.xlsx`;
+    if(typeof XlsxPretty!=="undefined")XlsxPretty.writeFile(wb,fn);else XLSX.writeFile(wb,fn);
+  }
+};const InspGroup={
   curPage:"plan",
   init(){
     InspCtrl.init();
@@ -17333,13 +17550,14 @@ const InspGroup={
   setPage(p,skipInit){
     this.curPage=p;
     $$(".ig-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.p===p));
-    const map={plan:"ig-page-plan",audit:"ig-page-audit",annual:"ig-page-annual",enhlog:"ig-page-enhlog"};
+    const map={plan:"ig-page-plan",audit:"ig-page-audit",annual:"ig-page-annual",enhlog:"ig-page-enhlog",execov:"ig-page-execov"};
     Object.entries(map).forEach(([k,id])=>{const el=$("#"+id);if(el)el.style.display=(k===p)?"":"none";});
     if(skipInit)return; // 首次載入：InspGroup.init() 已呼叫過 InspCtrl.init()，這裡不必重複
     if(p==="plan")InspCtrl.render();
     else if(p==="audit"&&typeof AuditDash!=="undefined")AuditDash.init();
     else if(p==="annual"&&typeof AnnualPlan!=="undefined")AnnualPlan.init();
     else if(p==="enhlog"&&typeof EnhAuditLog!=="undefined")EnhAuditLog.init();
+    else if(p==="execov"&&typeof ExecOverview!=="undefined")ExecOverview.render();
   },
   openGuide(){
     const html=`
