@@ -250,6 +250,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
 <body>
 <div class="wrap">
   <header style="position:relative">
+    <a href="intaudit-guide.html" target="_blank" title="開新分頁查看操作手冊（流程圖、審核流程、各功能說明）" style="position:absolute;top:58px;right:18px;color:#1c3a5e;border:1px solid #fff;background:#fff;border-radius:8px;padding:6px 14px;font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap">📖 操作手冊</a>
     <a href="./" title="回到主系統" style="position:absolute;top:16px;right:18px;color:#fff;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);border-radius:8px;padding:7px 14px;font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap">← 返回系統</a>
     <h1>🛠 內部檢查缺失登錄</h1>
     <p>督導、內部稽核員上船檢查發現的缺失在這裡建檔。資料獨立存放，不會與主系統同步作業互相干擾；建檔完成後由海技在主系統匯入檢查紀錄／缺失紀錄。</p>
@@ -1372,16 +1373,25 @@ function reviewTableHtml(items){
       <td><div class="opcol">${pend?`<button class="btn sm dark" onclick="closeReplyAudit(${r.id},'${d.uid}')">✓ 結案</button><button class="btn sm" onclick="returnReplyAudit(${r.id},'${d.uid}')">↩ 退回</button>`:""}<button class="btn sm" onclick="editDef(${r.id},${(r.defs||[]).indexOf(d)})">✎ 查看登錄</button></div></td></tr>`;}).join("")}</tbody></table></div>`;
 }function suggTableHtml(items,fd){
   if(!items.length)return `<div class="banner">目前沒有符合條件的訴求／建議。</div>`;
+  // 版面跟「缺失清單列表」一致：燈號＋整列底色＝該部門處理狀態（待承辦紅／處理中黃／已結案綠）
+  const LAMP={new:["ret","待承辦"],open:["wait","處理中"],closed:["done","已結案"]};
+  const thumbs=arr=>(arr||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${arr.map(ph=>`<img src="${ph.dataUrl}" title="點一下放大" style="width:34px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--line-2);cursor:zoom-in" onclick="openLightbox(this.src)">`).join("")}</div>`:"";
   const lines=[];
-  items.forEach(c=>c.rows.forEach((x,xi)=>{if(fd&&x.dept!==fd)return;lines.push({c,x,first:!lines.length||lines[lines.length-1].c!==c});}));
-  return `<div class="card" style="padding:0;overflow:auto"><table class="lt"><thead><tr><th style="width:170px">船舶</th><th style="width:130px">檢查日期</th><th>現狀</th><th>建議</th><th style="width:90px">負責部門</th><th style="width:90px">承辦人</th><th>初步回應／處理結果</th><th style="width:80px">狀態</th><th style="width:100px">結案日期</th><th style="width:150px">操作</th></tr></thead><tbody>${lines.map(({c,x,first})=>{
-    const p=(x.rp&&x.rp.payload)||{},stt=suggRowState(x.rp),lk=suggLockInfo(x.rp);
-    return `<tr class="${first?"grp":""}"><td>${first?`<b>${esc(shipLabel(c.r.ship))}</b>`:`<span class="hint">〃</span>`}</td><td style="white-space:nowrap">${first?esc(dateText(c.r)):`<span class="hint">〃</span>`}</td>
-      <td style="white-space:pre-line" title="${esc(c.s.situation||"")}">${first?esc(clip(c.s.situation,80)):`<span class="hint">〃</span>`}</td><td style="white-space:pre-line" title="${esc(c.s.suggestion||"")}">${first?esc(clip(c.s.suggestion,80)):`<span class="hint">〃</span>`}</td>
-      <td><b>${esc(x.dept)}</b></td><td>${esc(p.owner||"—")}</td>
-      <td>${p.plan?`<div>${esc(clip(p.plan,60))}</div>`:""}${p.result?`<div class="hint">結果：${esc(clip(p.result,60))}</div>`:""}${!p.plan&&!p.result?"—":""}</td>
-      <td><span class="stat" style="${SG_ST_CSS[stt]}">${SG_ST_LBL[stt]}</span></td><td>${esc(p.closedAt||"—")}</td>
-      <td style="white-space:nowrap">${lk?`<span class="hint">🔒 ${esc(lk.by)} 編輯中</span>`:`<button class="btn sm ${stt==="closed"?"":"dark"}" onclick="openSuggEdit(${c.r.id},'${c.uid}','${esc(x.dept)}')">${stt==="new"?"✎ 承辦":"✎ 編輯"}</button>`} <button class="btn sm" onclick="editDef0(${c.r.id})">查看登錄</button></td></tr>`;}).join("")}</tbody></table></div>`;
+  items.forEach(c=>c.rows.forEach(x=>{if(fd&&x.dept!==fd)return;lines.push({c,x,first:!lines.length||lines[lines.length-1].c!==c});}));
+  return `<div class="card" style="padding:0;overflow:auto"><table class="lt dlt"><colgroup><col style="width:96px"><col style="width:122px"><col style="width:96px"><col><col style="width:17%"><col style="width:62px"><col style="width:74px"><col style="width:18%"><col style="width:84px"><col style="width:90px"></colgroup>
+    <thead><tr><th>處理情形</th><th>船舶</th><th>檢查日期</th><th>現狀</th><th>建議</th><th>負責部門</th><th>承辦人</th><th>初步回應／處理結果</th><th>結案日期</th><th>操作</th></tr></thead><tbody>${lines.map(({c,x,first})=>{
+    const p=(x.rp&&x.rp.payload)||{},stt=suggRowState(x.rp),lk=suggLockInfo(x.rp),L=LAMP[stt];
+    const same=`<span class="hint">〃</span>`;
+    return `<tr class="st-${L[0]}"><td><span class="stl"><span class="lamp ${L[0]}"></span>${L[1]}</span></td>
+      <td style="font-weight:700;line-height:1.35">${first?esc(shipLabel(c.r.ship)).replace(" ","<br>"):same}</td>
+      <td style="font-size:12.5px;line-height:1.4">${first?esc(dateText(c.r)).replace("～","<br>～"):same}</td>
+      <td style="white-space:pre-line">${first?esc(c.s.situation||"")+thumbs(c.s.photos):same}</td>
+      <td style="white-space:pre-line">${first?esc(c.s.suggestion||""):same}</td>
+      <td><b>${esc(x.dept)}</b></td>
+      <td>${esc(p.owner||"—")}</td>
+      <td style="font-size:12.5px">${p.plan?`<div style="white-space:pre-line">${esc(p.plan)}</div>`:""}${p.result?`<div style="white-space:pre-line;margin-top:3px;padding-top:3px;border-top:1px dashed var(--line)"><span class="hint">結果：</span>${esc(p.result)}</div>`:""}${!p.plan&&!p.result?'<span class="hint">—</span>':""}${p.updatedBy?`<div class="hint" style="font-size:11.5px">${esc(p.updatedBy)} ${esc(fmtTs(p.updatedAt).split(" ")[0]||"")}</div>`:""}</td>
+      <td style="font-size:12.5px">${esc(p.closedAt||"—")}</td>
+      <td><div class="opcol">${lk?`<span class="hint" style="font-size:11.5px">🔒 ${esc(lk.by)} 編輯中</span>`:`<button class="btn sm ${stt==="closed"?"":"dark"}" onclick="openSuggEdit(${c.r.id},'${c.uid}','${esc(x.dept)}')">${stt==="new"?"✎ 承辦":"✎ 編輯"}</button>`}<button class="btn sm" onclick="editDef0(${c.r.id})">查看登錄</button></div></td></tr>`;}).join("")}</tbody></table></div>`;
 }/* ══ 各船改善單一覽：已發改善單的缺失（內控／系統內結案），依船統計 待改善／待審核／已退回／已結案。
    套用上方的內稽／檢查人／結案方式篩選（不套用船舶篩選，才看得到全部船）；點船名可只看該船。 ══ */
 let rvOvOpen=(()=>{try{return localStorage.getItem("rv_ov_open")!=="0";}catch(e){return true;}})();
