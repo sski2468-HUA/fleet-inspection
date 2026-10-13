@@ -9418,8 +9418,17 @@ const App={
     toast("✓ 已全部歸零。如需同步給其他人，請按「⬆ 發布到雲端」");
     setTimeout(()=>location.reload(),900);
   },
-  nextId(){return this.defs.reduce((m,d)=>Math.max(m,+d.id||0),0)+1;},
-  nextInspId(){return this.insp.reduce((m,d)=>Math.max(m,+d.id||0),0)+1;}
+  // ⚠ 原本是「本機看到的最大編號 + 1」：兩個人（或兩個分頁）資料沒同步時會算出同一個編號，
+  // 上傳時後到的那筆直接蓋掉雲端上別人的紀錄（2026/10/12 F32 9/17 訪船 7 筆就是這樣被蓋掉的）。
+  // 改成跟填單一樣用時間戳記當編號，不同裝置幾乎不可能撞號；同一毫秒內連續呼叫時往上遞增。
+  _uniqueId(arr,lastKey){
+    const max=arr.reduce((m,d)=>Math.max(m,+d.id||0),0);
+    const id=Math.max(Date.now(),max+1,(this[lastKey]||0)+1);
+    this[lastKey]=id;
+    return id;
+  },
+  nextId(){return this._uniqueId(this.defs,"_lastDefId");},
+  nextInspId(){return this._uniqueId(this.insp,"_lastInspId");}
 };
 
 /* ════════ 預設資料／備份還原 ════════ */
@@ -23025,6 +23034,7 @@ const Air={
     const d=App.air.find(x=>x.id===this.editId);
     if(!d){const m="找不到這筆填單資料，可能已被刪除，請重新整理頁面後再試。";if(!opts.skipLock)this.failTransferLock(m);else toast("⚠ "+m);return;}
     let existing=d.pushedInspId!=null?App.insp.find(x=>x.id===d.pushedInspId):null;
+    if(existing&&!pushTargetMatches(existing,d.ship,d.date))existing=null; // 對應編號指到別船／別天 → 不覆蓋
     if(!existing&&d.usedInsp){
       // 舊資料在此次修正前轉入的，沒有記錄對應的檢查紀錄 id；用船名＋檢查來源＋日期回溯比對，
       // 找到就視為「原本那一筆」直接同步，避免又多轉出一筆重複紀錄。
@@ -23130,7 +23140,7 @@ const Air={
     opts=opts||{};
     const d=App.air.find(x=>x.id===this.editId);
     if(!d){const m="找不到這筆填單資料，可能已被刪除，請重新整理頁面後再試。";if(!opts.skipLock)this.failTransferLock(m);return {ok:false,msg:null};}
-    let added=0,updated=0,skipped=0;
+    let added=0,updated=0,skipped=0,mismatched=0;
     for(const r of rows){
       /* 策略：船上原始填寫的版本，與海技「對外回覆」審閱過的版本，是兩份不同的內容，
          都要完整保留、不互相覆蓋——所以缺失紀錄總表對這5個欄位各自拆成兩欄：
@@ -23165,7 +23175,8 @@ const Air={
       // 跟 App.defs 裡實際的數字型別 id 就永遠對不上，嚴格比對永遠是 false，
       // 結果「覆蓋」永遠找不到對應的舊紀錄，只能落到「新增一筆」，這樣使用者選覆蓋、
       // 畫面卻變成新增。改成用 String() 轉型後再比對，兩種型別都能正確配對到。
-      const existing=(mode==="overwrite"&&r.pushedDefId!=null)?App.defs.find(x=>String(x.id)===String(r.pushedDefId)):null;
+      let existing=(mode==="overwrite"&&r.pushedDefId!=null)?App.defs.find(x=>String(x.id)===String(r.pushedDefId)):null;
+      if(existing&&!pushTargetMatches(existing,d.ship,d.date)){existing=null;mismatched++;} // 對應編號指到別船／別天的紀錄 → 不覆蓋，改新增
       if(existing){
         // ⚠ 這裡是「白工」問題的真正源頭：payload 裡的問題別/大類/具體名稱/根因/三要素/風險/
         // 責任人職位姓名，全部來自「線上填單這一列原始資料」的 r.ncProb 等欄位——但這些分類
@@ -23203,8 +23214,9 @@ const Air={
     d.defects=this.rowsToDefectsPayload(this.defRows); // 把更新後的 pushedDefId 寫回持久化的 defects
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
     if(typeof Defs!=="undefined"){Defs.init();Defs.render();}
-    const msg=mode==="overwrite"?`已覆蓋更新 ${updated} 筆、新增 ${added} 筆缺失紀錄${skipped?`、跳過 ${skipped} 筆`:""}`:`已新增 ${added} 筆缺失紀錄`;
-    if(typeof Audit!=="undefined")Audit.log("轉入","缺失紀錄總表",`由AIR#${d.id}${mode==="overwrite"?"覆蓋轉入":"轉入"} ${rows.length} 筆（更新${updated}／新增${added}${skipped?`／跳過${skipped}`:""}）`);
+    const mmNote=mismatched?`\n⚠ 其中 ${mismatched} 筆原本記錄的對應編號指到別艘船或別天的紀錄，為避免蓋掉別人的資料，已改為新增（請到缺失紀錄總表確認是否有重複）`:"";
+    const msg=(mode==="overwrite"?`已覆蓋更新 ${updated} 筆、新增 ${added} 筆缺失紀錄${skipped?`、跳過 ${skipped} 筆`:""}`:`已新增 ${added} 筆缺失紀錄`)+mmNote;
+    if(typeof Audit!=="undefined")Audit.log("轉入","缺失紀錄總表",`由AIR#${d.id}${mode==="overwrite"?"覆蓋轉入":"轉入"} ${rows.length} 筆（更新${updated}／新增${added}${skipped?`／跳過${skipped}`:""}${mismatched?`／對應編號不符改新增${mismatched}`:""}）`);
     if(!opts.skipLock)this.finishTransferLock(msg);
     return {ok:true,msg};
   },
@@ -23655,6 +23667,7 @@ const Air={
       items.forEach(d=>{
         const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:normDateSlash(d.date),loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:d.flagType||"",_impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
         let existing=d.pushedInspId!=null?App.insp.find(x=>x.id===d.pushedInspId):null;
+        if(existing&&!pushTargetMatches(existing,d.ship,payload.date))existing=null; // 對應編號指到別船／別天 → 不覆蓋
         if(!existing&&d.usedInsp)existing=App.insp.find(x=>x.ship===d.ship&&x.itype===d.itype&&x.date===payload.date)||null;
         if(existing){Object.assign(existing,payload);d.pushedInspId=existing.id;}
         else{const newId=App.nextInspId();App.insp.push({id:newId,...payload,detain:""});d.pushedInspId=newId;}
@@ -23664,14 +23677,15 @@ const Air={
       if(typeof Ov!=="undefined"){Ov.init();Ov.render();}
       if(typeof InspCtrl!=="undefined")InspCtrl.render();
     }else if(target==="defs"){
-      let updated=0,added=0;
+      let updated=0,added=0,mismatched=0;
       items.forEach(d=>{
         const defects=d.defects;
         defects.forEach((df,di)=>{
           // 跟單筆填單頁面 _doPushDefs 同一套邏輯：mode="overwrite" 且這筆缺失先前轉入時
           // 記過對應的缺失紀錄 id（pushedDefId），才去比對既有紀錄更新；否則新增一筆，
           // 並把新產生的 id 記回 df.pushedDefId，下次批次轉入才找得到對應關係可以覆蓋。
-          const existing=(mode==="overwrite"&&df.pushedDefId!=null)?App.defs.find(x=>String(x.id)===String(df.pushedDefId)):null;
+          let existing=(mode==="overwrite"&&df.pushedDefId!=null)?App.defs.find(x=>String(x.id)===String(df.pushedDefId)):null;
+          if(existing&&!pushTargetMatches(existing,d.ship,d.date)){existing=null;mismatched++;} // 對應編號指到別船／別天的紀錄 → 不覆蓋，改新增
           // 對外回覆審閱版（中文欄位）：跟單筆頁面一致，來自 d.reply.items[缺失序號]，
           // 之前批次轉入完全沒帶這幾欄，轉進缺失紀錄總表後對外回覆內容是空的。
           const rp=(d.reply&&d.reply.items&&d.reply.items[di])||{};
@@ -23703,7 +23717,8 @@ const Air={
         });
         d.usedDef=true;n++;
       });
-      if(typeof Audit!=="undefined")Audit.log("轉入","缺失紀錄總表",`由AIR轉入 ${items.length} 筆AIR資料，共 ${m} 筆缺失明細（模式：${mode==="overwrite"?"覆蓋":"新增"}，更新${updated}／新增${added}）`);
+      if(typeof Audit!=="undefined")Audit.log("轉入","缺失紀錄總表",`由AIR轉入 ${items.length} 筆AIR資料，共 ${m} 筆缺失明細（模式：${mode==="overwrite"?"覆蓋":"新增"}，更新${updated}／新增${added}${mismatched?`／對應編號不符改新增${mismatched}`:""}）`);
+      if(mismatched)alert(`⚠ 有 ${mismatched} 筆缺失原本記錄的對應編號指到別艘船或別天的紀錄。\n為避免蓋掉別人的資料，這幾筆已改為新增，請到缺失紀錄總表確認是否有重複。`);
       if(typeof Defs!=="undefined"){Defs.init();Defs.render();}
     }else if(target==="sirepos"){
       let updated=0,added=0;
@@ -25691,6 +25706,7 @@ const IntAuditQueue={
       const payload=Object.assign({ship:r.ship,vtype:vt,itype,date,loc:r.psn||"",inspector:r.inspector||"",unit:"",
         ndef:(r.defs||[]).filter(d=>d.type===k).length,npos:ti===0?nBest:0,flagType:""},meta);
       let ex=inspIds[k]!=null?App.insp.find(x=>x.id===inspIds[k]):null;
+      if(ex&&!pushTargetMatches(ex,r.ship,date))ex=null;
       if(!ex)ex=App.insp.find(x=>x.ship===r.ship&&x.itype===itype&&x.date===date)||null;
       if(ex){Object.assign(ex,payload);inspIds[k]=ex.id;}
       else{const nid=App.nextInspId();App.insp.push(Object.assign({id:nid},payload,{detain:""}));inspIds[k]=nid;}
@@ -25705,7 +25721,8 @@ const IntAuditQueue={
         ncProb:"",ncMain:"",ncLeaf:"",ncRoot:"",ncFactor:"",ncImp:"",ncFocus:"",ncMethod:"",ncOpinion:"",
         photosBefore:Array.isArray(d.photos)?d.photos:[],photosAfter:[],
         intAuditTopic:d.topic||"",intAuditCloseMode:d.closeMode||""},meta);
-      const ex=d.importedDefId!=null?App.defs.find(x=>String(x.id)===String(d.importedDefId)):null;
+      let ex=d.importedDefId!=null?App.defs.find(x=>String(x.id)===String(d.importedDefId)):null;
+      if(ex&&!pushTargetMatches(ex,r.ship,date))ex=null; // 對應編號指到別船／別天的紀錄 → 不覆蓋，改新增
       if(ex){
         const safe=Object.assign({},payload);
         ["ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","rank","person"].forEach(k=>delete safe[k]); // 重新匯入不要洗掉海技已經補好的分類
@@ -29996,6 +30013,14 @@ const CLOUD_DEFAULT={
    - 若對應的新表已經有資料 → 以新表為準（表示已完成遷移，後續都走逐筆同步）
    - 若新表還是空的 → 沿用目前本機／舊整包資料，並自動把它整批寫入新表（僅此一次的遷移動作）
    ════════════════════════════════════════════════════════════════ */
+/* 轉入「覆蓋」時，依填單記住的對應編號找到的那筆紀錄，必須真的是同一艘船、同一天——
+   對應編號若因撞號或資料不同步指到別人的紀錄，以前會直接把那筆蓋掉（2026/10/12 F32 9/17
+   訪船 7 筆就是被 B202 7/11 MCC 的填單這樣蓋掉）。不符合時一律當作找不到，改為新增一筆。 */
+function pushTargetMatches(rec,ship,date){
+  if(!rec)return false;
+  const nd=s=>(typeof normDateSlash==="function"?normDateSlash(s||""):String(s||"")).replace(/\/0(\d)/g,"/$1");
+  return String(rec.ship||"").trim()===String(ship||"").trim()&&nd(rec.date)===nd(date);
+}
 const RecordSync={
   SETUP_SQL:`create table if not exists public.sync_insp (
   id bigint primary key, updated bigint, payload jsonb
