@@ -19849,15 +19849,17 @@ const AuditDash={
   actualPortFor(row){
     if(row.actualAuditId){
       const rec=App.insp.find(x=>x.id===row.actualAuditId);
-      if(rec)return rec.loc||"";
+      if(rec&&rec.loc)return rec.loc;
     }
     // 「實際檢查日」如果是手動輸入日期（不是從清單裡點選），系統當初沒有記住要連結哪一筆
     // 檢查紀錄，這裡改用「船名＋日期」做備援配對，才抓得到後來補填的地點。
     if(row.actualAuditDate){
-      const recs=this.auditRecordsFor(row.ship).filter(r=>r.date===row.actualAuditDate);
-      if(recs.length)return recs[recs.length-1].loc||"";
+      const recs=this.auditRecordsFor(row.ship).filter(r=>r.date===row.actualAuditDate&&r.loc);
+      if(recs.length)return recs[recs.length-1].loc;
     }
-    return "";
+    // 沒有對應的檢查紀錄（例如 2024 年的內稽當年沒建檢查紀錄）時，改用這一輪自己記的港口
+    // （2026/10 依《船隊內稽計畫、安排、缺失紀錄》Excel 的 Planned Audit Port 補登）。
+    return row.actualPort||"";
   },
   lastNRecords(ship,n){ // 最新在前
     return this.auditRecordsFor(ship).slice(-(n||3)).reverse();

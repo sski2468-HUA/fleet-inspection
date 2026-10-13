@@ -1819,7 +1819,7 @@ function renderDownloadTab(){
       <span class="hint">下載／發改善單／送出前，建議先在這裡完整核對一次內容</span>
     </div>
     ${previewOpen?`<div style="margin-bottom:16px">${recordPreviewHtml(cur)}</div>`:""}
-    <div class="banner">請依照下面的順序操作：<b>① 先送出海技入系統 → ② 再發改善單給船 → ③ 把完整檢查報告提供一份給海技</b>；下載內控 JSON 是選用。<br>
+    <div class="banner">請依照下面的順序操作：<b>① 先送出海技入系統 → ② 再發改善單給船 → ③ 下載完整檢查報告自行留存</b>，三步都做完後按右下角「✓ 完成」；下載內控 JSON 是選用。<br>
       這張單要先確定正式送出、海技看得到了，才讓船上開始填改善單，避免船上填的內容對應到一張還沒送出的草稿。</div>
     <div style="display:flex;flex-direction:column;gap:14px;max-width:720px;margin-top:4px">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -1835,10 +1835,10 @@ function renderDownloadTab(){
       <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:12px 14px;border:2px solid var(--signal);border-radius:10px;background:#fff7ee">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--signal);color:#fff;font-weight:700;font-size:13px;flex:none">3</span>
         <div style="flex:1;min-width:260px">
-          <div style="font-weight:800;color:#a8570f;font-size:15px">📎 最後一步：請把「完整的檢查報告」也提供一份給海技</div>
-          <div class="hint" style="margin:4px 0 8px;color:var(--ink-2)">下載下面的完整報告 WORD（含照片、每筆缺失獨立一頁），<b>另外 mail 或轉給海技</b>留存；系統裡的資料不含完整報告檔案。</div>
+          <div style="font-weight:800;color:#a8570f;font-size:15px">📎 最後一步：下載「完整的檢查報告」自行留存</div>
+          <div class="hint" style="margin:4px 0 8px;color:var(--ink-2)">下載下面的完整報告 WORD（含照片、每筆缺失獨立一頁），<b>由督導自行存檔留存</b>，不需要再寄給海技；系統裡的資料不含完整報告檔案。</div>
           <button class="btn lg" style="padding:9px 20px;font-size:15px" onclick="dlWordInTab()">⬇ 下載完整報告 WORD</button>
-          <span class="hint" style="margin-left:8px">${cur.wordDlAt?`<b style="color:var(--ok)">✓ ${esc(cur.wordDlBy||cur.inspector||"")} 已於 ${fmtT(cur.wordDlAt)} 下載；別忘了再轉給海技</b>`:`<b style="color:var(--bad)">尚未下載</b>`}</span>
+          <span class="hint" style="margin-left:8px">${cur.wordDlAt?`<b style="color:var(--ok)">✓ ${esc(cur.wordDlBy||cur.inspector||"")} 已於 ${fmtT(cur.wordDlAt)} 下載</b>`:`<b style="color:var(--bad)">尚未下載</b>`}</span>
         </div>
       </div>
       <div style="padding-top:12px;border-top:1px dashed var(--line-2)">
@@ -1945,11 +1945,33 @@ async function nextSec(){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function handlePrimaryAction(){
-  if(secTab==="download")submitForm();
+  if(secTab==="download")finishForm();
   else nextSec();
 }
+/* ⑥頁右上／右下的「✓ 完成」：①送出海技入系統 ②發改善單 ③下載完整報告 都在頁面裡各自按，
+   這顆只負責收尾——確認已送出（送出後又改過就先自動重新送出），提醒還沒做的步驟，
+   然後告知「此單已完成」並回到檢查紀錄登錄清單。 */
+async function finishForm(){
+  if(!cur)return;
+  collect();
+  if(cur.draft!==false){
+    alert("這張單還沒「送出海技入系統」。\n請先按步驟 ①「🚀 送出海技入系統」，送出後再按「✓ 完成」。");
+    return;
+  }
+  if(hasUnsavedChanges()){
+    if(!confirm("送出後又有修改，按「確定」會先重新送出（更新內容）再完成。"))return;
+    const sent=await submitForm();if(!sent)return;
+  }
+  const nIssue=cur.defs.filter(d=>d.closeMode!=="FLOW").length;
+  const todo=[];
+  if(nIssue&&!cur.issuedAt)todo.push(`② 還沒「發改善單給船」（有 ${nIssue} 項待改善）`);
+  if(!cur.wordDlAt)todo.push("③ 還沒「下載完整報告 WORD」留存");
+  if(todo.length&&!confirm("還有步驟沒做：\n\n"+todo.join("\n")+"\n\n仍要完成這張單嗎？（按「取消」回去補做）"))return;
+  alert("✅ 此單已完成");
+  showList();
+}
 function updatePrimaryBtns(){
-  const isLast=secTab==="download",label=isLast?"🚀 送出海技入系統":"儲存並前往下一步 →";
+  const isLast=secTab==="download",label=isLast?"✓ 完成":"儲存並前往下一步 →";
   [$("#btnPrimaryTop"),$("#btnPrimaryBottom")].forEach(b=>{if(!b)return;b.textContent=label;b.classList.toggle("nav",!isLast);});
 }
 function openForm(sec){
@@ -2828,7 +2850,7 @@ async function submitForm(){
   const nIssue=cur.defs.filter(d=>d.closeMode!=="FLOW").length;
   saveDone(`✅ 已送出！共 ${cur.defs.length} 筆缺失${nIssue?`，接著請在這一頁發改善單給船上`:""}`);
   hideSaving(1400);
-  toast(`✓ 已送出（共 ${cur.defs.length} 筆缺失）。別忘了：發改善單給船，並把「完整檢查報告 WORD」也提供一份給海技`);
+  toast(`✓ 已送出（共 ${cur.defs.length} 筆缺失）。接著：發改善單給船、下載完整檢查報告 WORD 自行留存，最後按「✓ 完成」`);
   // 流程是「先送出 → 再發改善單」：送出成功後留在⑥頁並解鎖「發改善單給船」，
   // 不要直接跳回清單，讓督導還得自己再找路回來發改善單。
   cur.draft=false;
