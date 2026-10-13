@@ -2427,16 +2427,27 @@ function renderBatch(){
   updateBatchCount();
 }
 function confirmBatch(){
+  if(!batch){toast("⚠ 批量視窗已關閉，請重新開啟「批量新增」",true);return;}
   const rows=batch.rows.filter(batchFilled);
   if(!rows.length){toast("⚠ 還沒有填任何一列",true);return;}
   const type=batch.type;let missing=0;
-  rows.forEach(r=>{
-    if(!r.category||!r.risk||!r.reported||!r.finding||!r.closeMode)missing++;
-    const d=blankDef(type);d.topic=r.topic;d.topicOther=r.topicOther||"";d.photos=r.photos||[];d.category=r.category.trim();d.risk=r.risk;d.reported=r.reported;d.finding=r.finding.trim();d.closeMode=r.closeMode;
-    if(r.closeMode==="內控")d.icLevel=r.risk||"";
-    cur.defs.push(d);
-  });
+  try{
+    rows.forEach(r=>{
+      if(!r.category||!r.risk||!r.reported||!r.finding||!r.closeMode)missing++;
+      const d=blankDef(type);d.topic=r.topic||"";d.topicOther=r.topicOther||"";d.photos=r.photos||[];d.category=String(r.category||"").trim();d.risk=r.risk||"";d.reported=r.reported||"";d.finding=String(r.finding||"").trim();d.closeMode=r.closeMode||"";
+      if(r.closeMode==="內控")d.icLevel=r.risk||"";
+      cur.defs.push(d);
+    });
+  }catch(e){
+    console.error("confirmBatch",e);
+    alert("加入缺失明細時發生錯誤，這批缺失沒有加入，請截圖給海技：\n"+(e&&e.message||e));
+    return;
+  }
+  // ⚠ 缺失清單上方如果正套用「結案方式篩選」（例如只看「尚未選擇」），新加入的缺失會被篩掉、
+  // 畫面看起來像沒有加入（督導回報過）——加入後一律回到「全部列表」，並捲到清單讓人看到剛加入的內容。
+  activeTab=type;defFilter="";
   closeBatch();defOpen=[];renderDefs();updateCounts();
+  const lst=$("#defList");if(lst&&lst.scrollIntoView)lst.scrollIntoView({behavior:"smooth",block:"start"});
   const nIc=rows.filter(r=>r.closeMode==="內控").length;
   toast(`✓ 已加入 ${rows.length} 筆缺失`+(missing?`；其中 ${missing} 筆還有必填欄位沒填，送出前會提醒`:"")+(nIc?`；${nIc} 筆「內控」記得補內控欄位`:""));
 }
