@@ -1246,6 +1246,14 @@ table.ap-tbl tbody tr:hover td:first-child{background:#f3f8fa}
 
 /* 多選下拉 */
 .msel{position:relative;display:inline-block}
+/* 「目前篩選中」摘要列（FilterSummary） */
+.filter-summary{display:none;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;padding:7px 10px;background:#fff7e6;border:1.5px solid var(--warn);border-radius:6px;font-size:12.5px}
+.filter-summary .fs-title{font-weight:700;color:#8a5a00;margin-right:2px}
+.filter-summary .fs-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 4px 2px 8px;background:#fff;border:1px solid #e6c27a;border-radius:12px;max-width:420px}
+.filter-summary .fs-k{color:#8a5a00;font-weight:700}
+.filter-summary .fs-k::after{content:"："}
+.filter-summary .fs-chip button{border:0;background:#f3e3bf;color:#6b4a00;border-radius:50%;width:18px;height:18px;line-height:18px;padding:0;font-size:10px;cursor:pointer;flex:none}
+.filter-summary .fs-chip button:hover{background:var(--bad);color:#fff}
 .msel>button{border:1px solid var(--line-2);background:#fff;border-radius:4px;padding:7px 10px;font-size:13px;cursor:pointer;display:flex;gap:6px;align-items:center;font-family:var(--sans)}
 .msel>button .cnt{background:var(--signal);color:#fff;border-radius:8px;font-size:10.5px;padding:0 6px;font-family:var(--mono);font-weight:700}
 .msel>button .car{font-size:9px;color:var(--ink-3)}
@@ -2444,6 +2452,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       </div>
       <div id="ov-adv-filter-chips" class="toolbar" style="margin-top:6px;display:none"></div>
       <div id="ov-months" class="ov-months" style="margin-top:6px"></div>
+      <div id="ov-filter-summary" class="filter-summary"></div>
 
       <div class="toolbar" style="margin:0 0 12px">
         <button type="button" class="btn lg df-tabbtn active" data-t="summary" onclick="Ov.setSubTab('summary')">📊 檢查紀錄一覽表</button>
@@ -3291,6 +3300,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         </div>
       </div>
       <div class="toolbar" id="adv-filter-chips" style="flex-basis:100%;margin-top:6px;display:none"></div>
+      <div id="f-filter-summary" class="filter-summary" style="margin-bottom:8px"></div>
       <div class="toolbar" style="margin-bottom:0">
         <button class="btn sm df-tabbtn active" data-p="view" onclick="Defs.setSubTab('view')">👁 查看模式</button>
         <button class="btn sm df-tabbtn" data-p="list" onclick="Defs.setSubTab('list')">📋 列表模式1</button>
@@ -8652,12 +8662,24 @@ function intAuditTopicBreakdown(r){
 /* ════════ 檢查類型(icat) ←→ 檢查來源(itype) 對應 ════════ */
 const ICAT_LIST=["PSC","第三方檢查","公司","業界案例","專項檢查"];
 /* 固定可選的檢查來源選項(即使尚無歷史資料亦可於新增/編輯/批量新增時選用) */
-const ITYPE_EXTRA_OPTS=["The MCC Group","Cross Ship Visit"];
+const ITYPE_EXTRA_OPTS=["The MCC Group","Cross ship visit"]; // 寫法要跟資料／內稽系統一致（Cross ship visit），否則選單會多一個大小寫不同的選項
 /* 「線上填單」外部頁面用的乾淨官方清單基礎（不像 itypeOptions() 會把歷史上打過的各種
    大小寫/錯字寫法也混進來）；加上「篩選清單管理」後台新增的 extras，就是要發布給外部
    頁面的完整官方清單。 */
 const ITYPE_OFFICIAL_BASE=["SIRE","CDI","RightShip","FLAG","Internal audit","onboard visit","PSC","LRIT","IHM",...ITYPE_EXTRA_OPTS];
-function withItypeExtras(arr){return [...new Set([...(arr||[]),...ITYPE_EXTRA_OPTS,...(typeof TagLists!=="undefined"?TagLists.extrasFor("itype"):[])])].filter(Boolean).sort();}
+/* 只差大小寫／空白的寫法（例：Cross Ship Visit vs Cross ship visit、ISPS AUDIT vs ISPS Audit）
+   是同一種檢查，選單只留一個：取資料裡出現最多次的寫法，同次數取先出現的。 */
+function uniqCaseless(arr){
+  const pick=new Map(),cnt=new Map(),order=[];
+  (arr||[]).forEach(v=>{
+    const s=String(v==null?"":v).trim();if(!s)return;
+    const k=s.toLowerCase().replace(/\s+/g," ");
+    if(!pick.has(k)){pick.set(k,new Map());order.push(k);}
+    const m=pick.get(k);m.set(s,(m.get(s)||0)+1);
+  });
+  return order.map(k=>{let best="",n=-1;pick.get(k).forEach((c,s)=>{if(c>n){best=s;n=c;}});return best;});
+}
+function withItypeExtras(arr){return uniqCaseless([...(arr||[]),...ITYPE_EXTRA_OPTS,...(typeof TagLists!=="undefined"?TagLists.extrasFor("itype"):[])]).sort();}
 function icatOf(itype){
   const s=String(itype||"").trim().toLowerCase();
   if(!s)return "";
@@ -10121,7 +10143,7 @@ function MSel(elId,label,getOptions,onChange,getLabel){
     // 「沒有畫面、但資料邏輯正常」的替代物件：沒選任何條件＝全部放行，等真的
     // 切換到那個分頁時，該分頁自己的 init()/render() 會再呼叫一次 MSel() 正常建立。
     return {get sel(){return st.sel;},clear(){st.sel.clear();},pass(v){return st.sel.size===0||st.sel.has(v);},
-      set(arr){st.sel=new Set(arr);},refresh(){}};
+      set(arr){st.sel=new Set(arr);},refresh(){},label,fmt:lbl};
   }
   function btnHtml(){return `<button type="button">${label}${st.sel.size?` <span class="cnt">${st.sel.size}</span>`:""} <span class="car">▼</span></button><div class="panel"></div>`;}
   function renderPanel(){
@@ -10190,8 +10212,34 @@ function MSel(elId,label,getOptions,onChange,getLabel){
     root.classList.remove("open");
   },true);
   return {get sel(){return st.sel;},clear(){st.sel.clear();refreshBtn();},pass(v){return st.sel.size===0||st.sel.has(v);},
-    set(arr){st.sel=new Set(arr);refreshBtn();},refresh(){refreshBtn();}};
+    set(arr){st.sel=new Set(arr);refreshBtn();},refresh(){refreshBtn();},label,fmt:lbl};
 }
+
+/* ════════ 「目前篩選中」摘要列（共用） ════════
+   篩選按鈕只顯示勾了幾項（例如「船型 1」），看不出到底選了什麼。各頁在篩選列下方放一個
+   <div id="xx-filter-summary" class="filter-summary">，render 時呼叫 FilterSummary.render(...)，
+   就會白話列出每個生效中的條件，每個條件可按 ✕ 單獨取消，右邊有「清除全部」。沒有條件時整條隱藏。
+   items：[{label:"船型",text:"bulk",clear:()=>{…}}]；MSel 篩選器可用 FilterSummary.fromMs() 自動轉。 */
+const FilterSummary={
+  _cb:{},
+  fromMs(msMap,after){
+    return Object.values(msMap||{}).filter(m=>m&&m.sel&&m.sel.size&&m.label).map(m=>{
+      const vals=[...m.sel].map(v=>String((m.fmt?m.fmt(v):v)||"(空白)"));
+      const text=vals.length>4?vals.slice(0,4).join("、")+` 等 ${vals.length} 項`:vals.join("、");
+      return {label:m.label,text,title:vals.join("、"),clear:()=>{m.clear();after&&after();}};
+    });
+  },
+  render(boxId,items,clearAllJs){
+    const box=document.getElementById(boxId);if(!box)return;
+    this._cb[boxId]=items;
+    if(!items.length){box.style.display="none";box.innerHTML="";return;}
+    box.style.display="flex";
+    box.innerHTML=`<span class="fs-title">🔍 目前篩選中</span>`+
+      items.map((it,i)=>`<span class="fs-chip" title="${esc(it.title||it.text)}"><span class="fs-k">${esc(it.label)}</span>${esc(it.text)}<button type="button" onclick="FilterSummary.remove('${boxId}',${i})" title="取消這個條件">✕</button></span>`).join("")+
+      `<span style="flex:1"></span><button class="btn sm" onclick="${clearAllJs}">✕ 清除全部篩選</button>`;
+  },
+  remove(boxId,i){const it=(this._cb[boxId]||[])[i];if(it&&it.clear)it.clear();}
+};
 
 /* 單選篩選器：點擊開啟後輸入關鍵字篩選既有清單，點選一項即選定並關閉；亦可直接輸入自訂文字後按 Enter */
 function SSel(elId,getOptions,placeholder,onPick){
@@ -10794,7 +10842,20 @@ const Ov={
       </div>`;
     }).join("");
     $("#ov-period").textContent=this.periodLabel()+" · "+rows.length+" 筆檢查";
+    this.renderFilterSummary();
     this.renderTable(rows);
+  },
+  /* 目前篩選中：把關鍵字、區間年月、內外部、期間、各下拉篩選白話列出來，每項可單獨取消 */
+  renderFilterSummary(){
+    const items=[],re=()=>this.render();
+    const kwEl=$("#ov-kw"),kw=kwEl?kwEl.value.trim():"";
+    if(kw)items.push({label:"關鍵字",text:`「${kw}」`,clear:()=>{kwEl.value="";re();}});
+    const f=$("#ov-ymfrom"),t=$("#ov-ymto"),fv=f?f.value:"",tv=t?t.value:"";
+    if(fv||tv)items.push({label:"區間年月",text:`${fv||"不限"} ～ ${tv||"不限"}`,clear:()=>{if(f)f.value="";if(t)t.value="";re();}});
+    if(this.scope!=="all")items.push({label:"範圍",text:this.scope==="ext"?"外部檢查":"內部檢查",clear:()=>{const sc=$("#ov-scope");this.setScope("all",sc?sc.children[0]:document.createElement("span"));}});
+    if(this.sel.size)items.push({label:"期間",text:this.periodLabel(),title:[...this.sel].sort().join("、"),clear:()=>{this.sel.clear();re();}});
+    items.push(...FilterSummary.fromMs(this.ms,re));
+    FilterSummary.render("ov-filter-summary",items,"Ov.clearFilters()");
   },
   /* ── 檢查紀錄明細表 ── */
   sortKey:"date",sortAsc:false,page:1,PER:50,editIdx:null,
@@ -14752,10 +14813,24 @@ const Defs={
     const opts="<option value=''>不限</option>"+yms.map(m=>`<option value="${m}">${m}</option>`).join("");
     s1.innerHTML=opts;s2.innerHTML=opts;
   },
-  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());$("#f-kw").value="";$("#f-ymfrom").value="";$("#f-ymto").value="";if($("#f-hasphoto"))$("#f-hasphoto").value="";if(typeof DefsAdvFilter!=="undefined")DefsAdvFilter.clearAll(true);this.page=1;this.render();},
+  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());$("#f-kw").value="";$("#f-ymfrom").value="";$("#f-ymto").value="";if($("#f-hasphoto"))$("#f-hasphoto").value="";if($("#f-attn"))$("#f-attn").checked=false;if(typeof DefsGrid!=="undefined")DefsGrid.onlyMiss=false;if(typeof DefsAdvFilter!=="undefined")DefsAdvFilter.clearAll(true);this.page=1;this.render();},
+  /* 目前篩選中：每次套用篩選（filtered）時一起更新，所以查看／列表／責任人等各分頁都會同步 */
+  renderFilterSummary(){
+    const items=[],re=()=>{this.page=1;this.render();};
+    const kwEl=$("#f-kw"),kw=kwEl?kwEl.value.trim():"";
+    if(kw)items.push({label:"關鍵字",text:`「${kw}」`,clear:()=>{kwEl.value="";re();}});
+    const f=$("#f-ymfrom"),t=$("#f-ymto"),fv=f?f.value:"",tv=t?t.value:"";
+    if(fv||tv)items.push({label:"區間年月",text:`${fv||"不限"} ～ ${tv||"不限"}`,clear:()=>{if(f)f.value="";if(t)t.value="";re();}});
+    items.push(...FilterSummary.fromMs(this.ms,re));
+    const hp=$("#f-hasphoto");if(hp&&hp.value)items.push({label:"照片",text:hp.value==="yes"?"有照片":"無照片",clear:()=>{hp.value="";re();}});
+    const at=$("#f-attn");if(at&&at.checked)items.push({label:"須注意",text:"僅🆕新缺失",clear:()=>{at.checked=false;re();}});
+    if(typeof DefsGrid!=="undefined"&&DefsGrid.onlyMiss)items.push({label:"分類",text:"只看未分類",clear:()=>{DefsGrid.onlyMiss=false;re();}});
+    FilterSummary.render("f-filter-summary",items,"Defs.clearFilters()");
+  },
   filtered(){
     ncPruneCascade(this.ms.ncprob,this.ms.ncmain,this.ms.ncleaf);
     this.populateYm();
+    try{this.renderFilterSummary();}catch(e){console.warn("filter summary",e);}
     const kw=$("#f-kw").value.trim().toLowerCase();
     const terms=kw?kw.split(/\s+/):[];
     const fromYm=$("#f-ymfrom").value,toYm=$("#f-ymto").value;
@@ -27725,6 +27800,11 @@ const TagLists={
         });
       });
     }else{
+      if(key==="itype"){ // 檢查來源：只差大小寫的寫法合併成一個（依資料出現次數決定留哪個寫法）
+        const all=[];
+        f.sources.forEach(([arrName,field])=>{(arrName==="defs"?App.defs:App.insp).forEach(r=>{if(r[field])all.push(String(r[field]));});});
+        return uniqCaseless([...all,...this.extrasFor(key)]).sort();
+      }
       f.sources.forEach(([arrName,field])=>{
         (arrName==="defs"?App.defs:App.insp).forEach(r=>{if(r[field])vals.add(String(r[field]));});
       });
@@ -27847,7 +27927,10 @@ const TagLists={
     try{Defs.render&&Defs.render();}catch(e){}
     try{Ov.render&&Ov.render();}catch(e){}
   },
-  withExtras(key,arr){return [...new Set([...(arr||[]),...this.extrasFor(key)])].filter(Boolean).sort();}
+  withExtras(key,arr){
+    if(key==="itype")return uniqCaseless([...(arr||[]),...this.extrasFor(key)]).sort(); // 檢查來源只差大小寫視為同一個
+    return [...new Set([...(arr||[]),...this.extrasFor(key)])].filter(Boolean).sort();
+  }
 };
 
 /* ════════ 資料管理頁面切換(操作者/維護者) ════════ */
