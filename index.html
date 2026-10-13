@@ -2977,7 +2977,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <button class="btn primary" id="air-tab-list-btn" onclick="Air.showList()">📋 返回清單</button>
         <button class="btn" id="air-tab-followup-btn" onclick="Air.showFollowUpList()">🔖 Follow Up</button>
         <button class="btn dark" id="air-tab-cloudqueue-btn" onclick="AirQueue.open()">☁ 線上填單審核佇列<span id="air-cq-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:5px"></span></button>
-        <button class="btn" onclick="Air.openIntakeSite()">🔗 前往線上填單網站</button>
+        <button class="btn" onclick="Air.openIntakeSite()">🔗 外部檢查線上填單(船上用)</button>
         <button class="btn" id="air-tab-new-btn" onclick="Air.newForm()" style="display:none">＋ 新增填單</button>
       </div>
 
@@ -5502,9 +5502,40 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="mb">
       <p class="hint" style="margin-bottom:10px">請選擇要進行的操作：</p>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <div class="air-export-row" onclick="Air.closeNewOrImportModal();Air.openIntakeSite()"><button class="btn primary air-export-row-btn" tabindex="-1">🔗 前往線上<br>填單網站</button><div class="hint air-export-row-desc">岸上／船上都統一在外部網站填寫缺失明細，不在系統內手動新建</div></div>
+        <div class="air-export-row" onclick="Air.closeNewOrImportModal();Air.openIntakeSite()"><button class="btn primary air-export-row-btn" tabindex="-1">🔗 外部檢查線上<br>填單(船上用)</button><div class="hint air-export-row-desc">有缺失的檢查，一律由船上在外部網站填寫缺失明細，不在系統內手動新建</div></div>
         <div class="air-export-row" onclick="Air.closeNewOrImportModal();Air.importFile()"><button class="btn dark air-export-row-btn" tabindex="-1">⬆ 匯入 Excel／<br>Word／JSON<br><span style="font-weight:400">（維護者）</span></button><div class="hint air-export-row-desc">船上填妥 Excel、Word 範本或匯出草稿存檔（.json，含照片）後，批次匯入多筆；三種格式皆可</div></div>
+        <div class="air-export-row" onclick="Air.closeNewOrImportModal();Air.openQuick()"><button class="btn air-export-row-btn" tabindex="-1" style="background:#2e7d4f;border-color:#2e7d4f;color:#fff">⚡ 快速新增<br><span style="font-weight:400">（海技・零缺失）</span></button><div class="hint air-export-row-desc">檢查<b>沒有缺失</b>、船上也沒有回填線上填單時，海技人員可在這裡直接建一筆零缺失的填單（可同時轉入檢查紀錄）。<b>有缺失的請改走線上填單。</b></div></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- 填單清單：快速新增（海技人員用，僅限零缺失） -->
+<div class="modal-bg" id="airQuickModal">
+  <div class="modal" style="max-width:640px">
+    <div class="mh"><h3>⚡ 快速新增（海技・零缺失）</h3><button class="x" onclick="Air.closeQuick()">✕</button></div>
+    <div class="mb">
+      <p class="hint" style="margin:0 0 10px;padding:8px 10px;background:#fff7e6;border:1px solid #e6c27a;border-radius:6px;line-height:1.6">
+        只給<b>沒有缺失</b>、船上也沒有回填線上填單的檢查使用，建立後缺失數固定為 0。<b>只要有任何缺失，請改請船上走「外部檢查線上填單(船上用)」。</b></p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px">
+        <label class="fld">船名 *<select id="aq-ship" onchange="const v=vtypeOfShip(this.value);if(v)$('#aq-vtype').value=v"></select></label>
+        <label class="fld">船型<select id="aq-vtype"><option>tanker</option><option>bulk</option><option>other</option></select></label>
+        <label class="fld">檢查來源 *<select id="aq-itype" onchange="Air.quickItypeChange()"></select></label>
+        <label class="fld">檢查日期 *<input type="text" id="aq-date" placeholder="2026/6/12" autocomplete="off"></label>
+        <label class="fld" style="position:relative">檢查地點<input type="text" id="aq-place" placeholder="Port, Country" autocomplete="off"></label>
+        <label class="fld">檢查員<input type="text" id="aq-inspector" list="dl-inspectors" autocomplete="off"></label>
+        <label class="fld">檢查單位／油公司<input type="text" id="aq-oilco" list="dl-units" autocomplete="off"></label>
+        <label class="fld">正面評論數<input type="number" id="aq-npos" min="0" value="0"></label>
+        <div class="fld" id="aq-flag-wrap" style="grid-column:1/-1;display:none">FLAG項目（檢查來源為 FLAG 時必填，可多選）<div id="aq-flag-box" style="display:flex;flex-wrap:wrap;gap:10px;border:1px solid var(--line);border-radius:6px;padding:8px;background:#fafbfb"></div></div>
+      </div>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px;font-size:13px">
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="aq-confirm"> <b>我確認這次檢查沒有任何缺失（缺失數 0）</b></label>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="aq-toinsp" checked> 建立後同時轉入「檢查紀錄」</label>
+      </div>
+    </div>
+    <div class="mf" style="display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--line)">
+      <button class="btn" onclick="Air.closeQuick()">取消</button>
+      <button class="btn primary" onclick="Air.saveQuick()">✓ 建立零缺失填單</button>
     </div>
   </div>
 </div>
@@ -23477,6 +23508,7 @@ const Air={
     if(d.importSource==="json")return wrap("JSON匯入");
     if(d.importSource==="queue")return wrap("線上填單轉入");
     if(d.importSource==="manual")return wrap("手動新增");
+    if(d.importSource==="quick")return wrap("海技快速新增（零缺失）");
     // 早期（這個欄位上線前）建立的舊資料沒有 importSource，退回只顯示建立者姓名／時間，不誤判成任何一種來源。
     return [who,when].filter(Boolean).join(" · ");
   },
@@ -23602,6 +23634,76 @@ const Air={
   closePushModal(){$("#airPushModal").classList.remove("show");},
   openNewOrImportModal(){$("#airNewOrImportModal").classList.add("show");},
   closeNewOrImportModal(){$("#airNewOrImportModal").classList.remove("show");},
+  /* ══ 快速新增（海技人員用，僅限零缺失）══
+     船上檢查沒有缺失、也沒回填線上填單時，海技人員在這裡直接建一筆零缺失的填單，可同時轉入檢查紀錄。
+     有缺失的一律要走外部檢查線上填單，所以這裡缺失數固定為 0，且必須勾選「確認沒有缺失」才能送出。 */
+  openQuick(){
+    if(typeof Role==="undefined"||!Role.isAdmin()){toast("⚠ 快速新增僅限海技人員（維護者）操作");return;}
+    $("#aq-ship").innerHTML=shipOptionsHtml("");
+    $("#aq-vtype").value=vtypeOfShip($("#aq-ship").value)||"tanker";
+    const types=withItypeExtras(App.insp.map(x=>x.itype).concat(App.defs.map(x=>x.itype)));
+    $("#aq-itype").innerHTML=types.map(s=>`<option>${esc(s)}</option>`).join("");
+    $("#aq-date").value=todayStr().replace(/-/g,"/");
+    ["aq-place","aq-inspector","aq-oilco"].forEach(id=>{$("#"+id).value="";});
+    $("#aq-npos").value="0";$("#aq-confirm").checked=false;$("#aq-toinsp").checked=true;
+    bindPortInput("aq-place");bindDatePicker($("#aq-date"));
+    this.quickItypeChange();
+    $("#airQuickModal").classList.add("show");
+  },
+  closeQuick(){$("#airQuickModal").classList.remove("show");},
+  quickItypeChange(){
+    const isFlag=$("#aq-itype").value==="FLAG";
+    $("#aq-flag-wrap").style.display=isFlag?"":"none";
+    if(isFlag&&!$("#aq-flag-box").innerHTML)$("#aq-flag-box").innerHTML=flagBoxHtml("","aq-flag");
+  },
+  saveQuick(){
+    if(typeof Role==="undefined"||!Role.isAdmin()){toast("⚠ 快速新增僅限海技人員（維護者）操作");return;}
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("airReviews"))return;
+    const ship=$("#aq-ship").value.trim(),itype=$("#aq-itype").value,date=normDateSlash($("#aq-date").value.trim());
+    const place=$("#aq-place").value.trim(),inspector=$("#aq-inspector").value.trim(),oilco=$("#aq-oilco").value.trim();
+    const npos=Math.max(0,+$("#aq-npos").value||0);
+    const flagType=itype==="FLAG"?flagBoxRead("aq-flag"):"";
+    if(!ship){toast("⚠ 請選擇船名");return;}
+    if(!itype){toast("⚠ 請選擇檢查來源");return;}
+    if(!date||!/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(date)){toast("⚠ 請填寫正確的檢查日期（例：2026/6/12）");return;}
+    if(place&&typeof isValidPort==="function"&&!isValidPort(place)){toast("⚠ 檢查地點須為「港口, 國家」格式");return;}
+    if(itype==="FLAG"&&!flagType){toast("⚠ 檢查來源為 FLAG 時，請至少勾選一項 FLAG項目");return;}
+    if(!$("#aq-confirm").checked){toast("⚠ 請先勾選「我確認這次檢查沒有任何缺失」；有缺失請改走線上填單");return;}
+    const sameKey=x=>x.ship===ship&&normDateSlash(x.date)===date&&String(x.itype||"").trim().toLowerCase()===itype.trim().toLowerCase();
+    // 同一次檢查已經有填單 → 提醒，避免重複建單
+    const dupAir=App.air.find(sameKey);
+    if(dupAir&&!confirm(`${shipFullLabel(ship)} ${date} ${itype} 已經有一筆填單（#${dupAir.id}，缺失 ${dupAir.ndef||0} 筆）。\n確定還要再建一筆零缺失填單？`))return;
+    // 檢查紀錄已經有這次檢查：有缺失的不允許用快速新增；零缺失／空白的直接連過去，不重複建立
+    const exInsp=App.insp.filter(sameKey);
+    const exWithDef=exInsp.find(x=>(+x.ndef||0)>0);
+    if(exWithDef){alert(`檢查紀錄裡這次檢查（${shipFullLabel(ship)} ${date} ${itype}）已登記 ${exWithDef.ndef} 筆缺失，不能用快速新增建立零缺失填單。\n有缺失的請改走「外部檢查線上填單(船上用)」。`);return;}
+    const toInsp=$("#aq-toinsp").checked;
+    const by=(typeof Audit!=="undefined")?Audit.user():"";
+    const rec={ship,vtype:$("#aq-vtype").value,itype,date,place,oilco,inspector,ndef:0,npos,flagType,
+      defects:[],posComments:[],
+      id:this.nextId(),createdAt:Date.now(),createdBy:by,importSource:"quick",
+      usedInsp:false,usedDef:false,usedPos:false};
+    let inspMsg="";
+    if(toInsp){
+      const payload={ship,vtype:rec.vtype,itype,date,loc:place,inspector,unit:oilco,ndef:0,npos,flagType,_impAt:Date.now(),_impBy:by};
+      if(exInsp.length){
+        const ex=exInsp[0];
+        if(String(ex.ndef??"").trim()==="")ex.ndef=0;
+        ["loc","inspector","unit","flagType"].forEach(k=>{if(!ex[k]&&payload[k])ex[k]=payload[k];});
+        rec.pushedInspId=ex.id;inspMsg=`，已連結到既有檢查紀錄 #${ex.id}`;
+      }else{
+        const nid=App.nextInspId();App.insp.push({id:nid,...payload,detain:""});rec.pushedInspId=nid;inspMsg="，並已轉入檢查紀錄";
+      }
+      rec.usedInsp=true;
+    }
+    App.air.push(rec);
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("新增","AIR",`快速新增（零缺失）${ship} ${date} ${itype}${toInsp?"＋轉入檢查紀錄":""}`);
+    this.closeQuick();
+    if(this.renderList)this.renderList();
+    if(toInsp&&typeof Ov!=="undefined"&&Ov.render)try{Ov.render();}catch(e){}
+    toast(`✓ 已建立零缺失填單${inspMsg}`);
+  },
   openExportPickModal(id){
     this._exportId=id||null;
     const single=$("#air-export-single-only");if(single)single.style.display=id?"":"none";
