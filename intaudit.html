@@ -128,7 +128,7 @@ header p{margin:5px 0 0;font-size:14px;color:#b9c8d6;line-height:1.6}
 .yrt td.n{text-align:center;font-family:var(--mono);font-size:11.5px}
 .ye{display:block;border-radius:4px;padding:1px 3px;margin:1px 0;font-size:11px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ye b{margin-right:3px}
-.ye.ia{background:#efe6f7;color:#5b3290}.ye.ov{background:#e4f1f2;color:#176670}.ye.ac{background:#fdeed9;color:#9a520c}.ye.is{background:#e8edf3;color:#34506e}
+.ye.ia{background:#efe6f7;color:#5b3290}.ye.ov{background:#e4f1f2;color:#176670}.ye.ac{background:#fdeed9;color:#9a520c}.ye.cv{background:#e3f2e6;color:#2e6b3a}.ye.is{background:#e8edf3;color:#34506e}
 .ye.pend{background:#fff!important;border:1.5px dashed currentColor}
 .yrt tr.noia td.sh{box-shadow:inset 4px 0 0 #c0392b}
 input[type=text],input[type=date],select,textarea{padding:9px 11px;border:1px solid var(--line-2);border-radius:7px;font-size:16px;font-family:var(--sans);width:100%;background:#fff}
@@ -786,7 +786,9 @@ function showList(){
 let listView="cards";
 const stSel={ship:new Set(),src:new Set(),insp:new Set()};
 /* ══ 年度檢查一覽：所有船 × 1～12 月，列出主系統檢查紀錄裡的內稽／訪船／隨船（＋可選 ISPS），誰做的、哪天做的。唯讀。 ══ */
-const YR_TYPES=[{k:"ia",t:"內稽",m:/^internal audit$/i,def:true},{k:"ov",t:"訪船",m:/^onboard visit$/i,def:true},{k:"ac",t:"隨船",m:/^accompanying ship$/i,def:true},{k:"is",t:"ISPS",m:/^isps audit$/i,def:false}];
+// s：月份格子裡顯示的簡稱（格子窄），h：右側次數欄的欄名；沒設就用 t
+const YR_TYPES=[{k:"ia",t:"內稽",m:/^internal audit$/i,def:true},{k:"ov",t:"訪船",m:/^onboard visit$/i,def:true},{k:"ac",t:"隨船",m:/^accompanying ship$/i,def:true},{k:"cv",t:"交叉訪船",s:"交叉",h:"交",m:/^cross ship visit$/i,def:true},{k:"is",t:"ISPS",h:"ISPS",m:/^isps audit$/i,def:false}];
+const YR_COLOR={ia:"#5b3290",ov:"#176670",ac:"#9a520c",cv:"#2e6b3a",is:"#34506e"};
 const yrOn=new Set(YR_TYPES.filter(x=>x.def).map(x=>x.k));
 let YR_DATA=null,YR_LOADING=false;
 const yrKind=it=>{const s=String(it||"").trim();const x=YR_TYPES.find(t=>t.m.test(s));return x?x.k:"";};
@@ -825,7 +827,7 @@ function renderYearView(){
   const vsel=$("#yrVtype"),cv=vsel.value;vsel.innerHTML='<option value="">全部船型</option>'+[...new Set(SHIPS.map(s=>s.type1).filter(Boolean))].sort().map(t=>`<option ${t===cv?"selected":""}>${esc(t)}</option>`).join("");
   const isel=$("#yrInsp"),ci=isel.value;const names=[...new Set(YR_DATA.flatMap(e=>String(e.insp).split(/[、,，\/]/).map(x=>x.trim())).filter(Boolean))].sort();
   isel.innerHTML='<option value="">全部檢查人</option>'+names.map(n=>`<option ${n===ci?"selected":""}>${esc(n)}</option>`).join("");
-  $("#yrTypes").innerHTML=YR_TYPES.map(t=>`<label class="${yrOn.has(t.k)?"on":""}" style="color:${{ia:"#5b3290",ov:"#176670",ac:"#9a520c",is:"#34506e"}[t.k]}"><input type="checkbox" ${yrOn.has(t.k)?"checked":""} onchange="yrToggleType('${t.k}',this.checked)">${t.t}</label>`).join("");
+  $("#yrTypes").innerHTML=YR_TYPES.map(t=>`<label class="${yrOn.has(t.k)?"on":""}" style="color:${YR_COLOR[t.k]}"><input type="checkbox" ${yrOn.has(t.k)?"checked":""} onchange="yrToggleType('${t.k}',this.checked)">${t.t}</label>`).join("");
   const {y,ships,ev}=yrFiltered();
   const allY=(YR_DATA||[]).filter(e=>e.dt.y===y);
   const byShip={};ev.forEach(e=>{(byShip[e.ship]=byShip[e.ship]||[]).push(e);});
@@ -840,11 +842,11 @@ function renderYearView(){
   const nT=YR_TYPES.filter(t=>yrOn.has(t.k)).length;
   // 固定欄寬（百分比），整張表一個畫面放得下、不用左右拉
   const cg=`<colgroup><col style="width:9.5%">${Array.from({length:12},()=>`<col style="width:${((100-9.5-6.5-nT*2.8)/12).toFixed(2)}%">`).join("")}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(()=>`<col style="width:2.8%">`).join("")}<col style="width:6.5%"></colgroup>`;
-  const head=cg+`<thead><tr><th class="sh">船舶</th>${Array.from({length:12},(_,i)=>`<th class="${i+1===curM?"cur":""}">${i+1}月</th>`).join("")}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>`<th title="${t.t}次數">${t.k==="is"?"ISPS":t.t.slice(0,1)}</th>`).join("")}<th>最近內稽</th></tr></thead>`;
+  const head=cg+`<thead><tr><th class="sh">船舶</th>${Array.from({length:12},(_,i)=>`<th class="${i+1===curM?"cur":""}">${i+1}月</th>`).join("")}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>`<th title="${t.t}次數">${t.h||t.t.slice(0,1)}</th>`).join("")}<th>最近內稽</th></tr></thead>`;
   const body=rows.map(s=>{
     const es=(byShip[s.code]||[]).sort((a,b)=>a.dt.iso.localeCompare(b.dt.iso));
     const months=Array.from({length:12},(_,i)=>{const list=es.filter(e=>e.dt.m===i+1);
-      return `<td class="${i+1===curM?"cur":""}">${list.map(e=>`<span class="ye ${e.k}${e.pend?" pend":""}" title="${esc(YR_TYPES.find(t=>t.k===e.k).t)}｜${e.dt.iso}｜${esc(e.insp)}｜${esc(e.loc)}${e.pend?"｜登錄中，尚未匯入主系統":""}"><b>${YR_TYPES.find(t=>t.k===e.k).t}</b>${e.dt.m}/${e.dt.d}<br>${esc(e.insp||"—")}</span>`).join("")}</td>`;}).join("");
+      return `<td class="${i+1===curM?"cur":""}">${list.map(e=>`<span class="ye ${e.k}${e.pend?" pend":""}" title="${esc(YR_TYPES.find(t=>t.k===e.k).t)}｜${e.dt.iso}｜${esc(e.insp)}｜${esc(e.loc)}${e.pend?"｜登錄中，尚未匯入主系統":""}"><b>${(t=>t.s||t.t)(YR_TYPES.find(t=>t.k===e.k))}</b>${e.dt.m}/${e.dt.d}<br>${esc(e.insp||"—")}</span>`).join("")}</td>`;}).join("");
     const noia=!iaShips.has(s.code);
     return `<tr class="${noia?"noia":""}"><td class="sh">${esc(s.name)}${noia?` <span title="本年度尚未內稽" style="color:#c0392b;font-size:10.5px;font-weight:800">●未稽</span>`:""}<span class="en">${esc(s.en)}</span></td>${months}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>{const n=es.filter(e=>e.k===t.k).length;return `<td class="n">${n||'<span style="color:#c3ced5">0</span>'}</td>`;}).join("")}<td class="n" style="white-space:nowrap">${lastIA[s.code]?lastIA[s.code].slice(2).replace(/-/g,"/"):"—"}</td></tr>`;
   }).join("")||`<tr><td colspan="16" class="hint" style="padding:20px;text-align:center">沒有符合條件的船</td></tr>`;
