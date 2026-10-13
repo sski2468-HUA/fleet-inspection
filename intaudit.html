@@ -929,11 +929,16 @@ function renderDefsList(){
 function exportDefsList(){
   const rows=dlSel?dlRows().filter(x=>x.st===dlSel):dlRows();
   if(!rows.length){toast("目前沒有資料可匯出",true);return;}
-  const data=rows.map(({r,d,p,st})=>{const td=typeDef(d.type);return {"結案情形":DL_ST.find(s=>s.k===st).t,"船舶":shipLabel(r.ship),"檢查日期":dateText(r),"檢查人":r.inspector||"","檢查來源":td?td.label:(d.type||""),"分類":d.category||"","缺失內容":d.finding||"","風險":d.risk||"","結案方式":d.closeMode||"","船上改善措施":p.action||"","回報人":p.by||"","回報日期":p.at?new Date(p.at).toLocaleDateString("zh-TW"):"","審核人":p.reviewedBy||"","退回原因":p.returnNote||""};});
-  const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[16,22,22,12,12,16,60,6,12,46,14,12,10,30].map(w=>({wch:w}));
+  const data=rows.map(({r,d,p,st})=>{const td=typeDef(d.type);return {"結案情形":DL_ST.find(s=>s.k===st).t,"船舶":shipLabel(r.ship),"檢查日期":dateText(r),"檢查人":r.inspector||"","檢查來源":td?td.label:(d.type||""),"分類":d.category||"","缺失內容":d.finding||"","缺失照片":"","風險":d.risk||"","結案方式":d.closeMode||"","船上改善措施":p.action||"","改善後照片":"","回報人":p.by||"","回報日期":p.at?new Date(p.at).toLocaleDateString("zh-TW"):"","審核人":p.reviewedBy||"","退回原因":p.returnNote||""};});
+  const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[16,22,22,12,12,16,60,16,6,12,46,16,14,12,10,30].map(w=>({wch:w}));
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"缺失清單");
-  XlsxPretty.writeFile(wb,`缺失清單列表_${todayIso()}.xlsx`);
-}function setListView(v){
+  // 照片一起放進 Excel（缺失照片＝督導登錄的照片；改善後照片＝船上回報的照片）
+  const photos=rows.map(({d,p})=>({"缺失照片":xlPhotoSrcs(d.photos),"改善後照片":xlPhotoSrcs(p.photos)}));
+  const nPh=photos.reduce((a,m)=>a+m["缺失照片"].length+m["改善後照片"].length,0);
+  if(nPh)toast(`⏳ 正在把 ${nPh} 張照片放進 Excel，請稍候…`);
+  XlsxPretty.writeFile(wb,`缺失清單列表_${todayIso()}.xlsx`,{photos:{"缺失清單":photos}}).then(()=>toast(`✓ 已匯出 ${data.length} 筆${nPh?`（含 ${nPh} 張照片）`:""}`));
+}
+const xlPhotoSrcs=arr=>(arr||[]).map(ph=>ph&&(ph.dataUrl||ph.url)).filter(Boolean);function setListView(v){
   listView=v;
   $("#cardView").style.display=v==="cards"?"":"none";$("#tableView").style.display=v==="table"?"":"none";$("#yearView").style.display=v==="year"?"":"none";$("#defsView").style.display=v==="defs"?"":"none";
   $("#lvCards").classList.toggle("primary",v==="cards");$("#lvTable").classList.toggle("primary",v==="table");$("#lvYear").classList.toggle("primary",v==="year");$("#lvDefs").classList.toggle("primary",v==="defs");
@@ -2580,18 +2585,20 @@ function exportReviewXlsx(){
     const p=rp.payload||{},td=typeDef(d.type);
     return {"船舶":shipLabel(r.ship),"檢查日期":dateText(r),"檢查人":r.inspector||"","地點":r.psn||"",
       "檢查種類":td?td.label:(d.type||""),"內稽類別/主題":topicText(d)||"","分類 Category":d.category||"","風險":d.risk||"","結案方式":d.closeMode||"",
-      "缺失內容":d.finding||"","審核狀態":SL[rp.status]||rp.status,
-      "船上改善措施":p.action||"","船上完成日期":p.corrected||"","船上備註":p.evidence||"","改善後照片數":(p.photos||[]).length,
+      "缺失內容":d.finding||"","缺失照片":"","審核狀態":SL[rp.status]||rp.status,
+      "船上改善措施":p.action||"","船上完成日期":p.corrected||"","船上備註":p.evidence||"","改善後照片":"",
       "回報人":p.by||"","回報人職稱":p.title||"","回報時間":fmtTs(p.at),
       "督導審核人":p.reviewedBy||"","審核時間":fmtTs(p.reviewedAt),"退回原因":p.returnNote||"",
       "已套用到主系統缺失紀錄":p.appliedAt?`${p.appliedBy||""} ${fmtTs(p.appliedAt)}`:""};
   });
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.json_to_sheet(rows);
-  ws["!cols"]=[20,18,10,16,14,16,16,6,11,50,12,40,12,30,8,10,12,20,12,20,30,26].map(w=>({wch:w}));
+  ws["!cols"]=[20,18,10,16,14,16,16,6,11,50,16,12,40,12,30,16,10,12,20,12,20,30,26].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws,"改善單審核總清單");
-  XlsxPretty.writeFile(wb,`改善單審核總清單_${todayIso()}.xlsx`);
-  toast(`✓ 已匯出 ${rows.length} 筆改善單（含所有審核狀態）`);
+  const photos=items.map(({d,rp})=>({"缺失照片":xlPhotoSrcs(d.photos),"改善後照片":xlPhotoSrcs((rp.payload||{}).photos)}));
+  const nPh=photos.reduce((a,m)=>a+m["缺失照片"].length+m["改善後照片"].length,0);
+  if(nPh)toast(`⏳ 正在把 ${nPh} 張照片放進 Excel，請稍候…`);
+  XlsxPretty.writeFile(wb,`改善單審核總清單_${todayIso()}.xlsx`,{photos:{"改善單審核總清單":photos}}).then(()=>toast(`✓ 已匯出 ${rows.length} 筆改善單（含所有審核狀態${nPh?`、${nPh} 張照片`:""}）`));
 }
 function showSugg(){
   stopAutoSave();

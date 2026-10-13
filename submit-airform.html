@@ -86,6 +86,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
 .tabpill.pos{border-color:#2e8b57}
 .tabpill.pos.on{background:#2e8b57;border-color:#2e8b57}
 .port-sugg{position:absolute;z-index:80;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1px solid var(--line-2);border-radius:6px;box-shadow:0 8px 24px rgba(12,36,51,.18);max-height:240px;overflow:auto}
+.mname{display:flex;flex-direction:column;gap:6px}
+.mname-row{display:flex;gap:6px;align-items:center;position:relative}
+.mname-row input{flex:1;min-width:0}
+.mname-add,.mname-del{flex:none;width:40px;height:40px;border:1px solid var(--line-2);border-radius:8px;background:#fff;color:var(--ink-2);font-size:18px;font-weight:700;cursor:pointer;line-height:1}
+.mname-add:hover,.mname-del:hover{background:#eaf1f7}
 .ps-item{padding:7px 12px;font-size:12.5px;cursor:pointer;border-bottom:1px solid #f0f4f6}
 .ps-item:hover,.ps-item.on{background:#eaf1f7}
 .ps-item.ps-extra{color:var(--navy-3);font-weight:600}
@@ -1358,8 +1363,47 @@ bindPortInput("f-place");
    跟油公司/單位一樣，送出時如果是清單裡沒有的新姓名，會自動同步回雲端清單，下次其他人填單時
    就看得到這個新姓名可選，不用每次都重打。 */
 let INSPECTOR_LIST=[];
+/* 檢查員可能有 2 位以上：原本的輸入框旁加「＋」，按一次多一個輸入框（每個都有 × 可移除）。
+   對外仍是同一個欄位：讀 .value 得到「A / B」，寫 .value 會自動拆回多個框，
+   所以存檔、草稿、預覽、匯出這些讀寫 .value 的地方都不用改。 */
+const MultiName={
+  SEP:" / ",
+  split(s){return String(s||"").split(/\s*\/\s*/).map(x=>x.trim()).filter(Boolean);},
+  enhance(id,opts){
+    opts=opts||{};
+    const el=document.getElementById(id);if(!el||el._multi)return;
+    el._multi=true;
+    const desc=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value");
+    const wrap=document.createElement("div");wrap.className="mname";
+    el.parentNode.insertBefore(wrap,el);
+    const row0=document.createElement("div");row0.className="mname-row";wrap.appendChild(row0);row0.appendChild(el);
+    const add=document.createElement("button");add.type="button";add.className="mname-add";add.textContent="＋";add.title="再新增一位"+(opts.label||"檢查員");
+    row0.appendChild(add);
+    const extras=[];
+    const addRow=v=>{
+      const r=document.createElement("div");r.className="mname-row";
+      const inp=document.createElement("input");inp.type="text";inp.className="mname-extra";inp.autocomplete="off";
+      inp.placeholder=`第 ${extras.length+2} 位${opts.label||"檢查員"}`;
+      if(el.getAttribute("list"))inp.setAttribute("list",el.getAttribute("list"));
+      desc.set.call(inp,v||"");
+      const del=document.createElement("button");del.type="button";del.className="mname-del";del.textContent="×";del.title="移除這一位";
+      del.onclick=()=>{r.remove();extras.splice(extras.indexOf(inp),1);if(opts.onChange)opts.onChange();};
+      if(opts.onChange){inp.addEventListener("input",opts.onChange);}
+      r.appendChild(inp);r.appendChild(del);wrap.appendChild(r);extras.push(inp);
+      if(opts.onExtra)opts.onExtra(inp);
+      return inp;
+    };
+    add.onclick=()=>{addRow("").focus();if(opts.onChange)opts.onChange();};
+    el._rawGet=()=>desc.get.call(el);
+    el._rawSet=v=>desc.set.call(el,v);
+    Object.defineProperty(el,"value",{configurable:true,
+      get(){return [desc.get.call(el),...extras.map(x=>desc.get.call(x))].map(s=>s.trim()).filter(Boolean).join(MultiName.SEP);},
+      set(v){const parts=MultiName.split(v);desc.set.call(el,parts[0]||"");while(extras.length)extras.pop().parentNode.remove();parts.slice(1).forEach(p=>addRow(p));}
+    });
+  }
+};
 function bindNameInput(inputId,getList){
-  const inp=document.getElementById(inputId);
+  const inp=typeof inputId==="string"?document.getElementById(inputId):inputId;
   if(!inp||inp._nameBound)return;
   inp._nameBound=true;
   inp.setAttribute("autocomplete","off");
@@ -1369,7 +1413,9 @@ function bindNameInput(inputId,getList){
   inp.parentElement.appendChild(box);
   let active=-1;
   function close(){box.style.display="none";active=-1;}
-  function pick(v){inp.value=v;close();scheduleAutoSave();}
+  // 多位檢查員的第一格：讀寫只碰這一格本身（.value 是全部合起來的「A / B」）
+  const rv=()=>inp._rawGet?inp._rawGet():inp.value;
+  function pick(v){if(inp._rawSet)inp._rawSet(v);else inp.value=v;close();scheduleAutoSave();}
   function render(q){
     q=(q||"").trim().toLowerCase();
     if(!q){close();return;}
@@ -1379,8 +1425,8 @@ function bindNameInput(inputId,getList){
     box.style.display="block";active=-1;
     box.querySelectorAll(".ps-item").forEach(el=>el.onmousedown=ev=>{ev.preventDefault();pick(el.getAttribute("data-v"));});
   }
-  inp.addEventListener("input",()=>render(inp.value));
-  inp.addEventListener("focus",()=>{if(inp.value)render(inp.value);});
+  inp.addEventListener("input",()=>render(rv()));
+  inp.addEventListener("focus",()=>{if(rv())render(rv());});
   inp.addEventListener("blur",()=>{setTimeout(close,150);});
   inp.addEventListener("keydown",e=>{
     const els=[...box.querySelectorAll(".ps-item")];
@@ -1393,6 +1439,7 @@ function bindNameInput(inputId,getList){
     els.forEach((el,i)=>el.classList.toggle("on",i===active));
   });
 }
+MultiName.enhance("f-inspector",{onChange:()=>scheduleAutoSave(),onExtra:inp=>bindNameInput(inp,()=>INSPECTOR_LIST)});
 bindNameInput("f-inspector",()=>INSPECTOR_LIST);
 /* 檢查員姓名跟油公司一樣，如果是清單裡沒有的新名字，送出後同步進雲端的篩選清單額外項目，
    跟「篩選清單管理」後台新增標籤是同一份資料，之後所有填單、系統後台都看得到。 */
@@ -1599,7 +1646,8 @@ document.getElementById("btnSubmit").addEventListener("click", async ()=>{
       pushCustomOilco(payload.basic.oilco); // 不 await：失敗也不擋送出，靜默重試/放棄即可
     }
     if(payload.basic.inspector){
-      pushCustomInspector(payload.basic.inspector); // 同上，不擋送出
+      // 同上，不擋送出；多位檢查員逐一加入清單（一個寫完再寫下一個，避免同時讀改寫互相蓋掉）
+      (async()=>{for(const n of MultiName.split(payload.basic.inspector))await pushCustomInspector(n);})();
     }
     const res = await fetch(`${CLOUD.url}/rest/v1/${AIR_TABLE}`, {
       method: "POST",

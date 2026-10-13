@@ -81,7 +81,56 @@ const XlsxPretty=(()=>{
     });
     if(aoa.length>1)sh.autoFilter={from:{row:R0,column:1},to:{row:R0-1+aoa.length,column:nCol}};
     sh.headerFooter={oddFooter:`&L${title}&R&P / &N`};
+    sh._R0=R0;
     return sh;
+  }
+
+  /* ── 照片嵌入：opts.photos={分頁名:[每一筆資料列 → {欄位名:[照片 dataUrl…]}]}（陣列順序＝資料列順序）。
+     照片先縮小成 JPEG（最長邊 480px）再放進儲存格，檔案才不會大到開不了；儲存格裡排成一列小縮圖，
+     在 Excel 點圖片可以拉大看。單一儲存格最多放 PHOTO_MAX 張。 ── */
+  const PHOTO_W=96,PHOTO_H=72,PHOTO_GAP=4,PHOTO_MAX=6;
+  function shrink(src){
+    return new Promise(res=>{
+      if(!src){res(null);return;}
+      const img=new Image();
+      img.onload=()=>{
+        try{
+          const k=Math.min(1,480/Math.max(img.naturalWidth,img.naturalHeight));
+          const w=Math.max(1,Math.round(img.naturalWidth*k)),h=Math.max(1,Math.round(img.naturalHeight*k));
+          const cv=document.createElement("canvas");cv.width=w;cv.height=h;
+          const g=cv.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,w,h);g.drawImage(img,0,0,w,h);
+          res({data:cv.toDataURL("image/jpeg",0.82),w,h});
+        }catch(e){res(null);}
+      };
+      img.onerror=()=>res(null);
+      img.src=src;
+    });
+  }
+  async function placePhotos(ewb,sh,headers,rowsPhotos){
+    const R0=sh._R0;
+    const colIdx={};headers.forEach((h,i)=>{colIdx[h]=i;});
+    const maxPer={};
+    rowsPhotos.forEach(m=>Object.entries(m||{}).forEach(([k,l])=>{maxPer[k]=Math.max(maxPer[k]||0,Math.min((l||[]).length,PHOTO_MAX));}));
+    // 照片欄加寬到放得下最多張的那一格（欄寬單位約 7px）
+    Object.entries(maxPer).forEach(([k,n])=>{const c=colIdx[k];if(c==null||!n)return;const col=sh.getColumn(c+1);col.width=Math.max(col.width||10,Math.ceil((PHOTO_GAP+n*(PHOTO_W+PHOTO_GAP))/7)+1);});
+    for(let i=0;i<rowsPhotos.length;i++){
+      const m=rowsPhotos[i];if(!m)continue;
+      let any=false;
+      for(const [k,list] of Object.entries(m)){
+        const c=colIdx[k];if(c==null)continue;
+        const col=sh.getColumn(c+1),colPx=(col.width||10)*7;
+        const srcs=(list||[]).slice(0,PHOTO_MAX);
+        for(let j=0;j<srcs.length;j++){
+          const s=await shrink(srcs[j]);if(!s)continue;
+          const r=Math.min(PHOTO_W/s.w,PHOTO_H/s.h);
+          const id=ewb.addImage({base64:s.data,extension:"jpeg"});
+          sh.addImage(id,{tl:{col:c+(PHOTO_GAP+j*(PHOTO_W+PHOTO_GAP))/colPx,row:R0+i+0.08},ext:{width:Math.round(s.w*r),height:Math.round(s.h*r)},editAs:"oneCell"});
+          any=true;
+        }
+        if((list||[]).length>PHOTO_MAX){const cell=sh.getRow(R0+1+i).getCell(c+1);cell.value=`（共 ${list.length} 張，只放前 ${PHOTO_MAX} 張）`;}
+      }
+      if(any){const row=sh.getRow(R0+1+i);row.height=Math.max(row.height||0,Math.ceil((PHOTO_H+10)*0.75));}
+    }
   }
 
   async function writeFile(wb,filename,opts){
@@ -91,7 +140,14 @@ const XlsxPretty=(()=>{
       const ewb=new ExcelJS.Workbook();ewb.creator="FPMC";ewb.created=new Date();
       const title=opts.title||String(filename).replace(/\.xlsx?$/i,"").replace(/_\d{4}-\d{2}-\d{2}.*$/,"");
       const stamp=new Date().toLocaleString("zh-TW",{hour12:false});
-      wb.SheetNames.forEach(n=>addSheet(ewb,n,wb.Sheets[n],title,stamp,!!opts.noTitle));
+      for(const n of wb.SheetNames){
+        const sh=addSheet(ewb,n,wb.Sheets[n],title,stamp,!!opts.noTitle);
+        const ph=opts.photos&&opts.photos[n];
+        if(ph&&ph.length){
+          const headers=(XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:""})[0]||[]).map(String);
+          await placePhotos(ewb,sh,headers,ph);
+        }
+      }
       const buf=await ewb.xlsx.writeBuffer();
       const a=document.createElement("a");
       a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
