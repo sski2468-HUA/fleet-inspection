@@ -52,9 +52,12 @@ function buildDocx_photos(ctx){
     if(!photos||!photos.length)return wPara("",{after:0});
     let runs="";
     for(const p of photos){
-      const id=++ctx.n,sz=await imgSize(p.dataUrl),box=maxCm*360000,sc=Math.min(box/sz.w,box*0.8/sz.h);
+      // 照片可能是內嵌的 dataUrl，也可能已經改存 Storage 只剩網址（photo-cloud.js）：網址的先下載回來再放進 Word
+      const du=p&&p.dataUrl?p.dataUrl:(typeof PhotoCloud!=="undefined"?await PhotoCloud.toDataUrl(p):"");
+      if(!du)continue;
+      const id=++ctx.n,sz=await imgSize(du),box=maxCm*360000,sc=Math.min(box/sz.w,box*0.8/sz.h);
       const cx=Math.round(sz.w*sc),cy=Math.round(sz.h*sc),rid="rIdIa"+id;
-      ctx.files.push({name:`word/media/ia${id}.jpeg`,b64:p.dataUrl.split(",")[1],rid,target:`media/ia${id}.jpeg`});
+      ctx.files.push({name:`word/media/ia${id}.jpeg`,b64:du.split(",")[1],rid,target:`media/ia${id}.jpeg`});
       runs+=`<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="114300"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${1000+id}" name="Picture ${id}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="${W_NS_A}" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="${W_NS_A}"><a:graphicData uri="${W_NS_PIC}"><pic:pic xmlns:pic="${W_NS_PIC}"><pic:nvPicPr><pic:cNvPr id="${1000+id}" name="ia${id}.jpeg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r>`;
     }
     return `<w:p><w:pPr><w:spacing w:before="20" w:after="20"/></w:pPr>${runs}</w:p>`;

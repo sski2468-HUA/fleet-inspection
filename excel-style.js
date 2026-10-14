@@ -103,6 +103,8 @@ const XlsxPretty=(()=>{
         }catch(e){res(null);}
       };
       img.onerror=()=>res(null);
+      // 照片改存 Storage 後是網址：要用 CORS 方式讀，canvas 才能再轉成圖片資料
+      if(/^https?:/i.test(src))img.crossOrigin="anonymous";
       img.src=src;
     });
   }

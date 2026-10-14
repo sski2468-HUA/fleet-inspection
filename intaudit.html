@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="excel-style.js"></script>
 <script src="intaudit-word.js"></script>
+<script src="photo-cloud.js"></script>
 <style>
 :root{
   --navy:#1c3a5e; --navy-2:#234a72; --paper:#f5f7f8; --card:#ffffff; --line:#dde4e8; --line-2:#c3ced5;
@@ -602,6 +603,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
 const CLOUD={url:"https://iqmbircjokdzdssouwkr.supabase.co",
   key:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY"};
 const TABLE="intaudit_records";
+PhotoCloud.init(CLOUD); // 照片寫進雲端前先改存 Storage（見 photo-cloud.js）
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 function toast(msg,err){const t=$("#toast");t.textContent=msg;t.className=err?"err":"";t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",3200);}
@@ -698,6 +700,10 @@ const Store={
           if(serverAt!=null&&Number(serverAt)!==Number(expectedSrv))return {conflict:true,serverAt};
         }catch(e){/* 版本檢查失敗（例如離線）不擋存檔，避免完全卡住 */}
       }
+      // 照片先改存 Storage，登錄單裡只留網址；畫面上正在編輯的那份也一起換掉，下次存檔不用重傳
+      const up=await PhotoCloud.externalize(rec);
+      try{if(typeof cur!=="undefined"&&cur)PhotoCloud.applyCache(cur);}catch(e){}
+      if(up.fail)toast(`⚠ 有 ${up.fail} 張照片這次沒上傳成功（${up.first}），先保留在登錄單裡，下次存檔會再試`,true);
       const now=Date.now();
       try{
         await api(`${TABLE}?on_conflict=id`,{method:"POST",headers:H({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify([{id:rec.id,payload:rec,updated_at:now}])});
@@ -909,7 +915,7 @@ function renderDefsList(){
   const rows=dlSel?all.filter(x=>x.st===dlSel):all;
   const open=all.filter(x=>x.st!=="done"&&x.st!=="flow").length,trk=all.filter(x=>x.st!=="flow").length;
   $("#dlChips").innerHTML=`<span class="dlchip ${dlSel===""?"on":""}" onclick="dlPick('')">全部<b>${all.length}</b></span>`+DL_ST.map(s=>`<span class="dlchip ${dlSel===s.k?"on":""}" title="${s.d}" onclick="dlPick('${s.k}')"><span class="lamp ${s.k}"></span>${s.t}<b>${c[s.k]||0}</b></span>`).join("")+`<span class="hint" style="margin-left:6px">需追蹤 ${trk} 筆，未結案 <b style="color:#c0392b">${open}</b> 筆</span>`;
-  const thumbs=arr=>(arr||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${arr.map(ph=>`<img src="${ph.dataUrl}" style="width:34px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--line-2);cursor:zoom-in" onclick="openLightbox(this.src)">`).join("")}</div>`:"";
+  const thumbs=arr=>(arr||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${arr.map(ph=>`<img src="${PhotoCloud.src(ph)}" style="width:34px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--line-2);cursor:zoom-in" onclick="openLightbox(this.src)">`).join("")}</div>`:"";
   const lbl=k=>DL_ST.find(s=>s.k===k).t;
   $("#dlTable").innerHTML=`<colgroup><col style="width:128px"><col style="width:150px"><col style="width:110px"><col style="width:130px"><col><col style="width:46px"><col style="width:92px"><col style="width:24%"><col style="width:82px"></colgroup>
     <thead><tr><th>結案情形</th><th>船舶</th><th>檢查日期</th><th>檢查來源／分類</th><th>缺失內容</th><th>風險</th><th>結案方式</th><th>船上改善／審核</th><th>操作</th></tr></thead><tbody>${rows.map(({r,d,i,rp,p,st})=>{
@@ -1364,7 +1370,7 @@ const clip=(t,n)=>{t=String(t||"");return t.length>n?t.slice(0,n)+"…":t;};
 function reviewTableHtml(items){
   if(!items.length)return `<div class="banner">目前沒有符合條件的項目。</div>`;
   const ST={submitted:["sub","待督導審核"],returned:["ret","已退回待重填"],reviewed:["done","已結案"]};
-  const thumbs=arr=>(arr||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${arr.map(ph=>`<img src="${ph.dataUrl}" title="點一下放大" style="width:34px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--line-2);cursor:zoom-in" onclick="openLightbox(this.src)">`).join("")}</div>`:"";
+  const thumbs=arr=>(arr||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${arr.map(ph=>`<img src="${PhotoCloud.src(ph)}" title="點一下放大" style="width:34px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--line-2);cursor:zoom-in" onclick="openLightbox(this.src)">`).join("")}</div>`:"";
   // 版面跟「缺失清單列表」一致：燈號＋整列底色＝狀態，待審核的多一個勾選框可批量審核
   return `<div class="card" style="padding:0;overflow:auto"><table class="lt dlt"><colgroup><col style="width:30px"><col style="width:128px"><col style="width:140px"><col style="width:108px"><col style="width:124px"><col><col style="width:46px"><col style="width:90px"><col style="width:24%"><col style="width:96px"></colgroup>
     <thead><tr><th></th><th>結案情形</th><th>船舶</th><th>檢查日期</th><th>檢查來源／分類</th><th>缺失內容</th><th>風險</th><th>結案方式</th><th>船上改善／審核</th><th>操作</th></tr></thead><tbody>${items.map(({r,d,rp})=>{
@@ -1384,7 +1390,7 @@ function reviewTableHtml(items){
   if(!items.length)return `<div class="banner">目前沒有符合條件的訴求／建議。</div>`;
   // 版面跟「缺失清單列表」一致：燈號＋整列底色＝該部門處理狀態（待承辦紅／處理中黃／已結案綠）
   const LAMP={new:["ret","待承辦"],open:["wait","處理中"],closed:["done","已結案"]};
-  const thumbs=arr=>(arr||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${arr.map(ph=>`<img src="${ph.dataUrl}" title="點一下放大" style="width:34px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--line-2);cursor:zoom-in" onclick="openLightbox(this.src)">`).join("")}</div>`:"";
+  const thumbs=arr=>(arr||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${arr.map(ph=>`<img src="${PhotoCloud.src(ph)}" title="點一下放大" style="width:34px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--line-2);cursor:zoom-in" onclick="openLightbox(this.src)">`).join("")}</div>`:"";
   const lines=[];
   items.forEach(c=>c.rows.forEach(x=>{if(fd&&x.dept!==fd)return;lines.push({c,x,first:!lines.length||lines[lines.length-1].c!==c});}));
   return `<div class="card" style="padding:0;overflow:auto"><table class="lt dlt"><colgroup><col style="width:96px"><col style="width:122px"><col style="width:96px"><col><col style="width:17%"><col style="width:62px"><col style="width:74px"><col style="width:18%"><col style="width:84px"><col style="width:90px"></colgroup>
@@ -1471,7 +1477,7 @@ function renderRvOverview(){
           ${returned&&p.returnNote?`<div style="margin-top:8px;padding:8px 10px;background:#fdf0ee;border-radius:7px;font-size:12.5px;color:#8a2c1f"><b>退回原因：</b>${esc(p.returnNote)}</div>`:""}
           <div style="margin-top:8px;padding:10px 12px;background:#f7f9fb;border-radius:7px;font-size:13px;line-height:1.8">
             <b>船上改善措施：</b>${esc(p.action||"（未填）")}<br><b>完成日期：</b>${esc(p.corrected||"（未填）")}${p.evidence?`<br><b>備註：</b>${esc(p.evidence)}`:""}<br><b>回報人：</b>${esc(p.by||"")}${p.title?"（"+esc(p.title)+"）":""}　${p.at?esc(new Date(p.at).toLocaleString("zh-TW",{hour12:false})):""}
-            ${(p.photos||[]).length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${p.photos.map(ph=>`<img src="${ph.dataUrl}" style="width:84px;height:84px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);cursor:pointer" onclick="openLightbox('${ph.dataUrl}')">`).join("")}</div>`:""}
+            ${(p.photos||[]).length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${p.photos.map(ph=>`<img src="${PhotoCloud.src(ph)}" style="width:84px;height:84px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);cursor:pointer" onclick="openLightbox(this.src)">`).join("")}</div>`:""}
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px">
@@ -2146,7 +2152,7 @@ function confirmSpecialSar(){
 function listOf(scope,i,j){return scope==="top4"?cur.top4.photos:scope==="best"?cur.best[i].photos:scope==="sugg"?(cur.sugg[i].photos=cur.sugg[i].photos||[]):cur.defs[i].photos;}
 function phHtml(scope,i,max){
   const list=listOf(scope,i),full=max&&list.length>=max;
-  return `<div class="phs">${list.map((p,k)=>`<div class="ph"><img src="${p.dataUrl}" title="${esc(p.name)}" onclick="openLightbox(listOf('${scope}',${i})[${k}].dataUrl)"><button type="button" title="刪除這張照片" onclick="delPhoto('${scope}',${i},${k})">×</button></div>`).join("")}
+  return `<div class="phs">${list.map((p,k)=>`<div class="ph"><img src="${PhotoCloud.src(p)}" title="${esc(p.name)}" onclick="openLightbox(this.src)"><button type="button" title="刪除這張照片" onclick="delPhoto('${scope}',${i},${k})">×</button></div>`).join("")}
     ${full?`<span class="hint">最多 ${max} 張</span>`:`<label class="phadd">＋ 上傳照片${max?`<br>（最多 ${max} 張）`:""}<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos('${scope}',${i},this,${max||0})"></label>`}</div>`;
 }
 function readImg(file){return new Promise(res=>{const fr=new FileReader();fr.onload=()=>{const img=new Image();img.onload=()=>{const M=1280,s=Math.min(1,M/Math.max(img.width,img.height));const cv=document.createElement("canvas");cv.width=Math.round(img.width*s);cv.height=Math.round(img.height*s);cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);res({name:file.name,dataUrl:cv.toDataURL("image/jpeg",0.8)});};img.onerror=()=>res(null);img.src=fr.result;};fr.onerror=()=>res(null);fr.readAsDataURL(file);});}
@@ -2453,7 +2459,7 @@ function renderBatch(){
     <td><input type="date" value="${esc(r.reported)}" onchange="setBR(${i},'reported',this.value)"></td>
     <td><textarea placeholder="待改善描述（中英文皆可）" oninput="setBR(${i},'finding',this.value)">${esc(r.finding)}</textarea></td>
     <td><select onchange="setBR(${i},'closeMode',this.value)"><option value="">— 請選擇 —</option>${MODES.map(m=>`<option value="${m.k}" ${r.closeMode===m.k?"selected":""}>${esc(m.label)}</option>`).join("")}</select></td>
-    <td><div class="phs">${r.photos.map((p,k)=>`<div class="ph s"><img src="${p.dataUrl}" onclick="openLightbox(batch.rows[${i}].photos[${k}].dataUrl)"><button type="button" title="刪除這張照片" onclick="batch.rows[${i}].photos.splice(${k},1);renderBatch()">×</button></div>`).join("")}${r.photos.length<MAX_DEF_PHOTOS?`<label class="phadd s">＋<input type="file" accept="image/*" multiple style="display:none" onchange="addBatchPhotos(${i},this)"></label>`:""}</div></td>
+    <td><div class="phs">${r.photos.map((p,k)=>`<div class="ph s"><img src="${PhotoCloud.src(p)}" onclick="openLightbox(this.src)"><button type="button" title="刪除這張照片" onclick="batch.rows[${i}].photos.splice(${k},1);renderBatch()">×</button></div>`).join("")}${r.photos.length<MAX_DEF_PHOTOS?`<label class="phadd s">＋<input type="file" accept="image/*" multiple style="display:none" onchange="addBatchPhotos(${i},this)"></label>`:""}</div></td>
     <td><button class="btn sm danger" type="button" title="刪除這一列" onclick="delBatchRow(${i})">×</button></td></tr>`).join("");
   updateBatchCount();
 }
@@ -2654,7 +2660,7 @@ function renderSuggPage(){
           <button class="btn sm" onclick="editDef0(${c.r.id})" title="開啟這張登錄單">✎ 查看登錄</button>
         </div>
         <div style="margin-top:10px;font-size:13px;line-height:1.7"><b>現狀：</b>${esc(c.s.situation||"")}<br><b>建議：</b>${esc(c.s.suggestion||"")}</div>
-        ${photos.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${photos.map(ph=>`<img src="${ph.dataUrl}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);cursor:pointer" onclick="openLightbox(this.src)">`).join("")}</div>`:""}
+        ${photos.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${photos.map(ph=>`<img src="${PhotoCloud.src(ph)}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line-2);cursor:pointer" onclick="openLightbox(this.src)">`).join("")}</div>`:""}
       </div>
       <div class="sgr">
         <div class="hint" style="font-weight:700">辦理情形（每個部門各自處理）</div>

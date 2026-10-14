@@ -6,6 +6,7 @@
 <title>內部檢查改善回報 — FPMC</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="intaudit-word.js"></script>
+<script src="photo-cloud.js"></script>
 <style>
 :root{--navy:#1c3a5e;--paper:#f5f7f8;--card:#fff;--line:#dde4e8;--line-2:#c3ced5;--ink:#15262f;--ink-2:#52656f;--ink-3:#8195a0;--signal:#e8842c;--teal:#1e7f8c;--teal-l:#e4f1f2;--ok:#2e8b57;--bad:#c0392b;--warn:#e0a800;
 --sans:"Segoe UI","Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif}
@@ -201,6 +202,7 @@ label,.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(-
 <script>
 const CLOUD={url:"https://iqmbircjokdzdssouwkr.supabase.co",
   key:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY"};
+PhotoCloud.init(CLOUD); // 送出改善回報前，照片先改存 Storage（見 photo-cloud.js）
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 function toast(msg,err){const t=$("#toast");t.textContent=msg;t.className=err?"err":"";t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",3800);}
@@ -276,7 +278,7 @@ function val(d){if(drafts[d.uid])return drafts[d.uid];const p=rpOf(d)&&rpOf(d).p
 function dr(d){if(!drafts[d.uid])drafts[d.uid]=JSON.parse(JSON.stringify(val(d)));return drafts[d.uid];}
 const isEmpty=x=>!x||(!x.action&&!x.corrected&&!x.evidence&&!(x.photos||[]).length);
 const isComplete=x=>x&&(x.action||"").trim()&&x.corrected; // 照片為選填
-function sameAsReply(x,p){p=p||{};return (x.action||"")===(p.action||"")&&(x.corrected||"")===(p.corrected||"")&&(x.evidence||"")===(p.evidence||"")&&JSON.stringify((x.photos||[]).map(a=>a.dataUrl))===JSON.stringify((p.photos||[]).map(a=>a.dataUrl));}
+function sameAsReply(x,p){p=p||{};return (x.action||"")===(p.action||"")&&(x.corrected||"")===(p.corrected||"")&&(x.evidence||"")===(p.evidence||"")&&JSON.stringify((x.photos||[]).map(a=>PhotoCloud.src(a)))===JSON.stringify((p.photos||[]).map(a=>PhotoCloud.src(a)));}
 /* 狀態：lock 已結案｜green 已填（只要改善措施與完成日期都填了就算，不管是否已送出）｜red 未填
    （原本填完但還沒送出算「待填」一個中間狀態，船上容易搞不清楚待填到底算填了沒——
    只要內容填妥就算已填，送出與否另外用徽章文字區分，不再多一個篩選分類。） */
@@ -322,7 +324,7 @@ async function reloadReplies(){
 }
 function phHtml(d){
   const list=val(d).photos,full=list.length>=MAX_PH;
-  return `<div class="phs">${list.map((p,k)=>`<div class="ph"><img src="${p.dataUrl}" onclick="openLightbox(val(byUid('${d.uid}')).photos[${k}].dataUrl)"><button type="button" title="刪除這張照片" onclick="delPhoto('${d.uid}',${k})">×</button></div>`).join("")}${full?`<span class="hint">最多 ${MAX_PH} 張</span>`:`<label class="phadd">＋ 上傳<br>改善後照片<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos('${d.uid}',this)"></label>`}</div>`;
+  return `<div class="phs">${list.map((p,k)=>`<div class="ph"><img src="${PhotoCloud.src(p)}" onclick="openLightbox(this.src)"><button type="button" title="刪除這張照片" onclick="delPhoto('${d.uid}',${k})">×</button></div>`).join("")}${full?`<span class="hint">最多 ${MAX_PH} 張</span>`:`<label class="phadd">＋ 上傳<br>改善後照片<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos('${d.uid}',this)"></label>`}</div>`;
 }
 const byUid=u=>(rec.defs||[]).find(d=>d.uid===u);
 function readImg(file){return new Promise(res=>{const fr=new FileReader();fr.onload=()=>{const img=new Image();img.onload=()=>{const M=1280,s=Math.min(1,M/Math.max(img.width,img.height));const cv=document.createElement("canvas");cv.width=Math.round(img.width*s);cv.height=Math.round(img.height*s);cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);res({name:file.name,dataUrl:cv.toDataURL("image/jpeg",0.8)});};img.onerror=()=>res(null);img.src=fr.result;};fr.onerror=()=>res(null);fr.readAsDataURL(file);});}
@@ -350,12 +352,12 @@ function rowHtml(d,seq){
       ${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">風險 ${esc(d.risk)}</span>`:""}</div>
       ${d.topic?`<div class="hint">${esc(d.topic)}</div>`:""}
       <div class="finding">${esc(d.finding||"")}</div>
-      ${(d.photos||[]).length?`<div class="phs">${d.photos.map((p,k)=>`<div class="ph"><img src="${p.dataUrl}" onclick="openLightbox(byUid('${d.uid}').photos[${k}].dataUrl)"></div>`).join("")}</div>`:""}`;
+      ${(d.photos||[]).length?`<div class="phs">${d.photos.map((p,k)=>`<div class="ph"><img src="${PhotoCloud.src(p)}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:""}`;
   let right;
   if(st==="lock"){
     const p=rp.payload||{};
     right=`<div class="ih"><span class="badge lock" id="bd-${d.uid}">✓ 已結案</span></div><div class="sub"><b>改善措施：</b>${esc(p.action||"")}\n<b>完成日期：</b>${esc(p.corrected||"")}${p.evidence?`\n<b>備註：</b>${esc(p.evidence)}`:""}\n<b>回報人：</b>${esc(p.by||"")}${p.title?"（"+esc(p.title)+"）":""}</div>
-      ${(p.photos||[]).length?`<div class="phs" style="margin-top:8px">${p.photos.map(a=>`<div class="ph"><img src="${a.dataUrl}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:""}
+      ${(p.photos||[]).length?`<div class="phs" style="margin-top:8px">${p.photos.map(a=>`<div class="ph"><img src="${PhotoCloud.src(a)}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:""}
       <div style="margin-top:10px"><button type="button" class="btn" onclick="reopenDef('${d.uid}')">✏ 已結案，但需要修改內容（重新送單）</button></div>`;
   }else{
     right=`<div class="ih"><span class="badge ${st}" id="bd-${d.uid}">${esc(badgeText(d,st))}</span></div>
@@ -441,7 +443,7 @@ function setSysTypeFlt(k){sysTypeFlt=k;modeFlt="all";flt="all";renderSysStep();}
    切到某個檢查種類剛好全部都是 FLOW 時，整頁只看得到那種陽春清單，體驗跟「FLOW」分頁差很多）。
    文字在左、照片縮圖靠右排，方便掃視。 */
 function flowCardHtml(d,i){
-  const photosHtml=(d.photos||[]).length?`<div class="phs" style="flex:none">${d.photos.map(p=>`<div class="ph"><img src="${p.dataUrl}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:"";
+  const photosHtml=(d.photos||[]).length?`<div class="phs" style="flex:none">${d.photos.map(p=>`<div class="ph"><img src="${PhotoCloud.src(p)}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:"";
   return `<div class="row info"><div class="rl">
     <div class="ih">No.${i+1}　${esc(d.category||"")}${typeBadge(d)}<span class="pill" style="background:#eceff1;color:#52656f">FLOW</span>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">風險 ${esc(d.risk)}</span>`:""}</div>
     ${d.topic?`<div class="hint">${esc(d.topic)}</div>`:""}
@@ -510,7 +512,7 @@ function previewItemHtml(d,i){
       </div>
       <div style="flex:none">
         <div class="hint" style="margin-bottom:3px">改善後照片</div>
-        ${photos.length?`<div class="phs">${photos.map(p=>`<div class="ph"><img src="${p.dataUrl}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:`<div class="hint">（尚未上傳）</div>`}
+        ${photos.length?`<div class="phs">${photos.map(p=>`<div class="ph"><img src="${PhotoCloud.src(p)}" onclick="openLightbox(this.src)"></div>`).join("")}</div>`:`<div class="hint">（尚未上傳）</div>`}
       </div>
     </div>
   </div></div>`;
@@ -644,6 +646,11 @@ async function submitAll(){
       return {id:`${RID}_${d.uid}`,record_id:+RID,def_uid:d.uid,status:"submitted",updated_at:now,
         payload:{action:x.action.trim(),corrected:x.corrected,evidence:(x.evidence||"").trim(),photos:x.photos,by,title,at:now}};});
     if(!rows.length){closeSubmitStatus();toast("⚠ 這些項目剛剛已被海技結案，請重新整理頁面",true);return;}
+    // 改善後照片先改存 Storage，回報裡只留網址；上傳失敗的那張保留在回報裡，不擋送出
+    showSubmitStatus("⏳","送單中…","正在上傳改善後照片…");
+    const up=await PhotoCloud.externalize(rows);
+    if(up.fail)console.warn(`有 ${up.fail} 張照片沒上傳成功，先保留在回報裡`,up.first);
+    showSubmitStatus("⏳","送單中…","請稍候，正在送出給督導");
     await api("intaudit_replies?on_conflict=id",{method:"POST",headers:H({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(rows)});
     rows.forEach(r=>{delete drafts[r.def_uid];delete reopened[r.def_uid];});saveDrafts();
     await reloadReplies();renderGlobalBar();if(currentStep===3)renderSysStep();if(currentStep===4)renderPreview();
