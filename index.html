@@ -1232,6 +1232,23 @@ table.ap-tbl tbody tr:hover td:first-child{background:#f3f8fa}
 .ap-cell{position:relative}
 .ap-sched-mark{position:absolute;bottom:1px;right:2px;font-size:8px;line-height:1;font-weight:700;color:#3a7fc7;background:#eaf2fb;border-radius:2px;padding:0 2px}
 .ap-cell.ap-sched-only{background:#eaf2fb;color:#3a7fc7}
+/* 內稽動態流程列 */
+.ad-flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.ad-step{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:150px;padding:8px 12px;border:1.5px solid var(--line);border-left:5px solid var(--tone);border-radius:6px;background:#fff;cursor:pointer;text-align:left;font-family:inherit}
+.ad-step b{font-size:22px;line-height:1.1;color:var(--tone);font-variant-numeric:tabular-nums}
+.ad-step span{font-size:13px;font-weight:700;color:var(--navy)}
+.ad-step small{font-size:10.5px;color:var(--ink-3)}
+.ad-step:hover{background:#f5f8fa}
+.ad-step.on{background:var(--tone);border-color:var(--tone)}
+.ad-step.on b,.ad-step.on span,.ad-step.on small{color:#fff}
+.ad-arrow{align-self:center;color:var(--ink-3);font-size:16px}
+.ad-flow-later{align-self:center;margin-left:auto;font-size:12px;color:var(--ink-3)}
+.ad-star{border:0;background:none;cursor:pointer;font-size:14px;padding:0 4px 0 0;color:#b8c2c8}
+.ad-star.on{color:#e0a000}
+.ad-due{font-size:10.5px;color:var(--ink-3);margin-top:2px}
+.ad-due.yel{color:#b07a00;font-weight:700}
+.ad-due.red{color:var(--bad);font-weight:700}
+.ad-due.over{color:#fff;background:var(--bad);border-radius:3px;padding:0 4px;display:inline-block;font-weight:700}
 /* 年度計畫 Excel 式 */
 table.ap-xl td{padding:2px 1px}
 table.ap-xl .ap-sh{position:sticky;left:0;z-index:2;text-align:left;font-weight:600;white-space:nowrap;padding:3px 6px}
@@ -4127,6 +4144,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <button class="btn" onclick="AuditDash.openPrintModal()">🖨 列印／PDF</button>
             <button class="btn sm" onclick="PrintLetterhead.openSettings()" title="調整右上角框框跟頁尾要印什麼內容">📋 頁首頁尾設定</button>
           </div>
+          <div id="ad-flow" class="ad-flow"></div>
           <div class="toolbar" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
             <span class="hint" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">🔍 找船舶</span>
             <input type="text" id="ad-f-kw" placeholder="輸入船舶代碼或船名關鍵字…" oninput="AuditDash.render()" style="padding:5px 8px;width:180px">
@@ -4150,7 +4168,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <button class="btn sm ad-viewbtn" data-v="table" onclick="AuditDash.setView('table')">📋 列表</button>
             <button class="btn sm ad-viewbtn" data-v="grouped" onclick="AuditDash.setView('grouped')">🗂 分區檢視（依排程狀態分四區）</button>
           </div>
-          <p class="hint" style="line-height:1.7;margin-top:8px">建議每兩週點一次「🔄 更新進度」重新整理。上次稽核日期／實際檢查日點選日期欄位可從該船近3次內稽紀錄自由挑選；計畫檢查日取自「檢查管控」預排；CSO 取自「船舶資料」；缺失數依所選的實際檢查日自動統計「缺失紀錄總表」中內稽相關筆數（供參考，非官方 NC/OB 分類）。橘色底列表示該船目前為「加強稽核」狀態。表頭可點選排序，同一艘船可能因加強稽核出現兩列。<b>已完成的列（不論已結案／未結案）會自動排到清單最下方</b>，方便聚焦在還沒完成的船；一輪完成（自動或手動填入實際檢查日）後，系統會自動幫該船新增下一輪的列，不需手動按「新增一列」。可用「完成年度」篩選查看特定年度已完成的稽核情形。「🗂 分區檢視」把船舶依排程狀態分成四區：已進入排程（最需要關注）／未排程（等日期接近再排）／已完成稽核未結案（追蹤結案進度）／已完成本年度稽核且已結案。「🖨 列印／PDF」可勾選要包含哪些區塊，適合每兩週出表給 DPA 呈簽時排除已結案船舶。</p>
+          <p class="hint" style="line-height:1.7;margin-top:8px"><b>不用再切到「檢查管控」：</b>計畫檢查日直接在表格裡選日期（同步寫入檢查管控的預排檢查日），下方小字顯示檢查管控的到期日／剩餘天數；點船名前的 ☆／⭐ 可設定或取消加強稽核；Sched. Month 與「年度計畫暨執行情形」的預計月同步（這裡改月份，年度計畫也跟著改）。上方流程列點一下可只看該階段的船。<br><span style="color:var(--ink-3)">其他說明：上次稽核日期／實際檢查日點選日期欄位可從該船近3次內稽紀錄自由挑選；</span>CSO 取自「船舶資料」；缺失數依所選的實際檢查日自動統計「缺失紀錄總表」中內稽相關筆數（供參考，非官方 NC/OB 分類）。橘色底列表示該船目前為「加強稽核」狀態。表頭可點選排序，同一艘船可能因加強稽核出現兩列。<b>已完成的列（不論已結案／未結案）會自動排到清單最下方</b>，方便聚焦在還沒完成的船；一輪完成（自動或手動填入實際檢查日）後，系統會自動幫該船新增下一輪的列，不需手動按「新增一列」。可用「完成年度」篩選查看特定年度已完成的稽核情形。「🗂 分區檢視」把船舶依排程狀態分成四區：已進入排程（最需要關注）／未排程（等日期接近再排）／已完成稽核未結案（追蹤結案進度）／已完成本年度稽核且已結案。「🖨 列印／PDF」可勾選要包含哪些區塊，適合每兩週出表給 DPA 呈簽時排除已結案船舶。</p>
         </div>
         <div class="card foldable" id="ad-monthly-card" style="margin-bottom:14px">
           <h3>📅 各月稽核達成情形（供月報統計用）<span class="fold-btn" onclick="CardFold.toggle('ad-monthly-card',()=>AuditDash.renderMonthly())">▾ 收合</span></h3>
@@ -20837,20 +20855,43 @@ const AuditDash={
      反而會把時間上比較晚的「目前這一輪」排到補登的舊輪次前面，配對到不屬於它的月份（曾發生在
      B Image／FPMC 27：missing 掉的完成輪次補登後，開放中那一輪反而錯配到已經完成過的月份）。
      改用上次稽核日排序，才能正確反映「哪一輪在前、哪一輪在後」的實際時間順序。 */
+  /* 2026-10 改版：年度計畫的預計月改為「上次稽核月推到本年度」（與下面 autoSchedMonth 同規則），
+     只有「手動預計月」（source:manual）才會覆蓋。這裡只讀手動月份；依這一列自動試算落在哪一年，
+     找同船同年度的手動月份，依各列上次稽核日先後一對一配對。 */
   schedMonthFromAnnualPlan(row){
     if(typeof AnnualPlan==="undefined")return null;
-    const year=new Date().getFullYear();
-    const entries=AnnualPlan.entriesFor(year,"audit",row.ship);
-    if(!entries.length)return null;
-    const sorted=entries.slice().sort((a,b)=>a.month-b.month);
-    const siblings=this.rowsRaw().filter(r=>r.ship===row.ship).sort((a,b)=>(a.lastAuditDate||"").localeCompare(b.lastAuditDate||"")||(a.id-b.id));
-    const idx=siblings.findIndex(r=>r.id===row.id);
-    if(idx<0||idx>=sorted.length)return null; // 這一列在年度計畫裡沒有對應排程，改用自動試算
-    return `${year}-${String(sorted[idx].month).padStart(2,"0")}`;
+    const auto=this.autoSchedMonth(row);if(!auto)return null;
+    const year=+auto.slice(0,4);
+    const months=[...new Set((App.annualPlan||[]).filter(e=>e.year===year&&e.planType==="audit"&&e.ship===row.ship&&e.source==="manual").map(e=>e.month))].sort((a,b)=>a-b);
+    if(!months.length)return null;
+    const sib=this.rowsRaw().filter(r=>r.ship===row.ship&&(this.autoSchedMonth(r)||"").slice(0,4)===String(year))
+      .sort((a,b)=>(a.lastAuditDate||"").localeCompare(b.lastAuditDate||"")||(a.id-b.id));
+    const idx=sib.findIndex(r=>r.id===row.id);
+    if(idx<0||idx>=months.length)return null;
+    return `${year}-${String(months[idx]).padStart(2,"0")}`;
+  },
+  /* 內稽動態改 Sched. Month 時，同步寫入年度計畫的「手動預計月」，兩頁看到的月份一致 */
+  syncPlanMonth(ship,oldYm,newYm){
+    if(typeof AnnualPlan==="undefined")return;
+    // 年度計畫某船某年一旦有手動月份，就整年以手動為準——所以第一次寫手動月份前，先把該年
+    // 系統推算的其他月份也存成手動（moveFrom 除外），避免其他月份被吃掉。
+    const isM=(y,m)=>e=>e.planType==="audit"&&e.ship===ship&&e.year===y&&e.source==="manual"&&(m==null||e.month===m);
+    const push=(y,m)=>{if(!App.annualPlan.some(isM(y,m)))App.annualPlan.push({id:AnnualPlan.nextId(),year:y,ship,planType:"audit",month:m,actualDate:"",actualInspId:null,source:"manual",note:"由內稽動態設定"});};
+    const mat=(y,skip)=>{if(App.annualPlan.some(isM(y)))return;AnnualPlan.planFor(ship,"audit",y).months.filter(m=>m!==skip).forEach(m=>push(y,m));};
+    const ny=newYm?+newYm.slice(0,4):null;
+    if(oldYm){
+      const y=+oldYm.slice(0,4),m=+oldYm.slice(5,7);
+      App.annualPlan=App.annualPlan.filter(e=>!isM(y,m)(e));
+      if(ny===y)mat(y,m); // 同年度內搬月份：保留推算的其他月份，舊月份不再保留
+    }
+    if(newYm){if(!(oldYm&&+oldYm.slice(0,4)===ny))mat(ny,null);push(ny,+newYm.slice(5,7));}
   },
   computeSchedMonth(row){
     const fromPlan=this.schedMonthFromAnnualPlan(row);
     if(fromPlan)return fromPlan;
+    return this.autoSchedMonth(row);
+  },
+  autoSchedMonth(row){
     const ic=this.inspCtrlRow(row.ship);
     const icRow=ic?InspCtrl.computeRow(ic):null;
     const isEnhanced=!!(icRow&&icRow.isEnhancedAudit);
@@ -21008,7 +21049,8 @@ const AuditDash={
     const plannedDate=ic&&ic.schedDate?InspCtrl.normDate(ic.schedDate):"";
     const enhanced=!!(icRow&&icRow.isEnhancedAudit);
     const defCount=this.defsFor(row.ship,row.actualAuditDate).length;
-    return {...row,auditorText:[row.auditor,row.auditor2].filter(Boolean).join("、"),vesselName:s.name||row.ship,cso:s.cso||"",plannedDate,enhanced,enhancedReason:ic?ic.enhancedReason:"",defCount};
+    return {...row,auditorText:[row.auditor,row.auditor2].filter(Boolean).join("、"),vesselName:s.name||row.ship,zh:s.zh||"",cso:s.cso||"",plannedDate,enhanced,enhancedReason:ic?ic.enhancedReason:"",defCount,
+      dueDate:icRow?icRow.dueDateCalc||"":"",daysLeft:icRow&&icRow.dueDateCalc&&icRow.daysLeft!=null&&!isNaN(icRow.daysLeft)?icRow.daysLeft:null,icStatus:icRow?icRow.status:"",icOwner:ic?ic.owner||"":""};
   },
   /* 排程狀態四分類，供篩選／分區檢視／列印勾選共用：
      scheduled＝已排（有計畫檢查日）但尚未完成；unscheduled＝尚未排程也尚未完成；
@@ -21031,6 +21073,8 @@ const AuditDash={
     if(this.ms.auditor)rows=rows.filter(r=>this.ms.auditor.pass(r.auditor)||(r.auditor2&&this.ms.auditor.pass(r.auditor2)));
     if(this.ms.schedMonth)rows=rows.filter(r=>this.ms.schedMonth.pass(this.monthDisplay(r.schedMonth)));
     if(this.ms.planMonth&&this.ms.planMonth.sel.size)rows=rows.filter(r=>r.plannedDate&&this.ms.planMonth.pass(r.plannedDate.slice(0,7)));
+    this._preStep=rows; // 流程列的數字依「其他篩選」計算，不受流程列本身影響
+    rows=rows.filter(r=>this.stepPass(r));
     const k=this.sortKey,asc=this.sortAsc?1:-1;
     rows.sort((a,b)=>{
       // 管控目的是掌握「今年還沒完成的船」，已完成的（不論結案與否）一律排到最下面，
@@ -21075,17 +21119,130 @@ const AuditDash={
     // 無條件標記為「手動」，那一列就會永遠卡住不再跟著上次稽核日自動更新，使用者常常根本不知道
     // 自己「動過」。改成先比對新值是不是跟目前自動試算出來的一樣：一樣就當作沒有真的覆蓋，
     // 不標記手動（若本來被誤標成手動，這裡也順便修正回來）；真的不一樣才視為刻意手動指定。
-    const auto=this.computeSchedMonth(row);
+    const old=row.schedMonth||"";
+    if(old===val)return;
+    this.syncPlanMonth(row.ship,old,val); // 舊月份移出、新月份記為年度計畫手動預計月
     row.schedMonth=val;
-    row.schedManual=(val!==auto);
-    App.saveAll();
+    row.schedManual=!!val&&val!==this.computeSchedMonth(row);
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
+    if(typeof Audit!=="undefined")Audit.log("編輯","內稽動態",`${row.ship} Sched. Month：${old||"(空白)"} → ${val||"(空白)"}（同步年度計畫）`);
     this.render();
   },
   resetSchedAuto(id){
     if(!this.requireEdit())return;
     const row=this.rowsRaw().find(r=>r.id===id);if(!row)return;
+    this.syncPlanMonth(row.ship,row.schedMonth,null);
     row.schedManual=false;row.schedMonth=this.computeSchedMonth(row);
-    App.saveAll();this.render();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
+    this.render();
+  },
+  /* ── 免跳頁：計畫檢查日／加強稽核直接在內稽動態設定，寫回「檢查管控」同一筆內部稽核紀錄 ── */
+  icRowEnsure(ship){
+    let ic=this.inspCtrlRow(ship);
+    if(!ic){
+      ic={id:InspCtrl.nextId(),ship,itype:"INTERNAL AUDIT",validityMonths:"12",lastDate:"",dueDate:"",schedDate:"",midDate:"",owner:"",ownerCat:"haiji",note:""};
+      App.inspCtrl.push(ic);
+    }
+    return ic;
+  },
+  setPlannedDate(id,val){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("auditDash"))return;
+    if(!this.requireEdit("僅指定編輯者或 Owner 可排定計畫檢查日")){this.render();return;}
+    const row=this.rowsRaw().find(r=>r.id===id);if(!row)return;
+    const ic=this.icRowEnsure(row.ship);
+    const old=ic.schedDate||"";
+    ic.schedDate=val||"";
+    if(ic.schedDate===old)return;
+    App.saveAll();
+    if(typeof Cloud!=="undefined"){Cloud.queueAutoPublish&&Cloud.queueAutoPublish("inspctrl");Cloud.flushNow();}
+    if(typeof Audit!=="undefined")Audit.log("編輯","內稽動態",`${row.ship} 計畫檢查日：${old||"(未排程)"} → ${ic.schedDate||"(清除)"}（同步檢查管控預排日）`);
+    toast(ic.schedDate?`✓ ${row.ship} 已排定 ${ic.schedDate}（檢查管控同步更新）`:`已清除 ${row.ship} 計畫檢查日`);
+    this.render();
+  },
+  _enhShip:null,
+  openEnhance(ship){
+    const ic=this.inspCtrlRow(ship)||{};
+    const canEdit=this.canEdit();
+    this._enhShip=ship;
+    let m=$("#adEnhModal");
+    if(!m){
+      m=document.createElement("div");m.className="modal-bg";m.id="adEnhModal";
+      m.innerHTML=`<div class="modal" style="max-width:460px"><div class="mh"><h3 id="ad-enh-title">⭐ 加強稽核</h3><button class="x" onclick="AuditDash.closeEnhance()">✕</button></div>
+        <div class="mb">
+          <p class="hint" style="margin-bottom:10px;line-height:1.6">勾選後該船內稽週期改為 6 個月一次（建議至少維持一年），與「檢查管控」同一筆資料，開始／結束會自動記入「加強管理歷史」。</p>
+          <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:600"><input type="checkbox" id="ad-enh-on"> 列為加強稽核</label>
+          <label style="display:block;margin-bottom:8px">原因（必填）<input type="text" id="ad-enh-reason" style="width:100%;margin-top:4px"></label>
+          <label style="display:block">起算日<input type="date" id="ad-enh-since" style="margin-top:4px"></label>
+        </div>
+        <div class="mf"><button class="btn" onclick="AuditDash.closeEnhance()">取消</button><button class="btn primary" id="ad-enh-save" onclick="AuditDash.saveEnhance()">💾 儲存</button></div></div>`;
+      document.body.appendChild(m);
+    }
+    const s=SHIPINFO.find(x=>x.code===ship)||{};
+    $("#ad-enh-title").textContent=`⭐ 加強稽核 － ${s.zh||ship} ${s.name||""}`;
+    $("#ad-enh-on").checked=!!ic.enhancedAudit;
+    $("#ad-enh-reason").value=ic.enhancedReason||"";
+    $("#ad-enh-since").value=ic.enhancedSince?InspCtrl.normDate(ic.enhancedSince):todayStr();
+    ["ad-enh-on","ad-enh-reason","ad-enh-since"].forEach(i=>$("#"+i).disabled=!canEdit);
+    $("#ad-enh-save").style.display=canEdit?"":"none";
+    m.classList.add("show");
+  },
+  closeEnhance(){const m=$("#adEnhModal");if(m)m.classList.remove("show");},
+  saveEnhance(){
+    if(!this.requireEdit())return;
+    const ship=this._enhShip;if(!ship)return;
+    const on=$("#ad-enh-on").checked,reason=$("#ad-enh-reason").value.trim(),since=$("#ad-enh-since").value||todayStr();
+    if(on&&!reason){toast("⚠ 列為加強稽核需填寫原因");return;}
+    const ic=this.icRowEnsure(ship);
+    const was=!!ic.enhancedAudit,wasSince=ic.enhancedSince||"";
+    ic.enhancedAudit=on;ic.enhancedReason=on?reason:"";ic.enhancedSince=on?since:"";
+    if(typeof EnhAuditLog!=="undefined"){
+      if(!was&&on)EnhAuditLog.record(ship,ic.itype,"start",since,reason);
+      else if(was&&!on){const days=wasSince?Math.round((new Date(todayStr())-new Date(InspCtrl.normDate(wasSince)+"T00:00:00"))/86400000):null;
+        EnhAuditLog.record(ship,ic.itype,"end",todayStr(),"",days!=null?`原自 ${wasSince} 起列入加強，共 ${days} 天`:"");}
+    }
+    // 週期改變後，進行中那一列的 Sched. Month 依新週期重算（手動指定的不動）
+    const open=this.openRowFor(ship);if(open&&!open.schedManual)open.schedMonth=this.computeSchedMonth(open);
+    App.saveAll();
+    if(typeof Cloud!=="undefined"){Cloud.queueAutoPublish&&Cloud.queueAutoPublish("inspctrl");Cloud.flushNow();}
+    if(typeof Audit!=="undefined")Audit.log("編輯","內稽動態",`${ship} 加強稽核：${was?"是":"否"} → ${on?"是（"+reason+"）":"否"}（同步檢查管控）`);
+    toast(on?`✓ ${ship} 已列為加強稽核`:`✓ ${ship} 已取消加強稽核`);
+    this.closeEnhance();this.render();
+  },
+  /* ── 流程列：① 該排了 → ② 已排程待執行 → ③ 已完成待結案 → ④ 已結案 ── */
+  NEED_DAYS:90,
+  needSched(r){
+    if(r.actualAuditDate||r.plannedDate)return false;
+    if(r.daysLeft!=null&&r.daysLeft<=this.NEED_DAYS)return true;
+    if(r.schedMonth){const now=new Date();const lim=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;const t=new Date(now.getFullYear(),now.getMonth()+2,1);const lim2=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}`;return r.schedMonth<=lim2||r.schedMonth<=lim;}
+    return false;
+  },
+  stepFilter:null,
+  setStep(k){this.stepFilter=this.stepFilter===k?null:k;this.render();},
+  renderFlow(all){
+    const box=$("#ad-flow");if(!box)return;
+    const cnt={need:0,scheduled:0,done_open:0,done_closed:0,later:0};
+    const yr=String(new Date().getFullYear());
+    all.forEach(r=>{const st=this.schedStatus(r);
+      if(st==="unscheduled"){if(this.needSched(r))cnt.need++;else cnt.later++;}
+      else if(st==="done_closed"){if(r.actualAuditDate.slice(0,4)===yr)cnt.done_closed++;}
+      else if(st==="done_open")cnt.done_open++;
+      else cnt[st]++;});
+    const step=(k,n,title,sub,tone)=>`<button class="ad-step${this.stepFilter===k?" on":""}" style="--tone:${tone}" onclick="AuditDash.setStep('${k}')"><b>${n}</b><span>${title}</span><small>${sub}</small></button>`;
+    box.innerHTML=
+      step("need",cnt.need,"① 該排程了",`到期 ${this.NEED_DAYS} 天內或預計月將到，尚未排日期`,"#c0392b")+'<span class="ad-arrow">→</span>'+
+      step("scheduled",cnt.scheduled,"② 已排程待執行","已有計畫檢查日，等實際稽核","#c66a00")+'<span class="ad-arrow">→</span>'+
+      step("done_open",cnt.done_open,"③ 已完成待結案","追蹤缺失改善後勾「結案」","#3a7fc7")+'<span class="ad-arrow">→</span>'+
+      step("done_closed",cnt.done_closed,`④ ${yr} 已結案`,"本年度完成","#2e8b57")+
+      `<span class="ad-flow-later" onclick="AuditDash.setStep('later')" style="cursor:pointer;${this.stepFilter==="later"?"font-weight:700;color:var(--navy)":""}">尚未到期、暫不需排程 <b>${cnt.later}</b> 艘</span>`+
+      (this.stepFilter?`<button class="btn sm" onclick="AuditDash.setStep(null)">✕ 顯示全部</button>`:"");
+  },
+  stepPass(r){
+    const k=this.stepFilter;if(!k)return true;
+    const st=this.schedStatus(r);
+    if(k==="need")return st==="unscheduled"&&this.needSched(r);
+    if(k==="later")return st==="unscheduled"&&!this.needSched(r);
+    if(k==="done_closed")return st==="done_closed"&&r.actualAuditDate.slice(0,4)===String(new Date().getFullYear());
+    return st===k;
   },
   openDatePick(id,field){
     if(!this.requireEdit("僅指定編輯者或 Owner 可調整日期"))return;
@@ -21211,12 +21368,16 @@ const AuditDash={
           <input type="month" value="${esc(r.schedMonth)}" ${dis} onchange="AuditDash.setSchedMonth(${r.id},this.value)" style="font-size:11px;width:118px">
           ${r.schedManual&&canEdit?`<button class="btn sm" onclick="AuditDash.resetSchedAuto(${r.id})" title="恢復自動計算">↺</button>`:""}
         </td>
-        <td style="text-align:left;white-space:nowrap">${r.enhanced?"⭐":""}<b>${esc(r.vesselName)}</b></td>
+        <td style="text-align:left;white-space:nowrap"><button class="ad-star${r.enhanced?" on":""}" onclick="AuditDash.openEnhance('${esc(r.ship)}')" title="${r.enhanced?"加強稽核中："+esc(r.enhancedReason||"")+"（點選查看／取消）":(canEdit?"點選列為加強稽核（6個月一次）":"一般稽核")}">${r.enhanced?"⭐":"☆"}</button><b>${esc(r.vesselName)}</b>${r.zh?`<div class="hint" style="font-size:10.5px;margin-left:22px">${esc(r.zh)}</div>`:""}</td>
         <td style="font-family:var(--mono);font-size:11px;${canEdit?"cursor:pointer":""};${lastCls}" onclick="AuditDash.openDatePick(${r.id},'lastAudit')" title="${canEdit?"點選挑選近3次內稽紀錄":"唯讀，僅指定編輯者或 Owner 可調整"}">${esc(r.lastAuditDate)||"未選擇"}</td>
         <td>${r.actualAuditDate
           ?`<span class="hint" style="font-size:11.5px" title="已完成稽核，這裡改顯示實際檢查港口（來自檢查紀錄），不是原本的計畫港口">📍 ${esc(this.actualPortFor(r))||"<i>檢查紀錄未填地點</i>"}</span>`
           :`<input type="text" id="adport-${r.id}" value="${esc(r.plannedPort)}" ${dis} style="width:110px;font-size:11.5px" onchange="AuditDash.setField(${r.id},'plannedPort',this.value)">`}</td>
-        <td style="font-family:var(--mono);font-size:11px;color:#3a7fc7">${esc(r.plannedDate)||"未排程"}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:#3a7fc7;white-space:nowrap">${r.actualAuditDate
+          ?(esc(r.plannedDate)||'<span class="hint">—</span>')
+          :(canEdit?`<input type="date" value="${esc(r.plannedDate)}" onchange="AuditDash.setPlannedDate(${r.id},this.value)" style="font-size:11px;width:122px${r.plannedDate?"":";border-color:"+(this.needSched(r)?"var(--bad)":"var(--line)")}" title="直接排定計畫檢查日（同步寫入檢查管控的預排檢查日）">`:(esc(r.plannedDate)||"未排程"))}
+          ${!r.actualAuditDate&&r.dueDate?`<div class="ad-due ${r.daysLeft!=null&&r.daysLeft<0?"over":(r.daysLeft!=null&&r.daysLeft<=30?"red":(r.daysLeft!=null&&r.daysLeft<=this.NEED_DAYS?"yel":""))}" title="到期日來自檢查管控（上次稽核日＋效期）">到期 ${esc(r.dueDate)}${r.daysLeft!=null?`・${r.daysLeft<0?"逾期 "+(-r.daysLeft):"剩 "+r.daysLeft} 天`:""}</div>`:""}
+          ${!r.actualAuditDate&&r.icOwner?`<div class="hint" style="font-size:10px">安排人：${esc(r.icOwner)}</div>`:""}</td>
         <td style="font-family:var(--mono);font-size:11px;${canEdit?"cursor:pointer":""};${actCls}" onclick="AuditDash.openDatePick(${r.id},'actualAudit')" title="${canEdit?"點選挑選近3次內稽紀錄；出現比上次稽核日更新的紀錄時系統會自動帶入":"唯讀，僅指定編輯者或 Owner 可調整"}">${esc(r.actualAuditDate)||`<span class="hint">尚未完成</span>`}</td>
         <td style="text-align:center">${r.defCount||"-"}</td>
         <td style="text-align:center"><input type="checkbox" ${r.closedOut?"checked":""} ${dis} onchange="AuditDash.setField(${r.id},'closedOut',this.checked)"></td>
@@ -21647,6 +21808,7 @@ const AuditDash={
     document.querySelectorAll(".ad-subtabbtn").forEach(b=>b.classList.toggle("dark",b.dataset.t===this.subTab));
     this.renderFilterSummary();
     const rows=this.filteredRows();
+    this.renderFlow(this._preStep||rows);
     const cntEl=$("#ad-result-count");if(cntEl)cntEl.textContent=`篩選結果：${rows.length} 筆`;
     const canEdit=this.canEdit();
     const who=typeof AnnualPlan!=="undefined"?AnnualPlan.loadEditorName():"";
