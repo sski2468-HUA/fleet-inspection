@@ -362,13 +362,49 @@ async function uploadAllDefectPhotos(payload){
   return { failCount, firstError };
 }
 
-/* ── 範例資料（之後改為即時從雲端抓取）── */
+/* ── 船名備援清單：開場會向雲端抓最新的船名清單（loadShipsFromCloud）；船上網路連不到雲端時，
+   改用這份內建清單（2026/10/15 從系統船舶資料複製，共 39 艘），船上照樣選得到自己的船。
+   原本這裡只有 5 艘範例船，連不到雲端時船上會找不到自己的船名。之後系統新增船舶，請一併更新這份清單。 ── */
 const SHIP_OPTS=[
-  {code:"CJ",name:"台塑真善輪",vtype:"tanker"},
-  {code:"SE",name:"SE",vtype:"tanker"},
-  {code:"F30",name:"F30",vtype:"tanker"},
-  {code:"B108",name:"B108",vtype:"bulk"},
-  {code:"B202",name:"B202",vtype:"bulk"},
+  {code:"F27",zh:"台塑27號輪",name:"FPMC 27",vtype:"tanker"},
+  {code:"F28",zh:"台塑28號輪",name:"FPMC 28",vtype:"tanker"},
+  {code:"F29",zh:"台塑29號輪",name:"FPMC 29",vtype:"tanker"},
+  {code:"F30",zh:"台塑30號輪",name:"FPMC 30",vtype:"tanker"},
+  {code:"F31",zh:"台塑31號輪",name:"FPMC 31",vtype:"tanker"},
+  {code:"F32",zh:"台塑32號輪",name:"FPMC 32",vtype:"tanker"},
+  {code:"F33",zh:"台塑33號輪",name:"FPMC 33",vtype:"tanker"},
+  {code:"F34",zh:"台塑34號輪",name:"FPMC 34",vtype:"tanker"},
+  {code:"F35",zh:"台塑35號輪",name:"FPMC 35",vtype:"tanker"},
+  {code:"F36",zh:"台塑36號輪",name:"FPMC 36",vtype:"tanker"},
+  {code:"CI",zh:"台塑智善輪",name:"FPMC C Intelligence",vtype:"tanker"},
+  {code:"CJ",zh:"台塑真善輪",name:"FPMC C Jade",vtype:"tanker"},
+  {code:"CL",zh:"台塑君善輪",name:"FPMC C Lord",vtype:"tanker"},
+  {code:"CM",zh:"台塑悅善輪",name:"FPMC C Melody",vtype:"tanker"},
+  {code:"CN",zh:"台塑崇善輪",name:"FPMC C Noble",vtype:"tanker"},
+  {code:"CO",zh:"台塑亞善輪",name:"FPMC C Orient",vtype:"tanker"},
+  {code:"BF",zh:"台塑長輝輪",name:"FPMC B Forever",vtype:"bulk"},
+  {code:"BG",zh:"台塑守輝輪",name:"FPMC B Guard",vtype:"bulk"},
+  {code:"BH",zh:"台塑和輝輪",name:"FPMC B Harmony",vtype:"bulk"},
+  {code:"BI",zh:"台塑映輝輪",name:"FPMC B Image",vtype:"bulk"},
+  {code:"BJ",zh:"台塑正輝輪",name:"FPMC B Justice",vtype:"bulk"},
+  {code:"BK",zh:"台塑皇輝輪",name:"FPMC B Kingdom",vtype:"bulk"},
+  {code:"BL",zh:"台塑祥輝輪",name:"FPMC B Luck",vtype:"bulk"},
+  {code:"BM",zh:"台塑君輝輪",name:"FPMC B Majesty",vtype:"bulk"},
+  {code:"BN",zh:"台塑純輝輪",name:"FPMC B Nature",vtype:"bulk"},
+  {code:"B105",zh:"台塑105號輪",name:"FPMC B 105",vtype:"bulk"},
+  {code:"B106",zh:"台塑106號輪",name:"FPMC B 106",vtype:"bulk"},
+  {code:"B107",zh:"台塑107號輪",name:"FPMC B 107",vtype:"bulk"},
+  {code:"B108",zh:"台塑108號輪",name:"FPMC B 108",vtype:"bulk"},
+  {code:"B201",zh:"台塑201號輪",name:"FPMC B 201",vtype:"bulk"},
+  {code:"B202",zh:"台塑202號輪",name:"FPMC B 202",vtype:"bulk"},
+  {code:"SA",zh:"臺塑安華",name:"FPMC S AMBER",vtype:"tanker"},
+  {code:"SE",zh:"臺塑康華",name:"FPMC S EMERALD",vtype:"tanker"},
+  {code:"SR",zh:"臺塑恆華",name:"FPMC S RUBY",vtype:"tanker"},
+  {code:"SS",zh:"臺塑福華",name:"FPMC S SAPPHIRE",vtype:"tanker"},
+  {code:"F25",zh:"台塑25號輪",name:"FPMC 25",vtype:"tanker"},
+  {code:"F26",zh:"台塑26號輪",name:"FPMC 26",vtype:"tanker"},
+  {code:"PH",zh:"台塑英善輪",name:"FPMC P Hero",vtype:"tanker"},
+  {code:"PI",zh:"台塑理善輪",name:"FPMC P Ideal",vtype:"tanker"}
 ];
 /* 檢查地點：跟主系統「新增檢查紀錄」用同一份港口清單（462個），比對輸入內容自動建議，
    找不到就選「其他（自行輸入）」，不會被卡住。這份清單是靜態複製自主系統，港口清單異動頻率
@@ -585,11 +621,26 @@ fillShipOpts("");
 
 /* 船名清單改為開場時向雲端即時抓取（跟正式系統共用同一份 app_db 資料，k="ships"），
    失敗（離線等）時保留上面的範例清單當備援，不會讓表單整個打不開。 */
+/* 連不到雲端時頁面頂端顯示提示（原本是靜默改用備援清單，船上不知道發生什麼事）；連上了就自動收起 */
+function showCloudWarn(on,detail){
+  let b=document.getElementById("cloudWarnBar");
+  if(!on){if(b)b.remove();return;}
+  if(!b){
+    b=document.createElement("div");b.id="cloudWarnBar";
+    b.style.cssText="position:sticky;top:0;z-index:200;background:#fff3cd;border-bottom:2px solid #e0a020;color:#5c4200;padding:10px 14px;font-size:14px;line-height:1.6;display:flex;gap:10px;align-items:center;flex-wrap:wrap";
+    document.body.insertBefore(b,document.body.firstChild);
+  }
+  b.innerHTML=`<span style="flex:1;min-width:240px">⚠ <b>目前連不到系統雲端</b>（可能是船上網路限制或連線不穩${detail?"："+esc(detail):""}）。船名改用內建清單，可以照常填寫；<b>送出需要連得上雲端</b>，如果一直送不出去，請在最後一步按「暫時不送出，先匯出草稿存檔」，把檔案寄給海技。</span><button type="button" class="btn" style="padding:6px 12px" onclick="loadShipsFromCloud()">🔄 重新連線</button>`;
+}
 async function loadShipsFromCloud(){
   try{
+    const ctl=typeof AbortController!=="undefined"?new AbortController():null;
+    const tm=ctl?setTimeout(()=>ctl.abort(),15000):null;
     const res = await fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=eq.ships`,
-      { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key } });
-    if(!res.ok) return;
+      { headers: { "apikey": CLOUD.key, "Authorization": "Bearer "+CLOUD.key }, signal: ctl?ctl.signal:undefined });
+    if(tm)clearTimeout(tm);
+    if(!res.ok){ showCloudWarn(true,"HTTP "+res.status); return; }
+    showCloudWarn(false);
     const rows = await res.json();
     const list = rows && rows[0] && Array.isArray(rows[0].payload) ? rows[0].payload : null;
     if(!list || !list.length) return;
@@ -601,7 +652,7 @@ async function loadShipsFromCloud(){
       const s = SHIP_OPTS.find(x=>x.code===cur);
       document.getElementById("f-vtype").value = s ? s.vtype : document.getElementById("f-vtype").value;
     }
-  }catch(e){ /* 離線或連線失敗，靜默使用範例清單 */ }
+  }catch(e){ showCloudWarn(true,e&&e.name==="AbortError"?"連線逾時":"無法連線"); /* 改用內建備援清單，照常可以填寫 */ }
 }
 loadShipsFromCloud();
 
