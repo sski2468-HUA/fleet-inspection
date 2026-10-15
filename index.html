@@ -9201,7 +9201,7 @@ function hasExcelJS(){
 function isInternal(t){
   const s=String(t||"").toLowerCase();
   const ck=typeof Classify!=="undefined"?Classify.internalKw:null;
-  const kws=(ck&&ck.length)?ck:["internal audit","isps","onboard visit","accompanying"]; // 設定尚未載入（空陣列）時用預設，避免全部被誤判成外部
+  const kws=(ck&&ck.length)?ck:["internal audit","isps","onboard visit","accompanying","cross ship visit","交叉訪船"]; // 設定尚未載入（空陣列）時用預設，避免全部被誤判成外部
   return kws.some(kw=>kw&&s.includes(String(kw).toLowerCase()));
 }
 const ITYPE_COLORS={PSC:["#1e7f8c","#e3f1f3"],SIRE:["#7b4fa3","#f1eaf8"],FLAG:["#2e6db4","#e7f0fa"],CDI:["#b8860b","#faf3df"],RIGHTSHIP:["#c0392b","#fbeae7"],TERMINAL:["#5b7c3f","#eef4e7"],"Internal audit":["#777","#eee"],"P&I":["#9c5d2e","#f7ece2"]};
@@ -9259,7 +9259,7 @@ const Classify={
   KEY_INT:"vsm_classify_internal_v1",
   KEY_ICAT:"vsm_classify_icat_v1",
   CLOUD_KEY:"classify_rules",
-  DEFAULT_INTERNAL:["internal audit","isps","onboard visit","accompanying"],
+  DEFAULT_INTERNAL:["internal audit","isps","onboard visit","accompanying","cross ship visit","交叉訪船"],
   DEFAULT_ICAT:[
     {icat:"PSC",match:["psc"]},
     {icat:"第三方檢查",match:["cdi","sire","rightship","terminal","租家檢查","flag","the mcc group","p&i","其他-第三方檢查"]},
@@ -9295,6 +9295,8 @@ const Classify={
      只補在本機快取，不主動推回雲端，避免蓋掉其他人在雲端上另外調整過的設定。 */
   _ensureIcatDefaults(){
     let changed=false;
+    // 2026-10-15：交叉訪船屬公司內部檢查（但不算一次訪船，年度計畫／檢查管控的訪船不計入），舊設定沒有這兩個關鍵字，開機時補上
+    ["cross ship visit","交叉訪船"].forEach(k=>{if(!this.internalKw.some(x=>String(x).toLowerCase()===k)){this.internalKw.push(k);changed=true;}});
     const co=this.icatRules.find(r=>r.icat==="公司");
     if(co&&!co.match.includes("cross ship visit")){co.match.push("cross ship visit");changed=true;}
     const sp=this.icatRules.find(r=>r.icat==="專項檢查");
@@ -27277,12 +27279,12 @@ const FleetDA={
   /* 外部／內部依系統既有的「內部檢查關鍵字」設定（isInternal，與上方來源篩選、其他分析頁一致）判斷，
      內部再拆成訪船／內稽／隨船／ISPS／交叉訪船，外部依檢查單位分。 */
   SRC_EXT:["PSC","SIRE","RightShip","CDI","FLAG","MCC","Terminal","其他外部"],
-  SRC_INT:["訪船","內稽","隨船","ISPS","交叉訪船","其他內部"],
+  SRC_INT:["訪船","交叉訪船","內稽","隨船","ISPS","其他內部"],
   get SRC_GROUPS(){return this.SRC_EXT.concat(this.SRC_INT);},
   srcGroup(it){
     const s=String(it||"").trim().toUpperCase();
     if(isInternal(it)){
-      if(/CROSS|交叉/.test(s))return "交叉訪船";
+      if(/CROSS|交叉/.test(s))return "交叉訪船"; // 交叉訪船是內部檢查，但不算一次訪船，獨立統計
       if(/VISIT|訪船/.test(s))return "訪船";
       if(/INTERNAL AUDIT|內稽/.test(s))return "內稽";
       if(/ACCOMPANY|隨船/.test(s))return "隨船";
@@ -27373,7 +27375,7 @@ const FleetDA={
     box.innerHTML=`<div class="card"><div class="fda-head"><b>選檢查來源（可複選）</b><span class="hint">上方「來源（外部／內部）」在這頁不套用，其他篩選照常；點表格裡的格子也可以直接切換。</span>
         <span style="flex:1"></span><button class="btn sm dark" onclick="FleetDA.openSrcAi()">🤖 AI 迎檢準備清單</button></div>
       ${[["ext","外部檢查",this.SRC_EXT],["int","內部檢查",this.SRC_INT]].map(([side,label,arr])=>{const tot=arr.reduce((n,g)=>n+(gc[g]||0),0),act=arr.filter(g=>gc[g]),full=act.length&&act.every(g=>this.srcSel.has(g));
-        return `<div class="fda-srcbar fda-srcside"><button class="fda-srcside-btn${full?" on":""}" onclick="FleetDA.srcSide('${side}')" title="一鍵選取全部${label}">${full?"✓ ":""}全部${label}<small>${tot}</small></button><span class="fda-srcsep"></span>${arr.map(g=>`<button class="fda-srcchip${this.srcSel.has(g)?" on":""}${gc[g]?"":" zero"}" onclick="FleetDA.srcToggle('${g}')" ondblclick="FleetDA.srcOnly('${g}')" title="點一下加入／移除；連點兩下只看這個">${esc(g)}<small>${gc[g]||0}</small></button>`).join("")}</div>`;}).join("")}
+        return `<div class="fda-srcbar fda-srcside"><button class="fda-srcside-btn${full?" on":""}" onclick="FleetDA.srcSide('${side}')" title="一鍵選取全部${label}">${full?"✓ ":""}全部${label}<small>${tot}</small></button><span class="fda-srcsep"></span>${arr.map(g=>`<button class="fda-srcchip${this.srcSel.has(g)?" on":""}${gc[g]?"":" zero"}" onclick="FleetDA.srcToggle('${g}')" ondblclick="FleetDA.srcOnly('${g}')" title="${g==="交叉訪船"?"Cross ship visit：屬內部檢查，與一般訪船分開統計。":""}點一下加入／移除；連點兩下只看這個">${esc(g)}<small>${gc[g]||0}</small></button>`).join("")}</div>`;}).join("")}
       <div class="fda-srcbar"><span class="hint">外部／內部依「外部/內部檢查、檢查類型對應定義」的內部檢查關鍵字區分，與上方來源篩選一致。點「全部外部檢查／全部內部檢查」可一鍵選整組，再點個別來源可加減。</span>
         <span class="fda-seg" style="margin-left:auto"><button class="btn sm${L==="eq"?" on":""}" onclick="FleetDA.srcLens='eq';FleetDA.srcMain=null;FleetDA.srcLeaf=null;FleetDA.render()">🔧 設備</button><button class="btn sm${L==="op"?" on":""}" onclick="FleetDA.srcLens='op';FleetDA.srcMain=null;FleetDA.srcLeaf=null;FleetDA.render()">📋 作業</button></span></div>
       <div class="hint" style="margin-top:8px">${esc(selTxt)}：<b>${sel.length}</b> 筆缺失・${ships.size} 艘船・${insp.length} 次檢查（平均每次 ${insp.length?(sel.length/insp.length).toFixed(1):"—"} 件）・${esc(this.rangeText(r))}</div></div>
