@@ -1257,6 +1257,9 @@ table.ap-xl .ap-no{color:var(--ink-3);font-size:11px}
 table.ap-xl .ap-mono{font-family:var(--mono);font-size:11px;white-space:nowrap;padding:2px 4px}
 table.ap-xl th.ap-curm{background:#c66a00}
 table.ap-xl td.ap-curm{box-shadow:inset 1px 0 0 #e8b56a,inset -1px 0 0 #e8b56a}
+table.ap-xl th.ap-selm{background:#1b6ec2}
+table.ap-xl td.ap-selm{box-shadow:inset 2px 0 0 #1b6ec2,inset -2px 0 0 #1b6ec2}
+.ap-selbar{margin-bottom:8px;padding:7px 12px;background:#eaf2fb;border:1.5px solid #9cc2ea;border-radius:6px;font-size:12.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .ap-cell small{display:block;font-size:9.5px;font-weight:500;color:#3d5560;line-height:1.2;white-space:nowrap}
 .apm-i{color:#c66a00;font-weight:800;font-size:12px;margin:0 2px}
 .apm-i.moved{color:#d39a52;border:1px dashed #e2b47a;border-radius:3px;padding:0 4px;font-weight:700}
@@ -4170,17 +4173,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           </div>
           <p class="hint" style="line-height:1.7;margin-top:8px"><b>不用再切到「檢查管控」：</b>計畫檢查日直接在表格裡選日期（同步寫入檢查管控的預排檢查日），下方小字顯示檢查管控的到期日／剩餘天數；點船名前的 ☆／⭐ 可設定或取消加強稽核；Sched. Month 與「年度計畫暨執行情形」的預計月同步（這裡改月份，年度計畫也跟著改）。上方流程列點一下可只看該階段的船。<br><span style="color:var(--ink-3)">其他說明：上次稽核日期／實際檢查日點選日期欄位可從該船近3次內稽紀錄自由挑選；</span>CSO 取自「船舶資料」；缺失數依所選的實際檢查日自動統計「缺失紀錄總表」中內稽相關筆數（供參考，非官方 NC/OB 分類）。橘色底列表示該船目前為「加強稽核」狀態。表頭可點選排序，同一艘船可能因加強稽核出現兩列。<b>已完成的列（不論已結案／未結案）會自動排到清單最下方</b>，方便聚焦在還沒完成的船；一輪完成（自動或手動填入實際檢查日）後，系統會自動幫該船新增下一輪的列，不需手動按「新增一列」。可用「完成年度」篩選查看特定年度已完成的稽核情形。「🗂 分區檢視」把船舶依排程狀態分成四區：已進入排程（最需要關注）／未排程（等日期接近再排）／已完成稽核未結案（追蹤結案進度）／已完成本年度稽核且已結案。「🖨 列印／PDF」可勾選要包含哪些區塊，適合每兩週出表給 DPA 呈簽時排除已結案船舶。</p>
         </div>
-        <div class="card foldable" id="ad-monthly-card" style="margin-bottom:14px">
-          <h3>📅 各月稽核達成情形（供月報統計用）<span class="fold-btn" onclick="CardFold.toggle('ad-monthly-card',()=>AuditDash.renderMonthly())">▾ 收合</span></h3>
-          <div class="card-body">
-            <div class="toolbar" style="margin-bottom:8px">
-              <span class="hint">預計稽核月＝依「Sched. Month」（年度計畫已排的月份，或上次稽核日＋週期試算）；只統計 FPMC 自營船。</span>
-              <span class="spacer" style="flex:1"></span>
-              <span class="hint">年度：</span>
-              <select id="ad-monthly-year" onchange="AuditDash.renderMonthly()" style="padding:5px 8px"></select>
-            </div>
-            <div id="ad-monthly-body"></div>
-          </div>
+        <div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 16px">
+          <span style="font-weight:700;color:var(--navy)">📅 各月稽核達成情形</span>
+          <span class="hint">每月預計／實際艘數、執行率與未達成原因，已整合到「年度計畫暨執行情形」。</span>
+          <span class="spacer" style="flex:1"></span>
+          <button class="btn primary" onclick="InspGroup.setPage('annual');AnnualPlan.setType('audit')">→ 前往年度計畫暨執行情形（內稽）</button>
         </div>
         <div class="card" id="ad-tableview">
           <div style="overflow-x:auto">
@@ -4292,6 +4289,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="msel" id="ms-ap-deck"></div>
           <div class="msel" id="ms-ap-engine"></div>
           <div class="msel" id="ms-ap-mgr"></div>
+          <div class="msel" id="ms-ap-month" title="只顯示選定月份有預計或實際稽核的船（可多選）"></div>
           <button class="btn sm" onclick="AnnualPlan.clearFilters()">清除篩選</button>
           <span class="spacer" style="flex:1"></span>
           <span class="hint" style="font-weight:600">年度：</span>
@@ -19891,6 +19889,7 @@ const AnnualPlan={
     this.ms.deckSup=MSel("ms-ap-deck","甲板督導",()=>[...new Set(SHIPINFO.map(s=>s.deckSup))].filter(Boolean).sort(),rerun);
     this.ms.engineSup=MSel("ms-ap-engine","機艙督導",()=>[...new Set(SHIPINFO.map(s=>s.engineSup))].filter(Boolean).sort(),rerun);
     this.ms.mgr=MSel("ms-ap-mgr","海技負責人",()=>[...new Set(SHIPINFO.map(s=>s.mgr))].filter(Boolean).sort(),rerun);
+    this.ms.month=MSel("ms-ap-month","月份",()=>Array.from({length:12},(_,i)=>String(i+1)),rerun,o=>o+"月");
     this.loadEditorName();
     this.refreshEditorUI();
     this.loadLayers();
@@ -19919,7 +19918,7 @@ const AnnualPlan={
       if(this.ms.engineSup&&!this.ms.engineSup.pass(s.engineSup))return false;
       if(this.ms.mgr&&!this.ms.mgr.pass(s.mgr))return false;
       return true;
-    };
+    }; // 月份篩選不在這裡處理：統計列仍算全部船，只在 render 時挑出要顯示的船列
     const ships=SHIPINFO.filter(s=>s.operator==="FPMC").filter(passFilters).slice().sort((a,b)=>a.code.localeCompare(b.code)).map(s=>({code:s.code,zh:s.zh||s.name||s.code,name:s.name||"",isExtra:false}));
     const extra=(this.PLAN_TYPES[planType].extraRows||[]).map(e=>({code:e.key,zh:e.label,name:"",isExtra:true}));
     return [...ships,...extra];
@@ -20281,6 +20280,7 @@ const AnnualPlan={
     return st;
   },
   EX_TAG:{ok:["依計畫","#1e7f4a","#e7f3ec"],todo:["待執行","#6b7a83","#eef1f3"],miss:["待安排","#c0392b","#fdecea"],late:["延後","#b05a00","#fff1e0"],early:["提前","#1b6ec2","#e8f1fb"],extra:["計畫外","#6a4a9c","#f1ebfa"]},
+  selMonths(){const m=this.ms.month;return m&&m.sel&&m.sel.size?new Set([...m.sel].map(Number)):null;},
   NOTE_KEY:"__NOTE__",
   noteOf(m){const e=App.annualPlan.find(x=>x.year===this.curYear&&x.planType===this.curType&&x.ship===this.NOTE_KEY&&x.month===m);return e?e.note||"":"";},
   editNote(m){
@@ -20320,7 +20320,8 @@ const AnnualPlan={
     const roHint=$("#ap-readonly-hint");if(roHint)roHint.textContent=canEdit?"":`🔒 唯讀模式（僅「${this.loadEditorName()}」或 Owner 可編輯此頁）`;
     const M=this._model=this.model(),ST=this.monthStats(M);
     const P=cfg.short,showP=this.layers.planned,showA=this.layers.done;
-    const mcls=m=>m===M.cm?" ap-curm":"";
+    const selM=this.selMonths();
+    const mcls=m=>(m===M.cm?" ap-curm":"")+(selM&&selM.has(m)?" ap-selm":"");
     const head=`<tr><th style="width:34px">No.</th><th class="ap-sh" style="min-width:150px;text-align:left">船名 Ship Name</th><th style="min-width:70px">上次${esc(cfg.label)}<br>Last</th><th style="min-width:60px">預計月<br>Plan</th><th style="min-width:76px">實際日期<br>Actual</th>${this.MONTHS_ZH.map((m,i)=>`<th class="${mcls(i+1)}" style="min-width:58px">${m}</th>`).join("")}</tr>`;
     let no=0;
     const shipRow=x=>{
@@ -20379,8 +20380,10 @@ const AnnualPlan={
       }
       return `<tr class="ap-extra"><td class="ap-no">${no}</td><td class="ap-sh" style="background:#f7f9fb">${esc(s.zh)}</td><td></td><td></td><td></td>${cells.join("")}</tr>`;
     };
-    const extras=this.rowsForType(pt).filter(s=>s.isExtra);
-    const body=M.ships.map(shipRow).join("")+extras.map(extraRow).join("");
+    const inSel=x=>!selM||x.plan.months.some(m=>selM.has(m))||x.acts.some(a=>selM.has(a.m));
+    const extras=this.rowsForType(pt).filter(s=>s.isExtra).filter(s=>!selM||[...selM].some(m=>this.cellEntry(year,pt,s.code,m)));
+    const shown=M.ships.filter(inSel);
+    const body=(shown.map(shipRow).join("")+extras.map(extraRow).join(""))||`<tr><td colspan="17" style="padding:18px;text-align:center" class="hint">選定月份沒有預計或實際稽核的船</td></tr>`;
     // 底部統計（只算船舶，不含公司／勞務公司列）
     let cumP=0,cumH=0;
     const fr=(lbl,fn,cls)=>`<tr class="ap-foot ${cls||""}"><td colspan="5" class="lbl">${lbl}</td>${Array.from({length:12},(_,i)=>`<td class="${mcls(i+1).trim()}">${fn(i+1)}</td>`).join("")}</tr>`;
@@ -20394,7 +20397,7 @@ const AnnualPlan={
       fr("當月執行率（實際÷預計）",m=>{if(!past(m))return "";if(!ST[m].plan)return ST[m].act?'<span class="ap-pos">計畫外</span>':"—";const r=Math.round(ST[m].act/ST[m].plan*100);return `<span class="${r<100?"ap-neg":(r>100?"ap-pos":"")}">${r}%</span>`;})+
       fr("累計達成率（依計畫/提前完成）",m=>{if(!past(m)||!cum[m].p)return "";const r=Math.round(cum[m].h/cum[m].p*100);return `<span class="${r<100?"ap-neg":""}">${r}%</span>`;},"ap-foot-cum")+
       fr("差異說明",m=>{if(!past(m))return "";const n=ST[m].notes.length,note=this.noteOf(m);return (n?`<a class="ap-explink" href="#ap-ex-${m}" onclick="event.preventDefault();document.getElementById('ap-ex-${m}').scrollIntoView({behavior:'smooth',block:'center'})">⚠ ${n}</a>`:'<span style="color:var(--ok)">✓</span>')+(note?' <span title="'+esc(note)+'">📝</span>':"");});
-    box.innerHTML=`<table class="ap-tbl ap-xl"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table>
+    box.innerHTML=(selM?`<div class="ap-selbar">🔍 月份篩選：<b>${[...selM].sort((a,b)=>a-b).map(m=>m+"月").join("、")}</b>　顯示 ${shown.length} 艘（該月有預計或實際稽核的船）；下方統計列仍為全部船舶　<button class="btn sm" onclick="AnnualPlan.ms.month.clear();AnnualPlan.render()">✕ 清除月份篩選</button></div>`:"")+`<table class="ap-tbl ap-xl"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table>
       <div class="ap-legend"><span><b class="apm-i">${esc(P)}</b> 預計月（依上次${esc(cfg.label)}月份推到本年度；✎手動＝人工調整）</span><span><b class="apm-o">O</b> 實際執行（標在實際月份，含日期／檢查人）</span><span><b class="apm-i">${esc(P)}</b><b class="apm-o">O</b> 同月依計畫完成</span><span><b class="apm-i moved">${esc(P)}</b> 已提前／延後於他月完成</span><span><b class="apm-i miss">${esc(P)}</b> 逾期未執行</span>${canEdit?`<span class="hint">點空白格＝設為該船預計月；點手動預計月＝取消</span>`:""}</div>`;
     this.renderExplain(M,ST,canEdit);
     const statsBox=$("#ap-stats");
@@ -20423,7 +20426,8 @@ const AnnualPlan={
     if(!box){box=document.createElement("div");box.id="ap-explain";$("#ap-grid").after(box);}
     const cfg=this.PLAN_TYPES[M.pt];
     const tag=this.EX_TAG;
-    const months=Array.from({length:12},(_,i)=>i+1);
+    const selM=this.selMonths();
+    const months=Array.from({length:12},(_,i)=>i+1).filter(m=>!selM||selM.has(m));
     const line=n=>`<div class="ap-exn"><span class="ap-tag" style="color:${tag[n.t][1]};background:${tag[n.t][2]}">${tag[n.t][0]}</span><b>${esc(n.ship)}</b>　<span style="color:${n.t==="ok"?"var(--ink-3)":"inherit"}">${esc(n.txt)}</span></div>`;
     const rows=months.map(m=>{
       const s=ST[m],d=s.act-s.plan,note=this.noteOf(m),past=m<=M.upto;
