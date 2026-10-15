@@ -1257,7 +1257,7 @@ table.ap-xl td.ap-curm{box-shadow:inset 1px 0 0 #e8b56a,inset -1px 0 0 #e8b56a}
 .ap-explink{color:var(--bad);text-decoration:none;font-weight:700}
 .ap-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px;font-size:11.5px;color:var(--ink-2)}
 .ap-extbl td{vertical-align:top;text-align:center;font-size:12px}
-.ap-extbl tr.ok td{color:var(--ink-3)}
+.ap-extbl tr.future td{background:#fafbfc}
 .ap-exn{padding:1px 0;line-height:1.6}
 .ap-tag{display:inline-block;font-size:10.5px;font-weight:700;border-radius:3px;padding:0 5px;margin-right:6px}
 .itype-chip{font-family:var(--mono);font-size:10.5px;padding:1px 6px;border-radius:3px;font-weight:700;white-space:nowrap;border:1px solid}
@@ -4328,9 +4328,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <ul class="hint" style="line-height:1.9;padding-left:18px">
           <li>本頁面僅開放<b>一位指定人員</b>可編輯排程（其他人唯讀查看），避免多人同時排程互相覆蓋；指定人員由 Owner 於「資料管理→維護者」設定，預設為陳思樺。Owner 本人不受此限制。</li>
           <li>每個分頁（內稽／訪船／隨船）各自獨立排程與週期設定，互不影響。</li>
-          <li>「自動產生建議排程」只會補上目前空白的船舶（不會覆蓋你已手動排定或已完成的項目），依據該船「檢查紀錄」中最近一次同類型紀錄的日期＋週期推算。若該船完全沒有歷史紀錄，需自行點格子手動安排。</li>
-          <li>「核對完成狀態」會比對「檢查紀錄」總表，把已實際發生的紀錄自動勾選並標示日期；若實際發生的紀錄不在原本排程月份，系統仍會自動補上一筆「已完成」，避免計畫與實際對不起來。</li>
-          <li>格子點兩下可手動新增／取消該月排程；已完成（綠色）的格子點擊可查看對應到哪一筆檢查紀錄。</li>
+          <li><b>預計月（I）</b>：依該船本年度以前最後一次同類型檢查的月份＋週期自動推算（內稽＝同月份）。沒有歷史紀錄的船（如新船）不會有預計月，可自行點格子安排。</li>
+          <li><b>實際（O）</b>：直接讀「檢查紀錄」，標在實際執行的月份並顯示日期／檢查人，不需另外核對。</li>
+          <li>點空白格可把該船預計月改到該月（手動，優先於推算）；點手動預計月可取消、改回推算；有 O 的格子點擊可查看檢查紀錄。</li>
+          <li>表格下方「各月份預計 vs 實際對照」：左欄看本月預計的船做了沒（依計畫／提前／延後／待安排），右欄看本月實際完成的船是不是預計內。</li>
           <li>本頁不提供線上簽核，請用「匯出 Excel／PDF」下載後，交由 DPA／主管線下簽名留存（版面已比照紙本 CAEM-FM01／演習計畫格式，含簽名欄）。</li>
         </ul>
       </div>
@@ -20228,27 +20229,40 @@ const AnnualPlan={
     return {pt,year,upto,cm:year===cy?cm:0,ships};
   },
   monthStats(M){
-    const st=Array.from({length:13},()=>({plan:0,act:0,hit:0,notes:[]}));
+    // planList：本月預計的船＋狀態；actList：本月實際完成的船＋是否在預計內；notes：有差異的項目（供 ⚠ 計數）
+    const st=Array.from({length:13},()=>({plan:0,act:0,hit:0,notes:[],planList:[],actList:[]}));
     M.ships.forEach(x=>{
       const nm=x.s.zh+(x.s.name?" "+x.s.name:"");
       x.plan.months.forEach((pm,pi)=>{
         st[pm].plan++;
         const a=x.pM[pi];
         if(a&&a.m<=pm)st[pm].hit++; // 依計畫或提前完成，算該預計月達成
-        if(!a){if(pm<=M.upto)st[pm].notes.push({t:"miss",ship:nm,txt:(pm<M.upto||M.upto===12)?"逾期未執行":"本月尚未執行"});}
-        else if(a.m<pm)st[pm].notes.push({t:"early",ship:nm,txt:`已提前於 ${a.m}/${a.d} 執行`});
-        else if(a.m>pm)st[pm].notes.push({t:"late",ship:nm,txt:`延後至 ${a.m}/${a.d} 才執行`});
+        let it;
+        if(!a){
+          if(pm>M.upto)it={t:"todo",ship:nm,txt:"待執行"};
+          else it={t:"miss",ship:nm,txt:(pm<M.upto||M.upto===12)?"待安排（已逾期未執行）":"本月待執行"};
+        }
+        else if(a.m===pm)it={t:"ok",ship:nm,txt:`依計畫完成 ${a.m}/${a.d}`};
+        else if(a.m<pm)it={t:"early",ship:nm,txt:`已提前於 ${a.m}/${a.d} 完成`};
+        else it={t:"late",ship:nm,txt:`延後至 ${a.m}/${a.d} 完成`};
+        st[pm].planList.push(it);
+        if(it.t!=="ok"&&it.t!=="todo"&&pm<=M.upto)st[pm].notes.push(it);
       });
       x.acts.forEach((a,ai)=>{
         st[a.m].act++;
         const pm=x.aM[ai];
-        if(pm==null)st[a.m].notes.push({t:"extra",ship:nm,txt:x.plan.months.length?`計畫外加做（${a.m}/${a.d}；本年另有依計畫的一次）`:`未列入預計（${a.m}/${a.d}；本年度以前無紀錄，如新船）`});
-        else if(pm>a.m)st[a.m].notes.push({t:"early",ship:nm,txt:`原訂 ${pm}月，提前於 ${a.m}/${a.d} 執行`});
-        else if(pm<a.m)st[a.m].notes.push({t:"late",ship:nm,txt:`原訂 ${pm}月，延後於 ${a.m}/${a.d} 執行`});
+        let it;
+        if(pm==null)it={t:"extra",ship:nm,txt:x.plan.months.length?`${a.m}/${a.d}　計畫外加做（本年另有依計畫的一次）`:`${a.m}/${a.d}　未列入預計（本年度以前無紀錄，如新船）`};
+        else if(pm===a.m)it={t:"ok",ship:nm,txt:`${a.m}/${a.d}　預計內`};
+        else if(pm>a.m)it={t:"early",ship:nm,txt:`${a.m}/${a.d}　原訂 ${pm}月，提前執行`};
+        else it={t:"late",ship:nm,txt:`${a.m}/${a.d}　原訂 ${pm}月，延後執行`};
+        st[a.m].actList.push(it);
+        if(it.t!=="ok")st[a.m].notes.push(it);
       });
     });
     return st;
   },
+  EX_TAG:{ok:["依計畫","#1e7f4a","#e7f3ec"],todo:["待執行","#6b7a83","#eef1f3"],miss:["待安排","#c0392b","#fdecea"],late:["延後","#b05a00","#fff1e0"],early:["提前","#1b6ec2","#e8f1fb"],extra:["計畫外","#6a4a9c","#f1ebfa"]},
   NOTE_KEY:"__NOTE__",
   noteOf(m){const e=App.annualPlan.find(x=>x.year===this.curYear&&x.planType===this.curType&&x.ship===this.NOTE_KEY&&x.month===m);return e?e.note||"":"";},
   editNote(m){
@@ -20390,19 +20404,20 @@ const AnnualPlan={
     let box=$("#ap-explain");
     if(!box){box=document.createElement("div");box.id="ap-explain";$("#ap-grid").after(box);}
     const cfg=this.PLAN_TYPES[M.pt];
-    const tag={miss:["未執行","#c0392b","#fdecea"],late:["延後","#b05a00","#fff1e0"],early:["提前","#1b6ec2","#e8f1fb"],extra:["計畫外","#6a4a9c","#f1ebfa"]};
-    const months=Array.from({length:M.upto},(_,i)=>i+1);
-    if(!months.length){box.innerHTML=`<div class="hint" style="margin-top:14px">${M.year} 年度尚未開始，差異說明會在各月份到期後自動產生。</div>`;return;}
+    const tag=this.EX_TAG;
+    const months=Array.from({length:12},(_,i)=>i+1);
+    const line=n=>`<div class="ap-exn"><span class="ap-tag" style="color:${tag[n.t][1]};background:${tag[n.t][2]}">${tag[n.t][0]}</span><b>${esc(n.ship)}</b>　<span style="color:${n.t==="ok"?"var(--ink-3)":"inherit"}">${esc(n.txt)}</span></div>`;
     const rows=months.map(m=>{
-      const s=ST[m],d=s.act-s.plan,note=this.noteOf(m);
+      const s=ST[m],d=s.act-s.plan,note=this.noteOf(m),past=m<=M.upto;
       const ok=!s.notes.length;
-      const notes=ok?`<span style="color:var(--ok)">✓ 依計畫執行</span>`:s.notes.map(n=>`<div class="ap-exn"><span class="ap-tag" style="color:${tag[n.t][1]};background:${tag[n.t][2]}">${tag[n.t][0]}</span><b>${esc(n.ship)}</b>　${esc(n.txt)}</div>`).join("");
-      const verdict=d<0?`<span class="ap-neg">未達成 ${d}</span>`:(d>0?`<span class="ap-pos">超過 +${d}</span>`:(ok?'<span style="color:var(--ok)">達成</span>':'<span>數量相符</span>'));
-      return `<tr id="ap-ex-${m}" class="${ok?"ok":""}"><td class="ap-mono" style="font-weight:700">${m}月</td><td>${s.plan}</td><td>${s.act}</td><td>${verdict}</td><td style="text-align:left">${notes}</td><td style="text-align:left">${note?esc(note):'<span class="hint">—</span>'}${canEdit?` <button class="btn sm" style="padding:1px 6px;font-size:11px" onclick="AnnualPlan.editNote(${m})">✎</button>`:""}</td></tr>`;
+      const pl=s.planList.length?s.planList.map(line).join(""):'<span class="hint">本月無預計</span>';
+      const al=s.actList.length?s.actList.map(line).join(""):`<span class="hint">${past?"本月無實際執行":"—"}</span>`;
+      const verdict=!past?'<span class="hint">未到期</span>':(d<0?`<span class="ap-neg">未達成 ${d}</span>`:(d>0?`<span class="ap-pos">超過 +${d}</span>`:(ok?'<span style="color:var(--ok)">達成</span>':'<span>數量相符</span>')));
+      return `<tr id="ap-ex-${m}" class="${past?"":"future"}"><td class="ap-mono" style="font-weight:700">${m}月${m===M.cm?'<br><span class="hint" style="font-size:10px">本月</span>':""}</td><td>${verdict}<div class="hint" style="font-size:11px;margin-top:2px">預計 ${s.plan}／實際 ${past||s.act?s.act:"—"}</div></td><td style="text-align:left">${pl}</td><td style="text-align:left">${al}</td><td style="text-align:left">${note?esc(note):'<span class="hint">—</span>'}${canEdit?` <button class="btn sm" style="padding:1px 6px;font-size:11px" onclick="AnnualPlan.editNote(${m})">✎</button>`:""}</td></tr>`;
     }).join("");
-    box.innerHTML=`<h4 style="margin:18px 0 8px;color:var(--navy)">📋 各月份執行差異說明（${M.year}年 ${esc(cfg.label)}）</h4>
-      <p class="hint" style="margin:0 0 8px">系統自動比對每艘船的預計月與實際月：<b style="color:#c0392b">未執行</b>／<b style="color:#b05a00">延後</b>／<b style="color:#1b6ec2">提前</b>／<b style="color:#6a4a9c">計畫外</b>。「補充說明」可填寫原因（如船期、港口無法登輪），會一起匯出。</p>
-      <div style="overflow-x:auto"><table class="tbl ap-extbl"><thead><tr><th style="width:56px">月份</th><th style="width:56px">預計</th><th style="width:56px">實際</th><th style="width:90px">結果</th><th>自動說明</th><th style="width:240px">補充說明</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    box.innerHTML=`<h4 style="margin:18px 0 8px;color:var(--navy)">📋 各月份預計 vs 實際對照（${M.year}年 ${esc(cfg.label)}）</h4>
+      <p class="hint" style="margin:0 0 8px">左欄：本月<b>預計</b>的船目前狀態（依計畫完成／已提前完成／延後完成／待安排）；右欄：本月<b>實際完成</b>的船是預計內、提前、延後還是計畫外。「補充說明」可填寫原因（如船期、港口無法登輪），會一起匯出。</p>
+      <div style="overflow-x:auto"><table class="tbl ap-extbl"><thead><tr><th style="width:56px">月份</th><th style="width:110px">結果</th><th>本月預計的船（狀態）</th><th>本月實際完成的船（是否預計內）</th><th style="width:200px">補充說明</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   },
   toggleUndoneList(){
     const el=$("#ap-undone-list");if(!el)return;
@@ -20431,10 +20446,11 @@ const AnnualPlan={
       rate:ST.slice(1).map((s,i)=>!past(i+1)?"":(s.plan?Math.round(s.act/s.plan*100)+"%":(s.act?"計畫外":"—"))),
       cum:ST.slice(1).map((s,i)=>{cp+=s.plan;ch+=s.hit;return past(i+1)&&cp?Math.round(ch/cp*100)+"%":"";})
     };
-    const tagZh={miss:"未執行",late:"延後",early:"提前",extra:"計畫外"};
-    const explain=Array.from({length:M.upto},(_,i)=>{const m=i+1,s=ST[m];return {m,plan:s.plan,act:s.act,
-      result:s.act<s.plan?`未達成 ${s.act-s.plan}`:(s.act>s.plan?`超過 +${s.act-s.plan}`:(s.notes.length?"數量相符":"達成")),
-      auto:s.notes.length?s.notes.map(n=>`【${tagZh[n.t]}】${n.ship}：${n.txt}`):["依計畫執行"],note:this.noteOf(m)};});
+    const tz=t=>this.EX_TAG[t][0];
+    const explain=Array.from({length:12},(_,i)=>{const m=i+1,s=ST[m],pastM=past(m);return {m,plan:s.plan,act:pastM||s.act?s.act:"",
+      result:!pastM?"未到期":(s.act<s.plan?`未達成 ${s.act-s.plan}`:(s.act>s.plan?`超過 +${s.act-s.plan}`:(s.notes.length?"數量相符":"達成"))),
+      planList:s.planList.map(n=>`【${tz(n.t)}】${n.ship}：${n.txt}`),
+      actList:s.actList.map(n=>`【${tz(n.t)}】${n.ship}：${n.txt}`),note:this.noteOf(m)};});
     return {M,cfg,P,rows,foot,explain};
   },
   exportXlsx(){
@@ -20452,9 +20468,9 @@ const AnnualPlan={
       ["","當月執行率","","","",...foot.rate],
       ["","累計達成率","","","",...foot.cum],
       [],
-      ["各月份執行差異說明"],
-      ["月份","預計","實際","結果","自動說明","補充說明"],
-      ...explain.map(e=>[`${e.m}月`,e.plan,e.act,e.result,e.auto.join("\n"),e.note]),
+      ["各月份預計 vs 實際對照"],
+      ["月份","預計","實際","結果","本月預計的船（狀態）","本月實際完成的船（是否預計內）","補充說明"],
+      ...explain.map(e=>[`${e.m}月`,e.plan,e.act,e.result,e.planList.join("\n"),e.actList.join("\n"),e.note]),
       [],
       ["規劃者/Prepared by：__________________","","","主管/Approved by：__________________","","","","","岸上指派人員/DPA：__________________"]
     ];
@@ -20472,7 +20488,7 @@ const AnnualPlan={
       return `<td style="text-align:center;vertical-align:top;${c.p&&c.a.length?"background:#eef7e9":(c.a.length?"background:#e7f3ec":(c.p?"background:#fdf3da":""))}">${p}${a}</td>`;};
     const body=rows.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td style="text-align:left">${esc(r.name)}</td><td style="text-align:center">${esc(r.last)}</td><td style="text-align:center">${esc(r.plan)}</td><td style="text-align:center">${esc(r.act)}</td>${r.cells.map(cell).join("")}</tr>`).join("");
     const fr=(lbl,arr)=>`<tr style="background:#f1f4f6;font-weight:700"><td colspan="5" style="text-align:right">${lbl}</td>${arr.map(v=>`<td style="text-align:center">${esc(String(v))}</td>`).join("")}</tr>`;
-    const ex=explain.map(e=>`<tr><td style="text-align:center">${e.m}月</td><td style="text-align:center">${e.plan}</td><td style="text-align:center">${e.act}</td><td style="text-align:center">${esc(e.result)}</td><td>${e.auto.map(esc).join("<br>")}</td><td>${esc(e.note||"")}</td></tr>`).join("");
+    const ex=explain.map(e=>`<tr><td style="text-align:center">${e.m}月</td><td style="text-align:center">${e.plan}</td><td style="text-align:center">${e.act}</td><td style="text-align:center">${esc(e.result)}</td><td>${e.planList.map(esc).join("<br>")||"—"}</td><td>${e.actList.map(esc).join("<br>")||"—"}</td><td>${esc(e.note||"")}</td></tr>`).join("");
     $("#printArea").innerHTML=`
       <h1 style="text-align:center;margin-bottom:2px">${year} 年度${esc(cfg.label)}計畫暨執行情形</h1>
       <div class="pmeta" style="text-align:center">Annual ${esc(cfg.label)} Plan & Execution　｜　${esc(P)}＝預計月　O＝實際執行（日期／檢查人）　｜　匯出：${todayStr()}</div>
@@ -20481,10 +20497,10 @@ const AnnualPlan={
         <thead><tr><th>No.</th><th style="text-align:left">船名 Ship Name</th><th>上次</th><th>預計月</th><th>實際日期</th>${this.MONTHS_ZH.map(m=>`<th>${m}</th>`).join("")}</tr></thead>
         <tbody>${body}${fr("預計艘數",foot.plan)}${fr("實際艘數",foot.act)}${fr("差異（實際−預計）",foot.diff)}${fr("當月執行率",foot.rate)}${fr("累計達成率",foot.cum)}</tbody>
       </table>
-      ${explain.length?`<h3 style="margin:14px 0 6px;page-break-before:auto">各月份執行差異說明</h3>
-      <table class="ap-print-tbl" style="width:100%;border-collapse:collapse;font-size:9.5px">
-        <colgroup><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:9%"><col style="width:48%"><col style="width:25%"></colgroup>
-        <thead><tr><th>月份</th><th>預計</th><th>實際</th><th>結果</th><th>自動說明</th><th>補充說明</th></tr></thead><tbody>${ex}</tbody></table>`:""}
+      <h3 style="margin:14px 0 6px;page-break-before:always">各月份預計 vs 實際對照</h3>
+      <table class="ap-print-tbl" style="width:100%;border-collapse:collapse;font-size:9px">
+        <colgroup><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:8%"><col style="width:31%"><col style="width:31%"><col style="width:15%"></colgroup>
+        <thead><tr><th>月份</th><th>預計</th><th>實際</th><th>結果</th><th>本月預計的船（狀態）</th><th>本月實際完成的船（是否預計內）</th><th>補充說明</th></tr></thead><tbody>${ex}</tbody></table>
       <div style="margin-top:24px;font-size:11px;display:flex;justify-content:space-around">
         <span>規劃者/Prepared by：＿＿＿＿＿＿＿＿</span>
         <span>主管/Approved by：＿＿＿＿＿＿＿＿</span>
