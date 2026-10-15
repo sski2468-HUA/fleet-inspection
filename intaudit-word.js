@@ -12,8 +12,11 @@ const TYPE_DEFS=[
 ];
 /* 主題顯示文字：選「其他」時附上使用者輸入的說明 */
 const topicText=d=>d.topic==="其他"&&d.topicOther?"其他："+d.topicOther:(d.topic||"");
-/* 匯出檔名（Word／JSON／內控檔共用）：船名-檢查日期-Audit NC Deficiency Items Details Records（檔名不能含斜線，N/C 寫成 NC） */
-const exportBaseName=r=>`${r.ship||"船名"}-${(dateText(r)||"檢查日期").replace(/\//g,"-").replace(/～/g,"~")}-Audit NC Deficiency Items Details Records`;
+/* 匯出檔名（Word／JSON／內控檔共用）：船名-檢查日期-檢查種類-Audit NC Deficiency Items Details Records
+   檢查種類用中文簡稱、多種用「+」串起來（例：內稽+交叉訪船+ISPS）；專項檢查附 SAR 表單編號（例：專項檢查SAR-FM20）。
+   檔名不能含斜線等特殊字元，N/C 寫成 NC。 */
+const exportTypeTag=r=>(r.types||[]).map(k=>{const t=typeDef(k);if(!t)return String(k||"");return t.label+(t.sarForm?String(t.sarForm).split(/\s+/)[0]:"");}).filter(Boolean).join("+").replace(/[\\\/:*?"<>|]/g,"_");
+const exportBaseName=r=>{const tag=exportTypeTag(r);return `${r.ship||"船名"}-${(dateText(r)||"檢查日期").replace(/\//g,"-").replace(/～/g,"~")}${tag?"-"+tag:""}-Audit NC Deficiency Items Details Records`;};
 /* 專項檢查：每張 SAR 表單可各自新增一筆「專項檢查」種類（例如同一張登錄單裡，FM20、FM22 各自
    獨立成一個分頁），用複合 key「主題檢查::<SAR表單名稱>」表示，不佔用固定的 TYPE_DEFS 清單。
    typeDef() 對這種複合 key 動態合成定義；找不到符合的固定 key 時才退回 TYPE_DEFS 查表

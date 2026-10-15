@@ -1381,6 +1381,21 @@ table.ap-tbl tbody tr:hover td:first-child{background:#f3f8fa}
 .fda-mx td{padding:6px;text-align:center;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;cursor:pointer}
 .fda-mx td.rh{text-align:left;font-weight:700;cursor:default;white-space:nowrap}
 .fda-mx td:hover:not(.rh){outline:2px solid #9fbfe0}
+.imp-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:6px}
+@media(max-width:900px){.imp-kpis{grid-template-columns:repeat(2,1fr)}}
+.imp-kpi{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}
+.imp-kpi.on{border-color:var(--navy,#1c3a5e);background:#e7f0fa}
+.imp-kpi .l{font-size:12px;color:var(--ink-2)}.imp-kpi .v{font-size:22px;font-weight:700}
+.imp-lamp{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.imp-card{margin-top:10px}
+.imp-st{font-size:12px;padding:2px 10px;border-radius:12px;font-weight:700}
+.imp-chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:4px;background:#eef2f5;color:var(--ink-2);margin:0 4px 4px 0}
+.imp-m{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 4px}
+.imp-m>div{font-size:12px;color:var(--ink-2)}.imp-m b{display:block;font-size:15px;color:var(--ink);margin:2px 0}
+.imp-sc{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);margin-top:4px}
+.imp-sc .bar{flex:1;height:6px;background:#eef2f5;border-radius:3px;overflow:hidden}.imp-sc .bar div{height:6px;background:#2e8b57}
+.imp-sec{font-size:12.5px;font-weight:700;color:var(--navy,#1c3a5e);margin:12px 0 6px}
+.imp-ck{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:4px;font-size:12.5px;font-weight:400!important;cursor:pointer}
 .fda-leafh{background:#fbfcfd;padding:5px 10px;border-top:1px solid var(--line);font-size:12.5px;font-weight:700;color:var(--navy,#1c3a5e)}
 @media(max-width:900px){.fda-dr{grid-template-columns:1fr}}
 /* 多位檢查員：輸入框＋「＋」按鈕，多加的每一列有「×」可移除 */
@@ -2550,7 +2565,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       </div>
       <div class="filter-summary" id="fda-filter-summary" style="margin:8px 0 0"></div>
       <div class="fda-kpis" id="fda-kpis"></div>
-      <div class="fda-tabs" id="fda-tabs"><button class="btn" data-v="rank">📊 排名分析<small>看哪類最多、點下去看缺失內容</small></button><button class="btn" data-v="cat">📚 分類彙總清單<small>完整分類表，含 0 件的項目</small></button><button class="btn" data-v="src">🎯 檢查來源重點<small>PSC、SIRE…各自最常開哪裡</small></button></div>
+      <div class="fda-tabs" id="fda-tabs"><button class="btn" data-v="rank">📊 排名分析<small>看哪類最多、點下去看缺失內容</small></button><button class="btn" data-v="cat">📚 分類彙總清單<small>完整分類表，含 0 件的項目</small></button><button class="btn" data-v="src">🎯 檢查來源重點<small>PSC、SIRE…各自最常開哪裡</small></button><button class="btn" data-v="imp">✅ 改善追蹤<small>改善行動前後比較</small></button></div>
+      <div id="fda-pane-imp" style="display:none"></div>
       <div id="fda-pane-src" style="display:none"></div>
       <div id="fda-pane-cat" style="display:none">
         <div class="fda-cat">
@@ -6793,6 +6809,37 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   </div>
 </div>
 
+<div class="modal-bg" id="impEditModal">
+  <div class="modal" style="max-width:780px">
+    <div class="mh"><h3 id="imp-edit-title">新增改善行動</h3><button class="x" onclick="Improve.closeEdit()">✕</button></div>
+    <div class="mb" style="font-size:13.5px">
+      <label class="fw">名稱<input type="text" id="imp-e-title" placeholder="預設用第一個改善標的的具體名稱"></label>
+      <div class="imp-sec">改善標的 *（要追蹤哪些具體名稱，可加多個）</div>
+      <div id="imp-e-targets" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <select id="imp-e-lens" onchange="Improve._sync();$('#imp-e-main').value='';Improve.renderEdit()" style="width:auto"><option value="eq">設備</option><option value="op">作業</option></select>
+        <select id="imp-e-main" onchange="Improve._sync();Improve.renderEdit()" style="width:auto;max-width:260px"></select>
+        <select id="imp-e-leaf" style="width:auto;max-width:280px"></select>
+        <button class="btn sm" onclick="Improve.addTarget()">＋ 加入</button>
+      </div>
+      <div class="imp-sec">措施類型（可複選）</div>
+      <div id="imp-e-measures" style="display:flex;flex-wrap:wrap;gap:4px 12px"></div>
+      <div style="display:flex;gap:6px;margin-top:6px"><input type="text" id="imp-e-newtype" placeholder="自訂措施類型，例：岸基稽核" style="max-width:240px"><button class="btn sm" onclick="Improve.addType()">＋ 新增類型</button></div>
+      <div class="fgrid" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
+        <label>負責人<input type="text" id="imp-e-owner"></label>
+        <label>開始日期 *<input type="date" id="imp-e-start"></label>
+        <label>預計完成日<input type="date" id="imp-e-due"></label>
+      </div>
+      <div class="imp-sec">適用船舶（都不勾＝全船隊）</div>
+      <div id="imp-e-ships" style="display:flex;flex-wrap:wrap;gap:2px 10px;max-height:110px;overflow:auto"></div>
+      <div class="imp-sec">關聯「專案自查」任務（計算船上自查回報進度）</div>
+      <div id="imp-e-sc" style="display:flex;flex-direction:column;gap:2px;max-height:120px;overflow:auto"></div>
+      <label class="fw" style="margin-top:8px">說明<textarea id="imp-e-note" rows="3"></textarea></label>
+      <label class="fw" style="max-width:260px">狀態<select id="imp-e-status"><option value="open">進行中（系統自動判斷燈號）</option><option value="closed">已結案</option><option value="replaced">已改用其他措施</option></select></label>
+    </div>
+    <div class="mf"><button class="btn danger" id="imp-del" onclick="Improve.remove()" style="margin-right:auto">🗑 刪除</button><button class="btn" onclick="Improve.closeEdit()">取消</button><button class="btn primary" onclick="Improve.saveEdit()">儲存</button></div>
+  </div>
+</div>
 <div class="modal-bg" id="fdaLogicModal">
   <div class="modal" style="max-width:820px">
     <div class="mh"><h3>ⓘ 船隊缺失分析：分類邏輯說明</h3><button class="x" onclick="$('#fdaLogicModal').classList.remove('show')">✕</button></div>
@@ -6810,6 +6857,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <tr><th>根因</th><td>依根因對到人員／設備／系統。<span class="hint">有填根因的不多，僅供參考。</span></td></tr>
         <tr><th>已售出船舶</th><td>依「船舶資料 › 🕓 船舶異動紀錄」裡<b>賣船／還船</b>的船，預設<b>不列入</b>分析。<br><span class="hint">船舶資料裡已經沒有的船也一樣排除。要比較歷史年度時，勾「含已售出船舶」。</span></td></tr>
         <tr><th>來源</th><td>外部＝SIRE、CDI、RightShip、PSC、FLAG 等；內部＝訪船、內稽、隨船。</td></tr>
+        <tr><th>✅ 改善追蹤</th><td>比較措施開始<b>前 6 個月</b>與<b>開始後到今天</b>的每 100 次檢查件數。<br><span class="hint">滿 3 個月、改善後至少 10 次檢查才判斷；下降 30% 以上＝有效。</span></td></tr>
         <tr><th>AI 提示詞</th><td>有點大類／具體名稱就只用那些缺失；沒點就用目前篩選的全部。</td></tr>
       </table>
     </div>    <div class="mf"><button class="btn" onclick="$('#fdaLogicModal').classList.remove('show')">關閉</button></div>
@@ -17466,6 +17514,12 @@ const SirePos={
     body+=`<div class="pc-foot-note">※ 累計獲評：該員在系統「正面評價／優秀案例」資料庫中歷來被記錄的正面評價總次數，包含 SIRE、公司訪船、內稽等所有檢查來源，不限於本期，也不限於本份報告所列內容；以姓名比對，同名者會合併計算。</div>`;
     $("#printArea").innerHTML=`<div class="pc"><table class="pc-wrap"><thead><tr><td>${head}</td></tr></thead><tbody><tr><td>${body}</td></tr></tbody></table>
       <div class="pc-foot"><span>${esc(footerTxt)}</span><span>POSITIVE COMMENT・正面評價／表揚事項</span></div></div>`;
+    // 另存 PDF 的預設檔名＝網頁標題：暫時改成「台塑簡訊-年月」（年月取抬頭日期欄，例如 2026年10月；沒填就用今天），印完再改回來
+    const ymM=String(sub||"").match(/(\d{4})\D+(\d{1,2})/),nowD=new Date();
+    const pdfName=`台塑簡訊-${ymM?ymM[1]:nowD.getFullYear()}年${ymM?+ymM[2]:nowD.getMonth()+1}月`;
+    const oldTitle=document.title;document.title=pdfName;
+    const restore=()=>{document.title=oldTitle;window.removeEventListener("afterprint",restore);};
+    window.addEventListener("afterprint",restore);setTimeout(restore,60000);
     doPrint(false,"margin:11mm 11mm 15mm");
     this.closeNewsletterModal();
     if(typeof Audit!=="undefined")Audit.log("匯出","正面評價PDF",`SIRE ${sire.length}／訪船 ${visit.length} 則、亮眼船員 ${crew.length} 位（${sub}）`);
@@ -26701,6 +26755,13 @@ const FleetDA={
     if(this.vt&&vtype!==this.vt)return false;
     return this.ms.ship.pass(ship)&&this.ms.itype.pass(itype);
   },
+  /* classify() 需要的查表（分類表的設備／作業大類、具體名稱快取、根因→三要素）；改善追蹤也共用 */
+  makeS(){
+    // 根因→三要素：用系統的根因分類表（雲端版優先，還沒載入時用內建預設），名稱統一成「人員因素」這種寫法
+    const rcList=(((typeof NCTree!=="undefined")?NCTree.list.rootCause:[])||[]).length?NCTree.list.rootCause:DEFAULT_ROOTCAUSE;
+    const facName=f=>{f=String(f||"").trim();return f?(f.endsWith("因素")?f:f+"因素"):"";};
+    return {eqM:new Set(NCDB.equip.map(x=>x[0])),opM:new Set(NCDB.ops.map(x=>x[0])),hit:new Map(),fac:new Map(rcList.map(x=>[x[0],facName(x[1])]))};
+  },
   /* 把一筆缺失拆成三個視角各自的大類／具體名稱，以及問題性質 */
   classify(d,S){
     const isOp=m=>S.opM.has(m)?true:S.eqM.has(m)?false:/^\d\d\./.test(m);
@@ -26734,10 +26795,7 @@ const FleetDA={
     const r=this.range();
     this._inclSold=!!($("#fda-sold")||{}).checked;
     // 根因→三要素：用系統的根因分類表（雲端版優先，還沒載入時用內建預設），名稱統一成「人員因素」這種寫法
-    const rcList=(((typeof NCTree!=="undefined")?NCTree.list.rootCause:[])||[]).length?NCTree.list.rootCause:DEFAULT_ROOTCAUSE;
-    const facName=f=>{f=String(f||"").trim();return f?(f.endsWith("因素")?f:f+"因素"):"";};
-    const S={eqM:new Set(NCDB.equip.map(x=>x[0])),opM:new Set(NCDB.ops.map(x=>x[0])),hit:new Map(),
-      fac:new Map(rcList.map(x=>[x[0],facName(x[1])]))};
+    const S=this.makeS();
     const base=[];
     App.defs.forEach(d=>{
       const ym=d.ym||ymOf(d.date);
@@ -26762,7 +26820,8 @@ const FleetDA={
     $("#fda-pane-rank").style.display=this.tab==="rank"?"":"none";
     $("#fda-pane-cat").style.display=this.tab==="cat"?"":"none";
     $("#fda-pane-src").style.display=this.tab==="src"?"":"none";
-    if(this.tab==="cat")this.renderCatalog(view);else if(this.tab==="src")this.renderSrc();else this.renderRanks(view);
+    $("#fda-pane-imp").style.display=this.tab==="imp"?"":"none";
+    if(this.tab==="cat")this.renderCatalog(view);else if(this.tab==="src")this.renderSrc();else if(this.tab==="imp")Improve.render();else this.renderRanks(view);
   },
   /* ── 分類彙總清單：完整分類表（含 0 件的項目），左邊大類、右邊具體名稱，件數依上方同一組篩選 ── */
   catData(view,side){
@@ -27141,7 +27200,13 @@ const FleetDA={
       return `<div class="fda-drill-ship"><div class="h">${esc(shipFullLabel(ship))}<span class="hint" style="font-weight:400">${arr.length} 筆・${nIk} 次檢查</span>${this.selLeaf&&nIk>=2?`<span class="fda-tag rep">船內重複</span>`:""}</div>${rows}</div>`;
     }).join("");
     box.innerHTML=`<div class="fda-head"><b>${esc(this.selLeaf||this.selMain)}</b><span class="hint">${items.length} 筆・${byShip.size} 艘船・${esc(this.rangeText(this._range))}${items.length>LIMIT?`（只列前 ${LIMIT} 筆，其餘請在缺失紀錄總表查看）`:""}</span>
-      <span style="flex:1"></span><button class="btn sm dark" onclick="FleetDA.openInDefs()">↗ 在缺失紀錄總表開啟</button></div>${blocks}`;
+      <span style="flex:1"></span>${this.selLeaf&&this.lens!=="rc"&&typeof Improve!=="undefined"&&Improve.canEdit()?`<button class="btn sm" onclick="FleetDA.makeAction()" title="把這個具體名稱立為改善行動，到「✅ 改善追蹤」追蹤改善前後的變化">✅ 立為改善行動</button>`:""}<button class="btn sm dark" onclick="FleetDA.openInDefs()">↗ 在缺失紀錄總表開啟</button></div>${blocks}`;
+  },
+  async makeAction(){
+    if(!this.selLeaf||this.lens==="rc")return;
+    await Improve.load();
+    if(!Improve.loaded){toast("⚠ 讀不到雲端的改善追蹤資料，請確認網路後再試",true);return;}
+    Improve.openEdit(null,{title:this.selLeaf,targets:[{lens:this.lens,main:this.selMain||"",leaf:this.selLeaf}]});
   },
   /* 帶著同樣的期間／船型／船舶／檢查來源／分類條件，跳到缺失紀錄總表 */
   _gotoDefs(){
@@ -27243,6 +27308,179 @@ const FleetDA={
   },  openUnclassified(){
     this._gotoDefs();Defs.ms.ncprob.set(["(未分類)"]);Defs.page=1;Defs.render();
     toast("已篩出這段期間還沒分類的缺失");
+  }
+};
+
+/* ════════ ✅ 改善追蹤（船隊缺失分析第四個子頁）════════
+   每筆「改善行動」＝針對某些具體名稱（設備或作業）採取的措施，系統自動比較措施開始前後的缺失率：
+   - 改善前：開始日期前 BEFORE_MONTHS 個月；改善後：開始日期到今天。
+   - 指標：每 100 次檢查的件數（缺失數 ÷ 同範圍檢查次數，含 0 缺失的檢查）、涉及船數、船內重複船數。
+   - 狀態：未滿 JUDGE_MONTHS 個月＝執行中；改善後檢查不到 MIN_INSP 次＝資料不足；
+           每 100 次檢查件數下降 DROP_OK 以上＝有效，否則＝未見改善。可手動結案／改用其他措施。
+   - 已售出的船不列入；適用船舶可以是全船隊或指定幾艘。
+   - 船上自查進度：關聯「專案自查」任務名稱，依各船任務題目是否都已查核，算幾艘完成。
+   資料存在雲端 app_db 的 improveActions：{actions:[…], types:[自訂措施類型…]}，寫入用樂觀鎖。
+   新增／修改：維護者以上（Role.isAdmin）；其他人可以看。 */
+const Improve={
+  KEY:"improveActions",BEFORE_MONTHS:6,JUDGE_MONTHS:3,DROP_OK:0.3,MIN_INSP:10,
+  DEFAULT_TYPES:["船隊通報","程序修改","訓練","PMS 保養週期","物料／備品","船上自查清單","設計改善","其他"],
+  data:{actions:[],types:[]},updated:null,loaded:false,_loading:null,flt:"",editId:null,_draft:null,
+  canEdit(){return typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();},
+  types(){return [...new Set([...this.DEFAULT_TYPES,...(this.data.types||[])])];},
+  async load(force){
+    if(this.loaded&&!force)return;
+    if(this._loading)return this._loading;
+    this._loading=(async()=>{
+      try{
+        if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+        const rows=await Cloud.api(`app_db?select=payload,updated&k=eq.${this.KEY}`)||[];
+        const p=rows[0]&&rows[0].payload;
+        this.data={actions:Array.isArray(p&&p.actions)?p.actions:[],types:Array.isArray(p&&p.types)?p.types:[]};
+        this.updated=rows[0]?rows[0].updated:null;this.loaded=true;
+      }catch(e){console.warn("讀取改善追蹤失敗",e);}
+      finally{this._loading=null;}
+    })();
+    return this._loading;
+  },
+  async save(next,msg){
+    if(!this.canEdit()){toast("⚠ 改善行動僅限維護者以上修改");return false;}
+    const now=Date.now();
+    try{
+      let rows;
+      if(this.updated==null){
+        const ex=await Cloud.api(`app_db?select=updated&k=eq.${this.KEY}`)||[];
+        if(ex.length){toast("⚠ 雲端剛有人建立了改善追蹤資料，已重新載入，請再操作一次",true);await this.load(true);this.render();return false;}
+        rows=await Cloud.api("app_db",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify([{k:this.KEY,payload:next,updated:now}])});
+      }else{
+        rows=await Cloud.api(`app_db?k=eq.${this.KEY}&updated=eq.${this.updated}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify({payload:next,updated:now})});
+      }
+      if(!rows||!rows.length){toast("⚠ 改善追蹤剛被其他人更新過，已重新載入最新內容，請再操作一次",true);await this.load(true);this.render();return false;}
+      this.data=next;this.updated=now;
+      if(typeof Audit!=="undefined")Audit.log("修改","改善追蹤",msg||"");
+      toast("✓ 已儲存");this.render();return true;
+    }catch(e){toast("⚠ 儲存失敗："+e.message,true);return false;}
+  },
+  ymAdd(ym,n){const [y,m]=ym.split("-").map(Number);const d=new Date(y,m-1+n,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;},
+  monthsBetween(a,b){const [y1,m1]=a.split("-").map(Number),[y2,m2]=b.split("-").map(Number);return (y2-y1)*12+(m2-m1);},
+  /* 依改善標的（設備／作業 × 大類 × 具體名稱）算改善前後的指標；S＝FleetDA.makeS() 查表 */
+  metrics(a,S){
+    const startYm=String(a.start||"").slice(0,7);if(!/^\d{4}-\d{2}$/.test(startYm))return null;
+    const nowYm=ymOf(todayStr()),fromYm=this.ymAdd(startYm,-this.BEFORE_MONTHS);
+    const shipOk=s=>!isSoldShip(s)&&(!(a.ships||[]).length||a.ships.includes(s));
+    const hitsTarget=c=>(a.targets||[]).some(tg=>{const side=c[tg.lens||"eq"];return side&&side.leaves.some(([l,m])=>l===tg.leaf&&(!tg.main||m===tg.main));});
+    const before={defs:[],insp:0},after={defs:[],insp:0},monthly={};
+    (App.defs||[]).forEach(d=>{
+      if(!shipOk(d.ship))return;const ym=d.ym||ymOf(d.date);if(!ym||ym<fromYm||ym>nowYm)return;
+      if(!hitsTarget(FleetDA.classify(d,S)))return;
+      (ym<startYm?before:after).defs.push(d);monthly[ym]=(monthly[ym]||0)+1;
+    });
+    (App.insp||[]).forEach(i=>{if(!shipOk(i.ship))return;const ym=ymOf(i.date);if(!ym||ym<fromYm||ym>nowYm)return;(ym<startYm?before:after).insp++;});
+    const sum=w=>{const ik=d=>`${d.ship}|${normDateSlash(d.date)}|${String(d.itype||"").toLowerCase()}`;const by=new Map();w.defs.forEach(d=>{if(!by.has(d.ship))by.set(d.ship,new Set());by.get(d.ship).add(ik(d));});
+      return {n:w.defs.length,insp:w.insp,per100:w.insp?w.defs.length/w.insp*100:null,ships:by.size,rep:[...by.values()].filter(s=>s.size>=2).length};};
+    const b=sum(before),f=sum(after),months=this.monthsBetween(startYm,nowYm);
+    let auto;
+    if(months<this.JUDGE_MONTHS)auto="run";
+    else if(f.insp<this.MIN_INSP||b.per100==null)auto="na";
+    else if(b.per100===0)auto=f.per100===0?"ok":"bad";
+    else auto=(b.per100-f.per100)/b.per100>=this.DROP_OK?"ok":"bad";
+    const series=[];for(let ym=fromYm;ym<=nowYm;ym=this.ymAdd(ym,1))series.push([ym,monthly[ym]||0]);
+    return {before:b,after:f,months,auto,series,startYm};
+  },
+  ST:{run:["執行中","#e0a020","#fff6dc"],ok:["有效","#2e8b57","#e2f3e8"],bad:["未見改善","#c0392b","#fde8e6"],na:["資料不足","#8195a0","#eef2f4"],closed:["已結案","#52656f","#eef2f4"],replaced:["已改用其他措施","#6a3d99","#efe6f7"]},
+  statusOf(a,m){return a.status==="closed"?"closed":a.status==="replaced"?"replaced":(m?m.auto:"na");},
+  /* 船上自查進度：關聯的自查任務名稱 → 各船任務是否所有題目都已查核 */
+  scProgress(a){
+    const titles=new Set(a.scTitles||[]);if(!titles.size)return null;
+    const tasks=(App.tasks||[]).filter(t=>titles.has(t.title||""));if(!tasks.length)return {done:0,total:0};
+    const by=new Map();tasks.forEach(t=>{const k=t.ship||"?";if(!by.has(k))by.set(k,[]);by.get(k).push(t);});
+    let done=0;by.forEach(arr=>{if(arr.every(t=>(t.items||[]).length&&(t.items||[]).every(i=>i.status&&i.status!=="pending")))done++;});
+    return {done,total:by.size};
+  },
+  spark(m){
+    const W=560,H=70,pad=6,max=Math.max(1,...m.series.map(s=>s[1])),n=m.series.length;
+    const x=i=>pad+i*(W-2*pad)/Math.max(1,n-1),y=v=>H-14-(v/max)*(H-24);
+    const pts=m.series.map((s,i)=>`${x(i).toFixed(1)},${y(s[1]).toFixed(1)}`).join(" ");
+    const si=m.series.findIndex(s=>s[0]===m.startYm);
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px" role="img" aria-label="每月件數趨勢"><line x1="${pad}" y1="${H-14}" x2="${W-pad}" y2="${H-14}" stroke="#dfe5ea"/>${si>=0?`<line x1="${x(si)}" y1="4" x2="${x(si)}" y2="${H-12}" stroke="#c0392b" stroke-dasharray="4 3" stroke-width="1.5"/><text x="${x(si)+4}" y="12" font-size="10" fill="#5b6a75">措施開始</text>`:""}<polyline fill="none" stroke="#378ADD" stroke-width="2" points="${pts}"/><text x="${pad}" y="${H-2}" font-size="9.5" fill="#8195a0">${m.series[0][0]}</text><text x="${W-pad}" y="${H-2}" font-size="9.5" fill="#8195a0" text-anchor="end">${m.series[n-1][0]}</text></svg>`;
+  },
+  async render(){
+    const box=$("#fda-pane-imp");if(!box)return;
+    if(!this.loaded){box.innerHTML=`<div class="card hint">讀取改善追蹤…</div>`;await this.load();if(!this.loaded){box.innerHTML=`<div class="card hint">⚠ 讀不到雲端的改善追蹤資料，請確認網路後重新整理。</div>`;return;}}
+    const S=FleetDA.makeS(),adm=this.canEdit();
+    const list=this.data.actions.map(a=>{const m=this.metrics(a,S);return {a,m,st:this.statusOf(a,m),sc:this.scProgress(a)};});
+    const cnt=k=>list.filter(x=>x.st===k).length;
+    const shown=list.filter(x=>!this.flt||x.st===this.flt).sort((p,q)=>String(q.a.start).localeCompare(String(p.a.start)));
+    const kpi=(k)=>{const s=this.ST[k];return `<div class="imp-kpi${this.flt===k?" on":""}" onclick="Improve.flt=Improve.flt==='${k}'?'':'${k}';Improve.render()"><div class="l"><span class="imp-lamp" style="background:${s[1]}"></span>${s[0]}</div><div class="v">${cnt(k)}</div></div>`;};
+    const fmt=v=>v==null?"—":v.toFixed(1);
+    const card=({a,m,st,sc})=>{
+      const s=this.ST[st],tg=(a.targets||[]).map(t=>`${t.lens==="op"?"作業":"設備"} › ${t.main?esc(t.main)+" › ":""}${esc(t.leaf)}`).join("<br>");
+      let delta="";if(m&&m.before.per100!=null&&m.after.per100!=null&&m.before.per100>0){const r=(m.after.per100-m.before.per100)/m.before.per100;delta=`<span style="color:${r<=-this.DROP_OK?"#2e8b57":r>0?"#c0392b":"#8195a0"};font-size:12px">${r<0?"▼":"▲"}${Math.abs(Math.round(r*100))}%</span>`;}
+      return `<div class="card imp-card">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:15px">${esc(a.title||((a.targets||[])[0]||{}).leaf||"（未命名）")}</b>
+          <span style="flex:1"></span><span class="imp-st" style="background:${s[2]};color:${s[1]}">● ${s[0]}</span>
+          ${adm?`<button class="btn sm" onclick="Improve.openEdit('${esc(a.id)}')">✎ 編輯</button>`:""}</div>
+        <div class="hint" style="font-size:12px;margin-top:2px">${tg}</div>
+        <div style="margin-top:6px">${(a.measures||[]).map(x=>`<span class="imp-chip">${esc(x)}</span>`).join("")}<span class="hint" style="font-size:12px">${a.owner?"負責："+esc(a.owner)+"・":""}開始 ${esc(a.start||"—")}${a.due?"・預計完成 "+esc(a.due):""}${(a.ships||[]).length?"・適用 "+a.ships.length+" 艘船":"・全船隊"}</span></div>
+        ${m?`<div class="imp-m"><div>每 100 次檢查<b>${fmt(m.before.per100)} → ${fmt(m.after.per100)} 件 ${delta}</b><span class="hint">改善前 ${m.before.insp} 次檢查／改善後 ${m.after.insp} 次</span></div><div>涉及船數<b>${m.before.ships} → ${m.after.ships} 艘</b></div><div>船內重複<b>${m.before.rep} → ${m.after.rep} 艘</b></div></div>${this.spark(m)}`:`<div class="hint">請設定開始日期與改善標的。</div>`}
+        ${sc?`<div class="imp-sc">船上自查回報 <div class="bar"><div style="width:${sc.total?Math.round(sc.done/sc.total*100):0}%"></div></div> ${sc.done}／${sc.total} 艘${sc.total?"":"（找不到關聯的自查任務）"}</div>`:""}
+        ${a.note?`<div class="hint" style="font-size:12px;margin-top:6px;white-space:pre-line">${esc(a.note)}</div>`:""}
+        ${st==="bad"?`<div style="font-size:12px;color:#c0392b;margin-top:6px">建議：檢討措施是否有效，必要時改用其他措施。</div>`:""}
+      </div>`;};
+    box.innerHTML=`<div class="card"><div class="fda-head"><b>改善追蹤</b><span class="hint">比較措施開始「前 ${this.BEFORE_MONTHS} 個月」與「開始後到今天」；滿 ${this.JUDGE_MONTHS} 個月、改善後至少 ${this.MIN_INSP} 次檢查才判斷，每 100 次檢查件數下降 ${Math.round(this.DROP_OK*100)}% 以上算有效。上方篩選不套用在這頁。</span>
+        <span style="flex:1"></span>${adm?`<button class="btn sm dark" onclick="Improve.openEdit()">＋ 新增改善行動</button>`:""}</div>
+      <div class="imp-kpis">${["run","ok","bad","na","closed"].map(kpi).join("")}</div></div>
+      ${shown.length?shown.map(card).join(""):`<div class="card hint">${list.length?"這個狀態沒有改善行動。":"還沒有改善行動。可以在「排名分析」點選具體名稱後按「立為改善行動」，或按上方「＋ 新增改善行動」。"}</div>`}`;
+  },
+  /* ── 新增／編輯 ── */
+  openEdit(id,preset){
+    if(!this.canEdit()){toast("⚠ 改善行動僅限維護者以上新增／修改");return;}
+    const a=id?this.data.actions.find(x=>x.id===id):null;this.editId=a?a.id:null;
+    this._draft=JSON.parse(JSON.stringify(a||Object.assign({title:"",targets:[],measures:[],owner:"",start:todayStr(),due:"",ships:[],scTitles:[],note:"",status:"open"},preset||{})));
+    $("#imp-edit-title").textContent=a?"編輯改善行動":"新增改善行動";
+    $("#imp-del").style.display=a?"":"none";
+    this.renderEdit();$("#impEditModal").classList.add("show");
+  },
+  closeEdit(){$("#impEditModal").classList.remove("show");},
+  renderEdit(){
+    const d=this._draft;
+    $("#imp-e-title").value=d.title||"";$("#imp-e-owner").value=d.owner||"";$("#imp-e-start").value=d.start||"";$("#imp-e-due").value=d.due||"";$("#imp-e-note").value=d.note||"";$("#imp-e-status").value=d.status||"open";
+    $("#imp-e-targets").innerHTML=(d.targets||[]).map((t,i)=>`<span class="imp-chip" style="background:#e7f0fa;color:#1c3a5e">${t.lens==="op"?"作業":"設備"} › ${t.main?esc(t.main)+" › ":""}${esc(t.leaf)} <a style="cursor:pointer;color:#c0392b" onclick="Improve._draft.targets.splice(${i},1);Improve.renderEdit()">✕</a></span>`).join("")||`<span class="hint">還沒有改善標的</span>`;
+    const lens=$("#imp-e-lens").value||"eq",base=lens==="op"?NCDB.ops:NCDB.equip;
+    const mains=[...new Set(base.map(x=>x[0]))];const curMain=$("#imp-e-main").value;
+    $("#imp-e-main").innerHTML=mains.map(m=>`<option ${m===curMain?"selected":""}>${esc(m)}</option>`).join("");
+    const mm=$("#imp-e-main").value;$("#imp-e-leaf").innerHTML=base.filter(x=>x[0]===mm).map(x=>`<option>${esc(x[1])}</option>`).join("");
+    $("#imp-e-measures").innerHTML=this.types().map(x=>`<label class="imp-ck"><input type="checkbox" ${(d.measures||[]).includes(x)?"checked":""} onchange="Improve.toggleMeasure(this.value,this.checked)" value="${esc(x)}"> ${esc(x)}</label>`).join("");
+    $("#imp-e-ships").innerHTML=SHIPINFO.filter(s=>!isSoldShip(s.code)).map(s=>`<label class="imp-ck"><input type="checkbox" value="${esc(s.code)}" ${(d.ships||[]).includes(s.code)?"checked":""} onchange="Improve.toggleShip(this.value,this.checked)"> ${esc(s.code)}</label>`).join("");
+    const titles=new Map();(App.tasks||[]).forEach(t=>{const k=t.title||"";if(!k)return;titles.set(k,(titles.get(k)||0)+1);});
+    $("#imp-e-sc").innerHTML=titles.size?[...titles.entries()].map(([k,n])=>`<label class="imp-ck"><input type="checkbox" value="${esc(k)}" ${(d.scTitles||[]).includes(k)?"checked":""} onchange="Improve.toggleSc(this.value,this.checked)"> ${esc(k)} <span class="hint">（${n} 艘）</span></label>`).join(""):`<span class="hint">專案自查目前沒有任務</span>`;
+  },
+  _sync(){const d=this._draft;d.title=$("#imp-e-title").value.trim();d.owner=$("#imp-e-owner").value.trim();d.start=$("#imp-e-start").value;d.due=$("#imp-e-due").value;d.note=$("#imp-e-note").value.trim();d.status=$("#imp-e-status").value;},
+  addTarget(){this._sync();const t={lens:$("#imp-e-lens").value||"eq",main:$("#imp-e-main").value,leaf:$("#imp-e-leaf").value};if(!t.leaf)return;if(!this._draft.targets.some(x=>x.lens===t.lens&&x.main===t.main&&x.leaf===t.leaf))this._draft.targets.push(t);if(!this._draft.title)this._draft.title=t.leaf;this.renderEdit();},
+  toggleMeasure(v,on){const a=this._draft.measures;on?(!a.includes(v)&&a.push(v)):a.splice(a.indexOf(v),1);},
+  toggleShip(v,on){const a=this._draft.ships;on?(!a.includes(v)&&a.push(v)):a.splice(a.indexOf(v),1);},
+  toggleSc(v,on){const a=this._draft.scTitles;on?(!a.includes(v)&&a.push(v)):a.splice(a.indexOf(v),1);},
+  addType(){
+    const v=($("#imp-e-newtype").value||"").trim();if(!v)return;this._sync();
+    if(!this._draft.measures.includes(v))this._draft.measures.push(v);
+    this._newTypes=[...new Set([...(this._newTypes||[]),v])];
+    if(!this.types().includes(v))this.data={...this.data,types:[...(this.data.types||[]),v]};
+    $("#imp-e-newtype").value="";this.renderEdit();
+  },
+  async saveEdit(){
+    this._sync();const d=this._draft;
+    if(!d.targets.length){toast("⚠ 請至少加一個改善標的（選大類、具體名稱後按「加入」）");return;}
+    if(!d.start){toast("⚠ 請填開始日期");return;}
+    if(!d.title)d.title=d.targets[0].leaf;
+    const by=(typeof Audit!=="undefined"?Audit.user():""),now=Date.now();
+    const rec=Object.assign({},d,{id:this.editId||("imp"+now),updatedBy:by,updatedAt:now},this.editId?{}:{createdBy:by,createdAt:now});
+    const actions=this.editId?this.data.actions.map(x=>x.id===this.editId?rec:x):[...this.data.actions,rec];
+    const types=[...new Set([...(this.data.types||[]).filter(x=>!this.DEFAULT_TYPES.includes(x)),...(this._newTypes||[])])];
+    if(await this.save({actions,types},`${this.editId?"修改":"新增"}改善行動：${rec.title}`)){this._newTypes=[];this.closeEdit();}
+  },
+  async remove(){
+    if(!this.editId)return;const a=this.data.actions.find(x=>x.id===this.editId);
+    if(!confirm(`確定刪除改善行動「${a?a.title:""}」？\n\n刪除後無法復原；如果只是不再追蹤，建議把狀態改成「已結案」。`))return;
+    if(await this.save({actions:this.data.actions.filter(x=>x.id!==this.editId),types:this.data.types||[]},`刪除改善行動：${a?a.title:""}`))this.closeEdit();
   }
 };
 
