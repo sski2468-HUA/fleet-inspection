@@ -1430,6 +1430,12 @@ table.ap-xl td.ap-selm{box-shadow:inset 2px 0 0 #1b6ec2,inset -2px 0 0 #1b6ec2}
 .fda-mx th.rh{text-align:left}
 .fda-mx td{padding:6px;text-align:center;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;cursor:pointer}
 .fda-mx td.rh{text-align:left;font-weight:700;cursor:default;white-space:nowrap}
+.fda-mx tr.sum td{background:#eef3f7;border-top:2px solid var(--line-2)}
+.fda-srcside{align-items:center}
+.fda-srcside-btn{border:1.5px solid var(--navy);background:#fff;color:var(--navy);border-radius:6px;padding:6px 14px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit;min-width:150px;text-align:left}
+.fda-srcside-btn small{margin-left:6px;font-weight:600;opacity:.75}
+.fda-srcside-btn.on{background:var(--navy);color:#fff}
+.fda-srcsep{width:1px;height:24px;background:var(--line-2);margin:0 4px}
 .fda-mx td:hover:not(.rh){outline:2px solid #9fbfe0}
 .imp-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:6px}
 @media(max-width:900px){.imp-kpis{grid-template-columns:repeat(2,1fr)}}
@@ -9194,7 +9200,8 @@ function hasExcelJS(){
 /* 內外部檢查／檢查類型對應定義：可由維護者於「資料管理」編修，見 Classify 模組 */
 function isInternal(t){
   const s=String(t||"").toLowerCase();
-  const kws=(typeof Classify!=="undefined"?Classify.internalKw:null)||["internal audit","isps","onboard visit","accompanying"];
+  const ck=typeof Classify!=="undefined"?Classify.internalKw:null;
+  const kws=(ck&&ck.length)?ck:["internal audit","isps","onboard visit","accompanying"]; // 設定尚未載入（空陣列）時用預設，避免全部被誤判成外部
   return kws.some(kw=>kw&&s.includes(String(kw).toLowerCase()));
 }
 const ITYPE_COLORS={PSC:["#1e7f8c","#e3f1f3"],SIRE:["#7b4fa3","#f1eaf8"],FLAG:["#2e6db4","#e7f0fa"],CDI:["#b8860b","#faf3df"],RIGHTSHIP:["#c0392b","#fbeae7"],TERMINAL:["#5b7c3f","#eef4e7"],"Internal audit":["#777","#eee"],"P&I":["#9c5d2e","#f7ece2"]};
@@ -27267,13 +27274,36 @@ const FleetDA={
   /* ── 🎯 檢查來源重點：選一個或多個檢查來源，看它們最常開哪些大類／具體名稱，跟「全部檢查來源」比偏高多少 ──
      上方的「來源（全部／外部／內部）」在這頁不套用（這頁本身就是在比各檢查來源），其他篩選照常套用。
      偏高倍數＝這幾個來源裡該項的占比 ÷ 全部來源裡該項的占比；件數 5 件以上、且 1.3 倍以上才標「▲」。 */
-  SRC_GROUPS:["PSC","SIRE","RightShip","CDI","FLAG","MCC","Terminal","公司內部","其他"],
+  /* 外部／內部依系統既有的「內部檢查關鍵字」設定（isInternal，與上方來源篩選、其他分析頁一致）判斷，
+     內部再拆成訪船／內稽／隨船／ISPS／交叉訪船，外部依檢查單位分。 */
+  SRC_EXT:["PSC","SIRE","RightShip","CDI","FLAG","MCC","Terminal","其他外部"],
+  SRC_INT:["訪船","內稽","隨船","ISPS","交叉訪船","其他內部"],
+  get SRC_GROUPS(){return this.SRC_EXT.concat(this.SRC_INT);},
   srcGroup(it){
     const s=String(it||"").trim().toUpperCase();
+    if(isInternal(it)){
+      if(/CROSS|交叉/.test(s))return "交叉訪船";
+      if(/VISIT|訪船/.test(s))return "訪船";
+      if(/INTERNAL AUDIT|內稽/.test(s))return "內稽";
+      if(/ACCOMPANY|隨船/.test(s))return "隨船";
+      if(/ISPS/.test(s))return "ISPS";
+      return "其他內部";
+    }
     if(/^PSC/.test(s))return "PSC";if(/^SIRE/.test(s))return "SIRE";if(/RIGHTSHIP/.test(s))return "RightShip";
     if(/^CDI/.test(s))return "CDI";if(/^FLAG/.test(s))return "FLAG";if(/MCC/.test(s))return "MCC";if(/TERMINAL/.test(s))return "Terminal";
-    if(/VISIT|INTERNAL AUDIT|ISPS|ACCOMPANY|CROSS SHIP|內稽|訪船|隨船/.test(s))return "公司內部";
-    return "其他";
+    return "其他外部";
+  },
+  srcSide(side){ // 一鍵選「全部外部」或「全部內部」（只選目前有資料的）
+    const gc=this._srcCounts||{};const list=(side==="ext"?this.SRC_EXT:this.SRC_INT).filter(g=>gc[g]);
+    this.srcSel=new Set(list.length?list:(side==="ext"?this.SRC_EXT:this.SRC_INT));this.srcMain=null;this.srcLeaf=null;this.render();
+  },
+  srcSelText(){
+    const gc=this._srcCounts||{},sel=this.srcSel||new Set();
+    const full=arr=>{const a=arr.filter(g=>gc[g]);return a.length&&a.every(g=>sel.has(g));};
+    const parts=[];
+    if(full(this.SRC_EXT))parts.push("外部檢查（全部）");else this.SRC_EXT.filter(g=>sel.has(g)).forEach(g=>parts.push(g));
+    if(full(this.SRC_INT))parts.push("內部檢查（全部）");else this.SRC_INT.filter(g=>sel.has(g)).forEach(g=>parts.push(g));
+    return parts.join("、");
   },
   srcStats(list,L){
     const M=new Map(),mk=m=>{if(!M.has(m))M.set(m,{name:m,items:new Set(),leaves:new Map()});return M.get(m);};
@@ -27284,6 +27314,7 @@ const FleetDA={
   },
   srcToggle(g){if(!this.srcSel)this.srcSel=new Set(["PSC"]);this.srcSel.has(g)?this.srcSel.delete(g):this.srcSel.add(g);if(!this.srcSel.size)this.srcSel.add(g);this.srcMain=null;this.srcLeaf=null;this.render();},
   srcOnly(g){this.srcSel=new Set([g]);this.srcMain=null;this.srcLeaf=null;this.render();},
+  srcSideCell(side,m){const gc=this._srcCounts||{};const list=(side==="ext"?this.SRC_EXT:this.SRC_INT).filter(g=>gc[g]);this.srcSel=new Set(list);this.srcMain=m;this.srcLeaf=null;this.render();const el=$("#fda-src-rank");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},
   srcCell(g,m){this.srcSel=new Set([g]);this.srcMain=m;this.srcLeaf=null;this.render();const el=$("#fda-src-rank");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},
   srcPick(kind,i){
     if(kind==="main"){const r=this._srcMains[i];if(!r)return;this.srcMain=this.srcMain===r.name?null:r.name;this.srcLeaf=null;}
@@ -27300,7 +27331,8 @@ const FleetDA={
     const base=this._base||[],L=this.srcLens||"eq";
     if(!this.srcSel)this.srcSel=new Set(["PSC"]);
     const gc={};base.forEach(x=>{const g=this.srcGroup(x.d.itype);gc[g]=(gc[g]||0)+1;});
-    const sel=this._srcSelected(),selTxt=[...this.srcSel].join("、");
+    this._srcCounts=gc;
+    const sel=this._srcSelected(),selTxt=this.srcSelText();
     const skip=m=>L==="op"&&/^00\./.test(m); // 作業視角不看「00.通用船舶設備作業」（每筆設備缺失幾乎都有，沒有鑑別度）
     const allM=this.srcStats(base,L),selM=this.srcStats(sel,L),nAll=base.length||1,nSel=sel.length||1;
     const shareAll=m=>(allM.get(m)?allM.get(m).items.size:0)/nAll;
@@ -27325,19 +27357,24 @@ const FleetDA={
     const leafHtml=leaves.length?`<div class="fda-th" style="grid-template-columns:24px minmax(0,1fr) 52px 44px 78px;display:grid;gap:10px"><span>#</span><span>具體名稱</span><span style="text-align:right">件數</span><span style="text-align:right">船數</span><span>比平均</span></div>`+leaves.map((o,i)=>`<div class="fda-r${this.srcLeaf===o.name?" sel":""}" style="grid-template-columns:24px minmax(0,1fr) 52px 44px 78px" onclick="FleetDA.srcPick('leaf',${i})" title="${esc(o.main)} › ${esc(o.name)}"><span class="rk">${i+1}</span><span class="nm"><div>${esc(o.name)}</div>${this.srcMain?"":`<div class="hint" style="font-size:11px">${esc(o.main)}</div>`}</span><span>${o.items.size}</span><span>${o.ships.size}</span><span>${lift(o)}</span></div>`).join(""):`<div class="hint" style="padding:10px">沒有資料。</div>`;
     // 對照總表：各檢查來源 × 全部來源最常見的 8 個大類
     const cols=[...allM.values()].filter(o=>!skip(o.name)&&!o.name.startsWith("(")).sort((a,b)=>b.items.size-a.items.size).slice(0,8).map(o=>o.name);
-    const groups=this.SRC_GROUPS.filter(g=>gc[g]);
-    const mx=`<table class="fda-mx"><thead><tr><th class="rh">檢查來源</th><th>件數</th>${cols.map(c=>`<th title="${esc(c)}">${esc(c.length>8?c.slice(0,8)+"…":c)}</th>`).join("")}</tr></thead><tbody>${groups.map(g=>{
-      const gl=base.filter(x=>this.srcGroup(x.d.itype)===g),gm=this.srcStats(gl,L),n=gl.length||1;
-      return `<tr><td class="rh">${esc(g)}</td><td>${gl.length}</td>${cols.map(c=>{const k=gm.get(c)?gm.get(c).items.size:0,s=k/n,b=shareAll(c),lf=b?s/b:0;
+    const mxRow=(label,gl,onCell,cls)=>{const gm=this.srcStats(gl,L),n=gl.length||1;
+      return `<tr class="${cls||""}"><td class="rh">${label}</td><td>${gl.length}</td>${cols.map(c=>{const k=gm.get(c)?gm.get(c).items.size:0,s=k/n,b=shareAll(c),lf=b?s/b:0;
         const bg=k>=5&&lf>=1.6?"#f6c9c4":k>=5&&lf>=1.3?"#fbe3df":"";
-        return `<td style="${bg?"background:"+bg:""}" title="${esc(g)}・${esc(c)}：${k} 件，占 ${Math.round(s*100)}%（全部平均 ${Math.round(b*100)}%）" onclick="FleetDA.srcCell('${esc(g)}','${esc(c).replace(/'/g,"\\'")}')">${k?Math.round(s*100)+"%":"—"}</td>`;}).join("")}</tr>`;}).join("")}</tbody></table>`;
+        return `<td style="${bg?"background:"+bg:""}" title="${esc(label.replace(/<[^>]+>/g,""))}・${esc(c)}：${k} 件，占 ${Math.round(s*100)}%（全部平均 ${Math.round(b*100)}%）" onclick="${onCell(c)}">${k?Math.round(s*100)+"%":"—"}</td>`;}).join("")}</tr>`;};
+    const sideRows=(side,arr,label)=>{const gs=arr.filter(g=>gc[g]);if(!gs.length)return "";
+      const all=base.filter(x=>gs.includes(this.srcGroup(x.d.itype)));
+      return mxRow(`<b>${label}合計</b>`,all,c=>`FleetDA.srcSideCell('${side}','${esc(c).replace(/'/g,"\\'")}')`,"sum")+
+        gs.map(g=>mxRow(`<span style="padding-left:12px">${esc(g)}</span>`,base.filter(x=>this.srcGroup(x.d.itype)===g),c=>`FleetDA.srcCell('${esc(g)}','${esc(c).replace(/'/g,"\\'")}')`)).join("");};
+    const mx=`<table class="fda-mx"><thead><tr><th class="rh">檢查來源</th><th>件數</th>${cols.map(c=>`<th title="${esc(c)}">${esc(c.length>8?c.slice(0,8)+"…":c)}</th>`).join("")}</tr></thead><tbody>${sideRows("ext",this.SRC_EXT,"外部檢查")}${sideRows("int",this.SRC_INT,"內部檢查")}</tbody></table>`;
     // 缺失清單
     let drill="";
     if(this.srcLeaf){const lf=leaves.find(l=>l.name===this.srcLeaf);if(lf){IaList.reset("fda");const items=[...lf.items],nth=this.nthMap(items.slice()),by=new Map();items.forEach(x=>{if(!by.has(x.d.ship))by.set(x.d.ship,[]);by.get(x.d.ship).push(x);});
       drill=`<div class="card" id="fda-src-drill"><div class="fda-head"><b>${esc(this.srcLeaf)}</b><span class="hint">${esc(selTxt)}・${items.length} 筆・${by.size} 艘船</span></div>${[...by.entries()].sort((a,b)=>b[1].length-a[1].length).map(([ship,arr])=>`<div class="fda-drill-ship"><div class="h">${esc(shipFullLabel(ship))}<span class="hint" style="font-weight:400">${arr.length} 筆</span></div>${arr.sort((a,b)=>(parseDate(a.d.date)||0)-(parseDate(b.d.date)||0)).map(x=>this.drillRow(x,nth.get(x))).join("")}</div>`).join("")}</div>`;}}
     box.innerHTML=`<div class="card"><div class="fda-head"><b>選檢查來源（可複選）</b><span class="hint">上方「來源（外部／內部）」在這頁不套用，其他篩選照常；點表格裡的格子也可以直接切換。</span>
         <span style="flex:1"></span><button class="btn sm dark" onclick="FleetDA.openSrcAi()">🤖 AI 迎檢準備清單</button></div>
-      <div class="fda-srcbar">${this.SRC_GROUPS.map(g=>`<button class="fda-srcchip${this.srcSel.has(g)?" on":""}${gc[g]?"":" zero"}" onclick="FleetDA.srcToggle('${g}')" ondblclick="FleetDA.srcOnly('${g}')" title="點一下加入／移除；連點兩下只看這個">${esc(g)}<small>${gc[g]||0}</small></button>`).join("")}
+      ${[["ext","外部檢查",this.SRC_EXT],["int","內部檢查",this.SRC_INT]].map(([side,label,arr])=>{const tot=arr.reduce((n,g)=>n+(gc[g]||0),0),act=arr.filter(g=>gc[g]),full=act.length&&act.every(g=>this.srcSel.has(g));
+        return `<div class="fda-srcbar fda-srcside"><button class="fda-srcside-btn${full?" on":""}" onclick="FleetDA.srcSide('${side}')" title="一鍵選取全部${label}">${full?"✓ ":""}全部${label}<small>${tot}</small></button><span class="fda-srcsep"></span>${arr.map(g=>`<button class="fda-srcchip${this.srcSel.has(g)?" on":""}${gc[g]?"":" zero"}" onclick="FleetDA.srcToggle('${g}')" ondblclick="FleetDA.srcOnly('${g}')" title="點一下加入／移除；連點兩下只看這個">${esc(g)}<small>${gc[g]||0}</small></button>`).join("")}</div>`;}).join("")}
+      <div class="fda-srcbar"><span class="hint">外部／內部依「外部/內部檢查、檢查類型對應定義」的內部檢查關鍵字區分，與上方來源篩選一致。點「全部外部檢查／全部內部檢查」可一鍵選整組，再點個別來源可加減。</span>
         <span class="fda-seg" style="margin-left:auto"><button class="btn sm${L==="eq"?" on":""}" onclick="FleetDA.srcLens='eq';FleetDA.srcMain=null;FleetDA.srcLeaf=null;FleetDA.render()">🔧 設備</button><button class="btn sm${L==="op"?" on":""}" onclick="FleetDA.srcLens='op';FleetDA.srcMain=null;FleetDA.srcLeaf=null;FleetDA.render()">📋 作業</button></span></div>
       <div class="hint" style="margin-top:8px">${esc(selTxt)}：<b>${sel.length}</b> 筆缺失・${ships.size} 艘船・${insp.length} 次檢查（平均每次 ${insp.length?(sel.length/insp.length).toFixed(1):"—"} 件）・${esc(this.rangeText(r))}</div></div>
       <div class="fda-ranks" id="fda-src-rank" style="margin-top:12px">
@@ -27361,7 +27398,7 @@ const FleetDA={
       return {大類:o.name,件數:o.items.size,占比:Math.round(s*100)+"%",全部平均:Math.round(b*100)+"%",明顯偏高:o.items.size>=5&&b&&s/b>=1.3,
         具體名稱:[...o.leaves.entries()].sort((a,b)=>b[1].size-a[1].size).slice(0,8).map(([l,set])=>{const arr=[...set];const ls=arr.length/nSel,lb=(allLeaf.get(l)||0)/nAll;
           return {名稱:l,件數:arr.length,船數:new Set(arr.map(x=>x.d.ship)).size,明顯偏高:arr.length>=3&&lb&&ls/lb>=1.3,缺失摘要:arr.slice(0,15).map(x=>`${shipName(x.d.ship)} ${normDateSlash(x.d.date)} ${x.d.itype||""}：${cut(x.d.detail,140)}`)};})};});
-    const r=this._range||this.range(),srcTxt=[...this.srcSel].join("、");
+    const r=this._range||this.range(),srcTxt=this.srcSelText();
     const buildPrompt=persona=>`${persona}
 
 ### 任務
