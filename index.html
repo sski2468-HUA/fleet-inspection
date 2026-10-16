@@ -4406,7 +4406,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           .eot tr.noia td.sh{box-shadow:inset 4px 0 0 #c0392b}
           .eoe{display:block;border-radius:5px;padding:2px 5px;margin:2px 0;font-size:11.5px;line-height:1.35;white-space:nowrap;cursor:default}
           .eoe b{margin-right:3px}
-          .eoe.audit{background:#efe6f7;color:#5b3290}.eoe.visit{background:#e4f1f2;color:#176670}.eoe.accompany{background:#fdeed9;color:#9a520c}.eoe.isps{background:#e8edf3;color:#34506e}
+          .eoe.audit{background:#efe6f7;color:#5b3290}.eoe.visit{background:#e4f1f2;color:#176670}.eoe.accompany{background:#fdeed9;color:#9a520c}.eoe.isps{background:#e8edf3;color:#34506e}.eoe.cross{background:#e3f3e8;color:#1f6f43}
         </style>
         <div class="card" style="margin-bottom:14px">
           <div class="toolbar" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
@@ -17874,11 +17874,11 @@ const XlsxPretty=(()=>{
    所有船 × 1～12 月，把「檢查紀錄」裡的內稽／訪船／隨船／ISPS AUDIT 依月份排出來，每格寫日期與檢查人。
    跟「年度計畫暨執行情形」不同：這裡不排程、不能編輯，只看實際做了什麼，四種類型可以同時看。 */
 const ExecOverview={
-  TYPES:[{k:"audit",t:"內稽",it:"INTERNALAUDIT"},{k:"visit",t:"訪船",it:"ONBOARDVISIT"},{k:"accompany",t:"隨船",it:"ACCOMPANYINGSHIP"},{k:"isps",t:"ISPS",it:"ISPSAUDIT"}],
-  on:new Set(["audit","visit","accompany","isps"]),
+  TYPES:[{k:"audit",t:"內稽",it:"INTERNALAUDIT"},{k:"visit",t:"訪船",it:"ONBOARDVISIT"},{k:"cross",t:"交叉訪船",it:"CROSSSHIPVISIT"},{k:"accompany",t:"隨船",it:"ACCOMPANYINGSHIP"},{k:"isps",t:"ISPS",it:"ISPSAUDIT"}], // 交叉訪船獨立一類（屬內部檢查，但不算一次訪船）
+  on:new Set(["audit","visit","cross","accompany","isps"]),
   ev(){
     const map={};this.TYPES.forEach(t=>map[t.it]=t.k);
-    return (App.insp||[]).map(r=>{const k=map[normItype(r.itype)];const d=parseDate(r.date);if(!k||!d)return null;
+    return (App.insp||[]).map(r=>{const k=map[normItype(r.itype)]||(/交叉訪船/.test(r.itype||"")?"cross":undefined);const d=parseDate(r.date);if(!k||!d)return null;
       return {ship:r.ship,k,y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate(),iso:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,insp:r.inspector||"",loc:r.loc||""};}).filter(Boolean);
   },
   names(s){return String(s||"").split(/[、,，\/]/).map(x=>x.trim()).filter(Boolean);},
@@ -17903,7 +17903,7 @@ const ExecOverview={
     set("#eo-deck","全部甲板督導",[...new Set(SI.map(s=>s.deckSup).filter(Boolean))].sort());
     set("#eo-engine","全部機艙督導",[...new Set(SI.map(s=>s.engineSup).filter(Boolean))].sort());
     set("#eo-insp","全部檢查人",[...new Set(all.flatMap(e=>this.names(e.insp)))].sort());
-    const col={audit:"#5b3290",visit:"#176670",accompany:"#9a520c",isps:"#34506e"};
+    const col={audit:"#5b3290",visit:"#176670",cross:"#1f6f43",accompany:"#9a520c",isps:"#34506e"};
     $("#eo-types").innerHTML=this.TYPES.map(t=>`<label class="${this.on.has(t.k)?"on":""}" style="color:${col[t.k]}"><input type="checkbox" ${this.on.has(t.k)?"checked":""} onchange="ExecOverview.toggle('${t.k}',this.checked)">${t.t}</label>`).join("");
   },
   render(){
