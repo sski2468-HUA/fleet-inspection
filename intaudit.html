@@ -822,7 +822,7 @@ let SHIPS=[],SUPERVISORS=[];
 function shipLabel(code){const s=SHIPS.find(x=>x.code===code);return s?s.label:(code||"");}
 async function getKey(k){const r=await withTimeout(api(`app_db?select=payload&k=eq.${encodeURIComponent(k)}`),8000);return r&&r[0]?r[0].payload:null;}
 async function loadLists(){
-  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,type1:s.type1||"",label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));}catch(e){}
+  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,type1:s.type1||"",deckSup:s.deckSup||"",engineSup:s.engineSup||"",label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));}catch(e){}
   /* 檢查人 Auditor 名單：優先採用主系統「內部檢查人 Auditor 名單」（可含督導/海技/管理層等
      任一部門，由 Owner 在系統管理頁直接挑人維護）；尚未設定過（陣列為空／讀取失敗）時，
      退回舊規則：自動抓名冊部門＝「督導」或「海技組」的人，向後相容既有安裝。 */
@@ -1732,10 +1732,13 @@ function askReviewer(action,keys){
     const isClose=action==="close",ctx=keys.map(rvwCtx).filter(Boolean);
     const me=rvwLogin();
     if(!me){toast("⚠ 請先選擇登入人員",true);IAAuth.switchUser();res(null);return;}
-    // 檢查人欄位可能是「黃燕華、潘獻波」這種多人字串，拆成個別姓名
-    const insps=[...new Set(ctx.flatMap(c=>String(c.r.inspector||"").split(/[、,，\/／;；\s]+/)).map(s=>s.trim()).filter(Boolean))];
+    // 改善單由「該船的經管督導」（主系統船舶資料的甲板／機艙督導）追蹤審核，不一定是當初的檢查人。
+    // 結案人不是這幾艘船的經管督導、也不是 Owner／管理員時，才黃色提醒「代為結案」；船舶資料沒填督導就不提醒。
+    const supOf=code=>{const s=SHIPS.find(x=>x.code===code)||{};return [s.deckSup,s.engineSup].flatMap(v=>String(v||"").split(/[、,，\/／;；\s]+/)).map(v=>v.trim()).filter(Boolean);};
+    const sups=[...new Set(ctx.flatMap(c=>supOf(c.r.ship)))];
+    const supText=[...new Set(ctx.map(c=>{const s=SHIPS.find(x=>x.code===c.r.ship)||{};return [s.deckSup&&("甲板 "+s.deckSup),s.engineSup&&("機艙 "+s.engineSup)].filter(Boolean).join("、");}).filter(Boolean))].join("；");
     const list=ctx.slice(0,5).map(c=>`<li><b>${esc(shipLabel(c.r.ship))}</b>　${esc(String(c.d.finding||"").slice(0,60))}${String(c.d.finding||"").length>60?"…":""}</li>`).join("")+(ctx.length>5?`<li class="hint">…另外 ${ctx.length-5} 筆</li>`:"");
-    const warn=(insps.length&&!insps.includes(me))?`<div style="margin-top:8px;color:#9a5b00;background:#fff6e0;border:1px solid #f0d08a;border-radius:6px;padding:6px 10px;font-size:13px">⚠ 這${keys.length>1?"些":""}筆的檢查人是 <b>${esc(insps.join("、"))}</b>，您不是原檢查人，請確認是代為${isClose?"結案":"退回"}。</div>`:"";
+    const warn=(sups.length&&!sups.some(n=>n===me||n.includes(me)||me.includes(n))&&!IAAuth.canDelete())?`<div style="margin-top:8px;color:#9a5b00;background:#fff6e0;border:1px solid #f0d08a;border-radius:6px;padding:6px 10px;font-size:13px">⚠ 這${keys.length>1?"些":""}筆船舶的經管督導是 <b>${esc(supText)}</b>，您不是經管督導，請確認是代為${isClose?"結案":"退回"}。</div>`:"";
     $("#rvwTitle").textContent=isClose?`✓ 審核結案（${keys.length} 筆）`:`↩ 退回給船上（${keys.length} 筆）`;
     $("#rvwBody").innerHTML=`
       <ul style="margin:0 0 12px;padding-left:20px;line-height:1.7;font-size:13.5px;max-height:160px;overflow:auto">${list}</ul>
