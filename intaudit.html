@@ -553,6 +553,14 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
     <div id="issueModalBody"></div>
   </div>
 </div>
+<!-- 審核結案／退回：確認結案人 -->
+<div class="modal" id="rvwModal" style="align-items:center">
+  <div class="box" style="width:min(520px,94vw)">
+    <h3 style="margin:0 0 10px;color:var(--navy)" id="rvwTitle"></h3>
+    <div id="rvwBody"></div>
+    <div class="toolbar" style="justify-content:flex-end;margin:14px 0 0;gap:8px"><button class="btn" id="rvwNo">取消</button><button class="btn dark" id="rvwOk">確認</button></div>
+  </div>
+</div>
 <!-- 匯出 -->
 <div class="modal" id="exportModal"><div class="box" style="width:min(640px,96vw)">
   <h3 style="margin:0 0 4px;font-size:18px;color:var(--navy)">⬇ 匯出</h3>
@@ -1532,22 +1540,83 @@ function renderRvOverview(){
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px">
-          ${closed?`<span class="hint" style="text-align:right">${esc(((rp.payload||{}).reviewedBy)||"")}${((rp.payload||{}).reviewedAt)?"<br>"+esc(new Date((rp.payload||{}).reviewedAt).toLocaleString("zh-TW",{hour12:false})):""}</span>`:returned?`<span class="hint" style="text-align:right">等待船上重新回報</span>`:`<button class="btn sm dark" onclick="closeReplyAudit(${r.id},'${d.uid}')">✓ 審核結案</button><button class="btn sm" onclick="returnReplyAudit(${r.id},'${d.uid}')">↩ 退回</button>`}
+          ${closed?`<span class="hint" style="text-align:right">${esc(((rp.payload||{}).reviewedBy)||"")}${((rp.payload||{}).reviewedAt)?"<br>"+esc(new Date((rp.payload||{}).reviewedAt).toLocaleString("zh-TW",{hour12:false})):""}</span>`:returned?`<span class="hint" style="text-align:right">等待船上重新回報${((rp.payload||{}).returnedBy)?"<br>退回人 "+esc(rp.payload.returnedBy):""}</span>`:`<button class="btn sm dark" onclick="closeReplyAudit(${r.id},'${d.uid}')">✓ 審核結案</button><button class="btn sm" onclick="returnReplyAudit(${r.id},'${d.uid}')">↩ 退回</button>`}
           <button class="btn sm" onclick="editDef(${r.id},${(r.defs||[]).indexOf(d)})">✎ 查看登錄</button>
         </div>
       </div>
     </div>`;
   }).join(""):`<div class="banner">目前沒有符合條件的項目。</div>`;
 }
+/* 審核結案／退回前的確認視窗：顯示要處理的船名＋缺失內容、結案人是誰。
+   沒有正式登入，所以用「當天確認過的結案人」記在這台瀏覽器（localStorage，隔天自動失效）：
+   當天第一次要選／輸入結案人，之後只顯示「結案人：ooo（今天已確認）」按確認即可。
+   結案人會寫進 reviewedBy／returnedBy，誰按的都留紀錄。 */
+const RVW_KEY="intaudit_reviewer";
+function rvwToday(){const d=new Date();return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;}
+function rvwSaved(){try{const o=JSON.parse(localStorage.getItem(RVW_KEY)||"null");return o&&o.date===rvwToday()&&o.name?o.name:"";}catch(e){return "";}}
+function rvwSave(name){try{localStorage.setItem(RVW_KEY,JSON.stringify({name,date:rvwToday()}));if(!localStorage.getItem("intaudit_me"))localStorage.setItem("intaudit_me",name);}catch(e){}}
+function rvwCtx(key){for(const r of Store.rows)for(const d of (r.defs||[]))if(d.uid&&`${r.id}_${d.uid}`===key)return {r,d};return null;}
+function askReviewer(action,keys){
+  return new Promise(res=>{
+    const isClose=action==="close",ctx=keys.map(rvwCtx).filter(Boolean);
+    const today=rvwSaved();
+    let me="";try{me=localStorage.getItem("intaudit_me")||"";}catch(e){}
+    // 檢查人欄位可能是「黃燕華、潘獻波」這種多人字串，拆成個別姓名
+    const insps=[...new Set(ctx.flatMap(c=>String(c.r.inspector||"").split(/[、,，\/／;；\s]+/)).map(s=>s.trim()).filter(Boolean))];
+    // 候選結案人：本機記的姓名＋這幾筆的檢查人（用自己姓名登錄的督導直接點自己的名字即可）
+    const cands=[...new Set([today||me,...insps].filter(Boolean))].slice(0,4);
+    const dflt=cands[0]||"";
+    const list=ctx.slice(0,5).map(c=>`<li><b>${esc(shipLabel(c.r.ship))}</b>　${esc(String(c.d.finding||"").slice(0,60))}${String(c.d.finding||"").length>60?"…":""}</li>`).join("")+(ctx.length>5?`<li class="hint">…另外 ${ctx.length-5} 筆</li>`:"");
+    const nameHtml=today
+      ?`<div id="rvwFixed" style="display:flex;align-items:center;gap:10px;background:#eef6f0;border:1px solid #9fd0b2;border-radius:8px;padding:8px 12px"><span>結案人：<b style="font-size:16px">${esc(today)}</b> <span class="hint">（今天已確認）</span></span><span style="flex:1"></span><button class="btn sm" id="rvwChg">更換結案人</button></div>`
+      :"";
+    const pickHtml=`<div id="rvwPick" style="${today?"display:none":""}">
+        <div class="hint" style="margin-bottom:6px">今天第一次${isClose?"結案":"退回"}，請確認結案人（今天之內這台瀏覽器會記住，不用再選）</div>
+        ${cands.map((n,i)=>`<label style="display:flex;gap:8px;align-items:center;padding:6px 0;cursor:pointer"><input type="radio" name="rvwWho" value="c${i}" ${i?"":"checked"}> 結案人為 <b style="font-size:16px">${esc(n)}</b></label>`).join("")}
+        <label style="display:flex;gap:8px;align-items:center;padding:6px 0;cursor:pointer"><input type="radio" name="rvwWho" value="other" ${dflt?"":"checked"}> 其他結案人：<input id="rvwName" placeholder="請輸入姓名" style="flex:1;padding:5px 8px;border:1px solid var(--line);border-radius:6px"></label>
+      </div>`;
+    $("#rvwTitle").textContent=isClose?`✓ 審核結案（${keys.length} 筆）`:`↩ 退回給船上（${keys.length} 筆）`;
+    $("#rvwBody").innerHTML=`
+      <ul style="margin:0 0 12px;padding-left:20px;line-height:1.7;font-size:13.5px;max-height:160px;overflow:auto">${list}</ul>
+      ${nameHtml}${pickHtml}
+      <div id="rvwWarn" style="display:none;margin-top:8px;color:#9a5b00;background:#fff6e0;border:1px solid #f0d08a;border-radius:6px;padding:6px 10px;font-size:13px"></div>
+      ${isClose?`<div class="hint" style="margin-top:10px">結案後主系統只需要把這筆已審核的內容套用到缺失紀錄總表，不需要再另外審核一次。</div>`
+        :`<div style="margin-top:12px"><b>退回原因</b> <span class="hint">（船上會在改善單上看到，請寫清楚要補什麼）</span><textarea id="rvwNote" rows="3" style="width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;box-sizing:border-box"></textarea></div>`}`;
+    const pickedName=()=>{
+      if($("#rvwPick").style.display==="none")return today;
+      const v=(document.querySelector('input[name="rvwWho"]:checked')||{}).value;
+      return v&&v[0]==="c"?cands[+v.slice(1)]:($("#rvwName").value||"").trim();
+    };
+    const refreshWarn=()=>{
+      const n=pickedName(),w=$("#rvwWarn"),others=insps.filter(x=>x!==n);
+      if(n&&insps.length&&!insps.includes(n)){w.style.display="";w.innerHTML=`⚠ 這${keys.length>1?"些":""}筆的檢查人是 <b>${esc(others.join("、"))}</b>，結案人 <b>${esc(n)}</b> 不是原檢查人，請確認是代為${isClose?"結案":"退回"}。`;}
+      else w.style.display="none";
+    };
+    if(today)$("#rvwChg").onclick=()=>{$("#rvwFixed").style.display="none";$("#rvwPick").style.display="";refreshWarn();};
+    $("#rvwBody").querySelectorAll('input[name="rvwWho"]').forEach(x=>x.onchange=refreshWarn);
+    $("#rvwName").oninput=()=>{const o=document.querySelector('input[name="rvwWho"][value="other"]');if(o)o.checked=true;refreshWarn();};
+    refreshWarn();
+    const close=v=>{$("#rvwModal").style.display="none";res(v);};
+    $("#rvwNo").onclick=()=>close(null);
+    $("#rvwOk").textContent=isClose?"確認結案":"確認退回";
+    $("#rvwOk").onclick=()=>{
+      const name=pickedName();
+      if(!name||name.length<2){toast("⚠ 請選擇或輸入結案人姓名");return;}
+      const note=isClose?"":($("#rvwNote").value||"").trim();
+      if(!isClose&&!note){toast("⚠ 請填寫退回原因");return;}
+      rvwSave(name);close({name,note});
+    };
+    $("#rvwModal").style.display="flex";
+  });
+}
 /* 退回：請船上補充後重新回報。跟原本在主系統裡的退回邏輯一樣（status 改成 returned、
    記下退回原因），只是現在直接在督導端這裡做，不用再跑一趟主系統。 */
 async function returnReplyAudit(rid,uid){
   const key=`${rid}_${uid}`,rp=Store.replies[key];if(!rp||rp.status!=="submitted")return;
-  const note=prompt("退回原因（船上會在改善單上看到，請寫清楚要補什麼）：");
-  if(note===null)return;
-  if(!note.trim()){toast("⚠ 請填寫退回原因");return;}
+  const ans=await askReviewer("return",[key]);if(!ans)return;
+  const note=ans.note;
   try{
-    const now=Date.now(),newPayload=Object.assign({},rp.payload,{returnNote:note.trim(),returnedAt:now});
+    const now=Date.now(),newPayload=Object.assign({},rp.payload,{returnNote:note,returnedAt:now,returnedBy:ans.name});
     await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"returned",payload:newPayload,updated_at:now})});
     rp.status="returned";rp.payload=newPayload;
     reviewSel.delete(key);
@@ -1559,14 +1628,13 @@ async function batchReturnReview(){
   if(!reviewSel.size)return;
   const keys=[...reviewSel].filter(key=>Store.replies[key]&&Store.replies[key].status==="submitted");
   if(!keys.length){toast("⚠ 勾選的項目都不是待審核狀態，請重新整理");return;}
-  const note=prompt(`退回原因（會套用到勾選的 ${keys.length} 筆，船上會在改善單上看到，請寫清楚要補什麼）：`);
-  if(note===null)return;
-  if(!note.trim()){toast("⚠ 請填寫退回原因");return;}
+  const ans=await askReviewer("return",keys);if(!ans)return;
+  const note=ans.note;
   let ok=0,fail=0;
   for(const key of keys){
     const rp=Store.replies[key];
     try{
-      const now=Date.now(),newPayload=Object.assign({},rp.payload,{returnNote:note.trim(),returnedAt:now});
+      const now=Date.now(),newPayload=Object.assign({},rp.payload,{returnNote:note,returnedAt:now,returnedBy:ans.name});
       await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"returned",payload:newPayload,updated_at:now})});
       rp.status="returned";rp.payload=newPayload;ok++;
     }catch(e){fail++;}
@@ -1579,9 +1647,9 @@ async function batchReturnReview(){
    Store.replies 快取，清單／狀態欄位會馬上反映，不用等重新整理。 */
 async function closeReplyAudit(rid,uid){
   const key=`${rid}_${uid}`,rp=Store.replies[key];if(!rp||rp.status!=="submitted")return;
-  if(!confirm("確定這筆改善內容審核通過、結案嗎？\n\n結案後主系統只需要把這筆已審核的內容套用到缺失紀錄總表，不需要再另外審核一次。"))return;
+  const ans=await askReviewer("close",[key]);if(!ans)return;
   try{
-    const now=Date.now(),newPayload=Object.assign({},rp.payload,{reviewedAt:now});
+    const now=Date.now(),newPayload=Object.assign({},rp.payload,{reviewedAt:now,reviewedBy:ans.name});
     await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"reviewed",payload:newPayload,updated_at:now})});
     rp.status="reviewed";rp.payload=newPayload;
     reviewSel.delete(key);
@@ -1593,12 +1661,12 @@ async function batchCloseReview(){
   if(!reviewSel.size)return;
   const keys=[...reviewSel].filter(key=>Store.replies[key]&&Store.replies[key].status==="submitted");
   if(!keys.length){toast("⚠ 勾選的項目都不是待審核狀態，請重新整理");return;}
-  if(!confirm(`確定要將勾選的 ${keys.length} 筆改善內容一次審核通過、結案嗎？`))return;
+  const ans=await askReviewer("close",keys);if(!ans)return;
   let ok=0,fail=0;
   for(const key of keys){
     const rp=Store.replies[key];
     try{
-      const now=Date.now(),newPayload=Object.assign({},rp.payload,{reviewedAt:now});
+      const now=Date.now(),newPayload=Object.assign({},rp.payload,{reviewedAt:now,reviewedBy:ans.name});
       await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"reviewed",payload:newPayload,updated_at:now})});
       rp.status="reviewed";rp.payload=newPayload;ok++;
     }catch(e){fail++;}

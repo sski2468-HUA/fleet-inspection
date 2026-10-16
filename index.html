@@ -6442,6 +6442,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <label>檢查來源 *<select id="i-itype" onchange="$('#i-itype-other').style.display=this.value==='其他'?'':'none';Ov.toggleFlagBox();"></select></label>
         <label id="i-itype-otherwrap">其他－說明<input type="text" id="i-itype-other" placeholder="請說明檢查來源" style="display:none"></label>
         <label>檢查日期 *<input type="text" id="i-date" placeholder="2026/6/12"></label>
+        <label>檢查迄日（選填，多天檢查才填）<input type="text" id="i-dateTo" placeholder="2026/6/14"></label>
         <label>檢查地點<input type="text" id="i-loc" placeholder="Port, Country"></label>
         <label>檢查員 *<input type="text" id="i-inspector" list="dl-inspectors"></label>
         <label>檢查單位/油公司<input type="text" id="i-unit" list="dl-units"></label>
@@ -8548,6 +8549,14 @@ function normDateSlash(s){
   const m=String(s||"").match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
   if(!m)return s||"";
   return `${+m[1]}/${+m[2]}/${+m[3]}`;
+}
+/* 檢查區間顯示：統計一律以起日 date 為準，迄日 dateTo 只用來顯示。
+   同年省略年份（2026/9/17～9/20），跨年才寫完整；迄日空白或與起日相同就只顯示起日。 */
+function inspDateText(r){
+  const a=normDateSlash(r&&r.date),b=normDateSlash(r&&r.dateTo);
+  if(!b||b===a)return a;
+  const ya=a.split("/")[0],yb=b.split("/")[0];
+  return a+"～"+(ya===yb?b.slice(yb.length+1):b);
 }
 function ymOf(s){const d=parseDate(s);return d?d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"):"";}
 function yearOf(s){const d=parseDate(s);return d?String(d.getFullYear()):"";}
@@ -11488,7 +11497,7 @@ const Ov={
       <td>${cl(esc(r.vtype))}</td>
       <td>${cl3(`<span class="io-chip ${isInternal(r.itype)?"io-int":"io-ext"}" style="margin-left:0;margin-right:5px">${isInternal(r.itype)?"內":"外"}</span>${itypeChip(r.itype)}`)}</td>
       <td>${cl(icatChip(icatOf(r.itype)))}</td>
-      <td style="font-family:var(--mono);white-space:nowrap">${esc(normDateSlash(r.date))}</td>
+      <td style="font-family:var(--mono);white-space:nowrap">${esc(inspDateText(r))}</td>
       <td>${cl(esc(r.loc),esc(r.loc))}</td>
       <td>${cl(esc(r.inspector),esc(r.inspector))}</td>
       <td>${cl(esc(r.unit),esc(r.unit))}</td>
@@ -11521,7 +11530,7 @@ const Ov={
     if(!hasXLSX())return;
     const sel=this.sel;
     const rows=this.filteredRows().filter(i=>!sel.size||sel.has(ymOf(i.date)))
-      .map(r=>({船名:shipFullLabel(r.ship),船型:r.vtype,檢查來源:r.itype,檢查類型:icatOf(r.itype)||"",檢查日期:r.date,檢查地點:r.loc,檢查員:r.inspector,"檢查單位/油公司":r.unit,缺失數:r.ndef,正面評論數:r.npos,FLAG項目:r.flagType,扣船:r.detain}));
+      .map(r=>({船名:shipFullLabel(r.ship),船型:r.vtype,檢查來源:r.itype,檢查類型:icatOf(r.itype)||"",檢查日期:r.date,檢查迄日:r.dateTo||"",檢查地點:r.loc,檢查員:r.inspector,"檢查單位/油公司":r.unit,缺失數:r.ndef,正面評論數:r.npos,FLAG項目:r.flagType,扣船:r.detain}));
     const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"檢查紀錄");
     XLSX.writeFile(wb,`檢查紀錄_${todayStr()}.xlsx`);
@@ -11614,7 +11623,7 @@ const Ov={
       if(!rows.length)return `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:12.5px;font-family:Calibri,Arial,sans-serif"><tr>${["No.","船名","船型","日期","地點","缺失數","是否扣船"].map(th).join("")}</tr><tr><td colspan="7" style="padding:8px;border:1px solid #999;text-align:center">（無）</td></tr></table>`;
       return `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;width:100%;font-size:12.5px;font-family:Calibri,Arial,sans-serif">
         <tr>${["No.","船名","船型","日期","地點","缺失數","是否扣船"].map(th).join("")}</tr>
-        ${rows.map((r,i)=>`<tr>${td(i+1)}${td(esc(shipFullLabel(r.ship)))}${td(esc(r.vtype||vtypeOfCode(r.ship)))}${td(esc(r.date))}${td(esc(r.loc||""))}${td(esc(r.ndef??""))}${td(esc(r.detain==="Y"?"是":"否"))}</tr>`).join("")}
+        ${rows.map((r,i)=>`<tr>${td(i+1)}${td(esc(shipFullLabel(r.ship)))}${td(esc(r.vtype||vtypeOfCode(r.ship)))}${td(esc(inspDateText(r)))}${td(esc(r.loc||""))}${td(esc(r.ndef??""))}${td(esc(r.detain==="Y"?"是":"否"))}</tr>`).join("")}
       </table>`;
     };
     const html=`<h2 style="text-align:center;font-family:Calibri,Arial,sans-serif;text-decoration:underline">航運處 ${todayStr().replace(/-/g,"")} 報告</h2>
@@ -11648,6 +11657,7 @@ const Ov={
     $("#i-itype-other").style.display=$("#i-itype").value==="其他"?"":"none";
     $("#i-date").value=r.date||"";$("#i-loc").value=r.loc||"";$("#i-inspector").value=r.inspector||"";
     bindDatePicker("i-date");
+    $("#i-dateTo").value=r.dateTo||"";bindDatePicker("i-dateTo");
     $("#i-unit").value=r.unit||"";$("#i-ndef").value=r.ndef||"0";$("#i-npos").value=r.npos||"0";
     const _flagBox=$("#i-flag-box");if(_flagBox)_flagBox.innerHTML=flagBoxHtml(r.flagType||"","i-flag");
     this.toggleFlagBox();
@@ -11673,7 +11683,12 @@ const Ov={
     if(itype==="FLAG"&&!_flagVal){toast("⚠ 檢查來源為 FLAG 時，請至少勾選一項 FLAG項目");return;}
     const _loc=g("#i-loc");
     if(_loc&&!isValidPort(_loc)){toast("⚠ 檢查地點格式需為「港口, 國家」，或選「其他」");return;}
-    const rec={ship:g("#i-ship"),vtype:$("#i-vtype").value,itype:itype,date:g("#i-date"),loc:_loc,inspector:canonInspector(g("#i-inspector")),unit:canonUnit(g("#i-unit")),ndef:g("#i-ndef")||"0",npos:g("#i-npos")||"0",flagType:_flagVal,detain:$("#i-detain").checked?"Y":"N"};
+    let _dateTo=g("#i-dateTo");
+    if(_dateTo){const a=parseDate(g("#i-date")),b=parseDate(_dateTo);
+      if(!b){toast("⚠ 檢查迄日格式不正確");return;}
+      if(a&&b<a){toast("⚠ 檢查迄日不能早於檢查日期");return;}
+      if(normDateSlash(_dateTo)===normDateSlash(g("#i-date")))_dateTo="";}
+    const rec={ship:g("#i-ship"),vtype:$("#i-vtype").value,itype:itype,date:g("#i-date"),dateTo:_dateTo,loc:_loc,inspector:canonInspector(g("#i-inspector")),unit:canonUnit(g("#i-unit")),ndef:g("#i-ndef")||"0",npos:g("#i-npos")||"0",flagType:_flagVal,detain:$("#i-detain").checked?"Y":"N"};
     if(this.editIdx==null){rec.id=App.nextInspId();App.insp.push(rec);toast("✓ 已新增檢查紀錄");Audit.log("新增","檢查紀錄",`${rec.ship} ${rec.itype} ${rec.date}`);}
     else{Object.assign(App.insp[this.editIdx],rec);toast("✓ 已更新檢查紀錄");Audit.log("編輯","檢查紀錄",`${rec.ship} ${rec.itype} ${rec.date}`);}
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();App.refreshMeta();this.closeEdit();this.render();
@@ -18532,7 +18547,7 @@ const InspCtrl={
             const cat=r.inspector?this.ownerCatOf(r.inspector):null;
             const catTxt=cat==="deck"?"甲板":cat==="engine"?"機艙":cat==="haiji"?"海技":"";
             return `<div style="display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;background:${matched?"#eaf5ee":"#fff8e6"};font-size:12px">
-              <span style="flex:1">${esc(r.date)}　${r.inspector?esc(r.inspector)+(catTxt?`（${catTxt}）`:""):"<span class=hint>（未填檢查員）</span>"}${matched?" ✓":""}</span>
+              <span style="flex:1">${esc(inspDateText(r))}　${r.inspector?esc(r.inspector)+(catTxt?`（${catTxt}）`:""):"<span class=hint>（未填檢查員）</span>"}${matched?" ✓":""}</span>
               <button class="btn sm" onclick="InspCtrl.useRecentDate('${esc(r.date)}')">採用</button>
             </div>`;
           }).join("");
@@ -21363,7 +21378,7 @@ const AuditDash={
     const curId=row[field+"Id"];
     $("#ad-date-list").innerHTML=recs.length?recs.map(r=>`
       <div class="btn ${r.id===curId?"primary":""}" style="text-align:left;justify-content:flex-start;cursor:pointer" onclick="AuditDash.pickDate(${r.id},'${esc(r.date)}')">
-        📅 ${esc(r.date)}　<span class="hint">${esc(r.inspector)||"（未記錄檢查員）"}</span>
+        📅 ${esc(inspDateText(r))}　<span class="hint">${esc(r.inspector)||"（未記錄檢查員）"}</span>
       </div>`).join(""):`<p class="hint">此船在「檢查紀錄」中尚無內部稽核紀錄</p>`;
     $("#ad-date-manual").value=row[field+"Date"]||"";
     $("#adDateModal").classList.add("show");
@@ -27102,6 +27117,8 @@ const IntAuditQueue={
       :`確定匯入「${shipFullLabel(r.ship)} ${r.dateFrom}」？\n\n將建立：檢查紀錄 ${(r.types||[]).length} 筆、缺失紀錄 ${nDef} 筆、正面評價 ${nBest} 筆。`))return;
     const by=(typeof Audit!=="undefined")?Audit.user():"",now=Date.now();
     const date=normDateSlash(r.dateFrom),ym=ymOf(date);
+    // 多天檢查：迄日只帶到檢查紀錄做顯示，統計仍以起日 date 為準
+    const dateTo=r.dateTo&&normDateSlash(r.dateTo)!==date?normDateSlash(r.dateTo):"";
     const vt=((typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(s=>s.code===r.ship)||{}).vtype||"";
     const meta={_impAt:now,_impBy:by,intAuditId:r.id};
     // 檢查紀錄：每個檢查種類一筆；找得到同船同檢查來源同日期的既有紀錄就更新，不重複新增
@@ -27111,7 +27128,7 @@ const IntAuditQueue={
     const inspIds=Object.assign({},(r.imported||{}).inspIds||{});
     (r.types||[]).forEach((k,ti)=>{
       const itype=effItype(k);
-      const payload=Object.assign({ship:r.ship,vtype:vt,itype,date,loc:r.psn||"",inspector:r.inspector||"",unit:"",
+      const payload=Object.assign({ship:r.ship,vtype:vt,itype,date,dateTo,loc:r.psn||"",inspector:r.inspector||"",unit:"",
         ndef:(r.defs||[]).filter(d=>d.type===k).length,npos:ti===0?nBest:0,flagType:""},meta);
       let ex=inspIds[k]!=null?App.insp.find(x=>x.id===inspIds[k]):null;
       if(ex&&!pushTargetMatches(ex,r.ship,date))ex=null;
@@ -31190,7 +31207,7 @@ const DM={
     await Air.syncAllReplyDrafts().catch(()=>{});
     const wb=XLSX.utils.book_new();
     // 1. 檢查紀錄
-    const inspRows=App.insp.map(r=>({船名:r.ship,船型:r.vtype,檢查來源:r.itype,檢查類型:icatOf(r.itype)||"",檢查日期:r.date,檢查地點:r.loc,檢查員:r.inspector,"檢查單位/油公司":r.unit,缺失數:r.ndef,正面評論數:r.npos,FLAG項目:r.flagType,扣船:r.detain}));
+    const inspRows=App.insp.map(r=>({船名:r.ship,船型:r.vtype,檢查來源:r.itype,檢查類型:icatOf(r.itype)||"",檢查日期:r.date,檢查迄日:r.dateTo||"",檢查地點:r.loc,檢查員:r.inspector,"檢查單位/油公司":r.unit,缺失數:r.ndef,正面評論數:r.npos,FLAG項目:r.flagType,扣船:r.detain}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(inspRows),"檢查紀錄");
     // 2. 缺失紀錄（含所有欄位）
     const defAoa=(typeof Defs!=="undefined")?Defs.rowsToAoa(App.defs):[DEF_COLS.map(c=>c[1]),...App.defs.map(d=>DEF_COLS.map(c=>d[c[0]]??""))];
