@@ -1360,7 +1360,14 @@ table.ap-xl td.ap-selm{box-shadow:inset 2px 0 0 #1b6ec2,inset -2px 0 0 #1b6ec2}
 .fda-crumb a{color:var(--navy,#1c3a5e);cursor:pointer;text-decoration:underline}
 .fda-ranks{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
 @media(max-width:900px){.fda-ranks{grid-template-columns:1fr}}
-.fda-th,.fda-r{display:grid;grid-template-columns:24px minmax(0,1fr) 52px 44px 62px;gap:8px;align-items:center;padding:6px 8px}
+.fda-th,.fda-r{display:grid;grid-template-columns:24px minmax(0,1fr) 44px 40px 58px 70px 62px;gap:8px;align-items:center;padding:6px 8px}
+.fda-spark{display:inline-flex;align-items:flex-end;gap:2px;height:22px;width:66px;vertical-align:middle}
+.fda-spark i{flex:1;background:#5b8fc7;border-radius:1px 1px 0 0;min-height:0}
+.fda-spark i.late{background:#e8842c}
+.fda-trend{display:inline-block;font-size:11.5px;font-weight:700;border-radius:10px;padding:1px 7px;white-space:nowrap}
+.fda-trend.up{background:#fdecea;color:var(--bad)}
+.fda-trend.down{background:#e7f3ec;color:var(--ok)}
+.fda-trend.flat{color:var(--ink-3);font-weight:400}
 .fda-th{font-size:11.5px;color:var(--ink-3);font-weight:700;border-bottom:1px solid var(--line)}
 .fda-th span:nth-child(n+3),.fda-r>span:nth-child(n+3){text-align:right;font-variant-numeric:tabular-nums}
 .fda-r{font-size:13px;border-radius:7px;cursor:pointer;border:1px solid transparent}
@@ -6906,6 +6913,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <tr><th>★ 優先檢查</th><td>同一個具體名稱，<b>全船隊三分之一以上</b>的船都被開過（最少 3 艘）。<br><span class="hint">→ 代表是全船隊的問題，要統一處理、各船優先確認。</span></td></tr>
         <tr><th>每次檢查平均</th><td>缺失數 ÷ 檢查次數（0 缺失的檢查也算）。</td></tr>
         <tr><th>根因</th><td>依根因對到人員／設備／系統。<span class="hint">有填根因的不多，僅供參考。</span></td></tr>
+        <tr><th>期間分布／趨勢</th><td>期間切成最多 6 段畫小長條（<b style="color:#e8842c">橘色</b>＝後半段）。趨勢＝後半段 vs 前半段的<b>每次檢查平均件數</b>變化，已用檢查次數校正。<br><span class="hint">件數 5 件以上、變化 20% 以上才標 <b style="color:var(--bad)">▲ 上升</b>／<b style="color:var(--ok)">▼ 下降</b>，其餘顯示「持平」。滑鼠移到長條或趨勢上可看各段件數。</span></td></tr>
         <tr><th>已售出船舶</th><td>依「船舶資料 › 🕓 船舶異動紀錄」裡<b>賣船／還船</b>的船，預設<b>不列入</b>分析。<br><span class="hint">船舶資料裡已經沒有的船也一樣排除。要比較歷史年度時，勾「含已售出船舶」。</span></td></tr>
         <tr><th>來源</th><td>外部＝SIRE、CDI、RightShip、PSC、FLAG 等；內部＝訪船、內稽、隨船。</td></tr>
         <tr><th>✅ 改善追蹤</th><td>比較措施開始<b>前 6 個月</b>與<b>開始後到今天</b>的每 100 次檢查件數。<br><span class="hint">滿 3 個月、改善後至少 10 次檢查才判斷；下降 30% 以上＝有效。</span></td></tr>
@@ -27520,24 +27528,62 @@ const FleetDA={
     if(this.tab!=="cat"&&this.selLeaf)items.push({label:this.LENS[this.lens][2],text:this.selLeaf,clear:()=>{this.selLeaf=null;this.render();}});
     FilterSummary.render("fda-filter-summary",items,"FleetDA.clearAll()");
   },  pickNature(k){this.nature=this.nature===k?"":k;this.selMain=null;this.selLeaf=null;this.render();},
+  /* ── 期間分布／趨勢 ──
+     把目前期間切成最多 6 段（3 個月＝每月一段；12 個月＝每 2 個月一段），畫小長條；
+     趨勢＝後半段 vs 前半段的「每次檢查平均件數」變化（用檢查次數校正，避免本月才剛開始、
+     或某幾個月剛好檢查比較多，看起來像在上升或下降）。件數 5 件以上且變化 ≥ 20% 才標 ▲／▼。 */
+  buildTrend(view,r){
+    const now=new Date(),cur=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+    const yms=view.map(x=>x.ym).filter(Boolean).sort();
+    const from=r.from||yms[0]||cur,to=r.to||cur;
+    const months=[];let [y,m]=from.split("-").map(Number);
+    while(months.length<240){const k=`${y}-${String(m).padStart(2,"0")}`;months.push(k);if(k>=to)break;m++;if(m>12){m=1;y++;}}
+    const nb=Math.min(6,months.length),per=Math.ceil(months.length/nb),idx=new Map();
+    const buckets=[];for(let b=0;b*per<months.length;b++){const ms=months.slice(b*per,(b+1)*per);ms.forEach(k=>idx.set(k,b));buckets.push({from:ms[0],to:ms[ms.length-1]});}
+    const insp=buckets.map(()=>0);
+    (App.insp||[]).forEach(i=>{const ym=ymOf(i.date);if(!idx.has(ym))return;if(!this.passCommon(i.ship,i.vtype||this.vtOf(i.ship),i.itype,ym,r))return;insp[idx.get(ym)]++;});
+    const half=Math.floor(buckets.length/2);
+    this._tb={buckets,idx,insp,half};
+  },
+  trendOf(items){
+    const T=this._tb;if(!T||T.buckets.length<2)return null;
+    const c=T.buckets.map(()=>0);items.forEach(x=>{const b=T.idx.get(x.ym);if(b!=null)c[b]++;});
+    const sum=(a,s,e)=>a.slice(s,e).reduce((p,q)=>p+q,0);
+    const a1=sum(c,0,T.half),a2=sum(c,T.half),i1=sum(T.insp,0,T.half),i2=sum(T.insp,T.half);
+    const r1=i1?a1/i1:0,r2=i2?a2/i2:0;
+    const chg=r1?(r2-r1)/r1:(r2?1:0);
+    return {c,a1,a2,i1,i2,r1,r2,chg,dir:(a1+a2>=5&&Math.abs(chg)>=0.2)?(chg>0?"up":"down"):"flat"};
+  },
+  sparkHtml(t){
+    if(!t)return "";const T=this._tb,mx=Math.max(1,...t.c);
+    return `<span class="fda-spark">${t.c.map((n,i)=>`<i class="${i>=T.half?"late":""}" style="height:${n?Math.max(12,Math.round(n/mx*100)):0}%" title="${T.buckets[i].from}${T.buckets[i].to!==T.buckets[i].from?"～"+T.buckets[i].to:""}：${n} 件（${T.insp[i]} 次檢查）"></i>`).join("")}</span>`;
+  },
+  trendHtml(t){
+    if(!t)return "";
+    const tip=`前半段 ${t.a1} 件／${t.i1} 次檢查（每次 ${t.r1.toFixed(2)}）→ 後半段 ${t.a2} 件／${t.i2} 次檢查（每次 ${t.r2.toFixed(2)}）`;
+    if(t.dir==="flat")return `<span class="fda-trend flat" title="${tip}${t.a1+t.a2<5?"；件數太少不判斷":""}">— 持平</span>`;
+    return `<span class="fda-trend ${t.dir}" title="${tip}">${t.dir==="up"?"▲":"▼"} ${Math.round(Math.abs(t.chg)*100)}%</span>`;
+  },
   rowsHtml(rows,kind,sel,showAll){
     if(!rows.length)return `<div class="hint" style="padding:10px">${kind==="leaf"&&!this.selMain?"沒有資料。":"沒有資料。"}</div>`;
     const max=Math.max(...rows.map(r=>r.items.size));
     const list=showAll?rows:rows.slice(0,this.TOPN);
-    const th=`<div class="fda-th"><span>#</span><span>名稱</span><span>件數</span><span>船數</span><span>船內重複</span></div>`;
+    const th=`<div class="fda-th"><span>#</span><span>名稱</span><span>件數</span><span>船數</span><span>船內重複</span><span title="期間切成數段，每段的件數；橘色＝後半段">期間分布</span><span title="後半段 vs 前半段，每次檢查平均件數的變化（已用檢查次數校正）">趨勢</span></div>`;
     const body=list.map((r,i)=>{
       const unc=r.name.startsWith("(");
       return `<div class="fda-r${sel===r.name?" sel":""}${unc?" unc":""}" onclick="FleetDA.pick('${kind}',${i})" title="${esc(r.name)}">
         <span class="rk">${i+1}</span>
         <span class="nm"><div>${esc(r.name)}${kind==="leaf"&&r.ships.size>=this._commonMin&&!unc?` <span class="fda-tag com" title="${r.ships.size} 艘船都被開過（期間內有缺失的 ${this._nShips} 艘船的三分之一，${this._commonMin} 艘以上）">★ 優先檢查</span>`:""}</div><div class="bar" style="width:${Math.max(2,Math.round(r.items.size/max*100))}%"></div></span>
         <span>${r.items.size}</span><span>${r.ships.size}</span>
-        <span>${r.rep.size?`<span class="fda-tag rep" title="${esc([...r.rep].map(shipFullLabel).join("、"))}">${r.rep.size} 艘</span>`:""}</span></div>`;}).join("");
+        <span>${r.rep.size?`<span class="fda-tag rep" title="${esc([...r.rep].map(shipFullLabel).join("、"))}">${r.rep.size} 艘</span>`:""}</span>
+        ${(()=>{const t=this.trendOf([...r.items]);return `<span>${this.sparkHtml(t)}</span><span>${this.trendHtml(t)}</span>`;})()}</div>`;}).join("");
     const more=rows.length>this.TOPN?`<div style="text-align:center;margin-top:6px"><button class="btn sm" onclick="FleetDA.${kind==="main"?"showAllMain":"showAllLeaf"}=${!showAll};FleetDA.render()">${showAll?"▲ 只顯示前 "+this.TOPN+" 項":"▼ 顯示全部 "+rows.length+" 項"}</button></div>`:"";
     return th+body+more;
   },
   renderRanks(view){
     const L=this.lens,LN=this.LENS[L];
     const {groups}=this.repeatInfo(view);
+    this.buildTrend(view,this._range||this.range());
     // 大類
     const M=new Map(),mk=n=>{if(!M.has(n))M.set(n,{name:n,items:new Set(),ships:new Set(),rep:new Set()});return M.get(n);};
     view.forEach(x=>{const ms=x.c[L].mains;(ms.length?ms:[L==="rc"?"(未填根因)":"(未分類)"]).forEach(m=>{const o=mk(m);o.items.add(x);o.ships.add(x.d.ship);});});
