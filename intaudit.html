@@ -267,12 +267,35 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
     <button onclick="IAAuth.submit()" style="width:100%;padding:10px;border:0;border-radius:8px;background:#1c3a5e;color:#fff;font-size:15px;font-weight:700;cursor:pointer">進入</button>
   </div>
 </div>
+<!-- 選擇登入人員：與主系統共用人員名單（雲端 app_db roster）及登入身份（8 小時），Owner／管理員需另輸入密碼 -->
+<div id="iaIdent" style="display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#1c3a5e,#2f6690);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:14px;padding:28px 30px;width:min(400px,94vw);box-shadow:0 18px 50px rgba(0,0,0,.3)">
+    <h2 style="margin:0 0 6px;color:#1c3a5e;font-size:20px">選擇登入人員</h2>
+    <p style="margin:0 0 14px;color:#5b6a75;font-size:13.5px">請選擇部門與姓名；Owner／管理員需另輸入密碼。此身份會記錄在操作紀錄中。</p>
+    <label style="font-size:12px;color:#5b6a75">部門</label>
+    <select id="iaIdDept" onchange="IAAuth.onDept()" style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:15px;border:1px solid #c3d3e3;border-radius:8px;margin:2px 0 10px"></select>
+    <label style="font-size:12px;color:#5b6a75">姓名</label>
+    <select id="iaIdName" onchange="IAAuth.onName()" style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:15px;border:1px solid #c3d3e3;border-radius:8px;margin:2px 0 10px"></select>
+    <input type="text" id="iaIdNameText" placeholder="請輸入您的姓名" style="display:none;width:100%;box-sizing:border-box;padding:8px 10px;font-size:15px;border:1px solid #c3d3e3;border-radius:8px;margin:2px 0 10px">
+    <div id="iaIdPassWrap" style="display:none"><label style="font-size:12px;color:#5b6a75">密碼（Owner／管理員）</label>
+      <input type="password" id="iaIdPass" placeholder="密碼" onkeydown="if(event.key==='Enter')IAAuth.submitIdent()" style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:15px;border:1px solid #c3d3e3;border-radius:8px;margin:2px 0 10px"></div>
+    <div id="iaIdErr" style="color:#c0392b;font-size:13px;min-height:20px;margin:2px 0 6px"></div>
+    <button onclick="IAAuth.submitIdent()" style="width:100%;padding:10px;border:0;border-radius:8px;background:#1c3a5e;color:#fff;font-size:15px;font-weight:700;cursor:pointer">確認進入</button>
+  </div>
+</div>
+<!-- 操作紀錄（僅 Owner／管理員） -->
+<div class="modal" id="iaLogModal"><div class="box" style="width:min(980px,96vw)">
+  <h3 style="margin:0 0 6px;color:var(--navy)">📜 內部檢查缺失登錄　操作紀錄</h3>
+  <div class="toolbar" style="gap:8px;margin:0 0 10px;flex-wrap:wrap"><input id="iaLogQ" placeholder="搜尋人員／動作／內容" oninput="IALog.render()" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--line);border-radius:6px"><span class="hint" id="iaLogStat"></span><button class="btn sm" onclick="IALog.open()">🔄 重新載入</button><button class="btn sm" onclick="$('#iaLogModal').style.display='none'">關閉</button></div>
+  <div style="max-height:65vh;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f2f6fa;position:sticky;top:0"><th style="text-align:left;padding:6px 8px;white-space:nowrap">時間</th><th style="text-align:left;padding:6px 8px">人員</th><th style="text-align:left;padding:6px 8px">動作</th><th style="text-align:left;padding:6px 8px">對象</th><th style="text-align:left;padding:6px 8px">內容</th></tr></thead><tbody id="iaLogBody"></tbody></table></div>
+</div></div>
 <div class="wrap">
   <header style="position:relative">
     <a href="intaudit-guide.html" target="_blank" title="開新分頁查看操作手冊（流程圖、審核流程、各功能說明）" style="position:absolute;top:58px;right:18px;color:#1c3a5e;border:1px solid #fff;background:#fff;border-radius:8px;padding:6px 14px;font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap">📖 操作手冊</a>
     <a href="./" title="回到主系統" style="position:absolute;top:16px;right:18px;color:#fff;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);border-radius:8px;padding:7px 14px;font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap">← 返回系統</a>
     <h1>🛠 內部檢查缺失登錄</h1>
     <p>督導、內部稽核員上船檢查發現的缺失在這裡建檔。資料獨立存放，不會與主系統同步作業互相干擾；建檔完成後由海技在主系統匯入檢查紀錄／缺失紀錄。</p>
+    <div id="iaWho" style="margin-top:6px;font-size:13px;color:#dfe8f1;display:flex;gap:10px;align-items:center;flex-wrap:wrap"></div>
   </header>
   <div id="modeBanner" class="banner warn" style="display:none"></div>
 
@@ -661,23 +684,119 @@ const IAAuth={
     let h="";try{h=localStorage.getItem(this.HKEY)||"";}catch(e){}
     return h||await this.sha(this.DEFAULT);
   },
+  /* 兩道關卡：① 進站密碼 → ② 選擇登入人員。兩者都跟主系統共用（8 小時），任一邊登入過另一邊就直接進入 */
   ensure(){
-    if(this.siteOk())return Promise.resolve();
-    return new Promise(res=>{this._res=res;const g=$("#iaGate");g.style.display="flex";setTimeout(()=>$("#iaGatePass").focus(),50);});
+    return new Promise(res=>{this._res=res;this.next();});
+  },
+  next(){
+    if(!this.siteOk()){$("#iaGate").style.display="flex";setTimeout(()=>$("#iaGatePass").focus(),50);return;}
+    if(!this.ident()){this.showIdent();return;}
+    $("#iaGate").style.display="none";$("#iaIdent").style.display="none";
+    this.renderWho();
+    if(this._res){const r=this._res;this._res=null;r();}
   },
   async submit(){
     const v=($("#iaGatePass").value||"").trim();
     if(v&&(await this.sha(v))===(await this.hash())){
       try{localStorage.setItem(this.SITE_OK_KEY,JSON.stringify({exp:Date.now()+this.TTL}));}catch(e){}
       $("#iaGate").style.display="none";$("#iaGatePass").value="";
-      if(this._res){this._res();this._res=null;}
+      this.next();
     }else $("#iaGateErr").textContent="❌ 密碼錯誤，請重新輸入";
+  },
+  /* ── 選擇登入人員（同主系統 GateIdentity）── */
+  TIER_LABEL:{owner:"Owner",admin:"管理員",op1:"操作者1-督導",op2:"操作者2-船舶",op3:"操作者3-其他部門"},
+  GUEST_DEPT:"訪客",
+  roster:[],
+  async loadRoster(){
+    try{const rows=await api("app_db?select=payload&k=eq.roster"),p=rows&&rows[0]&&rows[0].payload;
+      if(Array.isArray(p)&&p.length){this.roster=p;try{localStorage.setItem("vsm_roster_v1",JSON.stringify(p));}catch(e){}return;}
+    }catch(e){}
+    try{this.roster=JSON.parse(localStorage.getItem("vsm_roster_v1")||"[]")||[];}catch(e){this.roster=[];}
+  },
+  async showIdent(){
+    await this.loadRoster();
+    const depts=[...new Set(this.roster.map(x=>x.dept))];
+    if(!depts.includes(this.GUEST_DEPT))depts.push(this.GUEST_DEPT);
+    $("#iaIdDept").innerHTML=depts.map(d=>`<option>${esc(d)}</option>`).join("");
+    this.onDept();
+    $("#iaIdErr").textContent="";
+    $("#iaIdent").style.display="flex";
+  },
+  onDept(){
+    const dept=$("#iaIdDept").value,guest=dept===this.GUEST_DEPT;
+    $("#iaIdName").style.display=guest?"none":"";$("#iaIdNameText").style.display=guest?"":"none";
+    if(!guest)$("#iaIdName").innerHTML=this.roster.filter(x=>x.dept===dept).map(x=>`<option>${esc(x.name)}</option>`).join("");
+    this.onName();
+  },
+  onName(){
+    const dept=$("#iaIdDept").value,name=$("#iaIdName").value;
+    const rec=dept===this.GUEST_DEPT?null:this.roster.find(x=>x.dept===dept&&x.name===name);
+    $("#iaIdPassWrap").style.display=(rec&&(rec.tier==="owner"||rec.tier==="admin"))?"":"none";
+    $("#iaIdPass").value="";
+  },
+  async submitIdent(){
+    const dept=$("#iaIdDept").value,err=$("#iaIdErr");let rec;
+    if(dept===this.GUEST_DEPT){
+      const n=($("#iaIdNameText").value||"").trim();if(!n){err.textContent="⚠ 請輸入您的姓名";return;}
+      const g=this.roster.find(x=>x.dept===this.GUEST_DEPT);
+      rec={name:n,dept,tier:(g&&g.tier)||"op3"};
+    }else{
+      rec=this.roster.find(x=>x.dept===dept&&x.name===$("#iaIdName").value);
+      if(!rec){err.textContent="⚠ 請選擇部門與姓名";return;}
+      if(rec.tier==="owner"||rec.tier==="admin"){
+        const pass=($("#iaIdPass").value||"").trim();if(!pass){err.textContent="⚠ 請輸入密碼";return;}
+        let ok=false;try{const r=await api("editors?select=name&name=eq."+encodeURIComponent(rec.name)+"&pass=eq."+encodeURIComponent(pass)+"&limit=1");ok=!!(r&&r.length);}catch(e){}
+        if(!ok){err.textContent="❌ 密碼錯誤";return;}
+      }
+    }
+    const obj={name:rec.name,dept:rec.dept,tier:rec.tier,personName:rec.name,exp:Date.now()+this.TTL};
+    try{localStorage.setItem("vsm_identity_v1",JSON.stringify(obj));localStorage.setItem("vsm_user_v1",rec.name);localStorage.setItem("intaudit_me",rec.name);}catch(e){}
+    IALog.log("登入","系統",`${rec.name}（${rec.dept}／${this.TIER_LABEL[rec.tier]||rec.tier}）登入內部檢查缺失登錄`);
+    this.next();
+  },
+  /* 切換身份：清掉登入身份（主系統也會一起登出這個身份，重新選人），回到選人畫面 */
+  switchUser(){
+    if(!confirm("要切換登入人員嗎？（主系統的登入身份也會一併切換）"))return;
+    IALog.log("登出","系統","切換身份");
+    try{localStorage.removeItem("vsm_identity_v1");}catch(e){}
+    location.reload();
+  },
+  renderWho(){
+    const s=this.ident(),el=$("#iaWho");if(!el||!s)return;
+    el.innerHTML=`<span>👤 <b style="color:#fff">${esc(s.name)}</b>（${esc(s.dept||"")}／${esc(this.TIER_LABEL[s.tier]||s.tier)}）</span>`+
+      `<a href="javascript:void 0" onclick="IAAuth.switchUser()" style="color:#ffd9a8">切換身份</a>`+
+      (this.canDelete()?`<a href="javascript:void 0" onclick="IALog.open()" style="color:#ffd9a8">📜 操作紀錄</a>`:"");
   }
 };
+/* 📜 操作紀錄：寫進主系統同一張 audit_log（對象欄位一律以「內部檢查」開頭），
+   主系統「資料管理 → 操作紀錄查詢」也看得到；本頁的查看視窗只限 Owner／管理員。 */
+const IALog={
+  rows:[],
+  user(){const s=IAAuth.ident();return s?`${s.name}（${IAAuth.TIER_LABEL[s.tier]||s.tier}）`:(localStorage.getItem("vsm_user_v1")||"未具名");},
+  log(action,target,summary){
+    const e={ts:Date.now(),usr:this.user(),action,target:"內部檢查－"+target,summary:String(summary||"").slice(0,180)};
+    api("audit_log",{method:"POST",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify([e])}).catch(err=>console.warn("audit log",err));
+  },
+  async open(){
+    if(!IAAuth.canDelete()){toast("⚠ 操作紀錄僅限 Owner／管理員查看",true);return;}
+    $("#iaLogModal").style.display="flex";$("#iaLogBody").innerHTML=`<tr><td colspan="5" class="hint" style="padding:10px">載入中…</td></tr>`;
+    try{this.rows=await api("audit_log?select=ts,usr,action,target,summary&target=like."+encodeURIComponent("內部檢查*")+"&order=ts.desc&limit=1000")||[];}
+    catch(e){this.rows=[];toast("⚠ 載入失敗："+e.message,true);}
+    this.render();
+  },
+  render(){
+    const q=($("#iaLogQ").value||"").trim().toLowerCase();
+    const list=this.rows.filter(e=>!q||[e.usr,e.action,e.target,e.summary].join(" ").toLowerCase().includes(q));
+    $("#iaLogStat").textContent=`共 ${list.length} 筆（最近 1000 筆內）`;
+    $("#iaLogBody").innerHTML=list.map(e=>`<tr style="border-top:1px solid var(--line)"><td style="padding:5px 8px;white-space:nowrap;font-family:var(--mono);font-size:12px">${esc(new Date(+e.ts).toLocaleString("zh-TW",{hour12:false}))}</td><td style="padding:5px 8px;white-space:nowrap"><b>${esc(e.usr)}</b></td><td style="padding:5px 8px;white-space:nowrap;${e.action==="刪除"?"color:var(--bad);font-weight:700":""}">${esc(e.action)}</td><td style="padding:5px 8px;white-space:nowrap">${esc(String(e.target||"").replace(/^內部檢查－/,""))}</td><td style="padding:5px 8px">${esc(e.summary)}</td></tr>`).join("")||`<tr><td colspan="5" class="hint" style="padding:10px">尚無紀錄</td></tr>`;
+  }
+};
+/* 登錄單的簡短描述，給操作紀錄用 */
+function recLabel(r){return r?`${shipLabel(r.ship)} ${dateText(r)}`:"";}
 /* 刪除權限：只限 Owner／管理員（與主系統 Guard.requireDelete 相同；以主系統登入身份判斷、8 小時內有效） */
 function ownerOnly(what){
   if(IAAuth.canDelete())return true;
-  toast(`⚠ ${what}僅限 Owner／管理員 操作。如需刪除，請聯絡海技組，或先在主系統以 Owner／管理員 身份登入`,true);
+  toast(`⚠ ${what}僅限 Owner／管理員 操作。如需刪除，請聯絡海技組，或按上方「切換身份」以 Owner／管理員 登入`,true);
   return false;
 }
 const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error("逾時")),ms))]);
@@ -1278,6 +1397,7 @@ async function delDefFromList(rid,i){
       if(Store.mode==="cloud"){try{await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"DELETE"});}catch(e){}}
       delete Store.replies[key];
     }
+    IALog.log("刪除","缺失",`${recLabel(r)}：${String(d.finding||"").slice(0,80)}`);
     toast("✓ 已刪除該筆缺失");renderList();
   }
 }
@@ -1373,7 +1493,7 @@ function renderList(){
       return `<span style="flex-basis:100%"></span><span class="hint" style="font-weight:700">${filtering?"篩選結果":"全部"}結案進度</span><span class="cchip" style="border-color:#20703f;color:#20703f">已結案<b>${t.closed}</b> 筆</span><span class="cchip" style="border-color:#c0392b;color:#c0392b">未結案<b>${t.open}</b> 筆</span><span class="hint">（內控＋系統內結案共 ${t.total} 筆；FLOW 由船上自行辦理，不列入）</span>`;})()}`;
   updateReviewBadge();
 }
-async function delRec(id){if(!ownerOnly("刪除登錄單"))return;if(!confirm("確定刪除這張登錄單？此動作無法復原。"))return;await Store.remove(id);renderList();}
+async function delRec(id){if(!ownerOnly("刪除登錄單"))return;if(!confirm("確定刪除這張登錄單？此動作無法復原。"))return;const _r=Store.rows.find(x=>x.id===id);await Store.remove(id);IALog.log("刪除","登錄單",`${recLabel(_r)}（${((_r&&_r.defs)||[]).length} 筆缺失）`);renderList();}
 
 /* ══════════ 改善單審核清單：船上回報的改善內容在這裡由督導逐筆／批量審核結案 ══════════
    設計重點：審核（結案）這個判斷動作完全在這裡完成，直接把 intaudit_replies 這筆的 status
@@ -1446,6 +1566,7 @@ async function cleanupOrphanReplies(){
     try{if(Store.mode==="cloud")await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"DELETE"});delete Store.replies[key];ok++;}
     catch(e){fail++;}
   }
+  IALog.log("清除","孤兒回報資料",`${ok} 筆`);
   toast(fail?`已清除 ${ok} 筆，${fail} 筆失敗`:`✓ 已清除 ${ok} 筆孤兒資料`,!!fail);
   renderReview();renderList();
 }
@@ -1677,6 +1798,7 @@ async function returnReplyAudit(rid,uid){
     await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"returned",payload:newPayload,updated_at:now})});
     rp.status="returned";rp.payload=newPayload;
     reviewSel.delete(key);
+    {const c=rvwCtx(key);IALog.log("退回","改善單",`${c?recLabel(c.r)+"："+String(c.d.finding||"").slice(0,60):key}｜退回人 ${ans.name}｜原因：${note}`);}
     toast("已退回給船上重新回報");
     renderReview();renderList();
   }catch(e){toast("⚠ 退回失敗："+e.message,true);}
@@ -1697,6 +1819,7 @@ async function batchReturnReview(){
     }catch(e){fail++;}
   }
   reviewSel.clear();
+  IALog.log("批量退回","改善單",`${ok} 筆｜退回人 ${ans.name}｜原因：${note}`);
   toast(fail?`已退回 ${ok} 筆，${fail} 筆失敗`:`已批量退回 ${ok} 筆`,!!fail);
   renderReview();renderList();
 }
@@ -1710,6 +1833,7 @@ async function closeReplyAudit(rid,uid){
     await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}`,{method:"PATCH",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify({status:"reviewed",payload:newPayload,updated_at:now})});
     rp.status="reviewed";rp.payload=newPayload;
     reviewSel.delete(key);
+    {const c=rvwCtx(key);IALog.log("審核結案","改善單",`${c?recLabel(c.r)+"："+String(c.d.finding||"").slice(0,60):key}｜結案人 ${ans.name}`);}
     toast("✓ 已審核結案");
     renderReview();renderList();
   }catch(e){toast("⚠ 結案失敗："+e.message,true);}
@@ -1729,6 +1853,7 @@ async function batchCloseReview(){
     }catch(e){fail++;}
   }
   reviewSel.clear();
+  IALog.log("批量審核結案","改善單",`${ok} 筆｜結案人 ${ans.name}`);
   toast(fail?`✓ 已結案 ${ok} 筆，${fail} 筆失敗，請重試`:`✓ 已批量結案 ${ok} 筆`,!!fail);
   renderReview();renderList();
 }
@@ -1817,6 +1942,7 @@ async function issueOrder(id){
   r.issuedAt=Date.now();
   const res=await Store.save(r,Store.srvOf[id]);
   if(res.conflict){toast("⚠ 這張登錄單剛被其他人更新過，請按「🔄 重新整理」後再重新發改善單",true);return;}
+  IALog.log("發改善單","登錄單",`${recLabel(r)}（${n} 項待改善）`);
   renderList();
   openIssueModal(textFull,textHtml);
 }
@@ -2008,7 +2134,7 @@ function renderDownloadTab(){
       <span class="hint">下載／發改善單／送出前，建議先在這裡完整核對一次內容</span>
     </div>
     ${previewOpen?`<div style="margin-bottom:16px">${recordPreviewHtml(cur)}</div>`:""}
-    <div class="banner">請依照下面的順序操作：<b>① 先送出海技入系統 → ② 再發改善單給船 → ③ 下載完整檢查報告自行留存</b>，三步都做完後按右下角「✓ 完成」；下載內控 JSON 是選用。<br>
+    <div class="banner">請依照下面的順序操作：<b>① 先送出海技入系統 → ② 再發改善單給船 → ③ 下載完整檢查報告自行留存</b>，三步都做完後按右下角「✓ 完成」。<br>
       這張單要先確定正式送出、海技看得到了，才讓船上開始填改善單，避免船上填的內容對應到一張還沒送出的草稿。</div>
     <div style="display:flex;flex-direction:column;gap:14px;max-width:720px;margin-top:4px">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -2030,7 +2156,7 @@ function renderDownloadTab(){
           <span class="hint" style="margin-left:8px">${cur.wordDlAt?`<b style="color:var(--ok)">✓ ${esc(cur.wordDlBy||cur.inspector||"")} 已於 ${fmtT(cur.wordDlAt)} 下載</b>`:`<b style="color:var(--bad)">尚未下載</b>`}</span>
         </div>
       </div>
-      <div style="padding-top:12px;border-top:1px dashed var(--line-2)">
+      <div style="display:none;padding-top:12px;border-top:1px dashed var(--line-2)"><!-- 內控案件目前直接在本系統結案，不需匯入船舶動態與早會待辦系統；保留程式以備日後恢復 -->
         <div class="hint" style="font-weight:700;margin-bottom:8px">選用：下載內控 JSON</div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -2466,7 +2592,9 @@ function addDef(){
 function delDef(i){
   // 草稿階段督導可自行刪改；已送出（海技看得到、可能已發改善單）的登錄單，刪缺失只限 Owner／管理員
   if(cur&&cur.id&&!cur.draft&&!ownerOnly("刪除已送出登錄單的缺失"))return;
-  if(!confirm("刪除這筆缺失？"))return;collect();cur.defs.splice(i,1);
+  if(!confirm("刪除這筆缺失？"))return;collect();
+  if(cur&&cur.id&&!cur.draft)IALog.log("刪除","缺失（編輯畫面，存檔後生效）",`${recLabel(cur)}：${String((cur.defs[i]||{}).finding||"").slice(0,80)}`);
+  cur.defs.splice(i,1);
   defOpen=(defOpen||[]).filter(x=>x!==i).map(x=>x>i?x-1:x);
   renderDefs();updateCounts();
 }
@@ -2486,7 +2614,7 @@ function toggleDept(i,name,on){const a=cur.defs[i].icDepts,ix=a.indexOf(name);if
 /* 結案方式說明：督導選了哪個，底下就顯示該方式後續的處理流程（未選時列出三種讓督導比較） */
 const CLOSE_MODE_NOTE={
   FLOW:"📋 <b>船隊需至 FLOW 系統建立 DMP-FM01</b>，立案並在 FLOW 系統內完成結案；本系統僅留這筆紀錄備查，<b>不會</b>發改善單給船上，也不會在這裡追蹤結案進度。",
-  內控:"📋 <b>先匯出「內控 Excel／JSON」匯入內控系統（船舶動態與早會待辦系統）立案</b>；本系統會發改善單給船隊填寫矯正措施、附上證據，<b>海技審核結案後，再至內控系統將該案結案</b>。",
+  內控:"📋 <b>在本系統內發改善單給船隊</b>，由船隊填寫矯正措施並附上證據，督導審核後即可結案（目前<b>不需要</b>匯入船舶動態與早會待辦系統）。",
   系統內結案:"📋 <b>在本系統內發改善單給船隊</b>，由船隊填寫矯正措施並附上證據，海技審核後即可結案，不需要登記到其他系統。"
 };
 const cmNoteHtml=k=>k?`<div class="cmnote">${CLOSE_MODE_NOTE[k]}</div>`
@@ -2953,6 +3081,7 @@ async function saveSuggEdit(){
   }
   suggCtx=null;$("#suggModal").style.display="none";
   await Store.loadReplies();renderSuggPage();updateSuggBadge();
+  IALog.log(closed?"結案":"儲存","船舶訴求",`${c.dept}｜承辦人 ${owner}`);
   toast(closed?"✓ 已儲存並結案":"✓ 已儲存");
 }
 window.addEventListener("pagehide",()=>{ // 關閉分頁時盡量解鎖（來不及也沒關係，15 分鐘自動失效）
@@ -3030,7 +3159,7 @@ async function saveDraft(){
   if(!cur.ship&&!cur.inspector&&!cur.defs.length){toast("⚠ 還沒有填寫任何內容",true);return;}
   showSaving("⏳ 儲存中，請稍候…");
   const ok=await persist(true);
-  if(ok){lastSnap=snapNow();saveDone("✅ 已完成儲存"+(Store.mode==="local"?"（目前連不上雲端，內容先安全存在這台電腦，別擔心不會不見；等網路恢復、重新整理頁面後會自動補存到雲端）":""));}
+  if(ok){IALog.log("儲存草稿","登錄單",recLabel(cur));lastSnap=snapNow();saveDone("✅ 已完成儲存"+(Store.mode==="local"?"（目前連不上雲端，內容先安全存在這台電腦，別擔心不會不見；等網路恢復、重新整理頁面後會自動補存到雲端）":""));}
   else saveDone("⚠ 儲存失敗，請重試一次",false);
   hideSaving();
   return ok;
@@ -3042,6 +3171,7 @@ async function submitForm(){
   const ok=await persist(false);
   if(!ok){saveDone("⚠ 送出失敗，請重試一次",false);hideSaving();return false;}
   lastSnap=snapNow();
+  IALog.log("送出","登錄單",`${recLabel(cur)}（共 ${cur.defs.length} 筆缺失）`);
   const nIssue=cur.defs.filter(d=>d.closeMode!=="FLOW").length;
   saveDone(`✅ 已送出！共 ${cur.defs.length} 筆缺失${nIssue?`，接著請在這一頁發改善單給船上`:""}`);
   hideSaving(1400);
