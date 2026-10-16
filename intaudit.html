@@ -257,6 +257,16 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
 </style>
 </head>
 <body>
+<!-- 進站密碼：與主系統共用同一組密碼與 8 小時通行（同網域 localStorage），在主系統輸入過就不用再輸入 -->
+<div id="iaGate" style="display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#1c3a5e,#2f6690);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:14px;padding:28px 30px;width:min(380px,94vw);box-shadow:0 18px 50px rgba(0,0,0,.3)">
+    <h2 style="margin:0 0 6px;color:#1c3a5e;font-size:20px">🛠 內部檢查缺失登錄</h2>
+    <p style="margin:0 0 16px;color:#5b6a75;font-size:13.5px">請輸入系統進站密碼（與主系統相同）</p>
+    <input type="password" id="iaGatePass" placeholder="進站密碼" style="width:100%;box-sizing:border-box;padding:10px 12px;font-size:15px;border:1px solid #c3d3e3;border-radius:8px" onkeydown="if(event.key==='Enter')IAAuth.submit()">
+    <div id="iaGateErr" style="color:#c0392b;font-size:13px;min-height:20px;margin:6px 0"></div>
+    <button onclick="IAAuth.submit()" style="width:100%;padding:10px;border:0;border-radius:8px;background:#1c3a5e;color:#fff;font-size:15px;font-weight:700;cursor:pointer">進入</button>
+  </div>
+</div>
 <div class="wrap">
   <header style="position:relative">
     <a href="intaudit-guide.html" target="_blank" title="開新分頁查看操作手冊（流程圖、審核流程、各功能說明）" style="position:absolute;top:58px;right:18px;color:#1c3a5e;border:1px solid #fff;background:#fff;border-radius:8px;padding:6px 14px;font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap">📖 操作手冊</a>
@@ -627,6 +637,48 @@ async function api(path,opts){
   const r=await fetch(`${CLOUD.url}/rest/v1/${path}`,Object.assign({headers:H()},opts||{}));
   if(!r.ok)throw new Error("HTTP "+r.status+" "+(await r.text()).slice(0,200));
   const t=await r.text();return t?JSON.parse(t):null;
+}
+/* 🔐 進站密碼＋身份：沿用主系統的設定（同網域 localStorage）。
+   ・進站密碼：比對主系統雲端 app_db「site_pass」的 SHA-256 雜湊；通過後寫入跟主系統同一個 8 小時通行，
+     在主系統輸入過密碼就直接進來，在這裡輸入過，回主系統也不用再輸入。
+   ・身份：讀主系統登入的身份（vsm_identity_v1），刪除登錄單／缺失只限 Owner／管理員。 */
+const IAAuth={
+  SITE_OK_KEY:"vsm_site_gate_ok_v2",HKEY:"vsm_site_pass_h1",DEFAULT:"fpmc2026",TTL:8*3600*1000,
+  _res:null,
+  siteOk(){try{const s=JSON.parse(localStorage.getItem(this.SITE_OK_KEY));return !!(s&&s.exp>Date.now());}catch(e){return false;}},
+  ident(){try{const s=JSON.parse(localStorage.getItem("vsm_identity_v1"));return s&&s.name&&s.exp>Date.now()?s:null;}catch(e){return null;}},
+  isOwner(){const s=this.ident();return !!(s&&s.tier==="owner");},
+  canDelete(){const s=this.ident();return !!(s&&(s.tier==="owner"||s.tier==="admin"));},
+  async sha(s){
+    try{if(window.crypto&&crypto.subtle){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(s)));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");}}catch(e){}
+    return "plain:"+s;
+  },
+  async hash(){
+    try{const rows=await api("app_db?select=payload&k=eq.site_pass"),p=rows&&rows[0]&&rows[0].payload;
+      if(p&&p.hash){try{localStorage.setItem(this.HKEY,p.hash);}catch(e){}return p.hash;}
+      if(p&&p.pass)return await this.sha(p.pass);
+    }catch(e){/* 離線：用本機快取 */}
+    let h="";try{h=localStorage.getItem(this.HKEY)||"";}catch(e){}
+    return h||await this.sha(this.DEFAULT);
+  },
+  ensure(){
+    if(this.siteOk())return Promise.resolve();
+    return new Promise(res=>{this._res=res;const g=$("#iaGate");g.style.display="flex";setTimeout(()=>$("#iaGatePass").focus(),50);});
+  },
+  async submit(){
+    const v=($("#iaGatePass").value||"").trim();
+    if(v&&(await this.sha(v))===(await this.hash())){
+      try{localStorage.setItem(this.SITE_OK_KEY,JSON.stringify({exp:Date.now()+this.TTL}));}catch(e){}
+      $("#iaGate").style.display="none";$("#iaGatePass").value="";
+      if(this._res){this._res();this._res=null;}
+    }else $("#iaGateErr").textContent="❌ 密碼錯誤，請重新輸入";
+  }
+};
+/* 刪除權限：只限 Owner／管理員（與主系統 Guard.requireDelete 相同；以主系統登入身份判斷、8 小時內有效） */
+function ownerOnly(what){
+  if(IAAuth.canDelete())return true;
+  toast(`⚠ ${what}僅限 Owner／管理員 操作。如需刪除，請聯絡海技組，或先在主系統以 Owner／管理員 身份登入`,true);
+  return false;
 }
 const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error("逾時")),ms))]);
 
@@ -1210,6 +1262,7 @@ function editDef(rid,i){
   openForm("defs");
 }
 async function delDefFromList(rid,i){
+  if(!ownerOnly("刪除缺失"))return;
   const r=Store.rows.find(x=>x.id===rid);if(!r||!r.defs[i])return;
   const d=r.defs[i],key=d.uid?`${r.id}_${d.uid}`:null,rp=key?Store.replies[key]:null;
   const warn=(rp?"\n\n⚠ 船上已對這筆缺失回報過，回報內容會一併刪除。":"")+(r.imported?"\n\n⚠ 這張登錄單已匯入主系統，主系統裡的缺失紀錄不會被刪除。":"");
@@ -1290,7 +1343,7 @@ function renderList(){
           </span>
           <span style="display:flex;flex-direction:column;gap:4px">
             <button class="btn sm" onclick="duplicateRec(${r.id})" title="複製這張登錄單的所有內容，建立成一張新的草稿，可再自行修改">⧉ 複製一單</button>
-            <button class="btn sm danger" onclick="delRec(${r.id})">🗑</button>
+            ${IAAuth.canDelete()?`<button class="btn sm danger" onclick="delRec(${r.id})" title="刪除這張登錄單（僅限 Owner／管理員）">🗑</button>`:""}
           </span>
         </div>
         <div class="hint" style="white-space:nowrap;line-height:1.4;font-size:11px;text-align:right">${r.imported?`<b style="color:var(--ok)">✓ 海技已匯入</b> ${esc(r.imported.by||"")} ${new Date(r.imported.at).toLocaleString("zh-TW",{hour12:false})}`:(r.draft?"":"尚未匯入主系統")}</div>
@@ -1307,7 +1360,7 @@ function renderList(){
         <td>${d.risk?`<span class="risk ${d.risk==="高"?"h":d.risk==="中"?"m":"l"}">${esc(d.risk)}</span>`:""}</td>
         <td>${m?`<span class="mode ${m.cls}">${esc(m.label)}</span>`:'<span class="hint">未選</span>'}</td>
         <td><span class="stat ${statCls(es)}">${esc(es||"—")}</span></td><td>${nxt}</td>
-        <td style="white-space:nowrap">${rp?`<button class="btn sm ${rp.status==="submitted"?"dark":""}" onclick="gotoReviewItem(${r.id},'${d.uid}')" title="前往改善單審核清單">➜ 審核</button> `:""}<button class="btn sm" onclick="editDef(${r.id},${i})" title="開啟這張登錄單並直接跳到這筆缺失">✎ 編輯</button> <button class="btn sm danger" onclick="delDefFromList(${r.id},${i})" title="只刪除這一筆缺失">🗑 刪除</button></td></tr>`;}).join("");
+        <td style="white-space:nowrap">${rp?`<button class="btn sm ${rp.status==="submitted"?"dark":""}" onclick="gotoReviewItem(${r.id},'${d.uid}')" title="前往改善單審核清單">➜ 審核</button> `:""}<button class="btn sm" onclick="editDef(${r.id},${i})" title="開啟這張登錄單並直接跳到這筆缺失">✎ 編輯</button>${IAAuth.canDelete()?` <button class="btn sm danger" onclick="delDefFromList(${r.id},${i})" title="只刪除這一筆缺失（僅限 Owner／管理員）">🗑 刪除</button>`:""}</td></tr>`;}).join("");
   });
   $("#listBody").innerHTML=html||`<tr><td colspan="8" style="text-align:center;color:#8195a0;padding:24px">目前沒有登錄紀錄，請按上方「＋ 新增登錄」。</td></tr>`;
   $("#listStat").textContent=`顯示 ${n} 筆缺失`;
@@ -1320,7 +1373,7 @@ function renderList(){
       return `<span style="flex-basis:100%"></span><span class="hint" style="font-weight:700">${filtering?"篩選結果":"全部"}結案進度</span><span class="cchip" style="border-color:#20703f;color:#20703f">已結案<b>${t.closed}</b> 筆</span><span class="cchip" style="border-color:#c0392b;color:#c0392b">未結案<b>${t.open}</b> 筆</span><span class="hint">（內控＋系統內結案共 ${t.total} 筆；FLOW 由船上自行辦理，不列入）</span>`;})()}`;
   updateReviewBadge();
 }
-async function delRec(id){if(!confirm("確定刪除這張登錄單？此動作無法復原。"))return;await Store.remove(id);renderList();}
+async function delRec(id){if(!ownerOnly("刪除登錄單"))return;if(!confirm("確定刪除這張登錄單？此動作無法復原。"))return;await Store.remove(id);renderList();}
 
 /* ══════════ 改善單審核清單：船上回報的改善內容在這裡由督導逐筆／批量審核結案 ══════════
    設計重點：審核（結案）這個判斷動作完全在這裡完成，直接把 intaudit_replies 這筆的 status
@@ -1384,6 +1437,7 @@ function orphanReplies(){
   return list;
 }
 async function cleanupOrphanReplies(){
+  if(!ownerOnly("清除孤兒回報資料"))return;
   const list=orphanReplies();
   if(!list.length){toast("目前沒有孤兒回報資料，不用清理");return;}
   if(!confirm(`找到 ${list.length} 筆孤兒回報資料（對應的登錄單或缺失已經被刪除，但回報內容還留在雲端）。\n\n這些不會再出現在任何畫面上，只會一直佔用資料、讓主系統的清單看起來「刪不掉」。確定要清除嗎？此動作無法復原。`))return;
@@ -1516,7 +1570,7 @@ function renderRvOverview(){
   const items=reviewFilteredItems();
   const pending=base.filter(x=>x.rp.status==="submitted").length;
   const orphanN=orphanReplies().length;
-  $("#rvStat").innerHTML=`顯示 ${items.length} 筆・全部待審核 ${pending} 筆`+(orphanN?`　<button class="btn sm danger" onclick="cleanupOrphanReplies()">🗑 清除 ${orphanN} 筆孤兒資料</button><span class="hint" style="cursor:help" title="「孤兒資料」是指：船上曾經回報過，但後來這筆缺失（或整張登錄單）已經被督導刪除，導致這份回報內容沒有任何缺失可以對應，變成一筆留在雲端卻用不到的殘留資料。它不會顯示在「檢查紀錄登錄清單」裡，但會一直留在主系統的「船上改善回報」清單中，看起來像是「刪了怎麼還在」。按這顆按鈕會把這些殘留資料從雲端清掉，不影響任何還有效的缺失或回報。">　ⓘ 什麼是孤兒資料？</span>`:"");
+  $("#rvStat").innerHTML=`顯示 ${items.length} 筆・全部待審核 ${pending} 筆`+(orphanN&&IAAuth.canDelete()?`　<button class="btn sm danger" onclick="cleanupOrphanReplies()">🗑 清除 ${orphanN} 筆孤兒資料</button><span class="hint" style="cursor:help" title="「孤兒資料」是指：船上曾經回報過，但後來這筆缺失（或整張登錄單）已經被督導刪除，導致這份回報內容沒有任何缺失可以對應，變成一筆留在雲端卻用不到的殘留資料。它不會顯示在「檢查紀錄登錄清單」裡，但會一直留在主系統的「船上改善回報」清單中，看起來像是「刪了怎麼還在」。按這顆按鈕會把這些殘留資料從雲端清掉，不影響任何還有效的缺失或回報。">　ⓘ 什麼是孤兒資料？</span>`:"");
   const selAllBox=$("#rvSelAll");
   const pendingShown=items.filter(x=>x.rp.status==="submitted");
   if(selAllBox)selAllBox.checked=pendingShown.length>0&&pendingShown.every(x=>reviewSel.has(`${x.r.id}_${x.d.uid}`));
@@ -1553,14 +1607,17 @@ function renderRvOverview(){
    結案人會寫進 reviewedBy／returnedBy，誰按的都留紀錄。 */
 const RVW_KEY="intaudit_reviewer";
 function rvwToday(){const d=new Date();return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;}
-function rvwSaved(){try{const o=JSON.parse(localStorage.getItem(RVW_KEY)||"null");return o&&o.date===rvwToday()&&o.name?o.name:"";}catch(e){return "";}}
-function rvwSave(name){try{localStorage.setItem(RVW_KEY,JSON.stringify({name,date:rvwToday()}));if(!localStorage.getItem("intaudit_me"))localStorage.setItem("intaudit_me",name);}catch(e){}}
+// 記住的結案人綁定「當天＋主系統登入身份」：同一台電腦換人登入，就要重新確認
+function rvwLogin(){return (IAAuth.ident()||{}).name||"";}
+function rvwSaved(){try{const o=JSON.parse(localStorage.getItem(RVW_KEY)||"null");return o&&o.date===rvwToday()&&o.name&&(o.by||"")===rvwLogin()?o.name:"";}catch(e){return "";}}
+function rvwSave(name){try{localStorage.setItem(RVW_KEY,JSON.stringify({name,date:rvwToday(),by:rvwLogin()}));if(!localStorage.getItem("intaudit_me"))localStorage.setItem("intaudit_me",name);}catch(e){}}
 function rvwCtx(key){for(const r of Store.rows)for(const d of (r.defs||[]))if(d.uid&&`${r.id}_${d.uid}`===key)return {r,d};return null;}
 function askReviewer(action,keys){
   return new Promise(res=>{
     const isClose=action==="close",ctx=keys.map(rvwCtx).filter(Boolean);
     const today=rvwSaved();
-    let me="";try{me=localStorage.getItem("intaudit_me")||"";}catch(e){}
+    // 優先用主系統登入的姓名（督導用自己姓名登入就直接顯示「結案人為 ooo」）
+    let me=(IAAuth.ident()||{}).name||"";if(!me)try{me=localStorage.getItem("intaudit_me")||"";}catch(e){}
     // 檢查人欄位可能是「黃燕華、潘獻波」這種多人字串，拆成個別姓名
     const insps=[...new Set(ctx.flatMap(c=>String(c.r.inspector||"").split(/[、,，\/／;；\s]+/)).map(s=>s.trim()).filter(Boolean))];
     // 候選結案人：本機記的姓名＋這幾筆的檢查人（用自己姓名登錄的督導直接點自己的名字即可）
@@ -2407,6 +2464,8 @@ function addDef(){
   renderDefs();updateCounts();
 }
 function delDef(i){
+  // 草稿階段督導可自行刪改；已送出（海技看得到、可能已發改善單）的登錄單，刪缺失只限 Owner／管理員
+  if(cur&&cur.id&&!cur.draft&&!ownerOnly("刪除已送出登錄單的缺失"))return;
   if(!confirm("刪除這筆缺失？"))return;collect();cur.defs.splice(i,1);
   defOpen=(defOpen||[]).filter(x=>x!==i).map(x=>x>i?x-1:x);
   renderDefs();updateCounts();
@@ -2503,7 +2562,7 @@ function defCardHtml(i,td,allIdxs,isLast){
     // 換了種類主題選項也會跟著換，所以順便把主題清空避免選到不屬於新種類的選項。
     const typeCtl=cur.types.length>1?`<label>檢查種類 Audit Type<select onchange="setDefType(${i},this.value)">${cur.types.map(k=>{const tt=typeDef(k)||{label:k};return `<option value="${esc(k)}" ${d.type===k?"selected":""}>${esc(tt.label+(tt.sarForm?"："+tt.sarForm:""))}</option>`;}).join("")}</select><span class="hint" style="font-weight:400">填錯種類可直接在這裡改，不用刪掉重填</span></label>`:"";
     return `<div class="item ${m?"m-"+m.cls:""}" id="def-${i}">
-      <div class="ih"><button class="btn sm" type="button" onclick="backDef()">← 返回清單</button>　${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span><button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button></div>
+      <div class="ih"><button class="btn sm" type="button" onclick="backDef()">← 返回清單</button>　${esc(td?td.label:"")}缺失 No.${seq+1}<span class="sp"></span>${(!cur.id||cur.draft||IAAuth.canDelete())?`<button class="btn sm danger" onclick="delDef(${i})">🗑 刪除</button>`:""}</div>
       <div class="drow">
         <div class="c1">
           ${typeCtl}
@@ -3002,6 +3061,7 @@ async function submitForm(){
   window[n]=function(){const r=f.apply(this,arguments);try{renderFilterSum();}catch(e){}return r;};
 });
 (async function init(){
+  await IAAuth.ensure();  // 進站密碼通過後才載入資料
   await loadLists();await Store.load();await Store.loadReplies();
   // ?new=1（主系統左欄「前往新增內部檢查記錄」的快捷連結）：不看清單，直接開新增表單
   if(new URLSearchParams(location.search).get("new")==="1"){try{history.replaceState(null,"",location.pathname);}catch(e){}newForm();}
