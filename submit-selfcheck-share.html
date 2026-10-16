@@ -48,6 +48,11 @@ textarea,input[type=text],select{padding:9px 10px;border:1px solid var(--line-2)
 .closewrap{display:none;margin-top:8px}
 .closewrap.show{display:block}
 label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px 0 4px}
+.trackwrap{display:none;margin-top:10px}.trackwrap.show{display:block}
+.trackrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.trackopt{display:inline-flex;align-items:center;gap:6px;border:1.5px solid #cfd8de;border-radius:8px;padding:7px 14px;background:#fff;cursor:pointer;font-weight:700;font-size:14px;margin:0}
+.trackopt input{width:17px;height:17px;margin:0}
+.trackopt.on{border-color:#2c64a0;background:#eaf1f9;color:#1d4e80}
 .closedrow{display:flex;align-items:center;gap:8px;margin-top:10px;background:#fdf2e0;border:1px solid #f0dba9;border-radius:8px;padding:10px 12px}
 .modebar{display:flex;gap:8px;flex-wrap:wrap}
 .modebtn{border:1.5px solid var(--line-2);background:#fff;color:var(--ink-2);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans)}
@@ -235,6 +240,10 @@ label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:8px
       <div class="simopts">
         <button type="button" class="simopt on" id="simOptOpen" onclick="setSimClosed(false)">🔧 處理中／尚未完成</button>
         <button type="button" class="simopt" id="simOptClosed" onclick="setSimClosed(true)">✓ 已完成改善（結案）</button>
+      </div>
+      <div id="simTrackBox">
+        <label style="font-size:13px">此案已有在以下方式進行追蹤（可複選，選填）</label>
+        <div class="trackrow" id="simTrack"></div>
       </div>
       <div id="simCloseBox" style="display:none">
         <label style="font-size:13px">改善情形說明（選填）</label>
@@ -774,12 +783,12 @@ async function exportExcel(){
   ]);
   wsBase["!cols"]=[{wch:22},{wch:50}];
   XLSX.utils.book_append_sheet(wb,wsBase,"基本資料");
-  const rows=[["編號","CODE","來源檢查","缺失內容","實際情況（來源）","本船查核結果","本船實際狀況","打算怎麼處理","是否結案","改善情形說明","結案日期","追蹤期限","回答人","回答日期"]];
+  const rows=[["編號","CODE","來源檢查","缺失內容","實際情況（來源）","本船查核結果","本船實際狀況","打算怎麼處理","是否結案","已在追蹤（FLOW／內控／物料配件）","改善情形說明","結案日期","追蹤期限","回答人","回答日期"]];
   d.items.forEach((it,i)=>{
-    rows.push([i+1,it.code||"",fmtSrc(it.src),it.detail||"",it.actual2||"",ST_LABEL_DL[it.status||"pending"],it.note||it.naNote||"",it.actual||"",it.status==="similar"?(it.closed?"已結案":"未結案"):"",it.closeNote||"",it.closedAt||"",it.trackDue||"",it.checkedBy||"",it.checkedAt||""]);
+    rows.push([i+1,it.topic||it.code||"",fmtSrc(it.src),it.detail||"",it.actual2||"",ST_LABEL_DL[it.status||"pending"],it.note||it.naNote||"",it.actual||"",it.status==="similar"?(it.closed?"已結案":"未結案"):"",it.status==="similar"&&!it.closed?trackText(it):"",it.closeNote||"",it.closedAt||"",it.trackDue||"",it.checkedBy||"",it.checkedAt||""]);
   });
   const wsDef=XLSX.utils.aoa_to_sheet(rows);
-  wsDef["!cols"]=[{wch:6},{wch:12},{wch:22},{wch:40},{wch:40},{wch:14},{wch:30},{wch:30},{wch:10},{wch:30},{wch:12},{wch:12},{wch:10},{wch:12}];
+  wsDef["!cols"]=[{wch:6},{wch:12},{wch:22},{wch:40},{wch:40},{wch:14},{wch:30},{wch:30},{wch:10},{wch:18},{wch:30},{wch:12},{wch:12},{wch:10},{wch:12}];
   XLSX.utils.book_append_sheet(wb,wsDef,"缺失明細");
   const fname=`分享自查_${d.ship}_${(d.title||"").replace(/[\\/:*?"<>|]/g,"_")}_${todayStr()}.xlsx`;
   XLSX.writeFile(wb,fname);
@@ -795,11 +804,11 @@ function preparePrint(){
   const rowHtml=(it,i)=>`<tr>
     <td class="pnum">${i+1}</td>
     <td>
-      <b>${it.code?"CODE "+esc(it.code):""}</b>${it.src?"　"+esc(fmtSrc(it.src)):""}
+      <b>${esc(itemHead(it))}</b>${it.src&&!it.topic?"　"+esc(fmtSrc(it.src)):""}
       <div class="pdet">${esc(it.detail||"")}</div>
-      ${it.actual2?`<div class="pdet" style="color:#555">實際情況：${esc(it.actual2)}</div>`:""}
+      ${it.actual2?`<div class="pdet" style="color:#555">${it.topic?"船隊實例":"實際情況"}：${esc(it.actual2)}</div>`:""}
     </td>
-    <td class="pst">${ST_LABEL_DL[it.status||"pending"]}${it.status==="similar"?(it.closed?"（已結案）":"（未結案）"):""}</td>
+    <td class="pst">${ST_LABEL_DL[it.status||"pending"]}${it.status==="similar"?(it.closed?"（已結案）":"（未結案）"+(trackText(it)?`<br><span style="font-weight:400">已在追蹤：${esc(trackText(it))}</span>`:"")):""}</td>
     <td>${esc(it.note||it.naNote||"")}</td>
     <td>${esc(it.actual||"")}</td>
   </tr>`;
@@ -821,13 +830,39 @@ function fmtSrc(s){
   return `${shipLabel(p[0])}・${p.slice(1,-1).join(" ")}・${p[p.length-1]}`;
 }
 const srcTag=it=>it.src?`<span style="margin-left:8px;font-size:12px;font-weight:700;color:#1e7f8c;background:#e4f1f2;border-radius:10px;padding:1px 10px;white-space:nowrap">${esc(fmtSrc(it.src))}</span>`:"";
+/* 主題題（船隊缺失分析發佈）：一題＝一個缺失項目，顯示「問題重點＋請確認細目＋船隊實例」，不是單筆缺失 */
+const itemHead=it=>it.topic?("📌 "+it.topic):(it.code?"CODE "+it.code:"");
+function topicRefHtml(it){
+  return `<div class="refbox">
+    ${it.stat?`<div class="hint" style="margin-bottom:4px">近期船隊：${esc(it.stat)}</div>`:""}
+    <div><b>問題重點：</b>${esc(it.key||"")}</div>
+    ${(it.checks||[]).length?`<div style="margin-top:6px"><b>請確認：</b><div style="margin-top:2px">${it.checks.map(c=>`<div style="padding-left:1.4em;text-indent:-1.4em">□ ${esc(c)}</div>`).join("")}</div></div>`:""}
+    ${(it.examples||[]).length?`<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--ink-2)">船隊實例（${it.examples.length}）</summary>${it.examples.map(e=>`<div style="margin-top:4px;font-size:13px">・<b>${esc(e.label||"")}</b>：${esc(e.detail||"")}</div>`).join("")}</details>`:""}
+  </div>`;
+}
 function renderRef(it){
+  if(it.topic)return topicRefHtml(it);
   return `<div class="refbox">
     <div><b>缺失詳情：</b>${esc(it.detail||"")}</div>
     ${it.actual2?`<div><b>實際情況：</b>${esc(it.actual2)}</div>`:""}
   </div>`;
 }
 
+/* 「有，需處理」尚未結案時，可複選此案已在哪些管道追蹤（存在 it.track 陣列） */
+const TRACK_OPTS=["FLOW","內控","物料配件"];
+function trackText(it){return (it.track||[]).filter(Boolean).join("、");}
+function trackBoxesHtml(sel,onchange){
+  const s=new Set(sel||[]);
+  return TRACK_OPTS.map(o=>`<label class="trackopt${s.has(o)?" on":""}"><input type="checkbox" value="${o}" ${s.has(o)?"checked":""} onchange="${onchange}"> ${o}</label>`).join("");
+}
+function onTrackChange(i,cb){
+  const it=(draft.items||[])[i];if(!it)return;
+  const set=new Set(it.track||[]);cb.checked?set.add(cb.value):set.delete(cb.value);
+  it.track=TRACK_OPTS.filter(o=>set.has(o));
+  cb.parentElement.classList.toggle("on",cb.checked);
+  const cn=getCheckerName();if(cn){it.checkedBy=cn;it.checkedAt=new Date().toISOString().slice(0,10);}
+  scheduleAutoSave();renderWrapup();
+}
 function simHintHtml(it){
   return it.closed
     ?"✓ 已完成改善：全部答完後，<b>直接送出</b>即可，不需要再回來處理。"
@@ -836,7 +871,7 @@ function simHintHtml(it){
 function itemCardHtml(it,i){
   return `
     <div class="itemcard gh" data-idx="${i}" id="item-${i}">
-      <div><span class="num">#${i+1}</span><b>${esc(it.code?("CODE "+it.code):"")}</b>${srcTag(it)}</div>
+      <div><span class="num">#${i+1}</span><b>${esc(itemHead(it))}</b>${it.topic?"":srcTag(it)}</div>
       ${renderRef(it)}
       ${it.trackDue?`<div class="hint" style="color:var(--warn)">🗓 督導設定的追蹤期限：${esc(it.trackDue)}</div>`:""}
       <p style="font-weight:700;margin:10px 0 4px">❓ 本船目前有同樣或類似的情形嗎？</p>
@@ -850,6 +885,10 @@ function itemCardHtml(it,i){
       <div class="detailwrap ${it.status==='similar'?'show':''}" id="detail-${i}">
         <label>本船的實際狀況，及打算怎麼處理／已怎麼改善</label>
         <textarea data-idx="${i}" data-field="note" oninput="onFieldInput(this)">${esc(mergedNote(it))}</textarea>
+        <div class="trackwrap ${it.closed?'':'show'}" id="trackwrap-${i}">
+          <label>此案已有在以下方式進行追蹤（可複選，選填）</label>
+          <div class="trackrow">${trackBoxesHtml(it.track,`onTrackChange(${i},this)`)}</div>
+        </div>
         <div class="closedrow">
           <input type="checkbox" id="closed-${i}" ${it.closed?"checked":""} onchange="onClosedChange(${i},this.checked)" style="width:18px;height:18px">
           <label for="closed-${i}" style="margin:0">✓ 已完成改善（結案）</label>
@@ -1014,6 +1053,7 @@ function onClosedChange(i,checked){
   const sh=document.getElementById("simhint-"+i);if(sh){sh.className="simhint "+(checked?"ok":"warn");sh.innerHTML=simHintHtml(it);}
   const cw=document.getElementById("closewrap-"+i);
   if(cw){cw.classList.toggle("show",checked);const d=cw.querySelector('input[type="date"]');if(d)d.value=it.closedAt||"";}
+  const tw=document.getElementById("trackwrap-"+i);if(tw)tw.classList.toggle("show",!checked);
   scheduleAutoSave();
   renderWrapup();
 }
@@ -1051,6 +1091,7 @@ window.addEventListener("beforeunload",()=>{ if(autoSaveTimer)flushAutoSave(); }
 /* 「實際狀況」與「打算怎麼處理」合併成一欄（存在 note）；舊資料兩欄都有時，合併成一段文字。 */
 function mergedNote(it){const a=(it.note||"").trim(),b=(it.actual||"").trim();return a&&b?(a+"\n"+b):(a||b);}
 function modalRefHtml(it){
+  if(it.topic)return `<div style="font-weight:700;color:var(--navy);margin-bottom:6px">${esc(itemHead(it))}</div><div style="max-height:34vh;overflow:auto;line-height:1.75">${topicRefHtml(it)}</div>`;
   return `<div style="font-weight:700;color:var(--navy);margin-bottom:6px">${esc(it.code?"CODE "+it.code:"")}${srcTag(it)}</div>
     <div style="max-height:34vh;overflow:auto;line-height:1.75">
       <div><b>缺失詳情：</b>${esc(it.detail||"")}</div>
@@ -1065,6 +1106,7 @@ function openSimModal(i,prev){
   document.getElementById("simNote").value=mergedNote(it);
   document.getElementById("simCloseNote").value=it.closeNote||"";
   document.getElementById("simClosedAt").value=it.closedAt||todayIsoDate();
+  document.getElementById("simTrack").innerHTML=trackBoxesHtml(it.track,"this.parentElement.classList.toggle('on',this.checked)");
   setSimClosed(!!it.closed);
   document.getElementById("simModal").classList.add("show");
   setTimeout(()=>document.getElementById("simNote").focus(),80);
@@ -1074,6 +1116,7 @@ function setSimClosed(c){
   document.getElementById("simOptOpen").classList.toggle("on",!simClosed);
   document.getElementById("simOptClosed").classList.toggle("on",simClosed);
   document.getElementById("simCloseBox").style.display=simClosed?"":"none";
+  document.getElementById("simTrackBox").style.display=simClosed?"none":"";
   const n=document.getElementById("simHint");
   n.className="simhint "+(simClosed?"ok":"warn");
   n.innerHTML=simClosed
@@ -1089,6 +1132,7 @@ function simConfirm(){
     return;
   }
   it.note=note;it.actual="";it.closed=simClosed;
+  it.track=[...document.querySelectorAll("#simTrack input:checked")].map(x=>x.value);
   if(simClosed){it.closeNote=document.getElementById("simCloseNote").value.trim();it.closedAt=document.getElementById("simClosedAt").value||todayIsoDate();}
   const cn=getCheckerName();it.checkedBy=cn||it.checkedBy||"";it.checkedAt=new Date().toISOString().slice(0,10);
   document.getElementById("simModal").classList.remove("show");
@@ -1147,12 +1191,12 @@ function openReview(){
   const rows=items.map((it,i)=>{
     const st=it.status||"pending";
     const extra=st==="similar"
-      ?`<div class="rvx">${esc(mergedNote(it)||"（未填）")}<br>${it.closed?`<b style="color:var(--ok)">✓ 已完成改善（結案）</b>${it.closedAt?"　"+esc(it.closedAt):""}${it.closeNote?"<br>改善情形："+esc(it.closeNote):""}`:`<b style="color:var(--bad)">尚未結案</b>`}</div>`
+      ?`<div class="rvx">${esc(mergedNote(it)||"（未填）")}<br>${it.closed?`<b style="color:var(--ok)">✓ 已完成改善（結案）</b>${it.closedAt?"　"+esc(it.closedAt):""}${it.closeNote?"<br>改善情形："+esc(it.closeNote):""}`:`<b style="color:var(--bad)">尚未結案</b>${trackText(it)?"　已在追蹤："+esc(trackText(it)):""}`}</div>`
       :(st==="na"&&it.naNote?`<div class="rvx">不適用原因：${esc(it.naNote)}</div>`:"");
     return `<div class="rvrow ${st==="pending"?"un":""}" onclick="reviewGoto(${i})">
       <div class="rvn">#${i+1}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px"><b>${esc(it.code?"CODE "+it.code:"")}</b> ${esc((it.detail||"").slice(0,110))}${(it.detail||"").length>110?"…":""}</div>
+        <div style="font-size:13px"><b>${esc(itemHead(it))}</b> ${esc((it.topic?(it.key||""):(it.detail||"")).slice(0,110))}${(it.topic?(it.key||""):(it.detail||"")).length>110?"…":""}</div>
         <div style="margin-top:4px"><span class="rvst" style="background:${ST_COLOR[st]}">${esc(isAutoSelf(it)?"當事船（系統自動標記，不須作答）":ST_LABEL_DL[st])}</span></div>
         ${extra}
       </div>

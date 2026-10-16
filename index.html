@@ -1360,7 +1360,18 @@ table.ap-xl td.ap-selm{box-shadow:inset 2px 0 0 #1b6ec2,inset -2px 0 0 #1b6ec2}
 .fda-crumb a{color:var(--navy,#1c3a5e);cursor:pointer;text-decoration:underline}
 .fda-ranks{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
 @media(max-width:900px){.fda-ranks{grid-template-columns:1fr}}
-.fda-th,.fda-r{display:grid;grid-template-columns:24px minmax(0,1fr) 44px 40px 58px 70px 62px;gap:8px;align-items:center;padding:6px 8px}
+.fda-th,.fda-r{display:grid;grid-template-columns:44px minmax(0,1fr) 44px 40px 58px 70px 62px;gap:8px;align-items:center;padding:6px 8px}
+.fda-r .rk{display:flex;align-items:center;gap:4px;justify-content:flex-start}
+.fda-pk{width:15px;height:15px;margin:0;cursor:pointer;flex:none}
+.fda-r.picked{background:#fff6ea}
+.fda-pickbar{position:sticky;bottom:0;z-index:30;margin-top:12px;background:var(--navy);color:#fff;border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 -4px 16px rgba(0,0,0,.18)}
+.fda-pickbar .pkc{background:rgba(255,255,255,.14);border-radius:14px;padding:2px 6px 2px 10px;font-size:12px;display:inline-flex;align-items:center;gap:4px}
+.fda-pickbar .pkc button{border:0;background:none;color:#fff;cursor:pointer;font-size:12px;padding:0 4px}
+.fda-pickbar .btn{border-color:rgba(255,255,255,.4)}
+.fda-pubq{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:#fbfcfd}
+.fda-pubq textarea{width:100%;font-size:12.5px;font-family:var(--sans);border:1px solid var(--line-2);border-radius:5px;padding:6px 8px;resize:vertical}
+.fda-shipgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:3px 12px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:8px;margin-top:6px}
+.fda-shipgrid label{display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}
 .fda-spark{display:inline-flex;align-items:flex-end;gap:2px;height:22px;width:66px;vertical-align:middle}
 .fda-spark i{flex:1;background:#5b8fc7;border-radius:1px 1px 0 0;min-height:0}
 .fda-spark i.late{background:#e8842c}
@@ -2094,6 +2105,12 @@ table.tbl tbody tr.attn-row.sel:hover>td{background:#fbe8d4}
        只需要套用在裡面那些實際的資料表格（Vessel/Last Audit…）本身，
        那些表格不是 .print-page-wrap 的直屬 tr，不受這條覆蓋影響。 */
   #printArea table.print-page-wrap>thead{display:table-header-group}
+  /* 個別資料表要「換頁重複欄位標頭」時加 class="repeat-head"（例：缺失紀錄總表列印）。
+     頁首 Logo 已改用 .print-page-wrap 的 thead，不再是 position:fixed，資料表頭重複不會疊到頁首。
+     列內容很長（例如一筆缺失跨好幾頁）時也允許在列中間換頁，表頭照樣在新頁重複。 */
+  #printArea table.repeat-head>thead{display:table-header-group}
+  #printArea table.repeat-head>tbody>tr{page-break-inside:auto;break-inside:auto}
+  #printArea table.repeat-head>thead>tr{page-break-inside:avoid;break-inside:avoid}
   #printArea table.print-page-wrap>thead>tr,
   #printArea table.print-page-wrap>tbody>tr{page-break-inside:auto;break-inside:auto}
   #printArea .pre{white-space:pre-line}
@@ -6959,6 +6976,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="hint" style="margin-bottom:6px">給船上的版本：只放 AI 整理的「問題重點＋船上確認細目」，<b>不附缺失明細</b>。PDF 會加上公司抬頭。</div>
           <button class="btn primary" onclick="Ref.exportShip('word')">⬇ 產出 Word（給船上）</button>
           <button class="btn primary" onclick="Ref.exportShip('pdf')">🖨 產出 PDF（給船上）</button>
+        </div>
+        <div style="margin-top:10px;display:none;background:#fff6ea;border:1px solid #f0d3a8;border-radius:8px;padding:10px 12px" id="ref-pub-export">
+          <div style="font-weight:700;color:var(--navy);margin-bottom:4px">📮 發佈為分享自查（主題題，一個勾選項目一題）</div>
+          <div class="hint" style="margin-bottom:8px">把 AI 回覆貼在上面的框，按「讀取 AI 內容並發佈」，系統會把每題的「問題重點＋船上確認細目」帶進發佈畫面，確認後選船發佈。</div>
+          <button class="btn primary" onclick="FleetDA.openPublish(true)">📮 讀取 AI 內容並發佈</button>
+          <button class="btn" onclick="FleetDA.openPublish(false)">略過 AI，用系統內容發佈</button>
         </div>
       </div>
     </div>
@@ -16731,7 +16754,7 @@ const Defs={
     if(!rows.length){toast("無資料可匯出");return;}
     $("#printArea").innerHTML=`<h1>缺失紀錄總表（篩選結果）</h1>
       <div class="pmeta">匯出日期：${todayStr()} ｜ 共 ${rows.length} 筆 ｜ 船舶檢查暨缺失管理系統</div>
-      <table><thead><tr><th>船名</th><th>檢查類型</th><th>日期</th><th>地點</th><th>新分類·大類</th><th>代碼</th><th style="width:30%">缺失詳情</th><th style="width:25%">實際情況/矯正</th><th>根本原因</th><th>風險</th></tr></thead>
+      <table class="repeat-head"><thead><tr><th>船名</th><th>檢查類型</th><th>日期</th><th>地點</th><th>新分類·大類</th><th>代碼</th><th style="width:30%">缺失詳情</th><th style="width:25%">實際情況/矯正</th><th>根本原因</th><th>風險</th></tr></thead>
       <tbody>${rows.map(d=>`<tr><td>${esc(shipFullLabel(d.ship))}</td><td>${esc(d.itype)}</td><td>${esc(d.date)}</td><td>${esc(d.place)}</td><td>${esc(d.ncMain||"")}</td><td>${esc(d.code)}</td><td class="pre">${esc(d.detail)}</td><td class="pre">${esc([d.actual,d.corrective].filter(Boolean).join("\n"))}</td><td class="pre">${esc(d.root)}</td><td>${esc(d.risk)}</td></tr>`).join("")}</tbody></table>`;
     doPrint();
   },
@@ -16779,7 +16802,7 @@ const Defs={
     };
     $("#printArea").innerHTML=`<h1>缺失紀錄總表（自選欄位${includePhotos?"＋照片":""}）</h1>
       <div class="pmeta">匯出日期：${todayStr()} ｜ 共 ${rows.length} 筆 ｜ 船舶檢查暨缺失管理系統</div>
-      <table><thead><tr>${cols.map(c=>`<th>${esc(c[1])}</th>`).join("")}</tr></thead>
+      <table class="repeat-head"><thead><tr>${cols.map(c=>`<th>${esc(c[1])}</th>`).join("")}</tr></thead>
       <tbody>${rows.map(d=>`<tr>${cols.map(c=>`<td class="pre">${esc(cellTxt(d,c[0]))}</td>`).join("")}</tr>${photoRow(d)}`).join("")}</tbody></table>`;
     doPrint();
     this.closeCustomPdfModal();
@@ -27239,6 +27262,7 @@ const FleetDA={
     $("#fda-pane-src").style.display=this.tab==="src"?"":"none";
     $("#fda-pane-imp").style.display=this.tab==="imp"?"":"none";
     if(this.tab==="cat")this.renderCatalog(view);else if(this.tab==="src")this.renderSrc();else if(this.tab==="imp")Improve.render();else this.renderRanks(view);
+    this.renderPickBar();
   },
   /* ── 分類彙總清單：完整分類表（含 0 件的項目），左邊大類、右邊具體名稱，件數依上方同一組篩選 ── */
   catData(view,side){
@@ -27568,11 +27592,12 @@ const FleetDA={
     if(!rows.length)return `<div class="hint" style="padding:10px">${kind==="leaf"&&!this.selMain?"沒有資料。":"沒有資料。"}</div>`;
     const max=Math.max(...rows.map(r=>r.items.size));
     const list=showAll?rows:rows.slice(0,this.TOPN);
-    const th=`<div class="fda-th"><span>#</span><span>名稱</span><span>件數</span><span>船數</span><span>船內重複</span><span title="期間切成數段，每段的件數；橘色＝後半段">期間分布</span><span title="後半段 vs 前半段，每次檢查平均件數的變化（已用檢查次數校正）">趨勢</span></div>`;
+    const th=`<div class="fda-th"><span title="勾選要發給船上自查的項目（可跨大類複選）">☑ #</span><span>名稱</span><span>件數</span><span>船數</span><span>船內重複</span><span title="期間切成數段，每段的件數；橘色＝後半段">期間分布</span><span title="後半段 vs 前半段，每次檢查平均件數的變化（已用檢查次數校正）">趨勢</span></div>`;
     const body=list.map((r,i)=>{
       const unc=r.name.startsWith("(");
-      return `<div class="fda-r${sel===r.name?" sel":""}${unc?" unc":""}" onclick="FleetDA.pick('${kind}',${i})" title="${esc(r.name)}">
-        <span class="rk">${i+1}</span>
+      const pk=this.pickKey(kind,r.name);
+      return `<div class="fda-r${sel===r.name?" sel":""}${unc?" unc":""}${this.picks.has(pk)?" picked":""}" onclick="FleetDA.pick('${kind}',${i})" title="${esc(r.name)}">
+        <span class="rk">${unc||this.lens==="rc"?"":`<input type="checkbox" class="fda-pk" ${this.picks.has(pk)?"checked":""} onclick="event.stopPropagation();FleetDA.togglePick('${kind}',${i},this.checked)" title="勾選：加入「發給船上自查」">`}${i+1}</span>
         <span class="nm"><div>${esc(r.name)}${kind==="leaf"&&r.ships.size>=this._commonMin&&!unc?` <span class="fda-tag com" title="${r.ships.size} 艘船都被開過（期間內有缺失的 ${this._nShips} 艘船的三分之一，${this._commonMin} 艘以上）">★ 優先檢查</span>`:""}</div><div class="bar" style="width:${Math.max(2,Math.round(r.items.size/max*100))}%"></div></span>
         <span>${r.items.size}</span><span>${r.ships.size}</span>
         <span>${r.rep.size?`<span class="fda-tag rep" title="${esc([...r.rep].map(shipFullLabel).join("、"))}">${r.rep.size} 艘</span>`:""}</span>
@@ -27715,6 +27740,196 @@ const FleetDA={
     toast("已帶入期間、船型、船舶與分類條件（來源類別、問題性質不會帶過去）");
   },
   /* AI 分析提示詞：借用「分類彙總分析」那個 AI 視窗（同一套角色提示詞、複製、產出 Word），資料換成這裡目前選到的缺失 */
+  /* ════ 勾選排名項目 → AI 產生自查題目 → 發佈為「分享自查」（主題題：一個項目一題）════
+     勾選存在 picks（跨大類、跨篩選保留）；發佈時依「目前篩選範圍」(_view) 重新抓每個項目的缺失當資料。
+     AI 步驟沿用 Ref 的 AI 視窗（複製提示詞 → 貼回 AI 結果），再解析成每一題的「問題重點＋確認細目」。 */
+  picks:new Map(),
+  pickKey(kind,name){return `${this.lens}|${kind}|${name}`;}, // 同一個名稱不論從哪個畫面勾，都只算一題
+  togglePick(kind,i,on){
+    const row=(kind==="main"?this._mainRows:this._leafRows)[i];if(!row)return;
+    const k=this.pickKey(kind,row.name);
+    if(on){if(!this.picks.has(k))this.picks.set(k,{key:k,kind,lens:this.lens,main:kind==="leaf"?(this.selMain||""):"",name:row.name});}
+    else this.picks.delete(k);
+    this.render();
+  },
+  unpick(k){this.picks.delete(k);this.render();},
+  clearPicks(){this.picks.clear();this.render();},
+  pickItems(p){
+    const L=p.lens==="rc"?"eq":p.lens;
+    return (this._view||[]).filter(x=>{const c=x.c[L];return p.kind==="main"?c.mains.includes(p.name):c.leaves.some(([l,m])=>l===p.name&&(!p.main||m===p.main));});
+  },
+  pickMainOf(p,items){
+    if(p.kind==="main")return p.name;if(p.main)return p.main;
+    const L=p.lens==="rc"?"eq":p.lens,cnt={};
+    items.forEach(x=>x.c[L].leaves.forEach(([l,m])=>{if(l===p.name&&m)cnt[m]=(cnt[m]||0)+1;}));
+    return Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(e=>e[0])[0]||"";
+  },
+  renderPickBar(){
+    const sec=$("#tab-fleetda");if(!sec)return;
+    let bar=$("#fda-pickbar");
+    if(!bar){bar=document.createElement("div");bar.id="fda-pickbar";bar.className="fda-pickbar";sec.appendChild(bar);}
+    if(!this.picks.size||this.tab==="imp"){bar.style.display="none";return;}
+    bar.style.display="";
+    bar.innerHTML=`<b>☑ 已選 ${this.picks.size} 項</b>
+      ${[...this.picks.values()].map(p=>`<span class="pkc" title="${esc(p.main?p.main+" › ":"")}${esc(p.name)}">${esc(p.name)}<button onclick="FleetDA.unpick('${esc(p.key).replace(/'/g,"\\'")}')" title="移除">✕</button></span>`).join("")}
+      <span style="flex:1"></span>
+      <button class="btn sm primary" onclick="FleetDA.openPubAi()">🤖 AI 產生自查題目 → 發佈分享自查</button>
+      <button class="btn sm" style="background:transparent;color:#fff" onclick="FleetDA.clearPicks()">清除勾選</button>`;
+  },
+  pubTopics(){
+    const cut=(s,n)=>{s=String(s||"").replace(/\s+/g," ").trim();return s.length>n?s.slice(0,n)+"…":s;};
+    return [...this.picks.values()].map(p=>{
+      const items=this.pickItems(p),ships=[...new Set(items.map(x=>x.d.ship))];
+      const recent=items.slice().sort((a,b)=>(parseDate(b.d.date)||0)-(parseDate(a.d.date)||0));
+      const t=this.trendOf(items);
+      return {p,name:p.name,main:this.pickMainOf(p,items),items,n:items.length,ships:ships.length,
+        trend:t&&t.dir!=="flat"?`${t.dir==="up"?"上升":"下降"} ${Math.round(Math.abs(t.chg)*100)}%`:"持平",
+        examples:recent.slice(0,3).map(x=>({label:`${shipFullLabel(x.d.ship)}・${x.d.itype||""}・${normDateSlash(x.d.date)}`,detail:cut(x.d.detail,180)})),
+        summary:recent.slice(0,20).map(x=>`${x.d.itype||""} ${normDateSlash(x.d.date)}：${cut(x.d.detail,140)}`)};
+    });
+  },
+  openPubAi(){
+    if(!this.picks.size){toast("⚠ 請先在排名表勾選要發給船上自查的項目");return;}
+    if(typeof Ref==="undefined"||!Ref.openAiModal){toast("⚠ AI 提示詞元件尚未載入");return;}
+    const T=this.pubTopics(),empty=T.filter(t=>!t.n);
+    if(empty.length){toast(`⚠ 「${empty.map(t=>t.name).join("、")}」在目前篩選範圍內沒有缺失，請調整期間或移除`);return;}
+    const r=this._range||this.range(),period=this.rangeText(r);
+    const data=T.map((t,i)=>({題號:i+1,名稱:t.name,所屬大類:t.main,件數:t.n,船數:t.ships,趨勢:t.trend,缺失摘要:t.summary}));
+    const buildPrompt=persona=>`${persona}
+
+### 任務
+你是資深船舶督導／航技人員。公司要把以下 ${T.length} 個「近期船隊最常被開缺失的項目」（${period}）發給全船隊做自查。
+請針對每一個項目，寫出給船上看的「問題重點」和「船上確認細目」，船上會逐題回答「本船有沒有同樣或類似的情形」。
+
+### 寫法規則
+1. 只能根據下方資料歸納，不可補充資料裡沒有的缺失或數字；不要列船名。
+2. 「問題重點」：1～2 句、60 字以內，歸納這些缺失共同的問題型態（例如：釋放鉤保養不良、限位開關失效、操演紀錄超期）。
+3. 「船上確認細目」：3～5 條船上可以馬上做的檢查動作（看哪裡、試什麼、量什麼、紀錄要有什麼），每條 30 字以內，開頭用「□」。
+4. 題目數量、順序、名稱都要跟資料完全一致（共 ${T.length} 題），不要合併、不要新增、不要加大類標題或本期重點。
+5. 繁體中文、白話、條列；不要客套話、不要說明分析方法。
+
+### 固定輸出格式（每題都照這個格式，系統會自動讀取，請勿更動標題寫法）
+### 1. ${T[0].name}
+**問題重點：**……
+**船上確認細目：**
+- □ ……
+- □ ……
+- □ ……
+
+### 2. ……
+
+### 項目資料（JSON；缺失摘要每項最多 20 筆）
+[PASTE_DATA_HERE]`;
+    Ref._ext={defs:[...new Set(T.flatMap(t=>t.items))].map(x=>x.d),from:r.from,to:r.to,label:`發佈分享自查：${T.map(t=>t.name).join("、")}`,data,buildPrompt,publish:true,shipTitle:"船上自查重點"};
+    Ref.openAiModal();
+  },
+  parsePubAi(text,T){
+    const out=new Map();
+    const blocks=String(text||"").split(/^\s*#{2,4}\s+/m).slice(1);
+    const strip=s=>String(s||"").replace(/\*\*/g,"").replace(/^[\s:：]+/,"").trim();
+    blocks.forEach((b,bi)=>{
+      const lines=b.split(/\r?\n/);
+      const title=strip(lines[0]).replace(/^\d+\s*[.、．]\s*/,"").replace(/[（(].*$/,"").replace(/★.*$/,"").trim();
+      if(!title||/本期重點/.test(title))return;
+      let idx=T.findIndex(t=>!out.has(t.name)&&(title===t.name||title.includes(t.name)||t.name.includes(title)));
+      if(idx<0){const n=+((lines[0].match(/^\s*(\d+)/)||[])[1]||0);if(n>=1&&n<=T.length&&!out.has(T[n-1].name))idx=n-1;}
+      if(idx<0)return;
+      const body=lines.slice(1).join("\n");
+      const km=body.match(/問題重點\**\s*[:：]?\**\s*([\s\S]*?)(?=\n\s*\**\s*船上確認細目|\n\s*-\s*□|$)/);
+      const checks=body.split(/\r?\n/).map(l=>l.trim()).filter(l=>/^([-*•]\s*)?□/.test(l)).map(l=>strip(l.replace(/^([-*•]\s*)?□\s*/,""))).filter(Boolean);
+      out.set(T[idx].name,{key:km?strip(km[1]).replace(/\n+/g," "):"",checks});
+    });
+    return out;
+  },
+  openPublish(useAi){
+    const T=this.pubTopics();if(!T.length){toast("⚠ 沒有勾選項目");return;}
+    let parsed=new Map();
+    if(useAi){
+      const txt=($("#ref-ai-paste")||{}).value||"";
+      if(!txt.trim()){toast("⚠ 請先把 AI 回覆貼到「AI 結果」框，或改按「略過 AI」");return;}
+      parsed=this.parsePubAi(txt,T);
+      if(!parsed.size){toast("⚠ 讀不到 AI 回覆的題目格式（### 1. 名稱），已改用系統預設內容，可在下一步自行修改");}
+      else if(parsed.size<T.length)toast(`⚠ AI 回覆只讀到 ${parsed.size}／${T.length} 題，其餘用系統預設內容，可在下一步修改`);
+    }
+    this._pubQ=T.map(t=>{const a=parsed.get(t.name)||{};return {name:t.name,main:t.main,n:t.n,ships:t.ships,trend:t.trend,examples:t.examples,
+      key:a.key||`近期船隊共 ${t.n} 件、${t.ships} 艘船被開出「${t.name}」相關缺失（趨勢：${t.trend}），請對照下方實例確認本船狀況。`,checks:a.checks||[]};});
+    const d=new Date(),ym=`${d.getFullYear()}/${d.getMonth()+1}`,names=T.map(t=>t.name);
+    let m=$("#fdaPubModal");
+    if(!m){m=document.createElement("div");m.className="modal-bg";m.id="fdaPubModal";document.body.appendChild(m);}
+    const fleet=SHIPINFO.filter(s=>s.operator==="FPMC"&&!(typeof isSoldShip==="function"&&isSoldShip(s.code))).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code)));
+    this._pubFleet=fleet;
+    const people=new Map();fleet.forEach(s=>[["mgr","海技"],["deckSup","甲板督導"],["engineSup","機艙督導"]].forEach(([f,lbl])=>{const v=(s[f]||"").trim();if(!v)return;if(!people.has(v))people.set(v,new Set());people.get(v).add(lbl);}));
+    m.innerHTML=`<div class="modal" style="max-width:860px"><div class="mh"><h3>📮 發佈為分享自查（${T.length} 題）</h3><button class="x" onclick="$('#fdaPubModal').classList.remove('show')">✕</button></div>
+      <div class="mb" style="max-height:72vh;overflow:auto">
+        <label style="font-weight:700;font-size:13px">活動名稱</label>
+        <input type="text" id="fda-pub-title" style="width:100%;margin:4px 0 12px" value="${esc(`重點自查：${names.slice(0,3).join("、")}${names.length>3?" 等 "+names.length+" 項":""}（${ym}）`)}">
+        <div style="font-weight:700;font-size:13px;margin-bottom:6px">題目（可修改；船上每題回答「本船有沒有同樣或類似的情形」）</div>
+        ${this._pubQ.map((q,i)=>`<div class="fda-pubq">
+          <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b>#${i+1} ${esc(q.name)}</b><span class="hint">${esc(q.main)}・${q.n} 件／${q.ships} 艘・趨勢 ${esc(q.trend)}</span></div>
+          <label class="hint" style="display:block;margin-top:6px">問題重點</label><textarea id="fda-pub-key-${i}" rows="2">${esc(q.key)}</textarea>
+          <label class="hint" style="display:block;margin-top:4px">船上確認細目（一行一條）</label><textarea id="fda-pub-chk-${i}" rows="${Math.max(3,q.checks.length)}" placeholder="例：兩組電瓶分別啟動引擎，轉速表正常">${esc(q.checks.join("\n"))}</textarea>
+          <div class="hint" style="margin-top:4px">船隊實例（會一起附給船上參考）：${q.examples.map(e=>`<div>・${esc(e.label)}：${esc(e.detail)}</div>`).join("")}</div>
+        </div>`).join("")}
+        <div style="font-weight:700;font-size:13px;margin:12px 0 6px">發給哪些船</div>
+        <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="fda-pub-to" value="all" checked onchange="FleetDA.pubTargetUI()"> 全船隊（${fleet.length} 艘）</label>
+        <label style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="radio" name="fda-pub-to" value="person" onchange="FleetDA.pubTargetUI()"> 依經管人員
+          <select id="fda-pub-person" onchange="FleetDA.pubTargetUI()" style="margin-left:6px"><option value="">— 選擇人員 —</option>${[...people.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([n,set])=>`<option value="${esc(n)}">${esc(n)}（${[...set].join("、")}）</option>`).join("")}</select></label>
+        <label style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="radio" name="fda-pub-to" value="pick" onchange="FleetDA.pubTargetUI()"> 自行勾選船舶</label>
+        <div class="fda-shipgrid" id="fda-pub-ships" style="display:none">${fleet.map(s=>`<label><input type="checkbox" value="${esc(s.code)}" onchange="FleetDA.pubTargetUI(true)"> ${esc(shipFullLabel(s.code))}</label>`).join("")}</div>
+        <div class="hint" id="fda-pub-count" style="margin-top:6px;font-weight:700"></div>
+      </div>
+      <div class="mf"><button class="btn" onclick="$('#fdaPubModal').classList.remove('show')">取消</button><button class="btn primary" onclick="FleetDA.publish()">📮 發佈並複製連結</button></div></div>`;
+    m.classList.add("show");
+    this.pubTargetUI();
+  },
+  pubTargets(){
+    const mode=(document.querySelector('input[name="fda-pub-to"]:checked')||{}).value||"all";
+    const fleet=this._pubFleet||[];
+    if(mode==="person"){const n=$("#fda-pub-person").value;return n?fleet.filter(s=>[s.mgr,s.deckSup,s.engineSup].map(v=>(v||"").trim()).includes(n)).map(s=>s.code):[];}
+    if(mode==="pick")return [...document.querySelectorAll("#fda-pub-ships input:checked")].map(x=>x.value);
+    return null; // null＝全船隊
+  },
+  pubTargetUI(fromGrid){
+    const mode=(document.querySelector('input[name="fda-pub-to"]:checked')||{}).value||"all";
+    const grid=$("#fda-pub-ships");if(!grid)return;
+    // 選「依經管人員」時把對應的船勾起來，方便再手動加減；切到「自行勾選」就沿用目前勾選
+    if(mode==="person"&&!fromGrid){const set=new Set(this.pubTargets()||[]);grid.querySelectorAll("input").forEach(x=>x.checked=set.has(x.value));}
+    grid.style.display=mode==="all"?"none":"";
+    if(mode==="person"&&fromGrid){const r=document.querySelector('input[name="fda-pub-to"][value="pick"]');if(r)r.checked=true;}
+    const t=this.pubTargets();
+    $("#fda-pub-count").textContent=t===null?`將發給全船隊 ${(this._pubFleet||[]).length} 艘船`:`將發給 ${t.length} 艘船${t.length?"："+t.join("、"):""}`;
+  },
+  async publish(){
+    if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    if(typeof Role!=="undefined"&&!Role.isAdmin()&&!(Role.cur&&Role.cur.tier==="op1")){toast("⚠ 發佈分享自查僅限 Owner／管理員／督導");return;}
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){toast("⚠ 需要雲端連線才能發佈（船上要從雲端讀題目）");return;}
+    const title=($("#fda-pub-title").value||"").trim();if(!title){toast("⚠ 請填活動名稱");return;}
+    const scope=this.pubTargets();
+    if(scope&&!scope.length){toast("⚠ 請至少選一艘船");return;}
+    const items=(this._pubQ||[]).map((q,i)=>{
+      const key=($("#fda-pub-key-"+i).value||"").trim();
+      const checks=($("#fda-pub-chk-"+i).value||"").split(/\r?\n/).map(s=>s.replace(/^[-*•□\s]+/,"").trim()).filter(Boolean);
+      return {topic:q.name,main:q.main,key,checks,examples:q.examples,stat:`${q.n} 件／${q.ships} 艘・趨勢 ${q.trend}`,
+        code:"",ncMain:q.main,ncLeaf:q.name,src:"船隊缺失分析",
+        detail:`【${q.name}】${key}${checks.length?"\n請確認：\n"+checks.map(c=>"□ "+c).join("\n"):""}`,
+        actual2:q.examples.map(e=>`${e.label}：${e.detail}`).join("\n")};
+    });
+    if(items.some(it=>!it.key)){toast("⚠ 每一題都要有「問題重點」");return;}
+    if(!confirm(`確定發佈「${title}」？\n\n共 ${items.length} 題，${scope?"發給 "+scope.length+" 艘船":"發給全船隊"}。\n發佈後會產生填答連結，船上就可以開始作答。`))return;
+    const id=Date.now();
+    const campaign={id,title,items,ship_scope:scope,source_air_id:null,created_at:Date.now(),created_by:(typeof Audit!=="undefined"?Audit.user():""),active:true};
+    try{
+      await Cloud.api("selfcheck_share_campaigns",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),body:JSON.stringify([campaign])});
+    }catch(e){toast("⚠ 發佈失敗："+e.message);return;}
+    if(typeof Audit!=="undefined")Audit.log("新增","分享自查",`船隊缺失分析發佈「${title}」${items.length} 題（${scope?scope.length+" 艘船":"全船隊"}），活動 #${id}`);
+    const folder=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():location.href.replace(/[#?].*$/,"").replace(/[^/]*$/,"");
+    const link=`${folder}submit-selfcheck-share.html?cid=${id}`,copyText=`${title}\n${link}`;
+    safeCopyText(copyText,"✓ 已複製活動名稱＋填答連結");
+    $("#fdaPubModal").classList.remove("show");$("#refAiModal").classList.remove("show");Ref._ext=null;
+    this.picks.clear();this.render();
+    alert(`✓ 已發佈分享自查（${items.length} 題）。\n\n活動名稱＋填答連結已複製，請貼給船隊：\n${copyText}\n\n按「確定」後另開分頁顯示「分享自查彙整清單」，可追蹤送出情形。`);
+    const w=window.open(`${folder}selfcheck-share-summary.html`,"_blank");if(!w)location.href=`${folder}selfcheck-share-summary.html`;
+  },
   openAi(){
     if(typeof Ref==="undefined"||!Ref.openAiModal){toast("⚠ AI 提示詞元件尚未載入");return;}
     const row=this.selLeaf?(this._leafRows||[]).find(r=>r.name===this.selLeaf):this.selMain?(this._mainRows||[]).find(r=>r.name===this.selMain):null;
@@ -29185,6 +29400,7 @@ const Ref={
     if(this._ext&&this._ext.buildPrompt){$("#ref-prompt-box").value=this._ext.buildPrompt(persona);$("#ref-data-box").value=JSON.stringify(this._ext.data,null,1);}
     if($("#ref-ship-export"))$("#ref-ship-export").style.display=this._ext?"":"none";
     if($("#ref-word-normal"))$("#ref-word-normal").style.display=this._ext?"none":"";
+    if($("#ref-pub-export"))$("#ref-pub-export").style.display=(this._ext&&this._ext.publish)?"":"none";
     // 明確標出這次分析範圍是「已勾選的分類」還是「目前篩選範圍全部」，避免使用者以為
     // 勾選後就一定是限定範圍，其實 scopeDefs() 沒勾選時是退回整個篩選結果（沿用既有設計，
     // 但至少要讓畫面上看得出來現在是哪一種，不用自己猜）。
@@ -32523,19 +32739,84 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
      一旦標記，必須等到成功重新載入（pullOrMigrate 成功）才會解除。 */
   _pullFailed:new Set(),
   isPushBlocked(key){ return this._pullFailed.has(key); },
+  /* ── 快速更新（2026-10-16）──
+     開機時整包載入（loadDB）有 30 分鐘節流（省 Supabase 流量），節流期間重開／重新整理頁面
+     看到的是本機舊快取，使用者會覺得「要一直重新整理才有最新資料」。
+     這裡改成只向雲端要「上次載入之後有變動的紀錄」（updated > 上次時間），外加一份只有 id 的
+     清單用來發現別台電腦刪掉的紀錄——流量很小，所以每次開啟頁面、切回分頁都可以做。
+     安全規則：本機有尚未上傳的修改（跟快照不同）就保留本機版本不覆蓋；一次「消失」太多筆
+     （可能是讀取不完整）就不刪，等下次完整載入再處理。 */
+  SINCE_PREFIX:"vsm_rs_since_",
+  _getSince(key){try{return +localStorage.getItem(this.SINCE_PREFIX+key)||0;}catch(e){return 0;}},
+  _setSince(key,v){try{if(v)localStorage.setItem(this.SINCE_PREFIX+key,String(v));}catch(e){}},
+  async pullDelta(key){
+    const cfg=this.TABLES[key];if(!cfg)return {source:"error"};
+    const since=this._getSince(key);
+    if(!since)return {source:"nosince"};
+    const idField=cfg.idField||"id";
+    try{
+      const from=since-10*60*1000; // 各台電腦時鐘可能有誤差，往前多抓 10 分鐘（重抓到相同內容不影響）
+      let changed=[],off=0;
+      while(true){
+        const b=await Cloud.api(`${cfg.table}?select=id,updated,payload&updated=gt.${from}&order=updated.asc&limit=500&offset=${off}`);
+        if(!Array.isArray(b))throw new Error("非預期的回應格式");
+        changed=changed.concat(b);if(b.length<500)break;off+=500;
+      }
+      let ids=[];off=0;
+      while(true){
+        const b=await Cloud.api(`${cfg.table}?select=id&order=id.asc&limit=1000&offset=${off}`);
+        if(!Array.isArray(b))throw new Error("非預期的回應格式");
+        ids=ids.concat(b);if(b.length<1000)break;off+=1000;
+      }
+      const remoteIds=new Set(ids.map(r=>String(r.id)));
+      const snap=this.loadSnap(key)||{};
+      const arr=(cfg.arr()||[]).slice();
+      const pos=new Map();arr.forEach((r,i)=>{if(r&&r[idField]!=null)pos.set(String(r[idField]),i);});
+      const localDirty=rid=>{const i=pos.get(rid);return i!=null&&snap[rid]!==undefined&&JSON.stringify(arr[i])!==snap[rid];};
+      let upd=0,add=0,del=0,maxU=since;
+      changed.forEach(r=>{
+        const p=r.payload;if(!p)return;
+        const rid=String(p[idField]!=null?p[idField]:r.id);
+        if((+r.updated||0)>maxU)maxU=+r.updated;
+        const s=JSON.stringify(p);
+        if(snap[rid]===s)return; // 本機已是這個版本（或本機剛刪掉、還沒上傳：不要拉回來）
+        if(localDirty(rid))return;             // 本機有尚未上傳的修改：保留本機版本
+        if(pos.has(rid)){arr[pos.get(rid)]=p;upd++;}else{pos.set(rid,arr.length);arr.push(p);add++;}
+        snap[rid]=s;
+      });
+      let out=arr;
+      const gone=new Set(Object.keys(snap).filter(rid=>!remoteIds.has(rid)&&!localDirty(rid)));
+      if(gone.size){
+        if(gone.size>20&&gone.size>Object.keys(snap).length*0.1){
+          console.warn("RecordSync pullDelta: 雲端一次少了太多筆，先不在本機刪除，等下次完整載入",key,gone.size);
+        }else{
+          out=arr.filter(r=>!(r&&r[idField]!=null&&gone.has(String(r[idField]))));
+          del=arr.length-out.length;gone.forEach(rid=>delete snap[rid]);
+        }
+      }
+      if(upd||add||del)cfg.setArr(out);
+      this.saveSnap(key,snap);
+      this._setSince(key,maxU);
+      return {source:"delta",upd,add,del};
+    }catch(e){
+      console.warn("RecordSync pullDelta 失敗",key,e);
+      return {source:"error",error:e};
+    }
+  },
   async pullOrMigrate(key){
     const cfg=this.TABLES[key];if(!cfg)return {source:"error"};
     const idField=cfg.idField||"id";
     try{
       let rows=[],from=0;const page=1000;
       while(true){
-        const batch=await Cloud.api(`${cfg.table}?select=id,payload&order=id.asc&limit=${page}&offset=${from}`);
+        const batch=await Cloud.api(`${cfg.table}?select=id,updated,payload&order=id.asc&limit=${page}&offset=${from}`);
         if(!Array.isArray(batch))throw new Error("非預期的回應格式");
         rows=rows.concat(batch);
         if(batch.length<page)break;
         from+=page;
       }
       if(rows.length>0){
+        this._setSince(key,rows.reduce((m,r)=>Math.max(m,+r.updated||0),0)); // 之後的快速更新（pullDelta）只抓這個時間之後變動的
         const arr=rows.map(r=>r.payload).filter(Boolean);
         // 快照只記雲端版本；下面疊回去的本機修改跟快照不同，下次 flush 就會被當成「有變動」重新上傳
         const snap={};arr.forEach(r=>{if(r&&r[idField]!=null&&r[idField]!==""){snap[String(r[idField])]=JSON.stringify(r);}});
@@ -32625,7 +32906,11 @@ const Cloud={
             await this.loadDB(true,true);
             try{localStorage.setItem("vsm_last_loaddb_at",String(Date.now()));}catch(e){}
           }catch(e){console.warn("startup loadDB",e);}
+        }else{
+          // 節流期間不整包下載，但仍用「只抓變動」的快速更新，開啟頁面就是最新資料
+          try{await this.quickRefresh();}catch(e){console.warn("startup quickRefresh",e);}
         }
+        this._installQuickRefreshHooks();
         if(typeof App!=="undefined"){try{App.migrateCsoData();App.migrateOperatorData();App.migrateRootCauseDelimiterFix();}catch(e){}}
         /* 開機時先把雲端已知的刪除清單併入本機（涵蓋「別的裝置刪過、這台還不知道」的情況），
            再把本機已知的刪除清單同步清乾淨雲端上的殘留。
@@ -32966,6 +33251,62 @@ const Cloud={
     }
   },
   closeSyncModal(){const m=$("#syncStatusModal");if(m)m.classList.remove("show");},
+  /* 快速更新：各逐筆同步表只抓變動（RecordSync.pullDelta），有更新才存本機並重繪畫面。
+     這台電腦從沒記錄過「上次載入時間」（新版第一次執行）時，退回做一次完整載入。 */
+  /* ⚠ 2026-10-16 修正：原本用 window["Defs"] 這種寫法重繪，但這些模組都是 const 宣告，
+     const 不會掛在 window 上，window["Defs"] 永遠是 undefined——開機背景載入完雲端資料後
+     畫面根本沒有重繪，使用者看到的一直是舊資料，要自己再重新整理才會出現（使用者回報的狀況）。
+     改成直接引用各模組。 */
+  _rerenderPages(withInit){
+    const mods=[typeof Dash!=="undefined"?Dash:null,typeof Ov!=="undefined"?Ov:null,typeof Sp!=="undefined"?Sp:null,
+      typeof Defs!=="undefined"?Defs:null,typeof Recur!=="undefined"?Recur:null,typeof Ref!=="undefined"?Ref:null,
+      typeof SirePos!=="undefined"?SirePos:null,typeof Air!=="undefined"?Air:null,typeof InspCtrl!=="undefined"?InspCtrl:null];
+    mods.forEach(m=>{if(!m)return;try{if(withInit&&m.init)m.init();if(m.render)m.render();}catch(e){console.warn("rerender",e);}});
+  },
+  _qrBusy:false,_qrLast:0,
+  async quickRefresh(){
+    if(!this.enabled()||typeof RecordSync==="undefined"||this._qrBusy)return;
+    if(typeof Air!=="undefined"&&(Air._formDirty||Air._replyDirty))return; // 正在填單／回覆中，不動資料
+    this._qrBusy=true;this._qrLast=Date.now();
+    try{
+      let n=0,needFull=false;const changedKeys=[];
+      for(const key of Object.keys(RecordSync.TABLES)){
+        if(RecordSync._busy[key]||RecordSync._pending[key])continue; // 這個表正在上傳，先跳過
+        const r=await RecordSync.pullDelta(key);
+        if(r.source==="nosince"){needFull=true;break;}
+        if(r.source==="delta"&&(r.upd+r.add+r.del)){n+=r.upd+r.add+r.del;changedKeys.push(key);}
+      }
+      if(needFull){
+        this._qrBusy=false;
+        await this.loadDB(true,true);
+        try{localStorage.setItem("vsm_last_loaddb_at",String(Date.now()));}catch(e){}
+        return;
+      }
+      if(!n)return;
+      try{
+        LZSet(App.LSK.i,JSON.stringify(App.insp));LZSet(App.LSK.d,JSON.stringify(App.defs));
+        LZSet(App.LSK.sp,JSON.stringify(App.sirePos));LZSet(App.LSK.air,JSON.stringify(App.air));
+        LZSet(App.LSK.ic,JSON.stringify(App.inspCtrl));LZSet(App.LSK.ap,JSON.stringify(App.annualPlan));
+        LZSet(App.LSK.ad,JSON.stringify(App.auditDash));LZSet(App.LSK.dp,JSON.stringify(App.defsProjects));
+      }catch(e){}
+      App._lastSaved={};
+      App.refreshMeta&&App.refreshMeta();
+      // 只重繪、不重跑 init()：背景更新不應該把使用者設好的篩選條件清掉
+      this._rerenderPages(false);
+      try{if(typeof FleetDA!=="undefined"&&$("#tab-fleetda")&&$("#tab-fleetda").classList.contains("show"))FleetDA.render();}catch(e){}
+      try{if(typeof AnnualPlan!=="undefined")AnnualPlan.render();if(typeof AuditDash!=="undefined"&&changedKeys.includes("auditDash"))AuditDash.render();}catch(e){}
+      this.dbState("⬇ 已更新（"+new Date().toLocaleTimeString()+"）");
+      toast(`🔔 已自動更新 ${n} 筆最新資料`);
+    }finally{this._qrBusy=false;}
+  },
+  /* 切回這個分頁（離開超過 2 分鐘）時也自動快速更新，不用自己按重新整理 */
+  _installQuickRefreshHooks(){
+    if(this._qrHooked)return;this._qrHooked=true;
+    document.addEventListener("visibilitychange",()=>{
+      if(document.hidden||Date.now()-this._qrLast<2*60*1000)return;
+      this.quickRefresh().catch(e=>console.warn("quickRefresh",e));
+    });
+  },
   async loadDB(silent,notifyOnly){
     if(!silent&&typeof Air!=="undefined"&&(Air._formDirty||Air._replyDirty)){
       if(!confirm("⚠ 偵測到您目前在「線上填單」或「海技對外回覆」還有尚未存檔的輸入內容。\n\n「載入最新資料」會用雲端版本整批覆蓋本機資料，尚未存檔的部分將會遺失且無法復原。\n\n建議先回到該頁面，確認畫面上的自動儲存狀態已顯示「已儲存」，再回來點這裡載入。\n\n仍要不儲存、直接載入最新資料嗎？"))return;
@@ -33075,7 +33416,10 @@ const Cloud={
       // 差異儲存快取重置：雲端載入後以最新內容為基準，避免下次 saveAll 誤判未變動
       App._lastSaved={};
       // 重繪各頁
-      ["Dash","Ov","Sp","Defs","Recur","Ref","SirePos","Air","InspCtrl"].forEach(n=>{try{if(typeof window[n]!=="undefined"){window[n].init&&window[n].init();window[n].render&&window[n].render();}}catch(e){}});
+      // ⚠ 原本 window[n] 永遠找不到（const 宣告不掛 window），載入後畫面不會重繪；改用 _rerenderPages。
+      // 背景（silent）載入只重繪，不重跑 init，避免把使用者正在設的篩選清掉；手動載入維持原本 init＋重繪。
+      this._rerenderPages(!silent);
+      try{if(typeof FleetDA!=="undefined"&&$("#tab-fleetda")&&$("#tab-fleetda").classList.contains("show"))FleetDA.render();}catch(e){}
       const usedNewSync=migResult.inspections&&migResult.inspections.source==="new";
       const when=usedNewSync?new Date().toLocaleString():(map.inspections?new Date(map.inspections.updated).toLocaleString():"");
       const by=(!usedNewSync&&map.inspections&&map.inspections.by)?("／"+map.inspections.by):"";

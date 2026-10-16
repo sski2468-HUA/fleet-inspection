@@ -60,6 +60,25 @@ tr.done td{background:#eaf5ee}
 .modal-bg.show{display:flex}
 .modal-box{background:#fff;border-radius:10px;max-width:560px;width:100%;padding:18px;max-height:86vh;display:flex;flex-direction:column}
 .modal-box textarea{flex:1;min-height:260px;font-family:var(--sans);font-size:13px;padding:10px;border:1px solid var(--line-2);border-radius:8px;resize:vertical;line-height:1.6}
+.dfilters{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.dfg{display:flex;align-items:center;gap:6px}
+.dfl{font-size:11.5px;font-weight:700;color:var(--ink-3);letter-spacing:.5px}
+.dfg select{width:auto;padding:6px 8px;font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{border:1.5px solid var(--line-2);background:#fff;border-radius:16px;padding:3px 11px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:var(--sans);color:var(--ink-2)}
+.chip small{font-weight:400;margin-left:3px;opacity:.75}
+.chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.pendhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;margin-bottom:8px}
+.pship{display:grid;grid-template-columns:200px 1fr auto;gap:12px;align-items:start;padding:9px 6px;border-bottom:1px solid var(--line)}
+.pship:last-child{border-bottom:none}
+.pship .nm b{font-size:13.5px}
+.pship .cnt{display:inline-block;margin-top:3px;background:#fbe9e5;color:var(--bad);border-radius:12px;padding:0 9px;font-size:12px;font-weight:700}
+.pcamp{display:inline-flex;align-items:center;gap:6px;background:#f5f7f8;border:1px solid var(--line);border-radius:6px;padding:3px 8px;margin:0 6px 5px 0;font-size:12px}
+.pcamp .st{font-weight:700;font-size:11px;border-radius:10px;padding:0 6px}
+.pcamp .st.no{background:#fbe9e5;color:var(--bad)}
+.pcamp .st.ing{background:#fff4e8;color:#a05a10}
+.pcamp .st.trk{background:#eaf1f9;color:#1d4e80}
+@media(max-width:700px){.pship{grid-template-columns:1fr}}
 #printArea{display:none}
 @media print{
   #mainWrap,#toast{display:none!important}
@@ -86,6 +105,30 @@ tr.done td{background:#eaf5ee}
   <!-- 活動列表：多個活動會持續累積，這裡是進入後的預設畫面，列出全部活動＋各自統計，
        點「查看進度」才切進單一活動的詳細畫面（下面的 detailView）。 -->
   <div id="listView">
+    <!-- 總覽 Dashboard：篩選活動（檢查來源／建立者／狀態／建立天數），下方統計與「未送出船舶」都依篩選結果計算 -->
+    <div class="card" id="dashCard">
+      <div class="dfilters">
+        <div class="dfg"><span class="dfl">檢查來源</span><div id="fSrcChips" class="chips"></div></div>
+        <div class="dfg"><span class="dfl">建立者</span><select id="fBy" onchange="renderDash()"></select></div>
+        <div class="dfg"><span class="dfl">狀態</span><select id="fState" onchange="renderDash()"><option value="active">進行中</option><option value="ended">已結束</option><option value="">全部</option></select></div>
+        <div class="dfg"><span class="dfl">建立超過</span><select id="fAge" onchange="renderDash()"><option value="0">不限</option><option value="7">7 天</option><option value="14">14 天</option><option value="30">30 天</option><option value="60">60 天</option></select></div>
+        <div class="dfg"><span class="dfl">關鍵字</span><input type="text" id="fKw" placeholder="活動名稱…" oninput="renderDash()" style="width:150px;padding:6px 8px;font-size:13px"></div>
+        <button class="btn sm" onclick="clearDashFilters()">✕ 清除篩選</button>
+      </div>
+      <div class="kpis" id="dashKpis" style="margin-top:12px"></div>
+      <div class="pendhead">
+        <b style="color:var(--navy);font-size:14px">🔔 需提醒的船舶</b>
+        <select id="fPendMode" onchange="renderDash()" style="width:auto;padding:5px 8px;font-size:13px">
+          <option value="unsub">未送出（未開始＋填答中）</option>
+          <option value="track">已送出但有未結案項目</option>
+          <option value="both">兩者都列</option>
+        </select>
+        <span class="hint" id="pendCount"></span>
+        <span style="flex:1"></span>
+        <button class="btn sm" onclick="exportPending()">⬇ 匯出提醒清單 Excel</button>
+      </div>
+      <div id="pendList"></div>
+    </div>
     <div class="card">
       <div class="toolbar">
         <span style="font-weight:700;color:var(--ink-3);font-size:12px">共 <span id="campaignCount">0</span> 個活動</span>
@@ -308,11 +351,136 @@ function sortListBy(key){
   else listSort={key,dir:key==="title"?1:-1}; // 文字欄位預設 A→Z，數字／日期欄位預設由大到小
   renderListView();
 }
-function renderListView(){
-  document.getElementById("campaignCount").textContent=campaigns.length;
+/* ══════════ 總覽 Dashboard ══════════
+   活動來源＝活動名稱「缺失自查：PSC-BJ(…)，SIRE-CI(…)」裡每段「-」前面的檢查來源；
+   舊活動名稱沒有這個格式時，改從題目的來源欄（「船 檢查來源 日期」）抓。 */
+let fSrc=new Set();
+function campaignSources(c){
+  if(/^重點自查/.test(String(c.title||""))||(c.items||[]).some(it=>it.topic))return ["船隊分析"]; // 船隊缺失分析發佈的主題題活動
+  const out=new Set();
+  const t=String(c.title||"");const body=t.includes("：")?t.slice(t.indexOf("：")+1):"";
+  body.split(/[，,]/).forEach(seg=>{const m=seg.trim().match(/^([^-()（）]+?)-/);if(m)out.add(m[1].trim());});
+  if(!out.size)(c.items||[]).forEach(it=>{const p=String(it.src||"").trim().split(/\s+/);if(p.length>=3)out.add(p.slice(1,-1).join(" "));});
+  if(!out.size)out.add("其他");
+  return [...out];
+}
+function creatorOf(c){return String(c.created_by||"").replace(/[（(].*[)）]\s*$/,"").trim()||"（未記錄）";}
+function daysSince(t){return t?Math.floor((Date.now()-t)/86400000):0;}
+function dashFiltered(){
+  const by=document.getElementById("fBy").value,state=document.getElementById("fState").value;
+  const age=+document.getElementById("fAge").value||0,kw=(document.getElementById("fKw").value||"").trim().toLowerCase();
+  return campaigns.filter(c=>{
+    if(fSrc.size&&!campaignSources(c).some(s=>fSrc.has(s)))return false;
+    if(by&&creatorOf(c)!==by)return false;
+    if(state==="active"&&c.active===false)return false;
+    if(state==="ended"&&c.active!==false)return false;
+    if(age&&daysSince(c.created_at)<age)return false;
+    if(kw&&!String(c.title||"").toLowerCase().includes(kw))return false;
+    return true;
+  });
+}
+function toggleSrc(s){fSrc.has(s)?fSrc.delete(s):fSrc.add(s);renderDash();}
+function clearDashFilters(){fSrc.clear();document.getElementById("fBy").value="";document.getElementById("fState").value="active";document.getElementById("fAge").value="0";document.getElementById("fKw").value="";renderDash();}
+function fillDashFilters(){
+  const srcCnt={};campaigns.forEach(c=>campaignSources(c).forEach(s=>srcCnt[s]=(srcCnt[s]||0)+1));
+  document.getElementById("fSrcChips").innerHTML=Object.keys(srcCnt).sort().map(s=>`<button class="chip${fSrc.has(s)?" on":""}" onclick="toggleSrc('${esc(s).replace(/'/g,"\\'")}')">${esc(s)}<small>${srcCnt[s]}</small></button>`).join("")||'<span class="hint">—</span>';
+  const sel=document.getElementById("fBy"),cur=sel.value;
+  const bys=[...new Set(campaigns.map(creatorOf))].sort();
+  sel.innerHTML=`<option value="">全部</option>`+bys.map(b=>`<option ${b===cur?"selected":""}>${esc(b)}</option>`).join("");
+}
+/* 每艘船在篩選後的活動裡，哪些還沒送出（未開始／填答中）、哪些已送出但仍有未結案 */
+function pendingByShip(list,mode){
+  const map=new Map();
+  list.forEach(c=>{
+    const resp=allResponses.filter(r=>String(r.campaign_id)===String(c.id)),byShip=new Map(resp.map(r=>[r.ship,r]));
+    targetShipsFor(c,resp).forEach(s=>{
+      const r=byShip.get(s.code);let kind=null,info="";
+      if(!r||!r.submitted_at){
+        if(mode==="track")return;
+        const items=r?(r.items||[]):[];const done=items.filter(it=>it.status&&it.status!=="pending").length;
+        kind=r?"ing":"no";info=r?`填答中 ${done}/${items.length||(c.items||[]).length}`:"未開始";
+      }else{
+        if(mode==="unsub")return;
+        const open=(r.items||[]).filter(it=>it.status==="similar"&&!it.closed).length;if(!open)return;
+        kind="trk";info=`未結案 ${open} 項`;
+      }
+      if(!map.has(s.code))map.set(s.code,[]);
+      map.get(s.code).push({c,kind,info,r});
+    });
+  });
+  return [...map.entries()].map(([code,arr])=>({code,arr})).sort((a,b)=>b.arr.length-a.arr.length||a.code.localeCompare(b.code));
+}
+function renderDash(){
+  if(!document.getElementById("dashCard"))return;
+  fillDashFilters();
+  const list=dashFiltered();
+  let tot=0,sub=0,track=0;
+  list.forEach(c=>{const st=campaignStats(c);tot+=st.total;sub+=st.submitted;track+=st.track;});
+  const unsubShips=pendingByShip(list,"unsub");
+  const unsubN=unsubShips.reduce((n,x)=>n+x.arr.length,0);
+  const k=(v,l,style)=>`<div class="kpi"><div class="v" style="${style||""}">${v}</div><div class="l">${l}</div></div>`;
+  document.getElementById("dashKpis").innerHTML=
+    k(list.length,`篩選後活動數（全部 ${campaigns.length}）`)+
+    k(tot?Math.round(sub/tot*100)+"%":"—",`送出率（${sub} / ${tot} 船次）`,"color:var(--ok)")+
+    k(unsubN,"未送出船次",unsubN?"color:var(--bad)":"")+
+    k(unsubShips.length,"有未送出活動的船舶",unsubShips.length?"color:var(--bad)":"")+
+    k(track,"未結案需追蹤項目",track?"color:#a05a10":"");
+  const mode=document.getElementById("fPendMode").value;
+  const rows=pendingByShip(list,mode);
+  window._pendRows=rows;
+  document.getElementById("pendCount").textContent=rows.length?`共 ${rows.length} 艘船、${rows.reduce((n,x)=>n+x.arr.length,0)} 個活動`:"";
+  document.getElementById("pendList").innerHTML=rows.length?rows.map(x=>`<div class="pship">
+      <div class="nm"><b>${esc(shipLabel(x.code))}</b><br><span class="cnt">${x.arr.length} 個活動</span></div>
+      <div>${x.arr.map(p=>`<span class="pcamp" title="建立於 ${p.c.created_at?new Date(p.c.created_at).toLocaleDateString("zh-TW"):""}"><span class="st ${p.kind}">${esc(p.info)}</span>${esc(p.c.title||("活動 #"+p.c.id))}<span class="hint">（${daysSince(p.c.created_at)} 天）</span></span>`).join("")}</div>
+      <div><button class="btn sm" onclick="openShipReminder('${esc(x.code)}')">🔔 提醒文字</button></div>
+    </div>`).join(""):`<p class="hint" style="text-align:center;padding:12px">🎉 篩選條件下沒有需要提醒的船舶</p>`;
+  renderListView(true);
+}
+/* 一艘船跨多個活動的提醒文字：每個活動一段（名稱＋專屬連結），已送出但未結案的再列出未結案項目 */
+function buildShipReminder(code){
+  const x=(window._pendRows||[]).find(r=>r.code===code);if(!x)return "";
+  const base=location.href.replace(/[#?].*$/,"").replace(/[^/]*$/,"");
+  const un=x.arr.filter(p=>p.kind!=="trk"),tk=x.arr.filter(p=>p.kind==="trk");
+  let s=`【分享自查提醒】\n\n${shipLabel(code)} 您好：\n`;
+  if(un.length){
+    s+=`\n以下 ${un.length} 項分享自查尚未送出，請撥空完成並送出：\n`;
+    un.forEach((p,i)=>{s+=`\n${i+1}. ${p.c.title||("活動 #"+p.c.id)}（${p.info}）\n   連結：${base}submit-selfcheck-share.html?cid=${p.c.id}&ship=${encodeURIComponent(code)}\n`;});
+  }
+  if(tk.length){
+    s+=`\n以下活動已送出，但仍有「有，需處理」項目尚未結案，若已改善請回到連結勾選「已完成改善（結案）」再送出：\n`;
+    tk.forEach((p,i)=>{
+      const open=((p.r&&p.r.items)||[]).map((it,j)=>({it,j})).filter(o=>o.it.status==="similar"&&!o.it.closed);
+      s+=`\n${i+1}. ${p.c.title||("活動 #"+p.c.id)}\n${open.map(o=>`   #${o.j+1} ${o.it.code?"CODE "+o.it.code+"　":""}${String(o.it.detail||"").slice(0,80)}${(o.it.track||[]).length?"（已在追蹤："+o.it.track.join("、")+"）":""}`).join("\n")}\n   連結：${base}submit-selfcheck-share.html?cid=${p.c.id}&ship=${encodeURIComponent(code)}\n`;
+    });
+  }
+  return s+`\n謝謝配合！`;
+}
+function openShipReminder(code){
+  document.getElementById("trackModalShip").textContent=shipLabel(code);
+  document.getElementById("trackModalText").value=buildShipReminder(code);
+  document.getElementById("trackModal").classList.add("show");
+}
+function exportPending(){
+  const rows=window._pendRows||[];
+  if(!rows.length){notify("⚠ 目前沒有需要提醒的船舶","err");return;}
+  if(typeof XLSX==="undefined"){notify("⚠ Excel 元件尚未載入","err");return;}
+  const data=[];
+  rows.forEach(x=>x.arr.forEach(p=>data.push({"船舶代碼":x.code,"船名":shipLabel(x.code),"活動":p.c.title||("活動 #"+p.c.id),"檢查來源":campaignSources(p.c).join("、"),"建立者":creatorOf(p.c),
+    "建立日期":p.c.created_at?new Date(p.c.created_at).toLocaleDateString("zh-TW"):"","已過天數":daysSince(p.c.created_at),"狀態":p.info,
+    "填答連結":`${location.href.replace(/[#?].*$/,"").replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${p.c.id}&ship=${encodeURIComponent(x.code)}`})));
+  const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[{wch:8},{wch:26},{wch:40},{wch:14},{wch:10},{wch:12},{wch:8},{wch:14},{wch:60}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"需提醒船舶");
+  const d=new Date(),fn=`分享自查_需提醒船舶_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.xlsx`;
+  XLSX.writeFile(wb,fn);notify("✓ 已下載 "+fn,"ok2");
+}
+function renderListView(fromDash){
+  if(!fromDash){renderDash();return;} // 一律經由 renderDash()，活動表跟著篩選結果走
+  const shown=dashFiltered();
+  document.getElementById("campaignCount").textContent=shown.length===campaigns.length?campaigns.length:`${shown.length}（篩選中，全部 ${campaigns.length}）`;
   const box=document.getElementById("campaignList");
   if(!campaigns.length){ box.innerHTML=`<p class="hint" style="text-align:center;padding:20px">目前沒有任何分享自查活動，請在填單審核頁按「📤 建立分享自查連結」建立一個。</p>`; return; }
-  const withStats=campaigns.map(c=>({c,st:campaignStats(c)}));
+  if(!shown.length){ box.innerHTML=`<p class="hint" style="text-align:center;padding:20px">篩選條件下沒有活動。</p>`; return; }
+  const withStats=shown.map(c=>({c,st:campaignStats(c)}));
   const col=LIST_SORT_COLS[listSort.key]||LIST_SORT_COLS.created_at;
   withStats.sort((a,b)=>{
     const va=col.get(a.c,a.st),vb=col.get(b.c,b.st);
@@ -481,7 +649,7 @@ function collectReport(){
       needN:similar.length,openN:similar.filter(it=>!it.closed).length});
     similar.forEach(it=>issues.push({code:s.code,name:s.label||s.name||"",checker:resp.checker_name||"",title:resp.checker_title||"",
       itemCode:it.code||"",src:it.src||"",detail:it.detail||"",actual2:it.actual2||"",note:it.note||"",handle:it.actual||"",
-      closed:it.closed?"已結案":"未結案",closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
+      closed:it.closed?"已結案":"未結案",tracking:it.closed?"":(it.track||[]).join("、"),closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
   });
   return {status,issues};
 }
@@ -519,7 +687,7 @@ function collectReportFor(c){
       needN:similar.length,openN:similar.filter(it=>!it.closed).length});
     similar.forEach(it=>issues.push({campaign:label,code:s.code,name:s.label||s.name||"",checker:r.checker_name||"",title:r.checker_title||"",
       itemCode:it.code||"",src:it.src||"",detail:it.detail||"",actual2:it.actual2||"",note:it.note||"",handle:it.actual||"",
-      closed:it.closed?"已結案":"未結案",closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
+      closed:it.closed?"已結案":"未結案",tracking:it.closed?"":(it.track||[]).join("、"),closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
   });
   return {status,issues};
 }
@@ -542,7 +710,7 @@ function exportAllCampaigns(){
   const ws1=XLSX.utils.json_to_sheet(allStatus.map(r=>({"活動":r.campaign,"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"填答進度":r.progress,"狀態":r.state,"送出次數":r.submitCount,"最後送出":r.submittedAt,"需處理項數":r.needN,"未結案數":r.openN})));
   ws1["!cols"]=[22,8,14,12,12,10,9,8,20,10,9].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws1,"各活動船隊狀況");
-  const ws2=XLSX.utils.json_to_sheet(allIssues.map(r=>({"活動":r.campaign,"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"CODE":r.itemCode,"來源檢查":fmtSrc(r.src),"缺失內容":r.detail,"來源實際情況":r.actual2,"本船實際狀況":r.note,"處理情況":r.handle,"結案狀態":r.closed,"改善情形說明":r.closeNote,"結案日期":r.closedAt,"追蹤期限":r.trackDue})));
+  const ws2=XLSX.utils.json_to_sheet(allIssues.map(r=>({"活動":r.campaign,"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"CODE":r.itemCode,"來源檢查":fmtSrc(r.src),"缺失內容":r.detail,"來源實際情況":r.actual2,"本船實際狀況":r.note,"處理情況":r.handle,"結案狀態":r.closed,"已在追蹤（FLOW／內控／物料配件）":r.tracking,"改善情形說明":r.closeNote,"結案日期":r.closedAt,"追蹤期限":r.trackDue})));
   ws2["!cols"]=[22,8,14,12,12,10,20,40,36,36,36,9,36,12,12].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws2,"各活動需處理明細");
   XLSX.writeFile(wb,`分享自查_全部活動彙整_${new Date().toISOString().slice(0,10)}.xlsx`);
@@ -560,7 +728,7 @@ function exportExcel(){
   const ws1=XLSX.utils.json_to_sheet(status.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"填答進度":r.progress,"狀態":r.state,"送出次數":r.submitCount,"最後送出":r.submittedAt,"需處理項數":r.needN,"未結案數":r.openN})));
   ws1["!cols"]=[8,14,12,12,10,9,8,20,10,9].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws1,"船隊完成狀況");
-  const ws2=XLSX.utils.json_to_sheet(issues.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"CODE":r.itemCode,"來源檢查":fmtSrc(r.src),"缺失內容":r.detail,"來源實際情況":r.actual2,"本船實際狀況":r.note,"處理情況":r.handle,"結案狀態":r.closed,"改善情形說明":r.closeNote,"結案日期":r.closedAt,"追蹤期限":r.trackDue})));
+  const ws2=XLSX.utils.json_to_sheet(issues.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"CODE":r.itemCode,"來源檢查":fmtSrc(r.src),"缺失內容":r.detail,"來源實際情況":r.actual2,"本船實際狀況":r.note,"處理情況":r.handle,"結案狀態":r.closed,"已在追蹤（FLOW／內控／物料配件）":r.tracking,"改善情形說明":r.closeNote,"結案日期":r.closedAt,"追蹤期限":r.trackDue})));
   ws2["!cols"]=[8,14,12,12,10,20,40,36,36,36,9,36,12,12].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws2,"需處理項目");
   XLSX.writeFile(wb,`分享自查彙整_${(curCampaign.title||curCampaign.id).replace(/[\\/:*?"<>|]/g,"_")}_${new Date().toISOString().slice(0,10)}.xlsx`);
@@ -620,7 +788,7 @@ function toggleDetail(ship){
       ${actions}
       ${items.map((it,i)=>`
         <div class="itemline">
-          <b>#${i+1}</b> ${esc(it.code?("CODE "+it.code):"")}${srcTag(it)} <span class="stbadge ${it.status||'pending'}">${ST_LABEL[it.status||"pending"]}</span>${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'):""}
+          <b>#${i+1}</b> ${esc(it.topic?("📌 "+it.topic):(it.code?("CODE "+it.code):""))}${it.topic?"":srcTag(it)} <span class="stbadge ${it.status||'pending'}">${ST_LABEL[it.status||"pending"]}</span>${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'+((it.track||[]).length?'<span class="stbadge" style="background:#eaf1f9;color:#1d4e80">已在追蹤：'+esc(it.track.join("、"))+'</span>':'')):""}
           <div class="hint">${esc(it.detail||"")}</div>
           ${it.actual2?`<div class="hint">實際情況：${esc(it.actual2)}</div>`:""}
           ${it.note?`<div style="margin-top:2px"><b>本船實際狀況：</b>${esc(it.note)}</div>`:""}
