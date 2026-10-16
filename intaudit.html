@@ -1715,79 +1715,83 @@ function renderRvOverview(){
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px">
-          ${closed?`<span class="hint" style="text-align:right">${esc(((rp.payload||{}).reviewedBy)||"")}${((rp.payload||{}).reviewedAt)?"<br>"+esc(new Date((rp.payload||{}).reviewedAt).toLocaleString("zh-TW",{hour12:false})):""}</span>`:returned?`<span class="hint" style="text-align:right">等待船上重新回報${((rp.payload||{}).returnedBy)?"<br>退回人 "+esc(rp.payload.returnedBy):""}</span>`:`<button class="btn sm dark" onclick="closeReplyAudit(${r.id},'${d.uid}')">✓ 審核結案</button><button class="btn sm" onclick="returnReplyAudit(${r.id},'${d.uid}')">↩ 退回</button>`}
+          ${closed?`<span class="hint" style="text-align:right">${esc(((rp.payload||{}).reviewedBy)||"")}${((rp.payload||{}).reviewedAt)?"<br>"+esc(new Date((rp.payload||{}).reviewedAt).toLocaleString("zh-TW",{hour12:false})):""}${((rp.payload||{}).appliedAt)?`<br><span style="color:var(--ok)">✓ 海技已套用</span>`:""}${canUndoReply(rp)?`<br><button class="btn sm" style="margin-top:4px" onclick="undoReplyAudit(${r.id},'${d.uid}')" title="誤按結案時使用：改回待審核">↶ 撤銷結案</button>`:""}</span>`:returned?`<span class="hint" style="text-align:right">等待船上重新回報${((rp.payload||{}).returnedBy)?"<br>退回人 "+esc(rp.payload.returnedBy):""}${canUndoReply(rp)?`<br><button class="btn sm" style="margin-top:4px" onclick="undoReplyAudit(${r.id},'${d.uid}')" title="誤按退回時使用：改回待審核">↶ 撤銷退回</button>`:""}</span>`:`<button class="btn sm dark" onclick="closeReplyAudit(${r.id},'${d.uid}')">✓ 審核結案</button><button class="btn sm" onclick="returnReplyAudit(${r.id},'${d.uid}')">↩ 退回</button>`}
           <button class="btn sm" onclick="editDef(${r.id},${(r.defs||[]).indexOf(d)})">✎ 查看登錄</button>
         </div>
       </div>
     </div>`;
   }).join(""):`<div class="banner">目前沒有符合條件的項目。</div>`;
 }
-/* 審核結案／退回前的確認視窗：顯示要處理的船名＋缺失內容、結案人是誰。
-   沒有正式登入，所以用「當天確認過的結案人」記在這台瀏覽器（localStorage，隔天自動失效）：
-   當天第一次要選／輸入結案人，之後只顯示「結案人：ooo（今天已確認）」按確認即可。
-   結案人會寫進 reviewedBy／returnedBy，誰按的都留紀錄。 */
-const RVW_KEY="intaudit_reviewer";
-function rvwToday(){const d=new Date();return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;}
-// 記住的結案人綁定「當天＋主系統登入身份」：同一台電腦換人登入，就要重新確認
+/* 審核結案／退回前的確認視窗：列出要處理的船名＋缺失內容，結案人＝目前登入人員（進入本頁必須選擇登入人員，
+   所以不再提供「其他結案人」）。結案人會寫進 reviewedBy／returnedBy，並記錄在操作紀錄。
+   誤按可在卡片上「↶ 撤銷結案／撤銷退回」（見 undoReplyAudit）。 */
 function rvwLogin(){return (IAAuth.ident()||{}).name||"";}
-function rvwSaved(){try{const o=JSON.parse(localStorage.getItem(RVW_KEY)||"null");return o&&o.date===rvwToday()&&o.name&&(o.by||"")===rvwLogin()?o.name:"";}catch(e){return "";}}
-function rvwSave(name){try{localStorage.setItem(RVW_KEY,JSON.stringify({name,date:rvwToday(),by:rvwLogin()}));if(!localStorage.getItem("intaudit_me"))localStorage.setItem("intaudit_me",name);}catch(e){}}
 function rvwCtx(key){for(const r of Store.rows)for(const d of (r.defs||[]))if(d.uid&&`${r.id}_${d.uid}`===key)return {r,d};return null;}
 function askReviewer(action,keys){
   return new Promise(res=>{
     const isClose=action==="close",ctx=keys.map(rvwCtx).filter(Boolean);
-    const today=rvwSaved();
-    // 優先用主系統登入的姓名（督導用自己姓名登入就直接顯示「結案人為 ooo」）
-    let me=(IAAuth.ident()||{}).name||"";if(!me)try{me=localStorage.getItem("intaudit_me")||"";}catch(e){}
+    const me=rvwLogin();
+    if(!me){toast("⚠ 請先選擇登入人員",true);IAAuth.switchUser();res(null);return;}
     // 檢查人欄位可能是「黃燕華、潘獻波」這種多人字串，拆成個別姓名
     const insps=[...new Set(ctx.flatMap(c=>String(c.r.inspector||"").split(/[、,，\/／;；\s]+/)).map(s=>s.trim()).filter(Boolean))];
-    // 候選結案人：本機記的姓名＋這幾筆的檢查人（用自己姓名登錄的督導直接點自己的名字即可）
-    const cands=[...new Set([today||me,...insps].filter(Boolean))].slice(0,4);
-    const dflt=cands[0]||"";
     const list=ctx.slice(0,5).map(c=>`<li><b>${esc(shipLabel(c.r.ship))}</b>　${esc(String(c.d.finding||"").slice(0,60))}${String(c.d.finding||"").length>60?"…":""}</li>`).join("")+(ctx.length>5?`<li class="hint">…另外 ${ctx.length-5} 筆</li>`:"");
-    const nameHtml=today
-      ?`<div id="rvwFixed" style="display:flex;align-items:center;gap:10px;background:#eef6f0;border:1px solid #9fd0b2;border-radius:8px;padding:8px 12px"><span>結案人：<b style="font-size:16px">${esc(today)}</b> <span class="hint">（今天已確認）</span></span><span style="flex:1"></span><button class="btn sm" id="rvwChg">更換結案人</button></div>`
-      :"";
-    const pickHtml=`<div id="rvwPick" style="${today?"display:none":""}">
-        <div class="hint" style="margin-bottom:6px">今天第一次${isClose?"結案":"退回"}，請確認結案人（今天之內這台瀏覽器會記住，不用再選）</div>
-        ${cands.map((n,i)=>`<label style="display:flex;gap:8px;align-items:center;padding:6px 0;cursor:pointer"><input type="radio" name="rvwWho" value="c${i}" ${i?"":"checked"}> 結案人為 <b style="font-size:16px">${esc(n)}</b></label>`).join("")}
-        <label style="display:flex;gap:8px;align-items:center;padding:6px 0;cursor:pointer"><input type="radio" name="rvwWho" value="other" ${dflt?"":"checked"}> 其他結案人：<input id="rvwName" placeholder="請輸入姓名" style="flex:1;padding:5px 8px;border:1px solid var(--line);border-radius:6px"></label>
-      </div>`;
+    const warn=(insps.length&&!insps.includes(me))?`<div style="margin-top:8px;color:#9a5b00;background:#fff6e0;border:1px solid #f0d08a;border-radius:6px;padding:6px 10px;font-size:13px">⚠ 這${keys.length>1?"些":""}筆的檢查人是 <b>${esc(insps.join("、"))}</b>，您不是原檢查人，請確認是代為${isClose?"結案":"退回"}。</div>`:"";
     $("#rvwTitle").textContent=isClose?`✓ 審核結案（${keys.length} 筆）`:`↩ 退回給船上（${keys.length} 筆）`;
     $("#rvwBody").innerHTML=`
       <ul style="margin:0 0 12px;padding-left:20px;line-height:1.7;font-size:13.5px;max-height:160px;overflow:auto">${list}</ul>
-      ${nameHtml}${pickHtml}
-      <div id="rvwWarn" style="display:none;margin-top:8px;color:#9a5b00;background:#fff6e0;border:1px solid #f0d08a;border-radius:6px;padding:6px 10px;font-size:13px"></div>
-      ${isClose?`<div class="hint" style="margin-top:10px">結案後主系統只需要把這筆已審核的內容套用到缺失紀錄總表，不需要再另外審核一次。</div>`
+      <div style="display:flex;align-items:center;gap:10px;background:#eef6f0;border:1px solid #9fd0b2;border-radius:8px;padding:8px 12px">${isClose?"結案人":"退回人"}：<b style="font-size:16px">${esc(me)}</b><span class="hint">（目前登入人員）</span></div>
+      ${warn}
+      ${isClose?`<div class="hint" style="margin-top:10px">結案後主系統只需要把這筆已審核的內容套用到缺失紀錄總表，不需要再另外審核一次。如果按錯，海技套用前可在卡片上按「↶ 撤銷結案」。</div>`
         :`<div style="margin-top:12px"><b>退回原因</b> <span class="hint">（船上會在改善單上看到，請寫清楚要補什麼）</span><textarea id="rvwNote" rows="3" style="width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;box-sizing:border-box"></textarea></div>`}`;
-    const pickedName=()=>{
-      if($("#rvwPick").style.display==="none")return today;
-      const v=(document.querySelector('input[name="rvwWho"]:checked')||{}).value;
-      return v&&v[0]==="c"?cands[+v.slice(1)]:($("#rvwName").value||"").trim();
-    };
-    const refreshWarn=()=>{
-      const n=pickedName(),w=$("#rvwWarn"),others=insps.filter(x=>x!==n);
-      if(n&&insps.length&&!insps.includes(n)){w.style.display="";w.innerHTML=`⚠ 這${keys.length>1?"些":""}筆的檢查人是 <b>${esc(others.join("、"))}</b>，結案人 <b>${esc(n)}</b> 不是原檢查人，請確認是代為${isClose?"結案":"退回"}。`;}
-      else w.style.display="none";
-    };
-    if(today)$("#rvwChg").onclick=()=>{$("#rvwFixed").style.display="none";$("#rvwPick").style.display="";refreshWarn();};
-    $("#rvwBody").querySelectorAll('input[name="rvwWho"]').forEach(x=>x.onchange=refreshWarn);
-    $("#rvwName").oninput=()=>{const o=document.querySelector('input[name="rvwWho"][value="other"]');if(o)o.checked=true;refreshWarn();};
-    refreshWarn();
     const close=v=>{$("#rvwModal").style.display="none";res(v);};
     $("#rvwNo").onclick=()=>close(null);
     $("#rvwOk").textContent=isClose?"確認結案":"確認退回";
     $("#rvwOk").onclick=()=>{
-      const name=pickedName();
-      if(!name||name.length<2){toast("⚠ 請選擇或輸入結案人姓名");return;}
       const note=isClose?"":($("#rvwNote").value||"").trim();
       if(!isClose&&!note){toast("⚠ 請填寫退回原因");return;}
-      rvwSave(name);close({name,note});
+      close({name:me,note});
     };
     $("#rvwModal").style.display="flex";
   });
 }
-/* 退回：請船上補充後重新回報。跟原本在主系統裡的退回邏輯一樣（status 改成 returned、
+/* ↶ 撤銷結案／撤銷退回（誤按時用）：把狀態改回「待審核」，船上回報內容保留不動。
+   ・誰可以撤銷：當初的結案人／退回人本人，或 Owner／管理員。
+   ・已被海技套用到主系統缺失紀錄（appliedAt）的結案：只有 Owner／管理員能撤銷，且要提醒主系統那邊需人工更正。
+   ・退回後船上已重新送出（狀態已不是 returned）就不能撤銷退回。
+   每次撤銷都記在 payload.undoHistory 與操作紀錄。 */
+function canUndoReply(rp){
+  if(!rp)return false;const p=rp.payload||{},me=rvwLogin();
+  if(rp.status==="reviewed")return IAAuth.canDelete()||(!p.appliedAt&&!!me&&p.reviewedBy===me);
+  if(rp.status==="returned")return IAAuth.canDelete()||(!!me&&p.returnedBy===me);
+  return false;
+}
+async function undoReplyAudit(rid,uid){
+  const key=`${rid}_${uid}`,rp=Store.replies[key];if(!rp)return;
+  if(!canUndoReply(rp)){toast("⚠ 只有當初的結案人／退回人本人，或 Owner／管理員可以撤銷",true);return;}
+  const p=rp.payload||{},isClose=rp.status==="reviewed",c=rvwCtx(key);
+  const what=isClose?"結案":"退回";
+  let msg=`確定要撤銷這筆的「${what}」，改回「待審核」嗎？\n\n${c?shipLabel(c.r.ship)+"："+String(c.d.finding||"").slice(0,60):""}\n${what}人：${(isClose?p.reviewedBy:p.returnedBy)||"—"}`;
+  if(isClose&&p.appliedAt)msg+=`\n\n⚠ 這筆已於 ${new Date(p.appliedAt).toLocaleString("zh-TW",{hour12:false})} 由海技套用到主系統缺失紀錄，撤銷後主系統那筆不會自動改回，請通知海技組一併更正。`;
+  if(!isClose)msg+="\n\n退回原因會清除，船上改善單會回到「已送出、待督導審核」。";
+  if(!confirm(msg))return;
+  // 先讀雲端最新狀態，避免船上剛好重新送出或別人已處理
+  let cur;try{cur=(await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}&select=status,payload,updated_at`)||[])[0];}catch(e){toast("⚠ 讀取失敗："+e.message,true);return;}
+  if(!cur||cur.status!==rp.status){toast("⚠ 這筆狀態剛被更新過，請按「🔄 重新整理」後再確認",true);return;}
+  const now=Date.now(),cp=cur.payload||{};
+  const hist=Array.isArray(cp.undoHistory)?cp.undoHistory.slice(-19):[];
+  hist.push({at:now,by:rvwLogin(),undid:what,prevBy:isClose?cp.reviewedBy:cp.returnedBy,prevAt:isClose?cp.reviewedAt:cp.returnedAt,prevNote:isClose?"":cp.returnNote||""});
+  const np=Object.assign({},cp,{undoHistory:hist});
+  if(isClose){delete np.reviewedAt;delete np.reviewedBy;delete np.appliedAt;delete np.appliedBy;}
+  else{delete np.returnNote;delete np.returnedAt;delete np.returnedBy;}
+  try{
+    const r=await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}&updated_at=eq.${cur.updated_at}`,{method:"PATCH",headers:H({"Prefer":"return=representation"}),body:JSON.stringify({status:"submitted",payload:np,updated_at:now})});
+    if(!r||!r.length)throw new Error("這筆剛被更新過，請重新整理後再試");
+  }catch(e){toast("⚠ 撤銷失敗："+e.message,true);return;}
+  rp.status="submitted";rp.payload=np;
+  IALog.log("撤銷"+what,"改善單",`${c?recLabel(c.r)+"："+String(c.d.finding||"").slice(0,60):key}｜原${what}人 ${(isClose?cp.reviewedBy:cp.returnedBy)||"—"}${isClose&&cp.appliedAt?"｜⚠ 已套用至主系統，需人工更正":""}`);
+  toast(`↶ 已撤銷${what}，改回待審核`);
+  renderReview();renderList();
+}/* 退回：請船上補充後重新回報。跟原本在主系統裡的退回邏輯一樣（status 改成 returned、
    記下退回原因），只是現在直接在督導端這裡做，不用再跑一趟主系統。 */
 async function returnReplyAudit(rid,uid){
   const key=`${rid}_${uid}`,rp=Store.replies[key];if(!rp||rp.status!=="submitted")return;
@@ -1869,6 +1873,8 @@ function gotoReviewItem(rid,uid){
     if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash");}
   },50);
 }
+/* 內控 JSON（匯入船舶動態與早會待辦系統用）：內控案件目前直接在本系統結案，先關閉；要恢復改成 true */
+const IC_JSON_ON=false;
 /* 匯出：一個按鈕，跳出視窗列出可下載的項目 */
 function openExport(id){
   const r=Store.rows.find(x=>x.id===id);if(!r)return;
@@ -1879,7 +1885,7 @@ function openExport(id){
     row("exportWord","⬇ Word（.docx）","檢查缺失具體項目記錄表：含照片，若船上已回報，改善措施／完成日期／證據照片也會一併帶入；每條缺失獨立一頁",false)+
     row("exportJson","⬇ JSON","這張登錄單的完整資料（含照片），可備份或日後匯入",false)+
     row("exportIcXls","⬇ 內控 Excel（.xls）",nIc?`只含結案方式為「內控」的 ${nIc} 筆缺失；欄位同船舶動態系統的內控異常清單（16 欄）`:"這張登錄單沒有結案方式為「內控」的缺失",!nIc)+
-    row("exportIcJson","⬇ 內控 JSON",nIc?"只含「內控」缺失，含船上回報內容，供日後匯入用":"這張登錄單沒有結案方式為「內控」的缺失",!nIc);
+    row("exportIcJson","⬇ 內控 JSON",!IC_JSON_ON?"暫未開啟使用（內控案件目前直接在本系統結案）":nIc?"只含「內控」缺失，含船上回報內容，供日後匯入用":"這張登錄單沒有結案方式為「內控」的缺失",!nIc||!IC_JSON_ON);
   $("#exportModal").style.display="flex";
 }
 function closeExport(){$("#exportModal").style.display="none";}
@@ -2156,12 +2162,12 @@ function renderDownloadTab(){
           <span class="hint" style="margin-left:8px">${cur.wordDlAt?`<b style="color:var(--ok)">✓ ${esc(cur.wordDlBy||cur.inspector||"")} 已於 ${fmtT(cur.wordDlAt)} 下載</b>`:`<b style="color:var(--bad)">尚未下載</b>`}</span>
         </div>
       </div>
-      <div style="display:none;padding-top:12px;border-top:1px dashed var(--line-2)"><!-- 內控案件目前直接在本系統結案，不需匯入船舶動態與早會待辦系統；保留程式以備日後恢復 -->
-        <div class="hint" style="font-weight:700;margin-bottom:8px">選用：下載內控 JSON</div>
+      <div style="padding-top:12px;border-top:1px dashed var(--line-2);${IC_JSON_ON?"":"opacity:.55"}"><!-- 內控案件目前直接在本系統結案，不需匯入船舶動態與早會待辦系統：按鈕先反灰，日後要開啟把 IC_JSON_ON 改成 true -->
+        <div class="hint" style="font-weight:700;margin-bottom:8px">選用：下載內控 JSON${IC_JSON_ON?"":"（暫未開啟使用）"}</div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <button class="btn" style="min-width:220px" ${nIc?"":"disabled"} onclick="dlIcJsonInTab()">⬇ 下載內控 JSON</button>
-            <span class="hint">${nIc?`含 ${nIc} 筆內控異常；下載後請帶去「船舶動態與早會待辦系統」登入建檔`:"這張單目前沒有結案方式為「內控」的缺失"}${cur.icJsonDlAt?`<br><b style="color:var(--ok)">✓ ${esc(cur.icJsonDlBy||cur.inspector||"")} 已於 ${fmtT(cur.icJsonDlAt)} 下載</b>`:""}</span>
+            <button class="btn" style="min-width:220px" ${(nIc&&IC_JSON_ON)?"":"disabled"} onclick="dlIcJsonInTab()" title="${IC_JSON_ON?"":"暫未開啟使用：內控案件目前直接在本系統結案"}">⬇ 下載內控 JSON</button>
+            <span class="hint">${!IC_JSON_ON?"暫未開啟使用——內控案件目前直接在本系統審核結案，不需匯入船舶動態與早會待辦系統":nIc?`含 ${nIc} 筆內控異常；下載後請帶去「船舶動態與早會待辦系統」登入建檔`:"這張單目前沒有結案方式為「內控」的缺失"}${cur.icJsonDlAt?`<br><b style="color:var(--ok)">✓ ${esc(cur.icJsonDlBy||cur.inspector||"")} 已於 ${fmtT(cur.icJsonDlAt)} 下載</b>`:""}</span>
           </div>
         </div>
       </div>
