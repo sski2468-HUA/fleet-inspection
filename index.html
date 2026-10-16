@@ -1363,6 +1363,8 @@ table.ap-xl td.ap-selm{box-shadow:inset 2px 0 0 #1b6ec2,inset -2px 0 0 #1b6ec2}
 .fda-th,.fda-r{display:grid;grid-template-columns:44px minmax(0,1fr) 44px 40px 58px 70px 62px;gap:8px;align-items:center;padding:6px 8px}
 .fda-r .rk{display:flex;align-items:center;gap:4px;justify-content:flex-start}
 .fda-pk{width:15px;height:15px;margin:0;cursor:pointer;flex:none}
+.fda-starnote{margin-top:10px;padding:8px 10px;background:#f5f2fb;border:1px solid #e0d6f0;border-radius:6px;font-size:12px;color:var(--ink-2);line-height:1.7}
+.fda-starnote .fda-tag{margin-right:4px}
 .fda-r.picked{background:#fff6ea}
 .fda-pickbar{position:sticky;bottom:0;z-index:30;margin-top:12px;background:var(--navy);color:#fff;border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 -4px 16px rgba(0,0,0,.18)}
 .fda-pickbar .pkc{background:rgba(255,255,255,.14);border-radius:14px;padding:2px 6px 2px 10px;font-size:12px;display:inline-flex;align-items:center;gap:4px}
@@ -6976,6 +6978,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <div class="hint" style="margin-bottom:8px">把 AI 回覆貼在上面的框，按「讀取 AI 內容並發佈」，系統會把每題的「問題重點＋船上確認細目」帶進發佈畫面，確認後選船發佈。</div>
           <button class="btn primary" onclick="FleetDA.openPublish(true)">📮 讀取 AI 內容並發佈</button>
           <button class="btn" onclick="FleetDA.openPublish(false)">略過 AI，用系統內容發佈</button>
+        </div>
+        <div style="margin-top:10px;display:none;background:#eef4fb;border:1px solid #c3d6ec;border-radius:8px;padding:10px 12px" id="ref-rpt-export">
+          <div style="font-weight:700;color:var(--navy);margin-bottom:4px">📊 產出主管報告（安全會議／月報用）</div>
+          <div class="hint" style="margin-bottom:8px">把 AI 回覆貼在上面的框，再按下方按鈕。報告會依序放：AI 寫的報告內容 → 系統產生的附圖（圖1 件數與船數、圖2 期間趨勢、圖3 檢查來源分布）→ 附錄：勾選項目的缺失清單。</div>
+          <button class="btn primary" onclick="FleetDA.exportReport('word')">⬇ 產出 Word（主管報告）</button>
+          <button class="btn primary" onclick="FleetDA.exportReport('pdf')">🖨 產出 PDF（主管報告）</button>
         </div>
       </div>
     </div>
@@ -12784,6 +12792,38 @@ function pagerHtml(page,pages,total,mod,uid){
 }
 
 /* ════════ 📋 個人代辦事項：依登入身份彙整跟自己有關、尚未完成的事項 ════════ */
+/* ════════ 內部檢查：船上已回報、待督導審核的改善單（給待辦事項用）════════
+   只抓 status=submitted 的回報（量很小），再用 record_id 查登錄單的船名／檢查人。
+   開機時、切回分頁時更新（最多每 5 分鐘一次），更新完重算待辦事項。 */
+const IAPend={
+  rows:[],at:0,busy:false,
+  async refresh(force){
+    if(typeof Cloud==="undefined"||!Cloud.enabled()||this.busy)return;
+    if(!force&&Date.now()-this.at<5*60*1000)return;
+    this.busy=true;
+    try{
+      const rp=await Cloud.api("intaudit_replies?select=record_id,def_uid,updated_at&status=eq.submitted&limit=2000")||[];
+      const ids=[...new Set(rp.map(r=>r.record_id).filter(x=>x!=null))];
+      let recs=[];
+      for(let i=0;i<ids.length;i+=100){
+        recs=recs.concat(await Cloud.api(`intaudit_records?select=id,ship:payload->>ship,insp:payload->>inspector&id=in.(${ids.slice(i,i+100).map(encodeURIComponent).join(",")})`)||[]);
+      }
+      const rm=new Map(recs.map(r=>[String(r.id),r]));
+      this.rows=rp.map(r=>{const rc=rm.get(String(r.record_id));return rc&&rc.ship?{ship:rc.ship,insp:String(rc.insp||"").split("、").map(s=>s.trim()).filter(Boolean),at:+r.updated_at||0}:null;}).filter(Boolean);
+      this.at=Date.now();
+    }catch(e){console.warn("IAPend.refresh",e);}
+    finally{this.busy=false;}
+    try{if(typeof Todo!=="undefined")Todo.render();}catch(e){}
+  },
+  supsOf(code){const s=(typeof SHIPINFO!=="undefined")?SHIPINFO.find(x=>x.code===code):null;return s?[s.deckSup,s.engineSup].map(v=>String(v||"").trim()).filter(Boolean):[];},
+  open(){const f=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";window.open(f+"intaudit.html?review=1","_blank");},
+  /* 依船整理：{ship, n, oldestDays} */
+  byShip(filter){
+    const m=new Map();
+    this.rows.filter(filter||(()=>true)).forEach(r=>{if(!m.has(r.ship))m.set(r.ship,{ship:r.ship,n:0,oldest:Infinity});const o=m.get(r.ship);o.n++;if(r.at&&r.at<o.oldest)o.oldest=r.at;});
+    return [...m.values()].map(o=>Object.assign(o,{days:o.oldest===Infinity?0:Math.floor((Date.now()-o.oldest)/86400000)})).sort((a,b)=>b.days-a.days);
+  }
+};
 const Todo={
   render(){
     const host=$("#todo-panel");
@@ -12906,6 +12946,16 @@ const Todo={
       if(pendingTotal>0)items.push({icon:"📋",text:`您負責的船舶尚有 ${pendingTotal} 項自查待完成`,
         action:()=>goToTab("self")});
     }
+    // 內部檢查：自己負責的船（甲板／機艙督導）或自己登錄的檢查，船上已回報改善、等督導審核
+    if(me&&typeof IAPend!=="undefined"){
+      const mine=IAPend.byShip(r=>IAPend.supsOf(r.ship).includes(me)||r.insp.includes(me));
+      const n=mine.reduce((a,o)=>a+o.n,0);
+      if(n>0){
+        const old=mine[0];
+        items.push({icon:"✅",text:`內部檢查改善單待審核：您負責的 ${mine.length} 艘船共 ${n} 筆船上已回報，等您審核結案（${mine.slice(0,4).map(o=>`${o.ship} ${o.n} 筆`).join("、")}${mine.length>4?"…":""}${old.days>=7?`；最久已等 ${old.days} 天`:""}）`,
+          action:()=>IAPend.open()});
+      }
+    }
     // 自己身為「檢查安排人」的檢查管控項目已逾期或即將到期（紅色警示）
     if(me&&typeof InspCtrl!=="undefined"){
       const attn=(App.inspCtrl||[]).map(d=>InspCtrl.computeRow(d))
@@ -12931,6 +12981,19 @@ const Todo={
         .filter(r=>{const m=mgrOfShip(r.ship),o=String(r.owner||"").trim();return (!m&&!o)||m===meM||o===meM;}).length;
       if(overdueIC>0)items.push({icon:"🔔",text:`檢查排程：您負責的船有 ${overdueIC} 項檢查已逾期`,
         action:()=>goToTab("inspctrl",()=>{InspCtrl.quickStatus="逾期";InspCtrl.render();})});
+    }
+    // 內部檢查：自己經管的船（船舶資料「海技負責人」）有船上已回報、等督導審核的改善單 → 提醒海技去催督導
+    if(typeof IAPend!=="undefined"){
+      const meI=(typeof Role!=="undefined"&&Role.personName)?String(Role.personName()||"").trim():"";
+      const mgrOfI=code=>{const s=(typeof SHIPINFO!=="undefined")?SHIPINFO.find(x=>x.code===code):null;return s?String(s.mgr||"").trim():"";};
+      const mine=IAPend.byShip(r=>{const m=mgrOfI(r.ship);return !m||m===meI;});
+      const n=mine.reduce((a,o)=>a+o.n,0);
+      if(n>0){
+        const sups=[...new Set(mine.flatMap(o=>IAPend.supsOf(o.ship)))];
+        const late=mine.filter(o=>o.days>=7);
+        items.push({icon:"⏳",text:`內部檢查改善單待督導審核：您經管的 ${mine.length} 艘船共 ${n} 筆${late.length?`（其中 ${late.length} 艘已等超過 7 天）`:""}，請提醒督導${sups.length?"："+sups.slice(0,6).join("、"):""}`,
+          action:()=>IAPend.open()});
+      }
     }
     // 線上填單：完全還沒轉入檢查紀錄／缺失紀錄／正向評論的填單，最容易在填完基本資料後
     // 就忘記按「→轉入紀錄」，資料停在填單清單裡、沒有真正進到系統的統計與分析裡。
@@ -27580,7 +27643,9 @@ const FleetDA={
         <span>${r.rep.size?`<span class="fda-tag rep" title="${esc([...r.rep].map(shipFullLabel).join("、"))}">${r.rep.size} 艘</span>`:""}</span>
         ${(()=>{const t=this.trendOf([...r.items]);return `<span>${this.sparkHtml(t)}</span><span>${this.trendHtml(t)}</span>`;})()}</div>`;}).join("");
     const more=rows.length>this.TOPN?`<div style="text-align:center;margin-top:6px"><button class="btn sm" onclick="FleetDA.${kind==="main"?"showAllMain":"showAllLeaf"}=${!showAll};FleetDA.render()">${showAll?"▲ 只顯示前 "+this.TOPN+" 項":"▼ 顯示全部 "+rows.length+" 項"}</button></div>`:"";
-    return th+body+more;
+    // 「★ 優先檢查」是什麼：直接寫在具體名稱排名下方，不用另外點說明
+    const star=kind==="leaf"&&this.lens!=="rc"?`<div class="fda-starnote"><span class="fda-tag com">★ 優先檢查</span>＝這段期間有缺失的 <b>${this._nShips||0}</b> 艘船中，有 <b>三分之一（${this._commonMin||"—"} 艘）以上</b>都被開過的項目。代表不是個別船的問題，而是船隊普遍的弱點，建議列為船上自查與督導檢查的優先項目。</div>`:"";
+    return th+body+more+star;
   },
   renderRanks(view){
     const L=this.lens,LN=this.LENS[L];
@@ -27750,6 +27815,7 @@ const FleetDA={
     bar.innerHTML=`<b>☑ 已選 ${this.picks.size} 項</b>
       ${[...this.picks.values()].map(p=>`<span class="pkc" title="${esc(p.main?p.main+" › ":"")}${esc(p.name)}">${esc(p.name)}<button onclick="FleetDA.unpick('${esc(p.key).replace(/'/g,"\\'")}')" title="移除">✕</button></span>`).join("")}
       <span style="flex:1"></span>
+      <button class="btn sm" style="background:#fff;color:var(--navy);font-weight:700" onclick="FleetDA.openReportAi()" title="安全會議／月報向主管報告用：AI 寫現況、分析、改善建議，系統附圖表與勾選項目的缺失清單">📊 產生主管報告</button>
       <button class="btn sm primary" onclick="FleetDA.openPubAi()">🤖 AI 產生自查題目 → 發佈分享自查</button>
       <button class="btn sm" style="background:transparent;color:#fff" onclick="FleetDA.clearPicks()">清除勾選</button>`;
   },
@@ -27906,6 +27972,179 @@ const FleetDA={
     this.picks.clear();this.render();
     alert(`✓ 已發佈分享自查（${items.length} 題）。\n\n活動名稱＋填答連結已複製，請貼給船隊：\n${copyText}\n\n按「確定」後另開分頁顯示「分享自查彙整清單」，可追蹤送出情形。`);
     const w=window.open(`${folder}selfcheck-share-summary.html`,"_blank");if(!w)location.href=`${folder}selfcheck-share-summary.html`;
+  },
+  /* ════ 主管報告（安全會議／月報）：勾選項目 → AI 寫現況／分析／改善建議 → 系統附圖＋缺失清單 ════ */
+  rptTopics(){
+    const T=this.pubTopics();
+    return T.map(t=>{
+      const byShip=new Map();t.items.forEach(x=>{if(!byShip.has(x.d.ship))byShip.set(x.d.ship,new Set());byShip.get(x.d.ship).add(`${x.d.date}|${x.d.itype}`);});
+      // 船內重複：跟排名表同一個定義——同船、同一個具體名稱，在 2 次以上不同檢查被開
+      const L=t.p.lens==="rc"?"eq":t.p.lens,g=new Map();
+      t.items.forEach(x=>x.c[L].leaves.forEach(([lf,mn])=>{
+        if(t.p.kind==="leaf"?lf!==t.name:mn!==t.name)return;
+        const k=x.d.ship+"\u0001"+lf;if(!g.has(k))g.set(k,new Set());g.get(k).add(`${x.d.date}|${x.d.itype}`);}));
+      const rep=[...new Set([...g.entries()].filter(([,s])=>s.size>=2).map(([k])=>k.split("\u0001")[0]))];
+      const topShips=[...byShip.entries()].sort((a,b)=>b[1].size-a[1].size).slice(0,5).map(([s,set])=>`${shipFullLabel(s)}(${set.size})`);
+      const src={};t.items.forEach(x=>{const g=this.srcGroup(x.d.itype);src[g]=(src[g]||0)+1;});
+      const tr=this.trendOf(t.items);
+      const st={};t.items.forEach(x=>{const s=Defs.list3Status?Defs.list3Status(x.d)[1]:"";st[s]=(st[s]||0)+1;});
+      return Object.assign(t,{rep,topShips,src,tr,status:st});
+    });
+  },
+  openReportAi(){
+    if(!this.picks.size){toast("⚠ 請先在排名表勾選要報告的項目");return;}
+    if(typeof Ref==="undefined"||!Ref.openAiModal){toast("⚠ AI 提示詞元件尚未載入");return;}
+    const T=this.rptTopics(),empty=T.filter(t=>!t.n);
+    if(empty.length){toast(`⚠ 「${empty.map(t=>t.name).join("、")}」在目前篩選範圍內沒有缺失，請調整期間或移除`);return;}
+    const r=this._range||this.range(),period=this.rangeText(r),view=this._view||[];
+    const TB=this._tb||{buckets:[],insp:[]};
+    const totalInsp=TB.insp.reduce((a,b)=>a+b,0);
+    const data={
+      期間:period,篩選條件:this.filterText?this.filterText():"",
+      船隊整體:{缺失總數:view.length,涉及船數:new Set(view.map(x=>x.d.ship)).size,檢查次數:totalInsp},
+      期間分段:TB.buckets.map((b,i)=>({期間:b.from===b.to?b.from:`${b.from}～${b.to}`,檢查次數:TB.insp[i]})),
+      報告項目:T.map((t,i)=>({圖表編號:`項目${i+1}`,名稱:t.name,所屬大類:t.main,件數:t.n,占全部缺失:view.length?Math.round(t.n/view.length*1000)/10+"%":"",
+        涉及船數:t.ships,船內重複船數:t.rep.length,趨勢:t.trend,
+        各期間件數:t.tr?t.tr.c:[],前半段每次檢查平均:t.tr?+t.tr.r1.toFixed(3):null,後半段每次檢查平均:t.tr?+t.tr.r2.toFixed(3):null,
+        檢查來源分布:t.src,改善狀態:t.status,最多的船:t.topShips,缺失摘要:t.summary}))
+    };
+    const buildPrompt=persona=>`${persona}
+
+### 任務
+你是資深船舶安全／品質管理人員。請依下方資料，寫一份要在「安全會議／月報」向公司主管報告的「船隊缺失重點分析報告」，主題是以下 ${T.length} 個項目：${T.map(t=>t.name).join("、")}（期間 ${period}）。
+讀者是主管，要在 3～5 分鐘內看懂：問題有多大、有沒有變嚴重、為什麼、公司打算怎麼做、需要主管決定什麼。
+
+### 寫法規則
+1. 只能使用下方資料裡的數字與事實，不可自行補充或推估資料裡沒有的數字；推論請寫「可能」。
+2. 繁體中文、白話、條列為主，每條 40 字以內；關鍵數字用 **粗體**。不要客套話、不要說明分析方法。
+3. 系統會在報告後面自動附上三張圖，請在內文適當位置引用：
+   - 圖1：各項目件數與涉及船數
+   - 圖2：各項目期間趨勢（各期間件數）
+   - 圖3：各項目檢查來源分布
+   以及「附錄：缺失清單」（勾選項目的全部缺失）。不要自己畫圖或列缺失清單。
+4. 趨勢判斷請用「每次檢查平均件數」（已用檢查次數校正），不要只看件數多寡。
+
+### 固定輸出格式
+## 報告摘要
+- （3 條，主管只看這裡也要懂：最嚴重的問題、趨勢、最需要的決策）
+
+## 一、現況說明
+- 期間、船隊整體缺失數、這 ${T.length} 項合計占比（見圖1）
+- 趨勢概況（見圖2）、主要來自哪些檢查（見圖3）
+
+## 二、重點項目分析
+### 1. 〈項目名稱〉
+- **數據**：件數／涉及船數／船內重複船數／趨勢
+- **問題型態**：歸納共同問題（2～3 點）
+- **可能原因**：依人員／設備／系統（程序、PMS、訓練）分類
+- **風險**：若不改善可能造成的影響（例如檢查扣分、滯留、事故）
+（每個項目都照這個格式）
+
+## 三、改善建議
+| 項目 | 改善措施 | 建議負責單位 | 時程（短期／中期） |
+|------|----------|--------------|------------------|
+
+## 四、追蹤指標
+- 建議用哪些指標追蹤成效（例如每次檢查平均件數、船內重複船數、改善完成率），以及目標值
+
+## 五、需主管協助／決策事項
+- （例如：預算、備品、訓練資源、跨部門協調；沒有就寫「無」）
+
+### 報告資料（JSON）
+[PASTE_DATA_HERE]`;
+    Ref._ext={defs:[...new Set(T.flatMap(t=>t.items))].map(x=>x.d),from:r.from,to:r.to,label:`主管報告：${T.map(t=>t.name).join("、")}`,data,buildPrompt,report:true};
+    Ref.openAiModal();
+  },
+  /* 附圖：用 canvas 畫成 PNG（2 倍解析度），Word／PDF 都可以直接嵌入 */
+  RPT_COLORS:["#2c64a0","#e8842c","#2e8b57","#7b4fa3","#c0392b","#1e7f8c","#b8860b","#52656f","#5b8fc7","#d35d8c"],
+  _canvas(w,h){const c=document.createElement("canvas");c.width=w*2;c.height=h*2;const g=c.getContext("2d");g.scale(2,2);g.fillStyle="#fff";g.fillRect(0,0,w,h);g.font="13px 'Microsoft JhengHei',sans-serif";g.textBaseline="middle";return {c,g,w,h};},
+  _trimLabel(g,s,max){s=String(s);if(g.measureText(s).width<=max)return s;while(s.length>1&&g.measureText(s+"…").width>max)s=s.slice(0,-1);return s+"…";},
+  rptChart1(T){
+    const rowH=40,top=46,W=900,H=top+T.length*rowH+20;const {c,g}=this._canvas(W,H);
+    g.fillStyle="#16324f";g.font="bold 15px 'Microsoft JhengHei',sans-serif";g.fillText("圖1　各項目件數與涉及船數",14,20);
+    const L=230,R=W-240,max=Math.max(...T.map(t=>t.n),1);
+    g.font="13px 'Microsoft JhengHei',sans-serif";
+    T.forEach((t,i)=>{const y=top+i*rowH+rowH/2;
+      g.fillStyle="#15262f";g.textAlign="right";g.fillText(this._trimLabel(g,t.name,L-20),L-10,y);g.textAlign="left";
+      const bw=Math.max(2,(R-L)*t.n/max);g.fillStyle=this.RPT_COLORS[i%10];g.fillRect(L,y-11,bw,22);
+      g.fillStyle="#15262f";g.fillText(`${t.n} 件／${t.ships} 艘${t.rep.length?"（船內重複 "+t.rep.length+" 艘）":""}`,L+bw+8,y);});
+    return c.toDataURL("image/png");
+  },
+  rptChart2(T){
+    const TB=this._tb||{buckets:[],insp:[]};const nb=TB.buckets.length;if(!nb)return null;
+    const W=900,H=400,top=50,bottom=70,left=50,right=20;const {c,g}=this._canvas(W,H);
+    g.fillStyle="#16324f";g.font="bold 15px 'Microsoft JhengHei',sans-serif";g.fillText("圖2　各項目期間趨勢（各期間件數；括號為該期間檢查次數）",14,20);
+    const series=T.map(t=>t.tr?t.tr.c:new Array(nb).fill(0)),max=Math.max(1,...series.flat());
+    const ph=H-top-bottom,pw=W-left-right,gw=pw/nb,bw=Math.min(26,(gw-14)/T.length);
+    g.font="11px 'Microsoft JhengHei',sans-serif";g.strokeStyle="#e3e8ec";g.fillStyle="#8195a0";
+    const step=Math.max(1,Math.ceil(max/5));for(let v=0;v<=max;v+=step){const y=top+ph-ph*v/max;g.beginPath();g.moveTo(left,y);g.lineTo(W-right,y);g.stroke();g.textAlign="right";g.fillText(v,left-6,y);}
+    g.textAlign="center";
+    TB.buckets.forEach((b,bi)=>{const x0=left+bi*gw,cx=x0+gw/2,startX=cx-bw*T.length/2;
+      series.forEach((s,si)=>{const h=ph*s[bi]/max;g.fillStyle=this.RPT_COLORS[si%10];g.fillRect(startX+si*bw,top+ph-h,bw-2,h);if(s[bi]){g.fillStyle="#15262f";g.font="10px sans-serif";g.fillText(s[bi],startX+si*bw+bw/2-1,top+ph-h-8);}});
+      g.fillStyle="#15262f";g.font="11px 'Microsoft JhengHei',sans-serif";
+      g.fillText(b.from===b.to?b.from:`${b.from}～${b.to.slice(5)}`,cx,top+ph+16);g.fillStyle="#8195a0";g.fillText(`(${TB.insp[bi]} 次)`,cx,top+ph+32);});
+    let lx=left;g.textAlign="left";g.font="12px 'Microsoft JhengHei',sans-serif";
+    T.forEach((t,i)=>{const lbl=this._trimLabel(g,t.name,150);g.fillStyle=this.RPT_COLORS[i%10];g.fillRect(lx,H-18,12,12);g.fillStyle="#15262f";g.fillText(lbl,lx+16,H-12);lx+=g.measureText(lbl).width+34;});
+    return c.toDataURL("image/png");
+  },
+  rptChart3(T){
+    const groups=this.SRC_GROUPS.filter(gp=>T.some(t=>t.src[gp]));if(!groups.length)return null;
+    const rowH=36,top=50,W=900,H=top+T.length*rowH+60;const {c,g}=this._canvas(W,H);
+    g.fillStyle="#16324f";g.font="bold 15px 'Microsoft JhengHei',sans-serif";g.fillText("圖3　各項目檢查來源分布（占比）",14,20);
+    const L=230,R=W-20;g.font="12px 'Microsoft JhengHei',sans-serif";
+    T.forEach((t,i)=>{const y=top+i*rowH+rowH/2;g.fillStyle="#15262f";g.textAlign="right";g.fillText(this._trimLabel(g,t.name,L-20),L-10,y);g.textAlign="center";
+      let x=L;groups.forEach((gp,gi)=>{const v=t.src[gp]||0;if(!v)return;const w=(R-L)*v/t.n;g.fillStyle=this.RPT_COLORS[gi%10];g.fillRect(x,y-11,w-1,22);if(w>34){g.fillStyle="#fff";g.fillText(Math.round(v/t.n*100)+"%",x+w/2,y);}x+=w;});});
+    let lx=L,ly=H-30;g.textAlign="left";
+    groups.forEach((gp,gi)=>{g.fillStyle=this.RPT_COLORS[gi%10];g.fillRect(lx,ly-6,12,12);g.fillStyle="#15262f";g.fillText(gp,lx+16,ly);lx+=g.measureText(gp).width+34;if(lx>W-80){lx=L;ly+=20;}});
+    return c.toDataURL("image/png");
+  },
+  /* Word：用 MHTML（.doc）把圖片一起包進檔案，Word 可以直接開、圖片不會掉 */
+  _mhtDoc(html,images,title){
+    const b64=s=>btoa(unescape(encodeURIComponent(s)));
+    const wrap=s=>s.replace(/(.{76})/g,"$1\r\n");
+    const B="----=_NextPart_FPMC_RPT";
+    let out=`MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary="${B}"\r\n\r\n--${B}\r\nContent-Location: file:///C:/rpt/report.htm\r\nContent-Transfer-Encoding: base64\r\nContent-Type: text/html; charset="utf-8"\r\n\r\n`;
+    out+=wrap(b64(`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${esc(title)}</title></head><body>${html}</body></html>`))+"\r\n";
+    images.forEach(im=>{out+=`\r\n--${B}\r\nContent-Location: file:///C:/rpt/${im.name}\r\nContent-Transfer-Encoding: base64\r\nContent-Type: image/png\r\n\r\n${wrap(im.dataUrl.split(",")[1])}\r\n`;});
+    return new Blob([out+`\r\n--${B}--\r\n`],{type:"application/msword"});
+  },
+  exportReport(fmt){
+    const md=($("#ref-ai-paste")||{}).value||"";
+    if(!md.trim()){toast("⚠ 請先把 AI 回覆的報告內容整段貼到上方的框框裡");return;}
+    const T=this.rptTopics();if(!T.length){toast("⚠ 沒有勾選項目");return;}
+    const r=this._range||this.range(),F="font-family:'Microsoft JhengHei','Calibri',Arial,sans-serif";
+    const title="船隊缺失重點分析報告";
+    const meta=`期間：${this.rangeText(r)}　｜　報告項目：${T.map(t=>t.name).join("、")}　｜　產出日期：${todayStr()}`;
+    const imgs=[["fig1.png",this.rptChart1(T),"圖1　各項目件數與涉及船數"],["fig2.png",this.rptChart2(T),"圖2　各項目期間趨勢"],["fig3.png",this.rptChart3(T),"圖3　各項目檢查來源分布"]].filter(x=>x[1]);
+    const imgTag=(name,url,cap)=>fmt==="word"
+      ?`<p style="text-align:center;margin:8pt 0 2pt"><img src="${name}" width="620"></p><p style="${F};font-size:9.5pt;color:#555;text-align:center;margin:0 0 10pt">${cap}</p>`
+      :`<div style="text-align:center;margin:8px 0 14px;page-break-inside:avoid"><img src="${url}" style="width:100%;max-width:720px"><div style="font-size:11px;color:#555">${cap}</div></div>`;
+    const cell=s=>esc(String(s||"")).replace(/\n/g,"<br>");
+    const td=(v,w,ex)=>`<td style="${F};font-size:9pt;border:1px solid #999;padding:3pt 5pt;vertical-align:top;width:${w};${ex||""}">${v}</td>`;
+    const th=(v,w)=>`<th style="${F};font-size:9.5pt;border:1px solid #999;padding:4pt 5pt;background:#16324f;color:#fff;text-align:left;width:${w}">${v}</th>`;
+    const appendix=T.map((t,i)=>{
+      const list=t.items.slice().sort((a,b)=>(parseDate(b.d.date)||0)-(parseDate(a.d.date)||0));
+      return `<h3 style="${F};font-size:12pt;color:#16324f;margin:12pt 0 4pt">${i+1}. ${esc(t.name)}（${esc(t.main)}）— ${t.n} 件／${t.ships} 艘</h3>
+        <table class="repeat-head" style="border-collapse:collapse;width:100%"><thead><tr>${th("#","4%")}${th("船名","13%")}${th("檢查來源／日期","13%")}${th("缺失詳情","34%")}${th("實際情況／改善措施","28%")}${th("狀態","8%")}</tr></thead><tbody>
+        ${list.map((x,j)=>`<tr>${td(j+1,"4%","text-align:center")}${td(cell(shipFullLabel(x.d.ship)),"13%")}${td(cell((x.d.itype||"")+"\n"+normDateSlash(x.d.date)),"13%")}${td(cell(x.d.detail),"34%")}${td(cell([x.d.actual,x.d.corrective?"改善："+x.d.corrective:""].filter(Boolean).join("\n")),"28%")}${td(cell(Defs.list3Status?Defs.list3Status(x.d)[1]:""),"8%")}</tr>`).join("")}</tbody></table>`;}).join("");
+    const body=Ref._mdToWordHtml(md);
+    const figs=`<h2 style="${F};font-size:15pt;color:#16324f;margin:16pt 0 6pt">附圖</h2>`+imgs.map(([n,u,cap])=>imgTag(n,u,cap)).join("");
+    const app=`<br clear="all" style="page-break-before:always"><h2 style="${F};font-size:15pt;color:#16324f;margin:0 0 4pt">附錄：缺失清單（${T.reduce((a,t)=>a+t.n,0)} 筆）</h2><p style="${F};font-size:9pt;color:#666;margin:0 0 6pt">期間：${esc(this.rangeText(r))}；依各項目列出，同一筆缺失若同時屬於多個項目會重複列出。</p>${appendix}`;
+    if(fmt==="word"){
+      const html=`<p style="${F};font-size:10pt;color:#16324f;margin:0 0 2pt"><b>台塑海運股份有限公司</b>　QMS &amp; Vetting Unit（海技組）</p>
+        <h1 style="${F};font-size:20pt;color:#16324f;margin:4pt 0 2pt">${title}</h1><p style="${F};font-size:9.5pt;color:#666;margin:0 0 10pt">${esc(meta)}</p>${body}${figs}${app}`;
+      dl(this._mhtDoc(html,imgs.map(([n,u])=>({name:n,dataUrl:u})),title),`${title}_${todayStr().replace(/-/g,"")}.doc`);
+      toast("✓ 已產出 Word 主管報告（含附圖與缺失清單）");
+      if(typeof Audit!=="undefined")Audit.log("匯出","船隊缺失分析",`主管報告 Word：${T.map(t=>t.name).join("、")}`);
+      return;
+    }
+    $("#printArea").innerHTML=`<div class="pc"><table class="pc-wrap"><thead><tr><td>
+        <div class="pc-brand"><img src="${FPMC_LOGO_B64}" alt="台塑海運股份有限公司"><div class="unit"><b>QMS &amp; Vetting Unit</b>海技組</div></div>
+        <div class="pc-head"><p class="k">FLEET DEFICIENCY REPORT</p><h1 style="font-size:22px">${title}</h1><p class="s">${esc(meta)}</p></div>
+      </td></tr></thead><tbody><tr><td><div class="pc-md">${body}${figs}${app}</div></td></tr></tbody></table>
+      <div class="pc-foot"><span>台塑海運股份有限公司　QMS &amp; Vetting Unit（海技組）</span><span>${title}</span></div></div>`;
+    doPrint(false,"margin:11mm 11mm 15mm");
+    if(typeof Audit!=="undefined")Audit.log("匯出","船隊缺失分析",`主管報告 PDF：${T.map(t=>t.name).join("、")}`);
   },
   openAi(){
     if(typeof Ref==="undefined"||!Ref.openAiModal){toast("⚠ AI 提示詞元件尚未載入");return;}
@@ -29378,6 +29617,8 @@ const Ref={
     if($("#ref-ship-export"))$("#ref-ship-export").style.display=this._ext?"":"none";
     if($("#ref-word-normal"))$("#ref-word-normal").style.display=this._ext?"none":"";
     if($("#ref-pub-export"))$("#ref-pub-export").style.display=(this._ext&&this._ext.publish)?"":"none";
+    if($("#ref-rpt-export"))$("#ref-rpt-export").style.display=(this._ext&&this._ext.report)?"":"none";
+    if(this._ext&&this._ext.report&&$("#ref-ship-export"))$("#ref-ship-export").style.display="none"; // 主管報告不需要「給船上」版本
     // 明確標出這次分析範圍是「已勾選的分類」還是「目前篩選範圍全部」，避免使用者以為
     // 勾選後就一定是限定範圍，其實 scopeDefs() 沒勾選時是退回整個篩選結果（沿用既有設計，
     // 但至少要讓畫面上看得出來現在是哪一種，不用自己猜）。
@@ -32937,7 +33178,8 @@ const Cloud={
       ()=>typeof PhotoUpload!=="undefined"&&PhotoUpload.loadCloud(),
       ()=>typeof Trend!=="undefined"&&Trend.pullPresetsCloud().then(()=>{if($("#trend-section"))Trend.render();}),
       ()=>typeof FilterVisEngine!=="undefined"&&FilterVisEngine.loadCloudAll(),
-      ()=>typeof EnhAuditLog!=="undefined"&&EnhAuditLog.loadCloud()
+      ()=>typeof EnhAuditLog!=="undefined"&&EnhAuditLog.loadCloud(),
+      ()=>typeof IAPend!=="undefined"&&IAPend.refresh(true)
     ];
     for(const job of jobs){try{await Promise.resolve(job());}catch(e){console.warn("aux cloud load",e);}}
   },
@@ -33292,7 +33534,9 @@ const Cloud={
   _installQuickRefreshHooks(){
     if(this._qrHooked)return;this._qrHooked=true;
     document.addEventListener("visibilitychange",()=>{
-      if(document.hidden||Date.now()-this._qrLast<2*60*1000)return;
+      if(document.hidden)return;
+      if(typeof IAPend!=="undefined")IAPend.refresh().catch(()=>{}); // 待審核改善單（自己有 5 分鐘節流）
+      if(Date.now()-this._qrLast<2*60*1000)return;
       this.quickRefresh().catch(e=>console.warn("quickRefresh",e));
     });
   },
