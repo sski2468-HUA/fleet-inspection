@@ -89,6 +89,12 @@ header p{margin:5px 0 0;font-size:14px;color:#b9c8d6;line-height:1.6}
 /* 篩選區用很淡的灰藍底，白色的下拉選單／搜尋框會浮出來，跟下方白色的內容卡片區分；不另外加新色相，避免畫面顏色太多 */
 .fcard{margin:0 14px 12px;padding:12px 14px;background:#eef3f6;border-color:#d8e2e8}
 .fcard .frow2{border-top-color:#cfdbe2}
+.fltsum{margin:0 14px 10px;padding:8px 12px;background:#fff7e6;border:1.5px solid #e0a93a;border-radius:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}
+.fltsum .fl{font-weight:800;color:#8a5a00;white-space:nowrap}
+.fltsum .fc{display:inline-flex;align-items:center;gap:2px;background:#fff;border:1px solid #f0d3a8;border-radius:14px;padding:2px 4px 2px 10px;max-width:520px}
+.fltsum .fc b{color:#8a5a00;white-space:nowrap}
+.fltsum .fc button{border:0;background:none;color:#a05a00;cursor:pointer;font-size:12px;padding:0 6px;font-weight:700}
+.fltsum .fc button:hover{color:var(--bad)}
 .frow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .frow .fq{flex:1;min-width:140px;max-width:380px}
 .frow select,.frow input[type=text],.frow input[type=date]{height:38px;padding-top:0;padding-bottom:0;font-size:14px}
@@ -276,6 +282,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
       <button class="btn sm" onclick="toggleHelp('lvHelp')">ⓘ 說明</button>
     </div>
     <div class="banner helpbox" id="lvHelp" style="display:none">督導、稽核員上船檢查後在這裡建檔。<b>卡片檢視</b>一張登錄單一張卡，可展開缺失逐筆編輯、發改善單；<b>清單檢視</b>每一列是「一張登錄單的一項檢查」，方便看各船各輪檢查的日期、檢查人與缺失結案情形。兩種檢視的船舶／檢查來源／檢查人篩選共用，切換時會保留。</div>
+    <div id="fltSum" class="fltsum" style="display:none"></div>
     <div id="yearView" style="display:none">
       <div class="card fcard">
         <div class="frow">
@@ -1045,6 +1052,50 @@ function exportStatTable(){
   toast(`✓ 已匯出 ${data.length} 列`);
 }
 function clearFilters(){clearStFilters();}
+/* ══ 目前篩選中：把這個檢視正在套用的條件列成小標籤，每個可單獨取消，也可一鍵全部清除 ══ */
+function renderFilterSum(){
+  const box=$("#fltSum");if(!box)return;
+  if($("#listPage").style.display==="none"){box.style.display="none";return;}
+  const items=[],v=listView;
+  const add=(lbl,txt,clr)=>items.push({lbl,txt,clr});
+  const selText=id=>{const e=$("#"+id);return e&&e.value?(e.options?e.options[e.selectedIndex].text:e.value):"";};
+  const val=id=>{const e=$("#"+id);return e?String(e.value||"").trim():"";};
+  if(v!=="year"){
+    if(stSel.ship.size)add("船舶",[...stSel.ship].map(shipLabel).join("、"),"stSel.ship.clear()");
+    if(stSel.src.size)add("檢查來源",[...stSel.src].map(k=>k?typeLabel(k):"（未選檢查種類）").join("、"),"stSel.src.clear()");
+    if(stSel.insp.size)add("檢查人",[...stSel.insp].join("、"),"stSel.insp.clear()");
+  }
+  if(v==="cards"){
+    if(val("fMode"))add("結案方式",selText("fMode"),"$('#fMode').value=''");
+    if(val("fStatus"))add("狀態",selText("fStatus"),"$('#fStatus').value=''");
+    if(val("fQ"))add("搜尋",val("fQ"),"$('#fQ').value='';$('#stQ').value=''");
+  }else if(v==="table"){
+    if(val("stClose"))add("結案情形",selText("stClose"),"$('#stClose').value=''");
+    if(val("stFrom")||val("stTo"))add("檢查日期",`${val("stFrom")||"最早"} ～ ${val("stTo")||"最新"}`,"$('#stFrom').value='';$('#stTo').value=''");
+    if(val("stQ"))add("搜尋",val("stQ"),"$('#stQ').value='';$('#fQ').value=''");
+  }else if(v==="defs"){
+    if(typeof dlSel!=="undefined"&&dlSel){const s=(typeof DL_ST!=="undefined"&&DL_ST.find(x=>x.k===dlSel));add("結案情形",s?s.t:dlSel,"dlSel=''");}
+    if(val("dlMode"))add("結案方式",selText("dlMode"),"$('#dlMode').value=''");
+    if(val("dlRisk"))add("風險",selText("dlRisk"),"$('#dlRisk').value=''");
+    if(val("dlQ"))add("搜尋",val("dlQ"),"$('#dlQ').value=''");
+  }else if(v==="year"){
+    if(val("yrVtype"))add("船型",selText("yrVtype"),"$('#yrVtype').value=''");
+    if(val("yrInsp"))add("檢查人",selText("yrInsp"),"$('#yrInsp').value=''");
+    if($("#yrNoIA")&&$("#yrNoIA").checked)add("條件","只看本年度尚未內稽的船","$('#yrNoIA').checked=false");
+    if(val("yrQ"))add("搜尋",val("yrQ"),"$('#yrQ').value=''");
+  }
+  window._fltClr=items.map(x=>x.clr);
+  if(!items.length){box.style.display="none";box.innerHTML="";return;}
+  box.style.display="flex";
+  box.innerHTML=`<span class="fl">🔍 目前篩選中</span>${items.map((x,i)=>`<span class="fc"><b>${esc(x.lbl)}：</b>${esc(x.txt)}<button type="button" title="取消這個條件" onclick="fltClear(${i})">✕</button></span>`).join("")}
+    <span style="flex:1"></span><button class="btn sm" onclick="fltClearAll()">✕ 清除全部篩選</button>`;
+}
+function fltClear(i){const c=(window._fltClr||[])[i];if(!c)return;try{(new Function(c))();}catch(e){console.warn(e);}renderList();}
+function fltClearAll(){
+  if(listView==="defs")clearDefsFilters();
+  else if(listView==="year"){["yrVtype","yrInsp","yrQ"].forEach(id=>{if($("#"+id))$("#"+id).value="";});if($("#yrNoIA"))$("#yrNoIA").checked=false;renderList();}
+  else clearStFilters();
+}
 /* 登錄單檢視與檢查統計表共用的篩選（船舶／檢查來源／檢查人／搜尋）：切換檢視時維持原本篩選 */
 function recPass(r){
   if(stSel.ship.size&&!stSel.ship.has(r.ship))return false;
@@ -2877,6 +2928,11 @@ async function submitForm(){
   return true;
 }
 
+// 各檢視的篩選有的直接呼叫自己的 render（例如日期、風險下拉），這裡統一在每次重繪後更新「目前篩選中」
+["renderList","renderStatTable","renderDefsList","renderYearView","showList","showReview","showSugg","openForm"].forEach(n=>{
+  const f=window[n];if(typeof f!=="function")return;
+  window[n]=function(){const r=f.apply(this,arguments);try{renderFilterSum();}catch(e){}return r;};
+});
 (async function init(){
   await loadLists();await Store.load();await Store.loadReplies();
   // ?new=1（主系統左欄「前往新增內部檢查記錄」的快捷連結）：不看清單，直接開新增表單
