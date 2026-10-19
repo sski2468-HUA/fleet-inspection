@@ -4403,6 +4403,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           .eot td.cur{background:#fff8ef!important}
           .eot td.n{text-align:center;font-family:var(--mono);min-width:40px}
           .eot tr.noia td.sh{box-shadow:inset 4px 0 0 #c0392b}
+          .eot tr.noov td.sh{box-shadow:inset 4px 0 0 #e8862a}
+          .eot tr.noia.noov td.sh{box-shadow:inset 4px 0 0 #c0392b,inset 8px 0 0 #e8862a}
           .eoe{display:block;border-radius:5px;padding:2px 5px;margin:2px 0;font-size:11.5px;line-height:1.35;white-space:nowrap;cursor:default}
           .eoe b{margin-right:3px}
           .eoe.audit{background:#efe6f7;color:#5b3290}.eoe.visit{background:#e4f1f2;color:#176670}.eoe.accompany{background:#fdeed9;color:#9a520c}.eoe.isps{background:#e8edf3;color:#34506e}.eoe.cross{background:#e3f3e8;color:#1f6f43}
@@ -17965,6 +17967,16 @@ const ExecOverview={
   },
   names(s){return String(s||"").split(/[、,，\/]/).map(x=>x.trim()).filter(Boolean);},
   pick:"",
+  /* 訪船狀態：本年度是否已訪船（只算 onboard visit，交叉訪船不算一次訪船），距上次訪船是否超過 7 個月
+     （每半年一次、至多超期 1 個月；只在看今年時判斷）。用全部年度的資料找上次訪船日期。 */
+  ovStatus(y){
+    const all=this.ev().filter(e=>e.k==="visit");
+    const has=new Set(all.filter(e=>e.y===y).map(e=>e.ship));
+    const last={};all.forEach(e=>{if(!last[e.ship]||e.iso>last[e.ship])last[e.ship]=e.iso;});
+    const now=new Date(),isCur=now.getFullYear()===y,lim=new Date(now.getFullYear(),now.getMonth()-7,now.getDate());
+    const limIso=`${lim.getFullYear()}-${String(lim.getMonth()+1).padStart(2,"0")}-${String(lim.getDate()).padStart(2,"0")}`;
+    return {isCur,last,noOV:c=>!has.has(c),late:c=>isCur&&!!last[c]&&last[c]<limIso};
+  },
   setPick(k){this.pick=this.pick===k?"":k;this.render();},
   toggle(k,v){v?this.on.add(k):this.on.delete(k);this.render();},
   clear(){["#eo-vtype","#eo-deck","#eo-engine","#eo-insp","#eo-q"].forEach(s=>{if($(s))$(s).value="";});if($("#eo-op"))$("#eo-op").value="FPMC";this.pick="";$("#eo-noia").checked=false;this.on=new Set(this.TYPES.map(t=>t.k));this.render();},
@@ -17998,30 +18010,36 @@ const ExecOverview={
     const {y,ships,ev,iaShips,lastIA,rows:rows0}=this.filtered();
     const T=this.TYPES.filter(t=>this.on.has(t.k));
     // 上方統計小卡可點選：只列出該卡片代表的船（再點一次取消）
-    const pickFn={noia:s=>!iaShips.has(s.code)};T.forEach(t=>pickFn["has:"+t.k]=s=>ev.some(e=>e.ship===s.code&&e.k===t.k));
+    const ov=this.ovStatus(y);
+    const pickFn={noia:s=>!iaShips.has(s.code),noov:s=>ov.noOV(s.code),late:s=>!ov.noOV(s.code)&&ov.late(s.code)};T.forEach(t=>pickFn["has:"+t.k]=s=>ev.some(e=>e.ship===s.code&&e.k===t.k));
     if(this.pick&&!pickFn[this.pick])this.pick="";
     const rows=this.pick?rows0.filter(pickFn[this.pick]):rows0;
     const now=new Date(),curM=now.getFullYear()===y?now.getMonth()+1:0;
     const by={};ev.forEach(e=>{(by[e.ship]=by[e.ship]||[]).push(e);});
     const noIA=ships.filter(s=>!iaShips.has(s.code)).length;
+    const noOV=ships.filter(s=>ov.noOV(s.code)).length,lateOV=ships.filter(s=>!ov.noOV(s.code)&&ov.late(s.code)).length;
     const pk=(k,html,sty)=>`<button type="button" class="chip eo-pick ${this.pick===k?"on":""}" style="${sty||""}" onclick="ExecOverview.setPick('${k}')" title="點選只看這些船，再點一次取消">${html}</button>`;
-    $("#eo-summary").innerHTML=`<span class="chip">${y} 年度・共 ${ships.length} 艘船</span>${T.map(t=>pk("has:"+t.k,`${t.t} <b>${ev.filter(e=>e.k===t.k).length}</b> 次`)).join("")}${pk("noia",`本年度尚未內稽 <b>${noIA}</b> 艘`,"border-color:#c0392b;color:#c0392b")}<span class="hint" style="margin-left:6px">${this.pick?`顯示 ${rows.length} 艘（再點一次取消）`:"點小卡可只看該類船"}</span>`;
+    $("#eo-summary").innerHTML=`<span class="chip">${y} 年度・共 ${ships.length} 艘船</span>${T.map(t=>pk("has:"+t.k,`${t.t} <b>${ev.filter(e=>e.k===t.k).length}</b> 次`)).join("")}${pk("noia",`本年度尚未內稽 <b>${noIA}</b> 艘`,"border-color:#c0392b;color:#c0392b")}${pk("noov",`本年度尚未訪船 <b>${noOV}</b> 艘`,"border-color:#e8862a;color:#b5610f")}${ov.isCur&&lateOV?pk("late",`⏰ 逾 7 個月未訪 <b>${lateOV}</b> 艘`,"border-color:#e8862a;color:#b5610f"):""}<span class="hint" style="margin-left:6px">${this.pick?`顯示 ${rows.length} 艘（再點一次取消）`:"點小卡可只看該類船"}</span>`;
     const tl=k=>this.TYPES.find(t=>t.k===k).t;
-    const head=`<thead><tr><th class="sh">船舶</th>${Array.from({length:12},(_,i)=>`<th class="${i+1===curM?"cur":""}">${i+1}月</th>`).join("")}${T.map(t=>`<th>${t.t}</th>`).join("")}<th>最近一次內稽</th></tr></thead>`;
+    const head=`<thead><tr><th class="sh">船舶</th>${Array.from({length:12},(_,i)=>`<th class="${i+1===curM?"cur":""}">${i+1}月</th>`).join("")}${T.map(t=>`<th>${t.t}</th>`).join("")}<th>最近一次內稽<br><span style="font-weight:400;opacity:.85">最近訪船</span></th></tr></thead>`;
     const body=rows.map(s=>{
       const es=(by[s.code]||[]).sort((a,b)=>a.iso.localeCompare(b.iso)),noia=!iaShips.has(s.code);
       const cells=Array.from({length:12},(_,i)=>`<td class="${i+1===curM?"cur":""}">${es.filter(e=>e.m===i+1).map(e=>`<span class="eoe ${e.k}" title="${tl(e.k)}｜${e.iso}｜${esc(e.insp||"（未填檢查人）")}｜${esc(e.loc)}"><b>${tl(e.k)}</b>${e.m}/${e.d}<br>${esc(e.insp||"—")}</span>`).join("")}</td>`).join("");
-      return `<tr class="${noia?"noia":""}"><td class="sh">${esc(s.zh||s.code)}<span class="en">${esc(s.name||"")}</span>${noia?` <span class="eoe audit" style="display:inline-block;background:#fde8e6;color:#c0392b;margin:0 0 0 4px">本年未內稽</span>`:""}</td>${cells}${T.map(t=>{const n=es.filter(e=>e.k===t.k).length;return `<td class="n">${n||'<span style="color:#c3ced5">0</span>'}</td>`;}).join("")}<td class="n" style="white-space:nowrap">${lastIA[s.code]?lastIA[s.code].replace(/-/g,"/"):"—"}</td></tr>`;
+      const noov=ov.noOV(s.code),late=!noov&&ov.late(s.code),lo=ov.last[s.code];
+      const ovTag=noov?` <span class="eoe visit" style="display:inline-block;background:#fff1dc;color:#b5610f;margin:0 0 0 4px" title="本年度尚未訪船（交叉訪船不算）${lo?"；上次訪船 "+lo:""}">本年未訪船</span>`
+        :late?` <span class="eoe visit" style="display:inline-block;background:#fff1dc;color:#b5610f;margin:0 0 0 4px" title="訪船每半年一次，至多超期 1 個月；上次訪船 ${lo}，已超過 7 個月">⏰ 逾7月未訪</span>`:"";
+      return `<tr class="${noia?"noia":""} ${noov||late?"noov":""}"><td class="sh">${esc(s.zh||s.code)}<span class="en">${esc(s.name||"")}</span>${noia?` <span class="eoe audit" style="display:inline-block;background:#fde8e6;color:#c0392b;margin:0 0 0 4px">本年未內稽</span>`:""}${ovTag}</td>${cells}${T.map(t=>{const n=es.filter(e=>e.k===t.k).length;return `<td class="n">${n||'<span style="color:#c3ced5">0</span>'}</td>`;}).join("")}<td class="n" style="white-space:nowrap">${lastIA[s.code]?lastIA[s.code].replace(/-/g,"/"):"—"}<br><span style="color:${noov||late?"#b5610f":"#8195a0"}">${lo?lo.replace(/-/g,"/"):"—"}</span></td></tr>`;
     }).join("")||`<tr><td colspan="18" style="padding:20px;text-align:center;color:#8195a0">沒有符合條件的船</td></tr>`;
     $("#eo-table").innerHTML=head+`<tbody>${body}</tbody>`;
   },
   exportXlsx(){
-    const {y,ev,iaShips,rows}=this.filtered(),T=this.TYPES.filter(t=>this.on.has(t.k)),tl=k=>this.TYPES.find(t=>t.k===k).t;
+    const {y,ev,iaShips,rows}=this.filtered(),T=this.TYPES.filter(t=>this.on.has(t.k)),tl=k=>this.TYPES.find(t=>t.k===k).t,ovX=this.ovStatus(y);
     const data=rows.map(s=>{const es=ev.filter(e=>e.ship===s.code).sort((a,b)=>a.iso.localeCompare(b.iso));
       const o={"船舶":shipFullLabel(s.code)};
       for(let m=1;m<=12;m++)o[`${m}月`]=es.filter(e=>e.m===m).map(e=>`${tl(e.k)} ${e.m}/${e.d} ${e.insp}`).join("\n");
       T.forEach(t=>o[t.t]=es.filter(e=>e.k===t.k).length);
-      o["本年度內稽"]=iaShips.has(s.code)?"已內稽":"尚未內稽";return o;});
+      o["本年度內稽"]=iaShips.has(s.code)?"已內稽":"尚未內稽";
+      o["本年度訪船"]=ovX.noOV(s.code)?"尚未訪船":(ovX.late(s.code)?"逾 7 個月未訪":"已訪船");o["最近訪船"]=ovX.last[s.code]?ovX.last[s.code].replace(/-/g,"/"):"";return o;});
     const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[{wch:26},...Array.from({length:12},()=>({wch:16})),...T.map(()=>({wch:7})),{wch:11}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`${y}年度`);
     const fn=`執行情形一覽表_${y}.xlsx`;
