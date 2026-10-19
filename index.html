@@ -5182,6 +5182,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <button class="btn" onclick="RosterMgr.setSitePass()">🔑 更新進站密碼</button>
             </div>
             <div class="toolbar" style="margin-top:8px">
+              <input type="password" id="dm-shippass" placeholder="設定船上入口密碼" style="max-width:220px">
+              <button class="btn" onclick="RosterMgr.setShipPass()">🚢 更新船上入口密碼</button>
+              <a class="btn" href="ship.html" target="_blank" title="船上專用入口網站（與本系統分開）">開啟船上入口網站 ↗</a>
+              <span class="hint">船上入口網站（ship.html）專用，跟上面的進站密碼分開；船上只需要知道這一組。</span>
+            </div>
+            <div class="toolbar" style="margin-top:8px">
               <button class="btn dark" id="roster-toggle-btn" onclick="RosterMgr.toggle()">📂 顯示／管理人員名單</button>
             </div>
             <div id="roster-body" style="display:none;margin-top:10px">
@@ -32451,6 +32457,21 @@ const RosterMgr={
       dl(new Blob([buf],{type:"application/octet-stream"}),"人員名單_匯入模板.xlsx");
       toast("✓ 已下載匯入模板（系統管理階級為下拉選單）");
     }catch(e){toast("⚠ 範本產生失敗："+e.message);}
+  },
+  /* 船上入口網站（ship.html）專用密碼：跟海技／督導的進站密碼分開，只存 SHA-256 雜湊於雲端 app_db「ship_site_pass」 */
+  async setShipPass(){
+    if(!Role.isAdmin()){toast("⚠ 僅限 Owner／管理員操作");return;}
+    const v=($("#dm-shippass")?$("#dm-shippass").value:"").trim();
+    if(!v){toast("⚠ 請輸入新密碼");return;}
+    if(v.length<4){toast("⚠ 密碼至少 4 個字元");return;}
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){toast("⚠ 需連上雲端才能設定船上入口密碼");return;}
+    try{
+      const h=await sha256hex(v);
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:"ship_site_pass",updated:Date.now(),by:Audit.user(),payload:{hash:h}}])});
+      if(typeof Audit!=="undefined")Audit.log("變更","船上入口密碼","已更新船上入口網站密碼");
+      $("#dm-shippass").value="";
+      toast("✓ 船上入口密碼已更新（僅保存雜湊值），船上下次登入即生效");
+    }catch(e){toast("⚠ 更新失敗："+e.message);}
   },
   async setSitePass(){
     if(!Role.isAdmin()){toast("⚠ 僅限 Owner／管理員操作");return;}

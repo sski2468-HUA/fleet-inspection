@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>船舶專區 Ship Portal — FPMC</title>
+<style>
+:root{--navy:#1c3a5e;--navy2:#2f6690;--signal:#e8862a;--ink:#1d2a33;--ink2:#5b6a75;--ink3:#8195a0;--line:#dfe6eb;--bg:#f4f7f9;--card:#fff;--ok:#20703f;--bad:#c0392b;--warn:#b5610f;--int:#5b3290;--ext:#176670;
+  --sans:"Microsoft JhengHei","Noto Sans TC","PingFang TC",sans-serif;--mono:Consolas,"Courier New",monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14.5px;line-height:1.55}
+a{color:var(--navy2)}
+button{font-family:inherit}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid #c3d0da;background:#fff;color:var(--navy);border-radius:8px;padding:7px 14px;font-size:14px;font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn:hover{border-color:var(--navy2)}
+.btn.dark{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn.sig{background:var(--signal);color:#fff;border-color:var(--signal)}
+.btn.sm{padding:4px 10px;font-size:13px}
+.hint{color:var(--ink3);font-size:12.5px}
+/* ── 登入關卡 ── */
+.gate{position:fixed;inset:0;z-index:999;display:none;align-items:center;justify-content:center;padding:16px;background:linear-gradient(135deg,#16324f,#2f6690)}
+.gate .card{background:#fff;border-radius:14px;padding:28px 30px;width:min(420px,94vw);box-shadow:0 18px 50px rgba(0,0,0,.3)}
+.gate h2{margin:0 0 4px;color:var(--navy);font-size:21px}
+.gate p{margin:0 0 16px;color:var(--ink2);font-size:13.5px}
+.gate input,.gate select{width:100%;padding:10px 12px;font-size:16px;border:1px solid #c3d3e3;border-radius:8px;margin:2px 0 4px;font-family:inherit}
+.gate .err{color:var(--bad);font-size:13px;min-height:20px;margin:4px 0 8px}
+.gate .go{width:100%;padding:11px;border:0;border-radius:8px;background:var(--navy);color:#fff;font-size:16px;font-weight:700;cursor:pointer}
+/* ── 版頭 ── */
+header{background:var(--navy);color:#fff;padding:14px 20px}
+.hd{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.hd h1{margin:0;font-size:20px;letter-spacing:.5px}
+.hd h1 small{display:block;font-size:11.5px;font-weight:400;color:#b9cadb;letter-spacing:1px}
+.shipbadge{background:var(--signal);color:#fff;font-weight:800;font-size:17px;border-radius:10px;padding:5px 14px}
+.hd .sp{flex:1}
+.hd a.lk{color:#ffd9a8;font-size:13px;cursor:pointer}
+nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+.tabs{max-width:1180px;margin:0 auto;display:flex;gap:2px;overflow-x:auto;padding:0 12px}
+.tabs button{border:0;background:none;padding:12px 14px;font-size:14.5px;font-weight:700;color:var(--ink2);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+.tabs button.on{color:var(--navy);border-bottom-color:var(--signal)}
+main{max-width:1180px;margin:0 auto;padding:18px 16px 40px}
+.page{display:none}.page.on{display:block}
+h2.pt{margin:4px 0 12px;font-size:19px;color:var(--navy);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+h2.pt .hint{font-weight:400}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.flt{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.flt select,.flt input{padding:7px 10px;border:1px solid #c3d0da;border-radius:8px;font-size:14px;font-family:inherit;background:#fff}
+.flt input{min-width:200px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:#fff;border-radius:16px;padding:3px 11px;font-size:13px;color:var(--ink2)}
+.chip b{color:var(--ink);font-variant-numeric:tabular-nums}
+.io{display:inline-block;font-size:11.5px;font-weight:800;border-radius:5px;padding:1px 6px;margin-right:4px}
+.io.i{background:#efe8f7;color:var(--int)}.io.e{background:#e3f1f3;color:var(--ext)}
+.src{font-size:12.5px;color:var(--ink2)}
+table.tb{width:100%;border-collapse:collapse;background:#fff}
+.tbwrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table.tb th{background:#f2f6fa;color:var(--navy);font-size:13px;text-align:left;padding:8px 10px;white-space:nowrap;position:sticky;top:0}
+table.tb td{border-top:1px solid var(--line);padding:8px 10px;vertical-align:top;font-size:13.5px}
+table.tb td.n{text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.tb td.d{white-space:nowrap;font-family:var(--mono);font-size:12.5px}
+.empty{padding:26px;text-align:center;color:var(--ink3)}
+/* 首頁入口卡 */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.entry{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px;text-decoration:none;color:inherit;transition:border-color .15s,box-shadow .15s}
+.entry:hover{border-color:var(--navy2);box-shadow:0 4px 14px rgba(28,58,94,.08)}
+.entry .t{font-size:16.5px;font-weight:800;color:var(--navy)}
+.entry .d{font-size:13px;color:var(--ink2)}
+.entry .st{margin-top:auto;display:flex;gap:6px;flex-wrap:wrap}
+.pill{display:inline-block;font-size:12.5px;font-weight:700;border-radius:12px;padding:2px 10px}
+.pill.bad{background:#fde8e6;color:var(--bad)}.pill.ok{background:#e4f3ea;color:var(--ok)}.pill.warn{background:#fff1dc;color:var(--warn)}.pill.mute{background:#eef2f4;color:var(--ink2)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.kpi .v{font-size:24px;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums}
+.kpi .l{font-size:12.5px;color:var(--ink2)}
+.camp{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px dashed var(--line)}
+.camp:first-child{border-top:0}
+.camp .tt{flex:1;min-width:0}
+/* 正面評價 */
+.pos{background:#fff;border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.pos .who{font-weight:800;color:var(--navy)}
+.pos .meta{font-size:12.5px;color:var(--ink3)}
+.pos .c{margin-top:6px;white-space:pre-line}
+/* 執行情形 */
+table.eo td,table.eo th{text-align:center}
+table.eo td{height:64px;min-width:72px}
+table.eo td.cur,table.eo th.cur{background:#fff8ec}
+.eoe{display:block;border-radius:6px;padding:3px 4px;margin:2px 0;font-size:12px;line-height:1.35}
+.eoe.audit{background:#efe8f7;color:#5b3290}.eoe.visit{background:#e3f1f3;color:#176670}.eoe.cross{background:#e4f3ea;color:#1f6f43}.eoe.accompany{background:#fff1dc;color:#9a520c}.eoe.isps{background:#e8edf3;color:#34506e}
+/* 通報單 */
+.doc{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:8px;text-decoration:none;color:inherit}
+.doc:hover{border-color:var(--navy2)}
+.doc .t{flex:1;font-weight:700;color:var(--navy)}
+.loading{padding:30px;text-align:center;color:var(--ink3)}
+.det{white-space:pre-line}
+.more{color:var(--navy2);cursor:pointer;font-size:12.5px}
+@media (max-width:640px){header{padding:12px 14px}.hd h1{font-size:17px}.shipbadge{font-size:15px}main{padding:14px 12px 40px}table.tb td,table.tb th{padding:7px 8px}}
+@media print{header .lk,nav,.flt,.noprint{display:none!important}body{background:#fff}.page{display:none!important}.page.on{display:block!important}.tbwrap{border:0;overflow:visible}}
+</style>
+</head>
+<body>
+
+<!-- ① 船上入口密碼（與海技／督導的系統密碼分開） -->
+<div class="gate" id="gPass"><div class="card">
+  <h2>🚢 船舶專區 Ship Portal</h2>
+  <p>請輸入船上入口密碼<br><span style="font-size:12px">Please enter the ship portal password.</span></p>
+  <input type="password" id="gPassIn" placeholder="船上入口密碼 Password" onkeydown="if(event.key==='Enter')Auth.submitPass()">
+  <div class="err" id="gPassErr"></div>
+  <button class="go" onclick="Auth.submitPass()">進入 Enter</button>
+</div></div>
+<!-- ② 選擇本船 -->
+<div class="gate" id="gShip"><div class="card">
+  <h2>選擇本船 Select your vessel</h2>
+  <p>請選擇本船船名，進入後只會看到本船的資料。</p>
+  <select id="gShipSel"></select>
+  <div class="err" id="gShipErr"></div>
+  <button class="go" onclick="Auth.submitShip()">確認 Confirm</button>
+</div></div>
+
+<header><div class="hd">
+  <h1>🚢 船舶專區<small>FPMC SHIP PORTAL ・ QMS &amp; VETTING</small></h1>
+  <span class="shipbadge" id="hdShip"></span>
+  <span class="sp"></span>
+  <a class="lk" onclick="Auth.switchShip()">切換船舶 Change vessel</a>
+  <a class="lk" onclick="Auth.logout()">登出 Log out</a>
+</div></header>
+<nav><div class="tabs" id="tabs">
+  <button data-p="home" class="on">🏠 首頁</button>
+  <button data-p="insp">📋 檢查紀錄</button>
+  <button data-p="defs">⚠ 缺失彙總</button>
+  <button data-p="pos">👍 正面評價</button>
+  <button data-p="exec">📅 執行情形一覽表</button>
+  <button data-p="docs">📨 船隊通報單</button>
+</div></nav>
+
+<main>
+  <!-- 首頁 -->
+  <section class="page on" id="p-home">
+    <div class="kpis" id="homeKpi"></div>
+    <h2 class="pt">要處理的事項 <span class="hint">點卡片前往</span></h2>
+    <div class="grid" id="homeEntries"><div class="loading">載入中…</div></div>
+    <div class="panel" style="margin-top:14px" id="homeCamp"></div>
+  </section>
+
+  <!-- 檢查紀錄 -->
+  <section class="page" id="p-insp">
+    <h2 class="pt">📋 檢查紀錄 <span class="hint">本船歷次接受的外部／內部檢查</span></h2>
+    <div class="flt">
+      <select id="iYear"></select>
+      <select id="iIo"><option value="">外部＋內部</option><option value="e">只看外部檢查</option><option value="i">只看內部檢查</option></select>
+      <input id="iQ" placeholder="搜尋檢查來源／地點／檢查員">
+      <button class="btn sm noprint" onclick="window.print()">🖨 列印</button>
+    </div>
+    <div class="chips" id="iSum" style="margin-bottom:10px"></div>
+    <div class="tbwrap"><table class="tb" id="iTb"></table></div>
+  </section>
+
+  <!-- 缺失彙總 -->
+  <section class="page" id="p-defs">
+    <h2 class="pt">⚠ 檢查缺失彙總 <span class="hint">本船歷次檢查的缺失（外部＋內部）</span></h2>
+    <div class="flt">
+      <select id="dYear"></select>
+      <select id="dIo"><option value="">外部＋內部</option><option value="e">只看外部檢查</option><option value="i">只看內部檢查</option></select>
+      <select id="dSrc"></select>
+      <input id="dQ" placeholder="搜尋缺失內容">
+      <button class="btn sm noprint" onclick="window.print()">🖨 列印</button>
+    </div>
+    <div class="chips" id="dSum" style="margin-bottom:10px"></div>
+    <div class="tbwrap"><table class="tb" id="dTb"></table></div>
+  </section>
+
+  <!-- 正面評價 -->
+  <section class="page" id="p-pos">
+    <h2 class="pt">👍 正面評價 <span class="hint">檢查中獲得肯定的人員與作法</span></h2>
+    <div class="flt">
+      <select id="pYear"></select>
+      <input id="pQ" placeholder="搜尋姓名／項目／內容">
+      <button class="btn sm noprint" onclick="window.print()">🖨 列印</button>
+    </div>
+    <div class="chips" id="pSum" style="margin-bottom:10px"></div>
+    <div id="pList"></div>
+  </section>
+
+  <!-- 執行情形一覽表 -->
+  <section class="page" id="p-exec">
+    <h2 class="pt">📅 執行情形一覽表 <span class="hint">本船內稽、訪船、交叉訪船、隨船、ISPS 的實際執行月份</span></h2>
+    <div class="flt"><select id="eYear"></select><button class="btn sm noprint" onclick="window.print()">🖨 列印</button></div>
+    <div class="chips" id="eSum" style="margin-bottom:10px"></div>
+    <div class="tbwrap"><table class="tb eo" id="eTb"></table></div>
+    <div class="panel" style="margin-top:14px"><b style="color:var(--navy)">明細</b><div id="eList" style="margin-top:6px"></div></div>
+  </section>
+
+  <!-- 船隊通報單 -->
+  <section class="page" id="p-docs">
+    <h2 class="pt">📨 船隊通報單 <span class="hint">公司通報、通告清單與回簽資料夾，點擊開啟</span></h2>
+    <div id="docList"><div class="loading">載入中…</div></div>
+  </section>
+</main>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   船舶專區（ship.html）：給船上的入口網站，與海技／督導使用的「船舶檢查暨缺失管理系統」分開。
+   ・登入：① 船上入口密碼（雲端 app_db「ship_site_pass」的 SHA-256，Owner／管理員在主系統資料管理設定）
+           ② 選擇本船。登入狀態存在本瀏覽器 7 天（鍵名與主系統不同，互不影響）。
+   ・資料：唯讀，只抓「本船」的檢查紀錄／缺失／正面評價（雲端 sync_* 表以 payload->>ship 篩選）。
+   ・入口：外部檢查線上填單、內部檢查改善單、分享缺失自查、船隊通報單。
+   ════════════════════════════════════════════════════════════════════════ */
+const CLOUD={url:"https://iqmbircjokdzdssouwkr.supabase.co",
+  key:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY"};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const H=x=>Object.assign({apikey:CLOUD.key,Authorization:"Bearer "+CLOUD.key,"Content-Type":"application/json"},x||{});
+async function api(path,opts){
+  const r=await fetch(`${CLOUD.url}/rest/v1/${path}`,Object.assign({headers:H()},opts||{}));
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  const t=await r.text();return t?JSON.parse(t):null;
+}
+async function getKey(k){const r=await api(`app_db?select=payload&k=eq.${encodeURIComponent(k)}`);return r&&r[0]?r[0].payload:null;}
+async function pullShip(table,code){
+  let all=[],off=0,b;
+  do{b=await api(`${table}?select=payload&payload->>ship=eq.${encodeURIComponent(code)}&order=id&offset=${off}&limit=1000`)||[];all=all.concat(b.map(x=>x.payload).filter(Boolean));off+=1000;}while(b.length===1000);
+  return all;
+}
+async function sha256hex(s){
+  try{if(window.crypto&&crypto.subtle){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(s)));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");}}catch(e){}
+  return "plain:"+s;
+}
+/* 日期：系統裡有 2024/02/16、2026/9/17、2026-10-06 幾種寫法 */
+function pd(s){const m=String(s||"").match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);return m?{y:+m[1],m:+m[2],d:+m[3],iso:`${m[1]}-${String(+m[2]).padStart(2,"0")}-${String(+m[3]).padStart(2,"0")}`,txt:`${+m[1]}/${+m[2]}/${+m[3]}`}:null;}
+function dateRange(r){const a=pd(r.date),b=pd(r.dateTo);if(!a)return esc(r.date||"");if(!b||b.iso===a.iso)return a.txt;return a.txt+"～"+(a.y===b.y?`${b.m}/${b.d}`:b.txt);}
+
+/* ── 船舶清單、內部檢查判定（沿用主系統「分類規則」的內部檢查關鍵字） ── */
+let SHIPS=[],INTKW=["internal audit","isps","onboard visit","accompanying","cross ship visit","交叉訪船","專項檢查","sar-fm"];
+const shipLabel=c=>{const s=SHIPS.find(x=>x.code===c);return s?s.label:(c||"");};
+const isInt=t=>{const s=String(t||"").toLowerCase();return INTKW.some(k=>k&&s.includes(String(k).toLowerCase()));};
+const ioTag=t=>isInt(t)?`<span class="io i">內</span>`:`<span class="io e">外</span>`;
+
+/* ════════ 登入 ════════ */
+const Auth={
+  KEY:"ship_portal_v1",TTL:7*24*3600*1000,
+  sess(){try{const s=JSON.parse(localStorage.getItem(this.KEY));return s&&s.exp>Date.now()?s:null;}catch(e){return null;}},
+  save(o){try{localStorage.setItem(this.KEY,JSON.stringify(Object.assign({exp:Date.now()+this.TTL},o)));}catch(e){}},
+  _res:null,
+  ensure(){return new Promise(res=>{this._res=res;this.next();});},
+  next(){
+    const s=this.sess();
+    if(!s||!s.ok){$("#gPass").style.display="flex";setTimeout(()=>$("#gPassIn").focus(),50);return;}
+    if(!s.ship){this.showShip();return;}
+    $("#gPass").style.display="none";$("#gShip").style.display="none";
+    if(this._res){const r=this._res;this._res=null;r(s.ship);}
+  },
+  async submitPass(){
+    const v=($("#gPassIn").value||"").trim();if(!v)return;
+    let h=null;try{const p=await getKey("ship_site_pass");h=p&&p.hash;}catch(e){$("#gPassErr").textContent="⚠ 連不上雲端，請檢查網路後再試";return;}
+    if(!h){$("#gPassErr").textContent="⚠ 船上入口密碼尚未設定，請洽海技組";return;}
+    if((await sha256hex(v))!==h){$("#gPassErr").textContent="❌ 密碼錯誤，請重新輸入 Wrong password";return;}
+    this.save({ok:true,ship:""});$("#gPass").style.display="none";this.next();
+  },
+  showShip(){
+    $("#gShipSel").innerHTML=`<option value="">— 請選擇船名 —</option>`+SHIPS.map(s=>`<option value="${esc(s.code)}">${esc(s.label)}</option>`).join("");
+    $("#gShip").style.display="flex";
+  },
+  submitShip(){
+    const c=$("#gShipSel").value;if(!c){$("#gShipErr").textContent="⚠ 請選擇本船船名";return;}
+    if(!confirm(`確認本船是「${shipLabel(c)}」嗎？`))return;
+    this.save({ok:true,ship:c});
+    log("登入","系統",`${shipLabel(c)} 登入船舶專區`);
+    this.next();
+  },
+  switchShip(){const s=this.sess();if(s){this.save({ok:true,ship:""});}location.reload();},
+  logout(){try{localStorage.removeItem(this.KEY);}catch(e){}location.reload();}
+};
+/* 操作紀錄寫進主系統同一張 audit_log，海技可在主系統「操作紀錄查詢」看到船上何時登入 */
+function log(action,target,summary){
+  const s=Auth.sess();
+  api("audit_log",{method:"POST",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify([{ts:Date.now(),usr:`船舶 ${s&&s.ship||""}`,action,target:"船舶專區－"+target,summary}])}).catch(()=>{});
+}
+
+/* ════════ 資料 ════════ */
+const D={ship:"",insp:[],defs:[],pos:[],docs:[],camps:[],resps:[],ia:{pending:0,returned:0,done:0,orders:0}};
+const yearsOf=arr=>[...new Set(arr.map(r=>(pd(r.date)||{}).y).filter(Boolean))].sort((a,b)=>b-a);
+function fillYear(sel,arr,allLabel){const ys=yearsOf(arr),cy=new Date().getFullYear();const el=$(sel),cur=el.value;el.innerHTML=(allLabel?`<option value="">${allLabel}</option>`:"")+[...new Set([cy,...ys])].sort((a,b)=>b-a).map(y=>`<option value="${y}">${y} 年</option>`).join("");if(cur)el.value=cur;}
+
+async function loadAll(code){
+  D.ship=code;
+  try{const c=await getKey("classify_rules");if(c&&Array.isArray(c.internalKw)&&c.internalKw.length)INTKW=c.internalKw;}catch(e){}
+  const tasks=[
+    pullShip("sync_insp",code).then(a=>D.insp=a),
+    pullShip("sync_defs",code).then(a=>D.defs=a),
+    pullShip("sync_sirepos",code).then(a=>D.pos=a),
+    getKey("refDocs").then(a=>D.docs=Array.isArray(a)?a:[]).catch(()=>{}),
+    loadCampaigns(code).catch(()=>{}),
+    loadIA(code).catch(()=>{})
+  ];
+  await Promise.all(tasks.map(p=>p.catch(e=>console.warn(e))));
+}
+/* 分享缺失自查：進行中的活動，扣掉「本船就是缺失來源船」與不在指定範圍內的 */
+async function loadCampaigns(code){
+  const cs=await api("selfcheck_share_campaigns?select=id,title,items,ship_scope,created_at,active&active=eq.true&order=created_at.desc&limit=200")||[];
+  const srcShip=it=>{const s=String(it&&it.src||"").trim().split(/\s+/)[0];return s;};
+  D.camps=cs.filter(c=>{
+    const scope=(c.ship_scope&&c.ship_scope.length)?c.ship_scope:null;
+    if(scope&&!scope.includes(code))return false;
+    const its=c.items||[];if(its.length&&its.every(it=>srcShip(it)===code))return false;
+    return true;
+  });
+  if(D.camps.length)D.resps=await api(`selfcheck_share_responses?select=campaign_id,ship,submitted_at&ship=eq.${encodeURIComponent(code)}&limit=1000`)||[];
+}
+/* 內部檢查改善單：已發單的登錄單裡，內控／系統內結案的缺失，船上回報狀態 */
+async function loadIA(code){
+  const recs=await api(`intaudit_records?select=id,payload&payload->>ship=eq.${encodeURIComponent(code)}&limit=500`)||[];
+  const issued=recs.map(r=>r.payload).filter(p=>p&&p.issuedAt&&!p.draft);
+  const ids=issued.map(p=>p.id);
+  let reps=[];if(ids.length)reps=await api(`intaudit_replies?select=id,status&record_id=in.(${ids.join(",")})&limit=5000`)||[];
+  const st={};reps.forEach(r=>st[r.id]=r.status);
+  let pending=0,returned=0,done=0,waiting=0;
+  issued.forEach(p=>(p.defs||[]).forEach(d=>{
+    if(!d.uid||d.closeMode==="FLOW")return;
+    const s=st[`${p.id}_${d.uid}`];
+    if(!s)pending++;else if(s==="returned")returned++;else if(s==="reviewed")done++;else if(s==="submitted")waiting++;
+  }));
+  D.ia={pending,returned,done,waiting,orders:issued.length};
+}
+
+/* ════════ 首頁 ════════ */
+function renderHome(){
+  const cy=new Date().getFullYear(),inY=r=>(pd(r.date)||{}).y===cy;
+  $("#homeKpi").innerHTML=[
+    [D.insp.filter(inY).length,`${cy} 年檢查次數`],
+    [D.defs.filter(inY).length,`${cy} 年缺失數`],
+    [D.pos.filter(inY).length,`${cy} 年正面評價`],
+    [D.ia.pending+D.ia.returned,"改善單待填寫"]
+  ].map(([v,l])=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+  const base=location.href.replace(/[^/]*$/,"");
+  const iaPills=[D.ia.pending?`<span class="pill bad">待填寫 ${D.ia.pending} 項</span>`:"",D.ia.returned?`<span class="pill warn">被退回需補充 ${D.ia.returned} 項</span>`:"",D.ia.waiting?`<span class="pill mute">待督導審核 ${D.ia.waiting} 項</span>`:"",(!D.ia.pending&&!D.ia.returned)?`<span class="pill ok">目前沒有待填寫的項目</span>`:""].join("");
+  const openCamps=D.camps.filter(c=>!D.resps.some(r=>String(r.campaign_id)===String(c.id)&&r.submitted_at)).length;
+  $("#homeEntries").innerHTML=[
+    {t:"🛠 內部檢查改善單",d:"督導上船檢查（訪船、內稽等）發出的改善單：逐筆填寫改善措施、完成日期並上傳改善後照片。",href:`${base}intaudit-reply.html?ship=${encodeURIComponent(D.ship)}`,st:iaPills},
+    {t:"🔍 分享缺失自查",d:"他船發生的缺失分享給全船隊，請本船自查是否有類似情形並回覆。",href:"#camp",st:openCamps?`<span class="pill bad">${openCamps} 項尚未送出</span>`:`<span class="pill ok">目前沒有待填寫的自查</span>`},
+    {t:"📝 外部檢查線上填單",d:"PSC、SIRE、CDI、FLAG 等外部檢查結束後，在這裡線上填寫檢查結果與缺失（After Inspection Review）。",href:`${base}submit-airform.html?ship=${encodeURIComponent(D.ship)}`,st:`<span class="pill mute">檢查後填寫</span>`},
+    {t:"📨 船隊通報單",d:"公司通報、通告清單與各輪回簽資料夾。",href:"#docs",st:`<span class="pill mute">${D.docs.length} 個連結</span>`}
+  ].map(e=>`<a class="entry" href="${esc(e.href)}" ${e.href.startsWith("#")?`onclick="event.preventDefault();${e.href==="#docs"?"go('docs')":"document.getElementById('homeCamp').scrollIntoView({behavior:'smooth'})"}"`:`target="_blank" rel="noopener"`}><span class="t">${e.t}</span><span class="d">${e.d}</span><span class="st">${e.st}</span></a>`).join("");
+  // 分享自查清單
+  const rows=D.camps.map(c=>{
+    const r=D.resps.find(x=>String(x.campaign_id)===String(c.id));
+    const st=r&&r.submitted_at?`<span class="pill ok">已送出</span>`:r?`<span class="pill warn">填寫中</span>`:`<span class="pill bad">尚未填寫</span>`;
+    const href=`${base}submit-selfcheck-share.html?cid=${encodeURIComponent(c.id)}&ship=${encodeURIComponent(D.ship)}`;
+    return `<div class="camp"><div class="tt"><b>${esc(c.title||"缺失自查")}</b><div class="hint">發佈 ${pd(new Date(c.created_at).toISOString())?.txt||""}・${(c.items||[]).length} 題</div></div>${st}<a class="btn sm ${r&&r.submitted_at?"":"dark"}" href="${esc(href)}" target="_blank" rel="noopener">${r&&r.submitted_at?"查看":"前往填寫"}</a></div>`;
+  }).join("");
+  $("#homeCamp").innerHTML=`<b style="color:var(--navy);font-size:15.5px">🔍 分享缺失自查（進行中）</b>${rows?`<div style="margin-top:6px">${rows}</div>`:`<div class="hint" style="margin-top:6px">目前沒有需要本船填寫的分享自查。</div>`}`;
+}
+
+/* ════════ 檢查紀錄 ════════ */
+function renderInsp(){
+  const y=$("#iYear").value,io=$("#iIo").value,q=($("#iQ").value||"").trim().toLowerCase();
+  const rows=D.insp.filter(r=>(!y||String((pd(r.date)||{}).y)===y)&&(!io||(io==="i")===isInt(r.itype))&&(!q||[r.itype,r.loc,r.inspector,r.unit].join(" ").toLowerCase().includes(q)))
+    .sort((a,b)=>((pd(b.date)||{}).iso||"").localeCompare((pd(a.date)||{}).iso||""));
+  const ext=rows.filter(r=>!isInt(r.itype)).length;
+  $("#iSum").innerHTML=`<span class="chip">共 <b>${rows.length}</b> 次</span><span class="chip"><span class="io e">外</span>外部 <b>${ext}</b></span><span class="chip"><span class="io i">內</span>內部 <b>${rows.length-ext}</b></span><span class="chip">缺失合計 <b>${rows.reduce((s,r)=>s+(+r.ndef||0),0)}</b></span>`;
+  $("#iTb").innerHTML=`<thead><tr><th>檢查日期</th><th>檢查來源</th><th>地點</th><th>檢查員</th><th>檢查單位／油公司</th><th>缺失數</th><th>正面評價</th></tr></thead><tbody>`+
+    (rows.map(r=>`<tr><td class="d">${dateRange(r)}</td><td>${ioTag(r.itype)}${esc(r.itype)}${r.flagType?`<div class="hint">${esc(r.flagType)}</div>`:""}</td><td>${esc(r.loc)}</td><td>${esc(r.inspector)}</td><td>${esc(r.unit)}</td><td class="n" style="${(+r.ndef||0)>=4?"color:var(--bad);font-weight:700":""}">${esc(r.ndef||0)}</td><td class="n">${+r.npos?esc(r.npos):"—"}</td></tr>`).join("")||`<tr><td colspan="7" class="empty">沒有符合條件的檢查紀錄</td></tr>`)+`</tbody>`;
+}
+
+/* ════════ 缺失彙總 ════════ */
+function renderDefs(){
+  const y=$("#dYear").value,io=$("#dIo").value,src=$("#dSrc").value,q=($("#dQ").value||"").trim().toLowerCase();
+  const base=D.defs.filter(r=>(!y||String((pd(r.date)||{}).y)===y)&&(!io||(io==="i")===isInt(r.itype)));
+  const srcs=[...new Set(base.map(r=>r.itype).filter(Boolean))].sort();
+  const sel=$("#dSrc"),cur=sel.value;sel.innerHTML=`<option value="">全部檢查來源</option>`+srcs.map(s=>`<option ${s===cur?"selected":""}>${esc(s)}</option>`).join("");
+  const rows=base.filter(r=>(!src||r.itype===src)&&(!q||[r.detail,r.actual,r.code,r.itype].join(" ").toLowerCase().includes(q)))
+    .sort((a,b)=>((pd(b.date)||{}).iso||"").localeCompare((pd(a.date)||{}).iso||""));
+  const cnt={};rows.forEach(r=>cnt[r.itype||"—"]=(cnt[r.itype||"—"]||0)+1);
+  $("#dSum").innerHTML=`<span class="chip">共 <b>${rows.length}</b> 筆缺失</span>`+Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span class="chip">${ioTag(k)}${esc(k)} <b>${v}</b></span>`).join("");
+  const riskTxt=v=>{const s=String(v||"");return s==="3"||s==="高"?`<span class="pill bad">高</span>`:s==="2"||s==="中"?`<span class="pill warn">中</span>`:s==="1"||s==="低"?`<span class="pill mute">低</span>`:"—";};
+  const act=r=>[r.corrective&&`<div><b>矯正措施：</b>${esc(r.corrective)}</div>`,r.preventive&&`<div><b>預防措施：</b>${esc(r.preventive)}</div>`].filter(Boolean).join("");
+  $("#dTb").innerHTML=`<thead><tr><th>檢查日期</th><th>檢查來源</th><th>缺失內容</th><th>風險</th><th>改善措施</th></tr></thead><tbody>`+
+    (rows.map(r=>`<tr><td class="d">${esc((pd(r.date)||{}).txt||r.date||"")}</td><td style="white-space:nowrap">${ioTag(r.itype)}${esc(r.itype)}${r.code?`<div class="hint">${isInt(r.itype)?"":"CODE "}${esc(r.code)}</div>`:""}</td><td class="det">${esc(r.detail)}${r.actual?`<div class="hint" style="margin-top:4px">實際情形：${esc(r.actual)}</div>`:""}</td><td class="n">${riskTxt(r.risk)}</td><td style="min-width:200px">${act(r)||'<span class="hint">—</span>'}</td></tr>`).join("")||`<tr><td colspan="5" class="empty">沒有符合條件的缺失</td></tr>`)+`</tbody>`;
+}
+
+/* ════════ 正面評價 ════════ */
+function renderPos(){
+  const y=$("#pYear").value,q=($("#pQ").value||"").trim().toLowerCase();
+  const rows=D.pos.filter(r=>(!y||String((pd(r.date)||{}).y)===y)&&(!q||[r.person,r.rank,r.item,r.comment,r.itype].join(" ").toLowerCase().includes(q)))
+    .sort((a,b)=>((pd(b.date)||{}).iso||"").localeCompare((pd(a.date)||{}).iso||""));
+  const people=new Set(rows.map(r=>r.person).filter(Boolean)).size;
+  $("#pSum").innerHTML=`<span class="chip">共 <b>${rows.length}</b> 則</span><span class="chip">獲評人員 <b>${people}</b> 位</span>`;
+  $("#pList").innerHTML=rows.map(r=>`<div class="pos"><div><span class="who">${esc(r.person||(r.rank==="公司"?"公司":"本船"))}</span>　<span class="src">${esc(r.rank||"")}</span>${r.item?`　<span class="pill ok">${esc(r.item)}</span>`:""}</div><div class="meta">${esc((pd(r.date)||{}).txt||r.date||"")}${r.itype?"・"+esc(r.itype):r.intAuditId?"・內部檢查":""}</div><div class="c">${esc(r.comment||r.content||"")}</div></div>`).join("")||`<div class="empty">沒有符合條件的正面評價</div>`;
+}
+
+/* ════════ 執行情形一覽表（本船） ════════ */
+const EO_TYPES=[{k:"audit",t:"內稽",it:"INTERNALAUDIT"},{k:"visit",t:"訪船",it:"ONBOARDVISIT"},{k:"cross",t:"交叉訪船",it:"CROSSSHIPVISIT"},{k:"accompany",t:"隨船",it:"ACCOMPANYINGSHIP"},{k:"isps",t:"ISPS",it:"ISPSAUDIT"}];
+const normIt=t=>String(t||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+function eoEvents(){
+  const map={};EO_TYPES.forEach(t=>map[t.it]=t.k);
+  return D.insp.map(r=>{const k=map[normIt(r.itype)]||(/交叉訪船/.test(r.itype||"")?"cross":undefined);const d=pd(r.date);if(!k||!d)return null;return Object.assign({k,insp:r.inspector||"",loc:r.loc||"",range:dateRange(r)},d);}).filter(Boolean);
+}
+function renderExec(){
+  const ev=eoEvents(),y=+($("#eYear").value||new Date().getFullYear());
+  const es=ev.filter(e=>e.y===y).sort((a,b)=>a.iso.localeCompare(b.iso));
+  const tl=k=>EO_TYPES.find(t=>t.k===k).t;
+  const now=new Date(),curM=now.getFullYear()===y?now.getMonth()+1:0;
+  const lastIA=ev.filter(e=>e.k==="audit").map(e=>e.iso).sort().pop();
+  const hasIA=es.some(e=>e.k==="audit");
+  $("#eSum").innerHTML=`<span class="chip">${y} 年度</span>`+EO_TYPES.map(t=>`<span class="chip">${t.t} <b>${es.filter(e=>e.k===t.k).length}</b> 次</span>`).join("")+`<span class="chip">最近一次內稽 <b>${lastIA?lastIA.replace(/-/g,"/"):"—"}</b></span>`+(hasIA?"":`<span class="chip" style="border-color:var(--bad);color:var(--bad)">本年度尚未內稽</span>`);
+  $("#eTb").innerHTML=`<thead><tr>${Array.from({length:12},(_,i)=>`<th class="${i+1===curM?"cur":""}">${i+1}月</th>`).join("")}</tr></thead><tbody><tr>`+
+    Array.from({length:12},(_,i)=>`<td class="${i+1===curM?"cur":""}">${es.filter(e=>e.m===i+1).map(e=>`<span class="eoe ${e.k}" title="${esc(tl(e.k)+"｜"+e.iso+"｜"+e.insp)}"><b>${tl(e.k)}</b><br>${e.m}/${e.d}</span>`).join("")}</td>`).join("")+`</tr></tbody>`;
+  $("#eList").innerHTML=es.length?`<table class="tb"><thead><tr><th>日期</th><th>類別</th><th>檢查人</th><th>地點</th></tr></thead><tbody>${es.map(e=>`<tr><td class="d">${e.range}</td><td><span class="eoe ${e.k}" style="display:inline-block;padding:1px 8px">${tl(e.k)}</span></td><td>${esc(e.insp||"—")}</td><td>${esc(e.loc)}</td></tr>`).join("")}</tbody></table>`:`<div class="hint">${y} 年度目前沒有內稽／訪船／隨船／ISPS 紀錄。</div>`;
+}
+
+/* ════════ 船隊通報單 ════════ */
+function renderDocs(){
+  const list=D.docs.slice().sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)||(b.createdAt||0)-(a.createdAt||0));
+  $("#docList").innerHTML=list.map(d=>`<a class="doc" href="${esc(d.url)}" target="_blank" rel="noopener">${d.pinned?"📌":"📄"}<span class="t">${esc(d.title)}</span><span class="hint">${d.createdAt?new Date(d.createdAt).toLocaleDateString("zh-TW"):""}</span><span class="btn sm">開啟 ↗</span></a>`).join("")||`<div class="empty">目前沒有通報單連結。</div>`;
+}
+
+/* ════════ 頁籤 ════════ */
+const RENDER={home:renderHome,insp:renderInsp,defs:renderDefs,pos:renderPos,exec:renderExec,docs:renderDocs};
+function go(p){
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.p===p));
+  document.querySelectorAll(".page").forEach(s=>s.classList.toggle("on",s.id==="p-"+p));
+  RENDER[p]();window.scrollTo(0,0);
+  try{sessionStorage.setItem("ship_portal_tab",p);}catch(e){}
+}
+document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>go(b.dataset.p));
+["#iYear","#iIo","#iQ"].forEach(s=>$(s).addEventListener("input",renderInsp));
+["#dYear","#dIo","#dSrc","#dQ"].forEach(s=>$(s).addEventListener("input",renderDefs));
+["#pYear","#pQ"].forEach(s=>$(s).addEventListener("input",renderPos));
+$("#eYear").addEventListener("input",renderExec);
+
+(async function init(){
+  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.filter(s=>s&&s.code).map(s=>({code:s.code,label:[s.zh,s.name].filter(Boolean).join(" ")||s.code})).sort((a,b)=>String(a.code).localeCompare(String(b.code)));}catch(e){}
+  const code=await Auth.ensure();
+  $("#hdShip").textContent="🚢 "+shipLabel(code);
+  document.title=`${shipLabel(code)} — 船舶專區`;
+  $("#homeEntries").innerHTML=`<div class="loading">載入本船資料中…</div>`;
+  await loadAll(code);
+  fillYear("#iYear",D.insp,"全部年度");fillYear("#dYear",D.defs,"全部年度");fillYear("#pYear",D.pos,"全部年度");fillYear("#eYear",D.insp,"");
+  $("#eYear").value=String(new Date().getFullYear());
+  let tab="home";try{tab=sessionStorage.getItem("ship_portal_tab")||"home";}catch(e){}
+  go(RENDER[tab]?tab:"home");
+})();
+</script>
+</body>
+</html>

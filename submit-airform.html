@@ -652,6 +652,7 @@ async function loadShipsFromCloud(){
       const s = SHIP_OPTS.find(x=>x.code===cur);
       document.getElementById("f-vtype").value = s ? s.vtype : document.getElementById("f-vtype").value;
     }
+    if(typeof applyShipParam==="function")applyShipParam(); // 從船舶專區帶 ?ship= 進來：雲端清單到了再套一次
   }catch(e){ showCloudWarn(true,e&&e.name==="AbortError"?"連線逾時":"無法連線"); /* 改用內建備援清單，照常可以填寫 */ }
 }
 loadShipsFromCloud();
@@ -1618,6 +1619,28 @@ function applyPayloadToForm(d, opts){
 (function restoreDraft(){
   applyPayloadToForm(loadDraft());
 })();
+/* 從「船舶專區」（ship.html）點進來會帶 ?ship=船代碼：船名自動帶入本船。
+   船名欄是空的才帶入；若這台電腦留著別艘船的草稿，不直接覆蓋，改在上方提示，讓船上自己決定。
+   船名清單是從雲端抓的，所以雲端清單回來後（loadShipsFromCloud）會再套用一次。 */
+const SHIP_PARAM=(new URLSearchParams(location.search).get("ship")||"").trim();
+function applyShipParam(){
+  if(!SHIP_PARAM)return;
+  const el=document.getElementById("f-ship");
+  if(![...el.options].some(o=>o.value===SHIP_PARAM))return;   // 清單還沒有這艘船（雲端清單尚未載入）
+  const old=document.getElementById("shipParamBar");if(old)old.remove();
+  if(!el.value){
+    el.value=SHIP_PARAM;el.dispatchEvent(new Event("change"));
+    return;
+  }
+  if(el.value===SHIP_PARAM)return;
+  const s=SHIP_OPTS.find(x=>x.code===SHIP_PARAM),cur=SHIP_OPTS.find(x=>x.code===el.value);
+  const bar=document.createElement("div");bar.id="shipParamBar";
+  bar.style.cssText="background:#fff3cd;border:1px solid #e0a020;color:#5c4200;border-radius:8px;padding:10px 14px;margin:10px 0;font-size:14px;line-height:1.6;display:flex;gap:10px;align-items:center;flex-wrap:wrap";
+  bar.innerHTML=`<span style="flex:1;min-width:240px">⚠ 這台電腦有一份尚未送出的草稿，船名是「<b>${esc(cur?shipOptLabel(cur):el.value)}</b>」，但您是從「<b>${esc(s?shipOptLabel(s):SHIP_PARAM)}</b>」的船舶專區進來的。請確認船名是否正確。</span><button type="button" class="btn" style="padding:6px 12px" id="shipParamFix">改成本船</button>`;
+  el.closest("label").parentElement.insertBefore(bar,el.closest("label"));
+  document.getElementById("shipParamFix").onclick=()=>{el.value=SHIP_PARAM;el.dispatchEvent(new Event("change"));bar.remove();};
+}
+applyShipParam();
 document.getElementById("formView").addEventListener("input", scheduleAutoSave);
 document.getElementById("formView").addEventListener("change", scheduleAutoSave);
 
