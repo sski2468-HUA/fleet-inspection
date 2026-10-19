@@ -140,6 +140,8 @@ header p{margin:5px 0 0;font-size:14px;color:#b9c8d6;line-height:1.6}
 .ye.ia{background:#efe6f7;color:#5b3290}.ye.ov{background:#e4f1f2;color:#176670}.ye.ac{background:#fdeed9;color:#9a520c}.ye.cv{background:#e3f2e6;color:#2e6b3a}.ye.is{background:#e8edf3;color:#34506e}
 .ye.pend{background:#fff!important;border:1.5px dashed currentColor}
 .yrt tr.noia td.sh{box-shadow:inset 4px 0 0 #c0392b}
+.yrt tr.noov td.sh{box-shadow:inset 4px 0 0 #e8862a}
+.yrt tr.noia.noov td.sh{box-shadow:inset 4px 0 0 #c0392b,inset 8px 0 0 #e8862a}
 input[type=text],input[type=date],select,textarea{padding:9px 11px;border:1px solid var(--line-2);border-radius:7px;font-size:16px;font-family:var(--sans);width:100%;background:#fff}
 textarea{min-height:74px;resize:vertical;line-height:1.5}
 .fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 12px}
@@ -324,6 +326,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
           <select id="yrVtype" onchange="renderYearView()"><option value="">全部船型</option></select>
           <select id="yrInsp" onchange="renderYearView()"><option value="">全部檢查人</option></select>
           <label class="hint" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="yrNoIA" onchange="renderYearView()"> 只看本年度尚未內稽的船</label>
+          <label class="hint" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="yrNoOV" onchange="renderYearView()"> 只看尚未訪船／逾 7 個月未訪的船</label>
           <input type="text" class="fq" id="yrQ" placeholder="🔍 搜尋船名" oninput="renderYearView()">
           <span class="fsp"></span>
           <button class="btn sm" onclick="loadYearData(true)">🔄 重新讀取</button>
@@ -1006,6 +1009,17 @@ async function loadYearData(force){
   }catch(e){$("#yrTable").innerHTML=`<tr><td style="padding:20px;color:#c0392b">⚠ 讀取失敗：${esc(e.message)}</td></tr>`;YR_LOADING=false;return;}
   YR_LOADING=false;renderYearView();
 }
+/* 訪船狀態：本年度是否已訪船（只算 onboard visit，交叉訪船不算一次訪船），以及距上次訪船是否超過 7 個月
+   （訪船規定每半年一次、至多超期 1 個月；只在看「今年」時判斷，看往年就不標逾期） */
+function yrOvStatus(y){
+  const all=(YR_DATA||[]).filter(e=>e.k==="ov");
+  const has=new Set(all.filter(e=>e.dt.y===y).map(e=>e.ship));
+  const last={};all.forEach(e=>{if(!last[e.ship]||e.dt.iso>last[e.ship])last[e.ship]=e.dt.iso;});
+  const now=new Date(),isCur=now.getFullYear()===y;
+  const lim=new Date(now.getFullYear(),now.getMonth()-7,now.getDate());
+  const limIso=`${lim.getFullYear()}-${String(lim.getMonth()+1).padStart(2,"0")}-${String(lim.getDate()).padStart(2,"0")}`;
+  return {isCur,last,noOV:c=>!has.has(c),late:c=>isCur&&!!last[c]&&last[c]<limIso};
+}
 function yrToggleType(k,on){on?yrOn.add(k):yrOn.delete(k);renderYearView();}
 function yrFiltered(){
   const y=+$("#yrYear").value,vt=$("#yrVtype").value,fi=$("#yrInsp").value,q=$("#yrQ").value.trim().toLowerCase();
@@ -1027,39 +1041,47 @@ function renderYearView(){
   const byShip={};ev.forEach(e=>{(byShip[e.ship]=byShip[e.ship]||[]).push(e);});
   const iaShips=new Set(allY.filter(e=>e.k==="ia").map(e=>e.ship));
   const lastIA={};(YR_DATA||[]).filter(e=>e.k==="ia").forEach(e=>{if(!lastIA[e.ship]||e.dt.iso>lastIA[e.ship])lastIA[e.ship]=e.dt.iso;});
-  const onlyNo=$("#yrNoIA").checked;
-  const rows=ships.filter(s=>!onlyNo||!iaShips.has(s.code));
+  const ov=yrOvStatus(y);
+  const onlyNo=$("#yrNoIA").checked,onlyNoOV=$("#yrNoOV")&&$("#yrNoOV").checked;
+  const rows=ships.filter(s=>(!onlyNo||!iaShips.has(s.code))&&(!onlyNoOV||ov.noOV(s.code)||ov.late(s.code)));
   const now=new Date(),curM=now.getFullYear()===y?now.getMonth()+1:0;
   const cnt=k=>ev.filter(e=>e.k===k).length;
   const noIA=ships.filter(s=>!iaShips.has(s.code)).length;
-  $("#yrSummary").innerHTML=`<span class="cchip">${y} 年度</span>${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>`<span class="cchip">${t.t} <b>${cnt(t.k)}</b> 次</span>`).join("")}<span class="cchip" style="border-color:#c0392b;color:#c0392b">本年度尚未內稽 <b>${noIA}</b> 艘</span><span class="hint">共 ${ships.length} 艘船${ev.some(e=>e.pend)?"・虛線框＝內部檢查缺失登錄已送出、尚未匯入主系統":""}</span>`;
+  const noOV=ships.filter(s=>ov.noOV(s.code)).length,lateOV=ships.filter(s=>!ov.noOV(s.code)&&ov.late(s.code)).length;
+  $("#yrSummary").innerHTML=`<span class="cchip">${y} 年度</span>${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>`<span class="cchip">${t.t} <b>${cnt(t.k)}</b> 次</span>`).join("")}<span class="cchip" style="border-color:#c0392b;color:#c0392b">本年度尚未內稽 <b>${noIA}</b> 艘</span><span class="cchip" style="border-color:#e8862a;color:#b5610f" title="交叉訪船不算訪船">本年度尚未訪船 <b>${noOV}</b> 艘</span>${ov.isCur&&lateOV?`<span class="cchip" style="border-color:#e8862a;color:#b5610f" title="訪船每半年一次，至多超期 1 個月：距上次訪船已超過 7 個月">⏰ 逾 7 個月未訪 <b>${lateOV}</b> 艘</span>`:""}<span class="hint">共 ${ships.length} 艘船${ev.some(e=>e.pend)?"・虛線框＝內部檢查缺失登錄已送出、尚未匯入主系統":""}</span>`;
   const nT=YR_TYPES.filter(t=>yrOn.has(t.k)).length;
   // 固定欄寬（百分比），整張表一個畫面放得下、不用左右拉
   const cg=`<colgroup><col style="width:9.5%">${Array.from({length:12},()=>`<col style="width:${((100-9.5-6.5-nT*2.8)/12).toFixed(2)}%">`).join("")}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(()=>`<col style="width:2.8%">`).join("")}<col style="width:6.5%"></colgroup>`;
-  const head=cg+`<thead><tr><th class="sh">船舶</th>${Array.from({length:12},(_,i)=>`<th class="${i+1===curM?"cur":""}">${i+1}月</th>`).join("")}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>`<th title="${t.t}次數">${t.h||t.t.slice(0,1)}</th>`).join("")}<th>最近內稽</th></tr></thead>`;
+  const head=cg+`<thead><tr><th class="sh">船舶</th>${Array.from({length:12},(_,i)=>`<th class="${i+1===curM?"cur":""}">${i+1}月</th>`).join("")}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>`<th title="${t.t}次數">${t.h||t.t.slice(0,1)}</th>`).join("")}<th>最近內稽<br><span style="font-weight:400;opacity:.85">最近訪船</span></th></tr></thead>`;
   const body=rows.map(s=>{
     const es=(byShip[s.code]||[]).sort((a,b)=>a.dt.iso.localeCompare(b.dt.iso));
     const months=Array.from({length:12},(_,i)=>{const list=es.filter(e=>e.dt.m===i+1);
       return `<td class="${i+1===curM?"cur":""}">${list.map(e=>`<span class="ye ${e.k}${e.pend?" pend":""}" title="${esc(YR_TYPES.find(t=>t.k===e.k).t)}｜${e.dt.iso}｜${esc(e.insp)}｜${esc(e.loc)}${e.pend?"｜登錄中，尚未匯入主系統":""}"><b>${(t=>t.s||t.t)(YR_TYPES.find(t=>t.k===e.k))}</b>${e.dt.m}/${e.dt.d}<br>${esc(e.insp||"—")}</span>`).join("")}</td>`;}).join("");
-    const noia=!iaShips.has(s.code);
-    return `<tr class="${noia?"noia":""}"><td class="sh">${esc(s.name)}${noia?` <span title="本年度尚未內稽" style="color:#c0392b;font-size:10.5px;font-weight:800">●未稽</span>`:""}<span class="en">${esc(s.en)}</span></td>${months}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>{const n=es.filter(e=>e.k===t.k).length;return `<td class="n">${n||'<span style="color:#c3ced5">0</span>'}</td>`;}).join("")}<td class="n" style="white-space:nowrap">${lastIA[s.code]?lastIA[s.code].slice(2).replace(/-/g,"/"):"—"}</td></tr>`;
+    const noia=!iaShips.has(s.code),noov=ov.noOV(s.code),late=ov.late(s.code);
+    const lo=ov.last[s.code];
+    const ovMark=noov?` <span title="本年度尚未訪船（交叉訪船不算）${lo?"；上次訪船 "+lo:""}" style="color:#b5610f;font-size:10.5px;font-weight:800">●未訪</span>`
+      :late?` <span title="訪船每半年一次，至多超期 1 個月；上次訪船 ${lo}，已超過 7 個月" style="color:#b5610f;font-size:10.5px;font-weight:800">⏰逾7月</span>`:"";
+    return `<tr class="${noia?"noia":""} ${noov||late?"noov":""}"><td class="sh">${esc(s.name)}${noia?` <span title="本年度尚未內稽" style="color:#c0392b;font-size:10.5px;font-weight:800">●未稽</span>`:""}${ovMark}<span class="en">${esc(s.en)}</span></td>${months}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>{const n=es.filter(e=>e.k===t.k).length;return `<td class="n">${n||'<span style="color:#c3ced5">0</span>'}</td>`;}).join("")}<td class="n" style="white-space:nowrap">${lastIA[s.code]?lastIA[s.code].slice(2).replace(/-/g,"/"):"—"}<br><span style="color:${late||noov?"#b5610f":"#7b8a94"}">${lo?lo.slice(2).replace(/-/g,"/"):"—"}</span></td></tr>`;
   }).join("")||`<tr><td colspan="16" class="hint" style="padding:20px;text-align:center">沒有符合條件的船</td></tr>`;
   $("#yrTable").innerHTML=head+`<tbody>${body}</tbody>`;
 }
 function exportYearXlsx(){
   if(!YR_DATA){toast("資料還在讀取中",true);return;}
-  const {y,ships,ev}=yrFiltered(),onlyNo=$("#yrNoIA").checked;
+  const {y,ships,ev}=yrFiltered(),onlyNo=$("#yrNoIA").checked,onlyNoOV=$("#yrNoOV")&&$("#yrNoOV").checked;
   const iaShips=new Set((YR_DATA||[]).filter(e=>e.dt.y===y&&e.k==="ia").map(e=>e.ship));
+  const ov=yrOvStatus(y);
   const T=YR_TYPES.filter(t=>yrOn.has(t.k));
-  const data=ships.filter(s=>!onlyNo||!iaShips.has(s.code)).map(s=>{
+  const data=ships.filter(s=>(!onlyNo||!iaShips.has(s.code))&&(!onlyNoOV||ov.noOV(s.code)||ov.late(s.code))).map(s=>{
     const es=ev.filter(e=>e.ship===s.code).sort((a,b)=>a.dt.iso.localeCompare(b.dt.iso));
     const o={"船舶":s.label};
     for(let m=1;m<=12;m++)o[`${m}月`]=es.filter(e=>e.dt.m===m).map(e=>`${YR_TYPES.find(t=>t.k===e.k).t} ${e.dt.m}/${e.dt.d} ${e.insp}${e.pend?"（登錄中）":""}`).join("\n");
     T.forEach(t=>o[t.t]=es.filter(e=>e.k===t.k).length);
     o["本年度內稽"]=iaShips.has(s.code)?"已內稽":"尚未內稽";
+    o["本年度訪船"]=ov.noOV(s.code)?"尚未訪船":(ov.late(s.code)?"逾 7 個月未訪":"已訪船");
+    o["最近訪船"]=ov.last[s.code]?ov.last[s.code].replace(/-/g,"/"):"";
     return o;
   });
-  const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[{wch:26},...Array.from({length:12},()=>({wch:16})),...T.map(()=>({wch:7})),{wch:11}];
+  const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[{wch:26},...Array.from({length:12},()=>({wch:16})),...T.map(()=>({wch:7})),{wch:11},{wch:14},{wch:12}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`${y}年度`);
   XlsxPretty.writeFile(wb,`年度檢查一覽_${y}_${todayIso()}.xlsx`);
 }/* ══ 缺失清單列表：一筆缺失一列，燈號＋整列底色＝結案情形，跟改善單審核連動 ══ */
@@ -1261,6 +1283,7 @@ function renderFilterSum(){
     if(val("yrVtype"))add("船型",selText("yrVtype"),"$('#yrVtype').value=''");
     if(val("yrInsp"))add("檢查人",selText("yrInsp"),"$('#yrInsp').value=''");
     if($("#yrNoIA")&&$("#yrNoIA").checked)add("條件","只看本年度尚未內稽的船","$('#yrNoIA').checked=false");
+    if($("#yrNoOV")&&$("#yrNoOV").checked)add("條件","只看尚未訪船／逾 7 個月未訪的船","$('#yrNoOV').checked=false");
     if(val("yrQ"))add("搜尋",val("yrQ"),"$('#yrQ').value=''");
   }
   window._fltClr=items.map(x=>x.clr);
