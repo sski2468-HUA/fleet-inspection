@@ -326,6 +326,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
           <select id="yrVtype" onchange="renderYearView()"><option value="">全部船型</option></select>
           <select id="yrInsp" onchange="renderYearView()"><option value="">全部檢查人</option></select>
           <label class="hint" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="yrNoIA" onchange="renderYearView()"> 只看本年度尚未內稽的船</label>
+          <select id="yrOp" onchange="renderYearView()" title="管理公司（船舶資料）；預設只看 FPMC 自行管理的船" style="width:auto"></select>
           <label class="hint" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="yrNoOV" onchange="renderYearView()"> 只看尚未訪船／逾 7 個月未訪的船</label>
           <input type="text" class="fq" id="yrQ" placeholder="🔍 搜尋船名" oninput="renderYearView()">
           <span class="fsp"></span>
@@ -825,7 +826,7 @@ let SHIPS=[],SUPERVISORS=[];
 function shipLabel(code){const s=SHIPS.find(x=>x.code===code);return s?s.label:(code||"");}
 async function getKey(k){const r=await withTimeout(api(`app_db?select=payload&k=eq.${encodeURIComponent(k)}`),8000);return r&&r[0]?r[0].payload:null;}
 async function loadLists(){
-  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,type1:s.type1||"",deckSup:s.deckSup||"",engineSup:s.engineSup||"",label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));}catch(e){}
+  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,type1:s.type1||"",operator:s.operator||"",deckSup:s.deckSup||"",engineSup:s.engineSup||"",label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));}catch(e){}
   /* 檢查人 Auditor 名單：優先採用主系統「內部檢查人 Auditor 名單」（可含督導/海技/管理層等
      任一部門，由 Owner 在系統管理頁直接挑人維護）；尚未設定過（陣列為空／讀取失敗）時，
      退回舊規則：自動抓名冊部門＝「督導」或「海技組」的人，向後相容既有安裝。 */
@@ -1023,7 +1024,8 @@ function yrOvStatus(y){
 function yrToggleType(k,on){on?yrOn.add(k):yrOn.delete(k);renderYearView();}
 function yrFiltered(){
   const y=+$("#yrYear").value,vt=$("#yrVtype").value,fi=$("#yrInsp").value,q=$("#yrQ").value.trim().toLowerCase();
-  const ships=SHIPS.filter(s=>(!vt||s.type1===vt)&&(!q||[s.label,s.code].join(" ").toLowerCase().includes(q)));
+  const op=$("#yrOp")?$("#yrOp").value:"FPMC";
+  const ships=SHIPS.filter(s=>(!op||String(s.operator||"").toUpperCase()===op.toUpperCase())&&(!vt||s.type1===vt)&&(!q||[s.label,s.code].join(" ").toLowerCase().includes(q)));
   const ev=(YR_DATA||[]).filter(e=>e.dt.y===y&&yrOn.has(e.k)&&(!fi||String(e.insp).split(/[、,，\/]/).map(x=>x.trim()).includes(fi)));
   return {y,ships,ev};
 }
@@ -1032,6 +1034,7 @@ function renderYearView(){
   // 年度、船型、檢查人選項
   const ys=[...new Set(YR_DATA.map(e=>e.dt.y))].concat([new Date().getFullYear()]);const yrs=[...new Set(ys)].sort((a,b)=>b-a);
   const ysel=$("#yrYear"),cy=ysel.value||String(new Date().getFullYear());ysel.innerHTML=yrs.map(y=>`<option value="${y}" ${String(y)===cy?"selected":""}>${y} 年度</option>`).join("");
+  const osel=$("#yrOp");if(osel){const co=osel.dataset.init?osel.value:"FPMC";osel.dataset.init="1";const ops=[...new Set(SHIPS.map(s=>s.operator).filter(Boolean))].sort((a,b)=>(a==="FPMC"?-1:b==="FPMC"?1:a.localeCompare(b)));osel.innerHTML=ops.map(o=>`<option value="${esc(o)}" ${o===co?"selected":""}>管理公司：${esc(o)}${o==="FPMC"?"（自行管理）":""}</option>`).join("")+`<option value="" ${co===""?"selected":""}>管理公司：全部</option>`;}
   const vsel=$("#yrVtype"),cv=vsel.value;vsel.innerHTML='<option value="">全部船型</option>'+[...new Set(SHIPS.map(s=>s.type1).filter(Boolean))].sort().map(t=>`<option ${t===cv?"selected":""}>${esc(t)}</option>`).join("");
   const isel=$("#yrInsp"),ci=isel.value;const names=[...new Set(YR_DATA.flatMap(e=>String(e.insp).split(/[、,，\/]/).map(x=>x.trim())).filter(Boolean))].sort();
   isel.innerHTML='<option value="">全部檢查人</option>'+names.map(n=>`<option ${n===ci?"selected":""}>${esc(n)}</option>`).join("");
@@ -1280,6 +1283,7 @@ function renderFilterSum(){
     if(val("dlRisk"))add("風險",selText("dlRisk"),"$('#dlRisk').value=''");
     if(val("dlQ"))add("搜尋",val("dlQ"),"$('#dlQ').value=''");
   }else if(v==="year"){
+    if($("#yrOp")&&$("#yrOp").value!=="FPMC")add("管理公司",selText("yrOp").replace(/^管理公司：/,""),"$('#yrOp').value='FPMC'");
     if(val("yrVtype"))add("船型",selText("yrVtype"),"$('#yrVtype').value=''");
     if(val("yrInsp"))add("檢查人",selText("yrInsp"),"$('#yrInsp').value=''");
     if($("#yrNoIA")&&$("#yrNoIA").checked)add("條件","只看本年度尚未內稽的船","$('#yrNoIA').checked=false");
@@ -1295,7 +1299,7 @@ function renderFilterSum(){
 function fltClear(i){const c=(window._fltClr||[])[i];if(!c)return;try{(new Function(c))();}catch(e){console.warn(e);}renderList();}
 function fltClearAll(){
   if(listView==="defs")clearDefsFilters();
-  else if(listView==="year"){["yrVtype","yrInsp","yrQ"].forEach(id=>{if($("#"+id))$("#"+id).value="";});if($("#yrNoIA"))$("#yrNoIA").checked=false;renderList();}
+  else if(listView==="year"){["yrVtype","yrInsp","yrQ"].forEach(id=>{if($("#"+id))$("#"+id).value="";});if($("#yrNoIA"))$("#yrNoIA").checked=false;if($("#yrNoOV"))$("#yrNoOV").checked=false;if($("#yrOp"))$("#yrOp").value="FPMC";renderList();}
   else clearStFilters();
 }
 /* 登錄單檢視與檢查統計表共用的篩選（船舶／檢查來源／檢查人／搜尋）：切換檢視時維持原本篩選 */
