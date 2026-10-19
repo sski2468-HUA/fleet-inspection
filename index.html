@@ -4386,6 +4386,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div id="ig-page-execov" class="ig-subpage" style="display:none">
         <style>
           #ig-page-execov .eo-chips{display:inline-flex;gap:6px;flex-wrap:wrap}
+          #ig-page-execov .eo-pick{cursor:pointer;font-family:inherit;background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px;color:var(--ink);margin:0 4px 4px 0;line-height:1.4}
+          #ig-page-execov .eo-pick:hover{box-shadow:0 0 0 2px rgba(47,102,144,.18)}
+          #ig-page-execov .eo-pick.on{background:#fff7e6;box-shadow:0 0 0 3px rgba(232,134,42,.35);font-weight:800}
           #ig-page-execov .eo-chips label{display:inline-flex;flex-direction:row;align-items:center;gap:5px;border:1.5px solid var(--line);border-radius:999px;padding:4px 11px;font-size:12.5px;font-weight:700;cursor:pointer;background:#fff;margin:0}
           #ig-page-execov .eo-chips label.on{border-color:currentColor}
           #ig-page-execov .eo-chips input{width:13px;height:13px;margin:0}
@@ -4411,6 +4414,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           </div>
           <div class="toolbar" style="margin-bottom:0;flex-wrap:wrap;gap:8px;align-items:center">
             <select id="eo-year" onchange="ExecOverview.render()" style="padding:5px 8px"></select>
+            <select id="eo-op" onchange="ExecOverview.render()" style="padding:5px 8px" title="管理公司（船舶資料）；預設只看 FPMC 自行管理的船"></select>
             <span class="eo-chips" id="eo-types"></span>
             <select id="eo-vtype" onchange="ExecOverview.render()" style="padding:5px 8px"><option value="">全部船型</option></select>
             <select id="eo-deck" onchange="ExecOverview.render()" style="padding:5px 8px"><option value="">全部甲板督導</option></select>
@@ -17960,13 +17964,16 @@ const ExecOverview={
       return {ship:r.ship,k,y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate(),iso:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,insp:r.inspector||"",loc:r.loc||""};}).filter(Boolean);
   },
   names(s){return String(s||"").split(/[、,，\/]/).map(x=>x.trim()).filter(Boolean);},
+  pick:"",
+  setPick(k){this.pick=this.pick===k?"":k;this.render();},
   toggle(k,v){v?this.on.add(k):this.on.delete(k);this.render();},
-  clear(){["#eo-vtype","#eo-deck","#eo-engine","#eo-insp","#eo-q"].forEach(s=>{if($(s))$(s).value="";});$("#eo-noia").checked=false;this.on=new Set(this.TYPES.map(t=>t.k));this.render();},
+  clear(){["#eo-vtype","#eo-deck","#eo-engine","#eo-insp","#eo-q"].forEach(s=>{if($(s))$(s).value="";});if($("#eo-op"))$("#eo-op").value="FPMC";this.pick="";$("#eo-noia").checked=false;this.on=new Set(this.TYPES.map(t=>t.k));this.render();},
   filtered(){
     const all=this.ev(),y=+($("#eo-year").value||new Date().getFullYear());
+    const op=$("#eo-op")&&$("#eo-op").dataset.init?$("#eo-op").value:"FPMC";
     const vt=$("#eo-vtype").value,dk=$("#eo-deck").value,en=$("#eo-engine").value,fi=$("#eo-insp").value,q=($("#eo-q").value||"").trim().toLowerCase();
     const ships=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code)))
-      .filter(s=>(!vt||s.vtype===vt||s.type1===vt)&&(!dk||s.deckSup===dk)&&(!en||s.engineSup===en)&&(!q||[s.code,s.zh,s.name].join(" ").toLowerCase().includes(q)));
+      .filter(s=>(!op||String(s.operator||"").toUpperCase()===op.toUpperCase())&&(!vt||s.vtype===vt||s.type1===vt)&&(!dk||s.deckSup===dk)&&(!en||s.engineSup===en)&&(!q||[s.code,s.zh,s.name].join(" ").toLowerCase().includes(q)));
     const ev=all.filter(e=>e.y===y&&this.on.has(e.k)&&(!fi||this.names(e.insp).includes(fi)));
     const iaShips=new Set(all.filter(e=>e.y===y&&e.k==="audit").map(e=>e.ship));
     const lastIA={};all.filter(e=>e.k==="audit").forEach(e=>{if(!lastIA[e.ship]||e.iso>lastIA[e.ship])lastIA[e.ship]=e.iso;});
@@ -17977,6 +17984,7 @@ const ExecOverview={
     const set=(id,label,vals)=>{const el=$(id),cur=el.value;el.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option ${v===cur?"selected":""}>${esc(v)}</option>`).join("");};
     const ys=[...new Set(all.map(e=>e.y).concat([new Date().getFullYear()]))].sort((a,b)=>b-a);
     const ye=$("#eo-year"),cy=ye.value||String(new Date().getFullYear());ye.innerHTML=ys.map(y=>`<option value="${y}" ${String(y)===cy?"selected":""}>${y} 年度</option>`).join("");
+    const osel=$("#eo-op");if(osel){const co=osel.dataset.init?osel.value:"FPMC";osel.dataset.init="1";const ops=[...new Set(SI.map(s=>s.operator).filter(Boolean))].sort((a,b)=>(a==="FPMC"?-1:b==="FPMC"?1:a.localeCompare(b)));osel.innerHTML=ops.map(o=>`<option value="${esc(o)}" ${o===co?"selected":""}>管理公司：${esc(o)}${o==="FPMC"?"（自行管理）":""}</option>`).join("")+`<option value="" ${co===""?"selected":""}>管理公司：全部</option>`;}
     set("#eo-vtype","全部船型",[...new Set(SI.map(s=>s.type1||s.vtype).filter(Boolean))].sort());
     set("#eo-deck","全部甲板督導",[...new Set(SI.map(s=>s.deckSup).filter(Boolean))].sort());
     set("#eo-engine","全部機艙督導",[...new Set(SI.map(s=>s.engineSup).filter(Boolean))].sort());
@@ -17987,12 +17995,17 @@ const ExecOverview={
   render(){
     if(!$("#eo-table"))return;
     this.fillSelects(this.ev());
-    const {y,ships,ev,iaShips,lastIA,rows}=this.filtered();
+    const {y,ships,ev,iaShips,lastIA,rows:rows0}=this.filtered();
     const T=this.TYPES.filter(t=>this.on.has(t.k));
+    // 上方統計小卡可點選：只列出該卡片代表的船（再點一次取消）
+    const pickFn={noia:s=>!iaShips.has(s.code)};T.forEach(t=>pickFn["has:"+t.k]=s=>ev.some(e=>e.ship===s.code&&e.k===t.k));
+    if(this.pick&&!pickFn[this.pick])this.pick="";
+    const rows=this.pick?rows0.filter(pickFn[this.pick]):rows0;
     const now=new Date(),curM=now.getFullYear()===y?now.getMonth()+1:0;
     const by={};ev.forEach(e=>{(by[e.ship]=by[e.ship]||[]).push(e);});
     const noIA=ships.filter(s=>!iaShips.has(s.code)).length;
-    $("#eo-summary").innerHTML=`<span class="chip">${y} 年度・共 ${ships.length} 艘船</span>${T.map(t=>`<span class="chip">${t.t} <b>${ev.filter(e=>e.k===t.k).length}</b> 次</span>`).join("")}<span class="chip" style="border-color:#c0392b;color:#c0392b">本年度尚未內稽 <b>${noIA}</b> 艘</span>`;
+    const pk=(k,html,sty)=>`<button type="button" class="chip eo-pick ${this.pick===k?"on":""}" style="${sty||""}" onclick="ExecOverview.setPick('${k}')" title="點選只看這些船，再點一次取消">${html}</button>`;
+    $("#eo-summary").innerHTML=`<span class="chip">${y} 年度・共 ${ships.length} 艘船</span>${T.map(t=>pk("has:"+t.k,`${t.t} <b>${ev.filter(e=>e.k===t.k).length}</b> 次`)).join("")}${pk("noia",`本年度尚未內稽 <b>${noIA}</b> 艘`,"border-color:#c0392b;color:#c0392b")}<span class="hint" style="margin-left:6px">${this.pick?`顯示 ${rows.length} 艘（再點一次取消）`:"點小卡可只看該類船"}</span>`;
     const tl=k=>this.TYPES.find(t=>t.k===k).t;
     const head=`<thead><tr><th class="sh">船舶</th>${Array.from({length:12},(_,i)=>`<th class="${i+1===curM?"cur":""}">${i+1}月</th>`).join("")}${T.map(t=>`<th>${t.t}</th>`).join("")}<th>最近一次內稽</th></tr></thead>`;
     const body=rows.map(s=>{

@@ -141,6 +141,16 @@ header p{margin:5px 0 0;font-size:14px;color:#b9c8d6;line-height:1.6}
 .ye.pend{background:#fff!important;border:1.5px dashed currentColor}
 .yrt tr.noia td.sh{box-shadow:inset 4px 0 0 #c0392b}
 .yrt tr.noov td.sh{box-shadow:inset 4px 0 0 #e8862a}
+.cchip.yrsum{cursor:pointer;font-family:inherit;background:#fff;transition:box-shadow .12s,background .12s}
+.cchip.yrsum:hover{box-shadow:0 0 0 2px rgba(47,102,144,.18)}
+.cchip.yrsum.on{background:#fff7e6;box-shadow:0 0 0 3px rgba(232,134,42,.35);font-weight:800}
+.yrlbl{font-size:12.5px;font-weight:700;color:var(--ink-3);white-space:nowrap;min-width:52px}
+.yrsep{width:1px;align-self:stretch;background:var(--line-2);margin:0 4px}
+.yrpick{display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;font-size:13.5px;font-weight:700;border:1.5px solid var(--line-2);border-radius:18px;padding:5px 12px;background:#fff}
+.yrpick input{width:auto;margin:0}
+.yrpick.ia{color:#c0392b}.yrpick.ov{color:#b5610f}
+.yrpick.ia:has(input:checked){background:#fde8e6;border-color:#c0392b}
+.yrpick.ov:has(input:checked){background:#fff1dc;border-color:#e8862a}
 .yrt tr.noia.noov td.sh{box-shadow:inset 4px 0 0 #c0392b,inset 8px 0 0 #e8862a}
 input[type=text],input[type=date],select,textarea{padding:9px 11px;border:1px solid var(--line-2);border-radius:7px;font-size:16px;font-family:var(--sans);width:100%;background:#fff}
 textarea{min-height:74px;resize:vertical;line-height:1.5}
@@ -320,18 +330,26 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
     <div id="fltSum" class="fltsum" style="display:none"></div>
     <div id="yearView" style="display:none">
       <div class="card fcard">
+        <!-- ① 範圍：年度、哪些船 -->
         <div class="frow">
-          <select id="yrYear" onchange="renderYearView()" title="年度"></select>
-          <span class="yrchips" id="yrTypes"></span>
-          <select id="yrVtype" onchange="renderYearView()"><option value="">全部船型</option></select>
-          <select id="yrInsp" onchange="renderYearView()"><option value="">全部檢查人</option></select>
-          <label class="hint" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="yrNoIA" onchange="renderYearView()"> 只看本年度尚未內稽的船</label>
+          <span class="yrlbl">範圍</span>
+          <select id="yrYear" onchange="renderYearView()" title="年度" style="width:auto"></select>
           <select id="yrOp" onchange="renderYearView()" title="管理公司（船舶資料）；預設只看 FPMC 自行管理的船" style="width:auto"></select>
-          <label class="hint" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="yrNoOV" onchange="renderYearView()"> 只看尚未訪船／逾 7 個月未訪的船</label>
+          <select id="yrVtype" onchange="renderYearView()" style="width:auto"><option value="">全部船型</option></select>
+          <select id="yrInsp" onchange="renderYearView()" style="width:auto"><option value="">全部檢查人</option></select>
           <input type="text" class="fq" id="yrQ" placeholder="🔍 搜尋船名" oninput="renderYearView()">
           <span class="fsp"></span>
           <button class="btn sm" onclick="loadYearData(true)">🔄 重新讀取</button>
           <button class="btn sm dark" onclick="exportYearXlsx()">⬇ 匯出 Excel</button>
+        </div>
+        <!-- ② 顯示哪些檢查類別 ③ 只看待處理的船 -->
+        <div class="frow" style="margin-top:8px">
+          <span class="yrlbl">顯示類別</span>
+          <span class="yrchips" id="yrTypes"></span>
+          <span class="yrsep"></span>
+          <span class="yrlbl">只看</span>
+          <label class="yrpick ia"><input type="checkbox" id="yrNoIA" onchange="renderYearView()"> 本年度尚未內稽</label>
+          <label class="yrpick ov"><input type="checkbox" id="yrNoOV" onchange="renderYearView()"> 尚未訪船／逾 7 個月未訪</label>
         </div>
         <div class="frow2" id="yrSummary"></div>
       </div>
@@ -1021,6 +1039,9 @@ function yrOvStatus(y){
   const limIso=`${lim.getFullYear()}-${String(lim.getMonth()+1).padStart(2,"0")}-${String(lim.getDate()).padStart(2,"0")}`;
   return {isCur,last,noOV:c=>!has.has(c),late:c=>isCur&&!!last[c]&&last[c]<limIso};
 }
+/* 上方統計小卡可點選：只列出該卡片代表的船（再點一次取消） */
+let yrPick="";
+function yrSetPick(k){yrPick=yrPick===k?"":k;renderYearView();}
 function yrToggleType(k,on){on?yrOn.add(k):yrOn.delete(k);renderYearView();}
 function yrFiltered(){
   const y=+$("#yrYear").value,vt=$("#yrVtype").value,fi=$("#yrInsp").value,q=$("#yrQ").value.trim().toLowerCase();
@@ -1046,12 +1067,17 @@ function renderYearView(){
   const lastIA={};(YR_DATA||[]).filter(e=>e.k==="ia").forEach(e=>{if(!lastIA[e.ship]||e.dt.iso>lastIA[e.ship])lastIA[e.ship]=e.dt.iso;});
   const ov=yrOvStatus(y);
   const onlyNo=$("#yrNoIA").checked,onlyNoOV=$("#yrNoOV")&&$("#yrNoOV").checked;
-  const rows=ships.filter(s=>(!onlyNo||!iaShips.has(s.code))&&(!onlyNoOV||ov.noOV(s.code)||ov.late(s.code)));
+  const hasK=(code,k)=>ev.some(e=>e.ship===code&&e.k===k);
+  const pickFn={noia:s=>!iaShips.has(s.code),noov:s=>ov.noOV(s.code),late:s=>!ov.noOV(s.code)&&ov.late(s.code)};
+  YR_TYPES.forEach(t=>pickFn["has:"+t.k]=s=>hasK(s.code,t.k));
+  if(yrPick&&!pickFn[yrPick])yrPick="";
+  const rows=ships.filter(s=>(!onlyNo||!iaShips.has(s.code))&&(!onlyNoOV||ov.noOV(s.code)||ov.late(s.code))&&(!yrPick||pickFn[yrPick](s)));
   const now=new Date(),curM=now.getFullYear()===y?now.getMonth()+1:0;
   const cnt=k=>ev.filter(e=>e.k===k).length;
   const noIA=ships.filter(s=>!iaShips.has(s.code)).length;
   const noOV=ships.filter(s=>ov.noOV(s.code)).length,lateOV=ships.filter(s=>!ov.noOV(s.code)&&ov.late(s.code)).length;
-  $("#yrSummary").innerHTML=`<span class="cchip">${y} 年度</span>${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>`<span class="cchip">${t.t} <b>${cnt(t.k)}</b> 次</span>`).join("")}<span class="cchip" style="border-color:#c0392b;color:#c0392b">本年度尚未內稽 <b>${noIA}</b> 艘</span><span class="cchip" style="border-color:#e8862a;color:#b5610f" title="交叉訪船不算訪船">本年度尚未訪船 <b>${noOV}</b> 艘</span>${ov.isCur&&lateOV?`<span class="cchip" style="border-color:#e8862a;color:#b5610f" title="訪船每半年一次，至多超期 1 個月：距上次訪船已超過 7 個月">⏰ 逾 7 個月未訪 <b>${lateOV}</b> 艘</span>`:""}<span class="hint">共 ${ships.length} 艘船${ev.some(e=>e.pend)?"・虛線框＝內部檢查缺失登錄已送出、尚未匯入主系統":""}</span>`;
+  $("#yrSummary").innerHTML=(()=>{const pk=(k,html,sty)=>`<button type="button" class="cchip yrsum ${yrPick===k?"on":""}" style="${sty||""}" onclick="yrSetPick('${k}')" title="點選只看這些船，再點一次取消">${html}</button>`;
+    return `<span class="cchip">${y} 年度</span>${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>pk("has:"+t.k,`${t.t} <b>${cnt(t.k)}</b> 次`)).join("")}${pk("noia",`本年度尚未內稽 <b>${noIA}</b> 艘`,"border-color:#c0392b;color:#c0392b")}${pk("noov",`本年度尚未訪船 <b>${noOV}</b> 艘`,"border-color:#e8862a;color:#b5610f")}${ov.isCur&&lateOV?pk("late",`⏰ 逾 7 個月未訪 <b>${lateOV}</b> 艘`,"border-color:#e8862a;color:#b5610f"):""}<span class="hint">${yrPick?`顯示 ${rows.length} 艘（點選的卡片再點一次取消）`:`共 ${ships.length} 艘船・點上方小卡可只看該類船`}${ev.some(e=>e.pend)?"・虛線框＝內部檢查缺失登錄已送出、尚未匯入主系統":""}</span>`;})();
   const nT=YR_TYPES.filter(t=>yrOn.has(t.k)).length;
   // 固定欄寬（百分比），整張表一個畫面放得下、不用左右拉
   const cg=`<colgroup><col style="width:9.5%">${Array.from({length:12},()=>`<col style="width:${((100-9.5-6.5-nT*2.8)/12).toFixed(2)}%">`).join("")}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(()=>`<col style="width:2.8%">`).join("")}<col style="width:6.5%"></colgroup>`;
@@ -1286,9 +1312,10 @@ function renderFilterSum(){
     if($("#yrOp")&&$("#yrOp").value!=="FPMC")add("管理公司",selText("yrOp").replace(/^管理公司：/,""),"$('#yrOp').value='FPMC'");
     if(val("yrVtype"))add("船型",selText("yrVtype"),"$('#yrVtype').value=''");
     if(val("yrInsp"))add("檢查人",selText("yrInsp"),"$('#yrInsp').value=''");
-    if($("#yrNoIA")&&$("#yrNoIA").checked)add("條件","只看本年度尚未內稽的船","$('#yrNoIA').checked=false");
-    if($("#yrNoOV")&&$("#yrNoOV").checked)add("條件","只看尚未訪船／逾 7 個月未訪的船","$('#yrNoOV').checked=false");
+    if($("#yrNoIA")&&$("#yrNoIA").checked)add("只看","本年度尚未內稽","$('#yrNoIA').checked=false");
+    if($("#yrNoOV")&&$("#yrNoOV").checked)add("只看","尚未訪船／逾 7 個月未訪","$('#yrNoOV').checked=false");
     if(val("yrQ"))add("搜尋",val("yrQ"),"$('#yrQ').value=''");
+    if(typeof yrPick!=="undefined"&&yrPick){const T=YR_TYPES.find(x=>"has:"+x.k===yrPick);add("只看",T?`本年度有${T.t}的船`:({noia:"本年度尚未內稽",noov:"本年度尚未訪船",late:"逾 7 個月未訪"})[yrPick],"yrPick=''");}
   }
   window._fltClr=items.map(x=>x.clr);
   if(!items.length){box.style.display="none";box.innerHTML="";return;}
@@ -1299,7 +1326,7 @@ function renderFilterSum(){
 function fltClear(i){const c=(window._fltClr||[])[i];if(!c)return;try{(new Function(c))();}catch(e){console.warn(e);}renderList();}
 function fltClearAll(){
   if(listView==="defs")clearDefsFilters();
-  else if(listView==="year"){["yrVtype","yrInsp","yrQ"].forEach(id=>{if($("#"+id))$("#"+id).value="";});if($("#yrNoIA"))$("#yrNoIA").checked=false;if($("#yrNoOV"))$("#yrNoOV").checked=false;if($("#yrOp"))$("#yrOp").value="FPMC";renderList();}
+  else if(listView==="year"){["yrVtype","yrInsp","yrQ"].forEach(id=>{if($("#"+id))$("#"+id).value="";});if($("#yrNoIA"))$("#yrNoIA").checked=false;if($("#yrNoOV"))$("#yrNoOV").checked=false;if($("#yrOp"))$("#yrOp").value="FPMC";yrPick="";renderList();}
   else clearStFilters();
 }
 /* 登錄單檢視與檢查統計表共用的篩選（船舶／檢查來源／檢查人／搜尋）：切換檢視時維持原本篩選 */
