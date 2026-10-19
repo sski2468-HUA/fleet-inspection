@@ -39,6 +39,8 @@ header{background:var(--navy);color:#fff;padding:14px 20px}
 nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
 .tabs{max-width:1180px;margin:0 auto;display:flex;gap:2px;overflow-x:auto;padding:0 12px}
 .tabs button{border:0;background:none;padding:12px 14px;font-size:14.5px;font-weight:700;color:var(--ink2);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+.tabs a.extab{padding:12px 14px;font-size:14.5px;font-weight:700;color:var(--navy2);text-decoration:none;white-space:nowrap;border-bottom:3px solid transparent}
+.tabs a.extab:hover{color:var(--navy)}
 .tabs button.on{color:var(--navy);border-bottom-color:var(--signal)}
 main{max-width:1180px;margin:0 auto;padding:18px 16px 40px}
 .page{display:none}.page.on{display:block}
@@ -175,10 +177,10 @@ table.eo td.cur,table.eo th.cur{background:#fff8ec}
   <button data-p="home" class="on">🏠 首頁</button>
   <button data-p="air">📝 填單紀錄</button>
   <button data-p="insp">📋 檢查紀錄</button>
-  <button data-p="defs">⚠ 缺失彙總</button>
   <button data-p="pos">👍 正面評價</button>
   <button data-p="exec">📅 執行情形一覽表</button>
   <button data-p="docs">📨 船隊通報單</button>
+  <a class="extab" href="https://ttwonder.github.io/sqms-revision-system-ready/" target="_blank" rel="noopener" title="SQMS 程序書修訂需求管理平台（另開新視窗）">📘 SQMS 程序書修訂需求 ↗</a>
 </div></nav>
 
 <main>
@@ -219,20 +221,6 @@ table.eo td.cur,table.eo th.cur{background:#fff8ec}
     <div class="tbwrap"><table class="tb" id="iTb"></table></div>
   </section>
 
-  <!-- 缺失彙總 -->
-  <section class="page" id="p-defs">
-    <h2 class="pt">⚠ 檢查缺失彙總 <span class="hint">本船歷次檢查的缺失（外部＋內部）</span></h2>
-    <div class="flt">
-      <select id="dYear"></select>
-      <select id="dIo"><option value="">外部＋內部</option><option value="e">只看外部檢查</option><option value="i">只看內部檢查</option></select>
-      <input id="dQ" placeholder="搜尋缺失內容">
-      <button class="btn sm noprint" onclick="window.print()">🖨 列印</button>
-    </div>
-    <div class="hint" style="margin:-4px 0 6px">點下方卡片可依檢查來源篩選，再點一次取消</div>
-    <div class="scards" id="dCards"></div>
-    <div class="chips" id="dSum" style="margin-bottom:10px"></div>
-    <div class="tbwrap"><table class="tb" id="dTb"></table></div>
-  </section>
 
   <!-- 正面評價 -->
   <section class="page" id="p-pos">
@@ -347,7 +335,7 @@ function log(action,target,summary){
 }
 
 /* ════════ 資料 ════════ */
-const D={ship:"",air:[],insp:[],defs:[],pos:[],docs:[],camps:[],resps:[],ia:{pending:0,returned:0,done:0,orders:0}};
+const D={ship:"",air:[],insp:[],pos:[],docs:[],camps:[],resps:[],ia:{pending:0,returned:0,done:0,orders:0}};
 const yearsOf=arr=>[...new Set(arr.map(r=>(pd(r.date)||{}).y).filter(Boolean))].sort((a,b)=>b-a);
 function fillYear(sel,arr,allLabel){const ys=yearsOf(arr),cy=new Date().getFullYear();const el=$(sel),cur=el.value;el.innerHTML=(allLabel?`<option value="">${allLabel}</option>`:"")+[...new Set([cy,...ys])].sort((a,b)=>b-a).map(y=>`<option value="${y}">${y} 年</option>`).join("");if(cur)el.value=cur;}
 
@@ -356,7 +344,6 @@ async function loadAll(code){
   try{const c=await getKey("classify_rules");if(c&&Array.isArray(c.internalKw)&&c.internalKw.length)INTKW=c.internalKw;}catch(e){}
   const tasks=[
     pullShip("sync_insp",code).then(a=>D.insp=a.filter(shipVisible)),
-    pullShip("sync_defs",code).then(a=>D.defs=a.filter(shipVisible)),
     pullShip("sync_sirepos",code).then(a=>D.pos=a.filter(shipVisible)),
     getKey("refDocs").then(a=>D.docs=Array.isArray(a)?a:[]).catch(()=>{}),
     // 外部檢查線上填單：本船送出過的（唯讀）
@@ -400,7 +387,7 @@ function renderHome(){
   const cy=new Date().getFullYear(),inY=r=>(pd(r.date)||{}).y===cy;
   $("#homeKpi").innerHTML=[
     [D.insp.filter(inY).length,`${cy} 年檢查次數`],
-    [D.defs.filter(inY).length,`${cy} 年缺失數`],
+    [D.insp.filter(inY).reduce((s,r)=>s+(+r.ndef||0),0),`${cy} 年缺失數`],
     [D.pos.filter(inY).length,`${cy} 年正面評價`],
     [D.ia.pending+D.ia.returned,"改善單待填寫"]
   ].map(([v,l])=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
@@ -411,7 +398,8 @@ function renderHome(){
     {t:"🛠 內部檢查改善單",d:"督導上船檢查（訪船、內稽等）發出的改善單：逐筆填寫改善措施、完成日期並上傳改善後照片。",href:`${base}intaudit-reply.html?ship=${encodeURIComponent(D.ship)}`,st:iaPills},
     {t:"🔍 分享缺失自查",d:"他船發生的缺失分享給全船隊，請本船自查是否有類似情形並回覆。",href:"#camp",st:openCamps?`<span class="pill bad">${openCamps} 項尚未送出</span>`:`<span class="pill ok">目前沒有待填寫的自查</span>`},
     {t:"📝 外部檢查線上填單",d:"PSC、SIRE、CDI、FLAG 等外部檢查結束後，在這裡線上填寫檢查結果與缺失（After Inspection Review）。<b style=\"color:#c0392b\">零缺失也要填報</b>（缺失數填 0，並填寫正面評論）。",href:`${base}submit-airform.html?ship=${encodeURIComponent(D.ship)}`,st:`<span class="pill mute">檢查後填寫</span><span class="pill ok">已送出 ${D.air.filter(r=>r.status!=="rejected").length} 份・見「填單紀錄」</span>`},
-    {t:"📨 船隊通報單",d:"公司通報、通告清單與各輪回簽資料夾。",href:"#docs",st:`<span class="pill mute">${D.docs.length} 個連結</span>`}
+    {t:"📨 船隊通報單",d:"公司通報、通告清單與各輪回簽資料夾。",href:"#docs",st:`<span class="pill mute">${D.docs.length} 個連結</span>`},
+    {t:"📘 SQMS 程序書修訂需求管理平台",d:"對 SQMS 程序書有修訂建議或需求時，到這裡提出。（另開新視窗）",href:"https://ttwonder.github.io/sqms-revision-system-ready/",st:`<span class="pill mute">外部平台 ↗</span>`}
   ].map(e=>`<a class="entry" href="${esc(e.href)}" ${e.href.startsWith("#")?`onclick="event.preventDefault();${e.href==="#docs"?"go('docs')":"document.getElementById('homeCamp').scrollIntoView({behavior:'smooth'})"}"`:`target="_blank" rel="noopener"`}><span class="t">${e.t}</span><span class="d">${e.d}</span><span class="st">${e.st}</span></a>`).join("");
   // 分享自查清單
   const rows=D.camps.map(c=>{
@@ -456,10 +444,10 @@ function renderAir(){
   }).join("")||`<div class="empty">${D.air.length?"沒有符合條件的填單紀錄":"本船還沒有送出過線上填單"}</div>`;
 }
 
-/* ════════ 檢查來源統計卡（檢查紀錄／缺失彙總共用）════════
+/* ════════ 檢查來源統計卡（檢查紀錄／正面評價共用）════════
    每張卡＝一個檢查來源：外部（藍綠）／內部（紫）、件數、占比條；點卡片篩選該來源，再點一次取消。
    卡片的件數依「年度＋外部／內部＋搜尋」計算，不受卡片本身的篩選影響，方便比較。 */
-const PICK={insp:"",defs:"",pos:""};
+const PICK={insp:"",pos:""};
 function srcCards(el,items,which,unit,extra){
   const cnt={};items.forEach(r=>{const k=r.itype||"—";cnt[k]=(cnt[k]||0)+1;});
   const list=Object.entries(cnt).sort((a,b)=>b[1]-a[1]),max=Math.max(1,...list.map(x=>x[1])),tot=items.length,cur=PICK[which];
@@ -470,7 +458,7 @@ function srcCards(el,items,which,unit,extra){
       <span class="bar"><i style="width:${k?Math.max(4,v/max*100):100}%"></i></span>${extra&&k?`<span class="hint" style="display:block;margin-top:3px">${extra(k)}</span>`:""}</button>`;};
   el.innerHTML=card("",tot,"all","全部")+list.map(([k,v])=>card(k,v,isInt(k)?"i":"e",`${ioTag(k)}${esc(k)}`)).join("");
 }
-function pickSrc(which,k){PICK[which]=PICK[which]===k?"":k;({insp:renderInsp,defs:renderDefs,pos:renderPos})[which]();}
+function pickSrc(which,k){PICK[which]=PICK[which]===k?"":k;({insp:renderInsp,pos:renderPos})[which]();}
 
 /* ════════ 檢查紀錄 ════════ */
 function renderInsp(){
@@ -483,22 +471,6 @@ function renderInsp(){
   $("#iSum").innerHTML=`<span class="chip">共 <b>${rows.length}</b> 次</span><span class="chip"><span class="io e">外</span>外部 <b>${ext}</b></span><span class="chip"><span class="io i">內</span>內部 <b>${rows.length-ext}</b></span><span class="chip">缺失合計 <b>${rows.reduce((s,r)=>s+(+r.ndef||0),0)}</b></span>`;
   $("#iTb").innerHTML=`<thead><tr><th>檢查日期</th><th>檢查來源</th><th>地點</th><th>檢查員</th><th>檢查單位／油公司</th><th>缺失數</th><th>正面評價</th></tr></thead><tbody>`+
     (rows.map(r=>`<tr><td class="d">${dateRange(r)}</td><td>${ioTag(r.itype)}${esc(r.itype)}${r.flagType?`<div class="hint">${esc(r.flagType)}</div>`:""}</td><td>${esc(r.loc)}</td><td>${esc(r.inspector)}</td><td>${esc(r.unit)}</td><td class="n" style="${(+r.ndef||0)>=4?"color:var(--bad);font-weight:700":""}">${esc(r.ndef||0)}</td><td class="n">${+r.npos?esc(r.npos):"—"}</td></tr>`).join("")||`<tr><td colspan="7" class="empty">沒有符合條件的檢查紀錄</td></tr>`)+`</tbody>`;
-}
-
-/* ════════ 缺失彙總 ════════ */
-function renderDefs(){
-  const y=$("#dYear").value,io=$("#dIo").value,q=($("#dQ").value||"").trim().toLowerCase();
-  const base=D.defs.filter(r=>(!y||String((pd(r.date)||{}).y)===y)&&(!io||(io==="i")===isInt(r.itype))&&(!q||[r.detail,r.actual,r.code,r.itype].join(" ").toLowerCase().includes(q)));
-  srcCards($("#dCards"),base,"defs","筆");
-  const rows=base.filter(r=>!PICK.defs||r.itype===PICK.defs)
-    .sort((a,b)=>((pd(b.date)||{}).iso||"").localeCompare((pd(a.date)||{}).iso||""));
-  const rk=v=>{const s=String(v||"");return s==="3"||s==="高"?"高":s==="2"||s==="中"?"中":s==="1"||s==="低"?"低":"";};
-  const rc={高:0,中:0,低:0};rows.forEach(r=>{const k=rk(r.risk);if(k)rc[k]++;});
-  $("#dSum").innerHTML=`<span class="chip">${PICK.defs?`${ioTag(PICK.defs)}${esc(PICK.defs)}・`:""}顯示 <b>${rows.length}</b> 筆缺失</span><span class="chip">風險 <span class="pill bad">高 ${rc.高}</span> <span class="pill warn">中 ${rc.中}</span> <span class="pill mute">低 ${rc.低}</span></span>`;
-  const riskTxt=v=>{const s=String(v||"");return s==="3"||s==="高"?`<span class="pill bad">高</span>`:s==="2"||s==="中"?`<span class="pill warn">中</span>`:s==="1"||s==="低"?`<span class="pill mute">低</span>`:"—";};
-  const act=r=>[r.corrective&&`<div><b>矯正措施：</b>${esc(r.corrective)}</div>`,r.preventive&&`<div><b>預防措施：</b>${esc(r.preventive)}</div>`].filter(Boolean).join("");
-  $("#dTb").innerHTML=`<thead><tr><th>檢查日期</th><th>檢查來源</th><th>缺失內容</th><th>風險</th><th>改善措施</th></tr></thead><tbody>`+
-    (rows.map(r=>`<tr><td class="d">${esc((pd(r.date)||{}).txt||r.date||"")}</td><td style="white-space:nowrap">${ioTag(r.itype)}${esc(r.itype)}${r.code?`<div class="hint">${isInt(r.itype)?"":"CODE "}${esc(r.code)}</div>`:""}</td><td class="det">${esc(r.detail)}${r.actual?`<div class="hint" style="margin-top:4px">實際情形：${esc(r.actual)}</div>`:""}</td><td class="n">${riskTxt(r.risk)}</td><td style="min-width:200px">${act(r)||'<span class="hint">—</span>'}</td></tr>`).join("")||`<tr><td colspan="5" class="empty">沒有符合條件的缺失</td></tr>`)+`</tbody>`;
 }
 
 /* ════════ 正面評價 ════════ */
@@ -553,7 +525,7 @@ function renderDocs(){
 }
 
 /* ════════ 頁籤 ════════ */
-const RENDER={home:renderHome,air:renderAir,insp:renderInsp,defs:renderDefs,pos:renderPos,exec:renderExec,docs:renderDocs};
+const RENDER={home:renderHome,air:renderAir,insp:renderInsp,pos:renderPos,exec:renderExec,docs:renderDocs};
 function go(p){
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.p===p));
   document.querySelectorAll(".page").forEach(s=>s.classList.toggle("on",s.id==="p-"+p));
@@ -562,7 +534,6 @@ function go(p){
 }
 document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>go(b.dataset.p));
 ["#iYear","#iIo","#iQ"].forEach(s=>$(s).addEventListener("input",renderInsp));
-["#dYear","#dIo","#dQ"].forEach(s=>$(s).addEventListener("input",renderDefs));
 ["#pYear","#pQ"].forEach(s=>$(s).addEventListener("input",renderPos));
 ["#aYear","#aQ","#aRej"].forEach(s=>$(s).addEventListener("input",renderAir));
 $("#eYear").addEventListener("input",renderExec);
@@ -577,7 +548,7 @@ $("#eYear").addEventListener("input",renderExec);
   fillPosSrc();
   fillYear("#aYear",D.air.map(r=>(r.payload||{}).basic||{}),"全部年度");
   $("#aNew").href=`${location.href.replace(/[^/]*$/,"")}submit-airform.html?ship=${encodeURIComponent(code)}`;
-  fillYear("#iYear",D.insp,"全部年度");fillYear("#dYear",D.defs,"全部年度");fillYear("#pYear",D.pos,"全部年度");fillYear("#eYear",D.insp,"");
+  fillYear("#iYear",D.insp,"全部年度");fillYear("#pYear",D.pos,"全部年度");fillYear("#eYear",D.insp,"");
   $("#eYear").value=String(new Date().getFullYear());
   let tab="home";try{tab=sessionStorage.getItem("ship_portal_tab")||"home";}catch(e){}
   go(RENDER[tab]?tab:"home");
