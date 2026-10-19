@@ -346,10 +346,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
         <div class="frow" style="margin-top:8px">
           <span class="yrlbl">顯示類別</span>
           <span class="yrchips" id="yrTypes"></span>
-          <span class="yrsep"></span>
-          <span class="yrlbl">只看</span>
-          <label class="yrpick ia"><input type="checkbox" id="yrNoIA" onchange="renderYearView()"> 本年度尚未內稽</label>
-          <label class="yrpick ov"><input type="checkbox" id="yrNoOV" onchange="renderYearView()"> 尚未訪船／逾 7 個月未訪</label>
+
         </div>
         <div class="frow2" id="yrSummary"></div>
       </div>
@@ -1066,18 +1063,21 @@ function renderYearView(){
   const iaShips=new Set(allY.filter(e=>e.k==="ia").map(e=>e.ship));
   const lastIA={};(YR_DATA||[]).filter(e=>e.k==="ia").forEach(e=>{if(!lastIA[e.ship]||e.dt.iso>lastIA[e.ship])lastIA[e.ship]=e.dt.iso;});
   const ov=yrOvStatus(y);
-  const onlyNo=$("#yrNoIA").checked,onlyNoOV=$("#yrNoOV")&&$("#yrNoOV").checked;
   const hasK=(code,k)=>ev.some(e=>e.ship===code&&e.k===k);
   const pickFn={noia:s=>!iaShips.has(s.code),noov:s=>ov.noOV(s.code),late:s=>!ov.noOV(s.code)&&ov.late(s.code)};
   YR_TYPES.forEach(t=>pickFn["has:"+t.k]=s=>hasK(s.code,t.k));
+  // 隨船／交叉訪船／ISPS：本年度還沒做過的船（內稽、訪船已有專用小卡）
+  const doneK=k=>new Set(allY.filter(e=>e.k===k).map(e=>e.ship));
+  const NO_TYPES=YR_TYPES.filter(t=>yrOn.has(t.k)&&!["ia","ov"].includes(t.k));
+  NO_TYPES.forEach(t=>{const d=doneK(t.k);pickFn["no:"+t.k]=s=>!d.has(s.code);});
   if(yrPick&&!pickFn[yrPick])yrPick="";
-  const rows=ships.filter(s=>(!onlyNo||!iaShips.has(s.code))&&(!onlyNoOV||ov.noOV(s.code)||ov.late(s.code))&&(!yrPick||pickFn[yrPick](s)));
+  const rows=ships.filter(s=>!yrPick||pickFn[yrPick](s));
   const now=new Date(),curM=now.getFullYear()===y?now.getMonth()+1:0;
   const cnt=k=>ev.filter(e=>e.k===k).length;
   const noIA=ships.filter(s=>!iaShips.has(s.code)).length;
   const noOV=ships.filter(s=>ov.noOV(s.code)).length,lateOV=ships.filter(s=>!ov.noOV(s.code)&&ov.late(s.code)).length;
   $("#yrSummary").innerHTML=(()=>{const pk=(k,html,sty)=>`<button type="button" class="cchip yrsum ${yrPick===k?"on":""}" style="${sty||""}" onclick="yrSetPick('${k}')" title="點選只看這些船，再點一次取消">${html}</button>`;
-    return `<span class="cchip">${y} 年度</span>${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>pk("has:"+t.k,`${t.t} <b>${cnt(t.k)}</b> 次`)).join("")}${pk("noia",`本年度尚未內稽 <b>${noIA}</b> 艘`,"border-color:#c0392b;color:#c0392b")}${pk("noov",`本年度尚未訪船 <b>${noOV}</b> 艘`,"border-color:#e8862a;color:#b5610f")}${ov.isCur&&lateOV?pk("late",`⏰ 逾 7 個月未訪 <b>${lateOV}</b> 艘`,"border-color:#e8862a;color:#b5610f"):""}<span class="hint">${yrPick?`顯示 ${rows.length} 艘（點選的卡片再點一次取消）`:`共 ${ships.length} 艘船・點上方小卡可只看該類船`}${ev.some(e=>e.pend)?"・虛線框＝內部檢查缺失登錄已送出、尚未匯入主系統":""}</span>`;})();
+    return `<span class="cchip">${y} 年度</span>${YR_TYPES.filter(t=>yrOn.has(t.k)).map(t=>pk("has:"+t.k,`${t.t} <b>${cnt(t.k)}</b> 次`)).join("")}${pk("noia",`本年度尚未內稽 <b>${noIA}</b> 艘`,"border-color:#c0392b;color:#c0392b")}${pk("noov",`本年度尚未訪船 <b>${noOV}</b> 艘`,"border-color:#e8862a;color:#b5610f")}${ov.isCur&&lateOV?pk("late",`⏰ 逾 7 個月未訪 <b>${lateOV}</b> 艘`,"border-color:#e8862a;color:#b5610f"):""}${NO_TYPES.map(t=>pk("no:"+t.k,`本年度尚未${t.t} <b>${ships.filter(pickFn["no:"+t.k]).length}</b> 艘`,`border-color:${YR_COLOR[t.k]};color:${YR_COLOR[t.k]}`)).join("")}<span class="hint">${yrPick?`顯示 ${rows.length} 艘（點選的卡片再點一次取消）`:`共 ${ships.length} 艘船・點上方小卡可只看該類船`}${ev.some(e=>e.pend)?"・虛線框＝內部檢查缺失登錄已送出、尚未匯入主系統":""}</span>`;})();
   const nT=YR_TYPES.filter(t=>yrOn.has(t.k)).length;
   // 固定欄寬（百分比），整張表一個畫面放得下、不用左右拉
   const cg=`<colgroup><col style="width:9.5%">${Array.from({length:12},()=>`<col style="width:${((100-9.5-6.5-nT*2.8)/12).toFixed(2)}%">`).join("")}${YR_TYPES.filter(t=>yrOn.has(t.k)).map(()=>`<col style="width:2.8%">`).join("")}<col style="width:6.5%"></colgroup>`;
@@ -1096,21 +1096,23 @@ function renderYearView(){
 }
 function exportYearXlsx(){
   if(!YR_DATA){toast("資料還在讀取中",true);return;}
-  const {y,ships,ev}=yrFiltered(),onlyNo=$("#yrNoIA").checked,onlyNoOV=$("#yrNoOV")&&$("#yrNoOV").checked;
+  const {y,ships,ev}=yrFiltered();
   const iaShips=new Set((YR_DATA||[]).filter(e=>e.dt.y===y&&e.k==="ia").map(e=>e.ship));
   const ov=yrOvStatus(y);
   const T=YR_TYPES.filter(t=>yrOn.has(t.k));
-  const data=ships.filter(s=>(!onlyNo||!iaShips.has(s.code))&&(!onlyNoOV||ov.noOV(s.code)||ov.late(s.code))).map(s=>{
+  const lastIAx={};(YR_DATA||[]).filter(e=>e.k==="ia").forEach(e=>{if(!lastIAx[e.ship]||e.dt.iso>lastIAx[e.ship])lastIAx[e.ship]=e.dt.iso;});
+  const data=ships.map(s=>{
     const es=ev.filter(e=>e.ship===s.code).sort((a,b)=>a.dt.iso.localeCompare(b.dt.iso));
     const o={"船舶":s.label};
     for(let m=1;m<=12;m++)o[`${m}月`]=es.filter(e=>e.dt.m===m).map(e=>`${YR_TYPES.find(t=>t.k===e.k).t} ${e.dt.m}/${e.dt.d} ${e.insp}${e.pend?"（登錄中）":""}`).join("\n");
     T.forEach(t=>o[t.t]=es.filter(e=>e.k===t.k).length);
     o["本年度內稽"]=iaShips.has(s.code)?"已內稽":"尚未內稽";
+    o["最近內稽"]=lastIAx[s.code]?lastIAx[s.code].replace(/-/g,"/"):"";
     o["本年度訪船"]=ov.noOV(s.code)?"尚未訪船":(ov.late(s.code)?"逾 7 個月未訪":"已訪船");
     o["最近訪船"]=ov.last[s.code]?ov.last[s.code].replace(/-/g,"/"):"";
     return o;
   });
-  const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[{wch:26},...Array.from({length:12},()=>({wch:16})),...T.map(()=>({wch:7})),{wch:11},{wch:14},{wch:12}];
+  const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[{wch:26},...Array.from({length:12},()=>({wch:16})),...T.map(()=>({wch:7})),{wch:11},{wch:12},{wch:14},{wch:12}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`${y}年度`);
   XlsxPretty.writeFile(wb,`年度檢查一覽_${y}_${todayIso()}.xlsx`);
 }/* ══ 缺失清單列表：一筆缺失一列，燈號＋整列底色＝結案情形，跟改善單審核連動 ══ */
@@ -1312,10 +1314,8 @@ function renderFilterSum(){
     if($("#yrOp")&&$("#yrOp").value!=="FPMC")add("管理公司",selText("yrOp").replace(/^管理公司：/,""),"$('#yrOp').value='FPMC'");
     if(val("yrVtype"))add("船型",selText("yrVtype"),"$('#yrVtype').value=''");
     if(val("yrInsp"))add("檢查人",selText("yrInsp"),"$('#yrInsp').value=''");
-    if($("#yrNoIA")&&$("#yrNoIA").checked)add("只看","本年度尚未內稽","$('#yrNoIA').checked=false");
-    if($("#yrNoOV")&&$("#yrNoOV").checked)add("只看","尚未訪船／逾 7 個月未訪","$('#yrNoOV').checked=false");
     if(val("yrQ"))add("搜尋",val("yrQ"),"$('#yrQ').value=''");
-    if(typeof yrPick!=="undefined"&&yrPick){const T=YR_TYPES.find(x=>"has:"+x.k===yrPick);add("只看",T?`本年度有${T.t}的船`:({noia:"本年度尚未內稽",noov:"本年度尚未訪船",late:"逾 7 個月未訪"})[yrPick],"yrPick=''");}
+    if(typeof yrPick!=="undefined"&&yrPick){const T=YR_TYPES.find(x=>"has:"+x.k===yrPick);add("只看",T?`本年度有${T.t}的船`:/^no:/.test(yrPick)?`本年度尚未${(YR_TYPES.find(x=>"no:"+x.k===yrPick)||{t:""}).t}`:({noia:"本年度尚未內稽",noov:"本年度尚未訪船",late:"逾 7 個月未訪"})[yrPick],"yrPick=''");}
   }
   window._fltClr=items.map(x=>x.clr);
   if(!items.length){box.style.display="none";box.innerHTML="";return;}

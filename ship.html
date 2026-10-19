@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>船舶專區 Ship Portal — FPMC</title>
+<title>船舶檢查填報平台 — FPMC</title>
 <style>
 :root{--navy:#1c3a5e;--navy2:#2f6690;--signal:#e8862a;--ink:#1d2a33;--ink2:#5b6a75;--ink3:#8195a0;--line:#dfe6eb;--bg:#f4f7f9;--card:#fff;--ok:#20703f;--bad:#c0392b;--warn:#b5610f;--int:#5b3290;--ext:#176670;
   --sans:"Microsoft JhengHei","Noto Sans TC","PingFang TC",sans-serif;--mono:Consolas,"Courier New",monospace}
@@ -147,8 +147,8 @@ table.eo td.cur,table.eo th.cur{background:#fff8ec}
 
 <!-- ① 船上入口密碼（與海技／督導的系統密碼分開） -->
 <div class="gate" id="gPass"><div class="card">
-  <h2>🚢 船舶專區 Ship Portal</h2>
-  <p>請輸入船上入口密碼<br><span style="font-size:12px">Please enter the ship portal password.</span></p>
+  <h2>🚢 船舶檢查填報平台</h2><p style="margin:-2px 0 10px;font-size:12px;letter-spacing:.5px">FPMC VESSEL INSPECTION REPORTING PORTAL</p>
+  <p>請輸入船上入口密碼<br><span style="font-size:12px">Please enter the portal password.</span></p>
   <input type="password" id="gPassIn" placeholder="船上入口密碼 Password" onkeydown="if(event.key==='Enter')Auth.submitPass()">
   <div class="err" id="gPassErr"></div>
   <button class="go" onclick="Auth.submitPass()">進入 Enter</button>
@@ -164,10 +164,10 @@ table.eo td.cur,table.eo th.cur{background:#fff8ec}
 </div></div>
 
 <header><div class="hd">
-  <h1>🚢 船舶專區<small>FPMC SHIP PORTAL ・ QMS &amp; VETTING</small></h1>
+  <h1>🚢 船舶檢查填報平台<small>FPMC VESSEL INSPECTION REPORTING PORTAL ・ QMS &amp; VETTING</small></h1>
   <span class="shipbadge" id="hdShip"></span>
   <span class="sp"></span>
-  <a class="guide" href="ship-guide.pdf" target="_blank" rel="noopener" title="開啟船舶專區操作說明（PDF）">📖 操作說明 Guide</a>
+  <a class="guide" href="ship-guide.pdf" target="_blank" rel="noopener" title="開啟船舶檢查填報平台操作說明（PDF）">📖 操作說明 Guide</a>
   <a class="lk" onclick="Auth.switchShip()">切換船舶 Change vessel</a>
   <a class="lk" onclick="Auth.logout()">登出 Log out</a>
 </div></header>
@@ -334,7 +334,7 @@ const Auth={
     const c=$("#gShipSel").value;if(!c){$("#gShipErr").textContent="⚠ 請選擇本船船名";return;}
     if(!confirm(`確認本船是「${shipLabel(c)}」嗎？`))return;
     this.save({ok:true,ship:c});
-    log("登入","系統",`${shipLabel(c)} 登入船舶專區`);
+    log("登入","系統",`${shipLabel(c)} 登入船舶檢查填報平台`);
     this.next();
   },
   switchShip(){const s=this.sess();if(s){this.save({ok:true,ship:""});}location.reload();},
@@ -343,7 +343,7 @@ const Auth={
 /* 操作紀錄寫進主系統同一張 audit_log，海技可在主系統「操作紀錄查詢」看到船上何時登入 */
 function log(action,target,summary){
   const s=Auth.sess();
-  api("audit_log",{method:"POST",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify([{ts:Date.now(),usr:`船舶 ${s&&s.ship||""}`,action,target:"船舶專區－"+target,summary}])}).catch(()=>{});
+  api("audit_log",{method:"POST",headers:H({"Prefer":"return=minimal"}),body:JSON.stringify([{ts:Date.now(),usr:`船舶 ${s&&s.ship||""}`,action,target:"船舶檢查填報平台－"+target,summary}])}).catch(()=>{});
 }
 
 /* ════════ 資料 ════════ */
@@ -410,7 +410,7 @@ function renderHome(){
   $("#homeEntries").innerHTML=[
     {t:"🛠 內部檢查改善單",d:"督導上船檢查（訪船、內稽等）發出的改善單：逐筆填寫改善措施、完成日期並上傳改善後照片。",href:`${base}intaudit-reply.html?ship=${encodeURIComponent(D.ship)}`,st:iaPills},
     {t:"🔍 分享缺失自查",d:"他船發生的缺失分享給全船隊，請本船自查是否有類似情形並回覆。",href:"#camp",st:openCamps?`<span class="pill bad">${openCamps} 項尚未送出</span>`:`<span class="pill ok">目前沒有待填寫的自查</span>`},
-    {t:"📝 外部檢查線上填單",d:"PSC、SIRE、CDI、FLAG 等外部檢查結束後，在這裡線上填寫檢查結果與缺失（After Inspection Review）。",href:`${base}submit-airform.html?ship=${encodeURIComponent(D.ship)}`,st:`<span class="pill mute">檢查後填寫</span><span class="pill ok">已送出 ${D.air.filter(r=>r.status!=="rejected").length} 份・見「填單紀錄」</span>`},
+    {t:"📝 外部檢查線上填單",d:"PSC、SIRE、CDI、FLAG 等外部檢查結束後，在這裡線上填寫檢查結果與缺失（After Inspection Review）。<b style=\"color:#c0392b\">零缺失也要填報</b>（缺失數填 0，並填寫正面評論）。",href:`${base}submit-airform.html?ship=${encodeURIComponent(D.ship)}`,st:`<span class="pill mute">檢查後填寫</span><span class="pill ok">已送出 ${D.air.filter(r=>r.status!=="rejected").length} 份・見「填單紀錄」</span>`},
     {t:"📨 船隊通報單",d:"公司通報、通告清單與各輪回簽資料夾。",href:"#docs",st:`<span class="pill mute">${D.docs.length} 個連結</span>`}
   ].map(e=>`<a class="entry" href="${esc(e.href)}" ${e.href.startsWith("#")?`onclick="event.preventDefault();${e.href==="#docs"?"go('docs')":"document.getElementById('homeCamp').scrollIntoView({behavior:'smooth'})"}"`:`target="_blank" rel="noopener"`}><span class="t">${e.t}</span><span class="d">${e.d}</span><span class="st">${e.st}</span></a>`).join("");
   // 分享自查清單
@@ -571,7 +571,7 @@ $("#eYear").addEventListener("input",renderExec);
   try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.filter(s=>s&&s.code).map(s=>({code:s.code,label:[s.zh,s.name].filter(Boolean).join(" ")||s.code})).sort((a,b)=>String(a.code).localeCompare(String(b.code)));}catch(e){}
   const code=await Auth.ensure();
   $("#hdShip").textContent="🚢 "+shipLabel(code);
-  document.title=`${shipLabel(code)} — 船舶專區`;
+  document.title=`${shipLabel(code)} — 船舶檢查填報平台`;
   $("#homeEntries").innerHTML=`<div class="loading">載入本船資料中…</div>`;
   await loadAll(code);
   fillPosSrc();
