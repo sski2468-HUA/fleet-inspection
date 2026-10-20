@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>線上填單 — After Inspection Review — FPMC</title>
+<title>外部檢查線上填單 — After Inspection Review — FPMC</title>
 <style>
 :root{
   --navy:#1c3a5e; --navy-2:#234a72; --navy-3:#2f6690;
@@ -154,7 +154,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
   <header>
     <div class="headtext">
       <span class="badge-draft">✓ 船名／檢查來源／油公司-單位已接上系統雲端清單，送出功能已接上雲端</span><br>
-      <h1>⚓ 線上填單（After Inspection Review）</h1>
+      <h1>⚓ 外部檢查線上填單（After Inspection Review）</h1>
       <p>依照上方步驟列分 4 步填寫：①基本資料 →②缺失明細 →③正面評論 →④預覽並送出。詳細操作請看右上角「操作說明」。</p>
     </div>
     <a class="guideLink" href="https://claude.ai/artifact/LkHjKRiUBNFtUQ5rhf4vS6" target="_blank" rel="noopener">📖 操作說明</a>
@@ -180,8 +180,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--navy-3);outline-
   <div id="formView">
     <div class="card card--basic" id="stepPanel1">
       <h2>檢查基本資料</h2>
-      <p class="sub">船名／檢查來源／油公司-單位／地點都接上系統目前最新的清單，選單裡沒有的話請選「自訂」。</p>
-      <div style="background:#fff3cd;border:1px solid #e0a020;color:#5c4200;border-radius:8px;padding:9px 13px;margin:0 0 12px;font-size:14px;line-height:1.6">📌 <b>每一次外部檢查（PSC、SIRE、CDI、FLAG…）結束後都要填報，<span style="color:#c0392b">零缺失也要填報</span></b>：缺失數填 0，第 ② 步缺失明細不用填，有正面評論請在第 ③ 步填寫，最後送出即可。<br><span style="font-size:12.5px">Every external inspection must be reported, <b>including zero-deficiency inspections</b>.</span></div>
+      <p class="sub">船名／檢查來源／油公司-單位／地點都接上系統目前最新的清單。檢查來源只列外部檢查，選單裡沒有的請聯絡海技組新增；油公司-單位沒有的話請選「自訂」。</p>
+      <div style="background:#fff3cd;border:1px solid #e0a020;color:#5c4200;border-radius:8px;padding:9px 13px;margin:0 0 12px;font-size:14px;line-height:1.6">📌 <b>每一次外部檢查（PSC、SIRE、CDI、FLAG…）結束後都要填報，<span style="color:#c0392b">零缺失也要填報</span>。缺失數填 0 後送出即可。</b>（正面評論若有才需填寫）<br><span style="font-size:12.5px">Every external inspection must be reported, <b>including zero-deficiency inspections</b>.</span></div>
       <div class="grid two">
         <label>船名 *<select id="f-ship"></select></label>
         <label>船型<input type="text" id="f-vtype" readonly placeholder="選船名後自動帶出"></label>
@@ -691,7 +691,7 @@ function fillSelectWithOther(selId,list,otherLabel,placeholderLabel){
   const cur=sel.value;
   sel.innerHTML=(placeholderLabel?`<option value="">${esc(placeholderLabel)}</option>`:"")
     + list.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("")
-    + `<option value="${OTHER_VAL}">${esc(otherLabel)}</option>`;
+    + (otherLabel?`<option value="${OTHER_VAL}">${esc(otherLabel)}</option>`:"");
   if(cur&&(list.includes(cur)||cur===OTHER_VAL))sel.value=cur;
 }
 function bindOtherToggle(selId,otherId){
@@ -758,7 +758,16 @@ async function loadFormListsFromCloud(){
     }
   }catch(e){ /* 離線或連線失敗，使用備援清單 */ }
   OILCO_LIST=oilco;
-  fillSelectWithOther("f-itype-sel",itype,"自訂（請聯絡維護者）","");
+  // 這是「外部檢查」線上填單：檢查來源只留外部檢查，內部檢查（訪船、內稽、交叉訪船、ISPS、隨船、專項檢查…）
+  // 與公司內部用的來源（機器故障、其他問題…）一律不列；也不開放自訂，需要新增請找海技組在後台新增。
+  let intKw=["internal audit","isps","onboard visit","accompanying","cross ship visit","交叉訪船","專項檢查","sar-fm","其他問題","topic audit"];
+  try{const r=await fetch(`${CLOUD.url}/rest/v1/app_db?select=payload&k=eq.classify_rules`,{headers:{"apikey":CLOUD.key,"Authorization":"Bearer "+CLOUD.key}});
+    if(r.ok){const p=((await r.json())[0]||{}).payload;if(p&&Array.isArray(p.internalKw)&&p.internalKw.length)intKw=intKw.concat(p.internalKw);}}catch(e){}
+  const NOT_EXT=["機器故障","其他","內部檢查","業界案例"];
+  itype=itype.filter(v=>{const s=String(v||"").trim(),l=s.toLowerCase();
+    if(!s||NOT_EXT.includes(s)||/^其他[：:]/.test(s))return false;
+    return !intKw.some(k=>k&&l.includes(String(k).toLowerCase()));});
+  fillSelectWithOther("f-itype-sel",itype,"","請選擇");
   fillSelectWithOther("f-oilco-sel",oilco,"自訂（新增）","（無／不適用）");
   applyDraftToItypeOilco(); // 內部會重新用最新的 FLAG_OPTS 重繪 #f-flag-box，並還原草稿裡已勾選的項目
 }
