@@ -5191,7 +5191,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <div class="toolbar" style="margin-top:8px">
               <input type="password" id="dm-shippass" placeholder="設定船上入口密碼" style="max-width:220px">
               <button class="btn" onclick="RosterMgr.setShipPass()">🚢 更新船上入口密碼</button>
-              <a class="btn" href="ship.html" target="_blank" title="船上專用網站（與本系統分開）">開啟船舶檢查填報平台 ↗</a>
+              <a class="btn" href=" title="船上專用網站（與本系統分開）">開啟船舶檢查填報平台 ↗</a>
               <span class="hint">船舶檢查填報平台（ship.html）專用，跟上面的進站密碼分開；船上只需要知道這一組。</span>
             </div>
             <div class="toolbar" style="margin-top:8px">
@@ -8558,7 +8558,8 @@ function dateSortVal(s){const d=parseDate(s);return d?d.getTime():0;}
 /* 線上填單外部網頁的「檢查日期」是瀏覽器原生 <input type="date">，一律吐出「YYYY-MM-DD」格式，
    跟系統其他地方慣用的「YYYY/M/D」（不補零、用斜線）不一致，混在一起顯示會很亂。
    這個函式統一轉成系統慣用格式，在資料從外部進來、或從AIR轉入各資料表時呼叫，讓格式保持一致。 */
-function normDateSlash(s){
+/* 船上用的頁面（船舶檢查填報平台、線上填單、改善單、自查…）放在獨立的 GitHub 網站，不跟主系統同一個網址 */
+const SHIP_SITE="
   const m=String(s||"").match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
   if(!m)return s||"";
   return `${+m[1]}/${+m[2]}/${+m[3]}`;
@@ -24582,7 +24583,7 @@ const Air={
      selfcheck_share_responses 兩張雲端表，不寫進 App.tasks，完全獨立於系統既有的自查任務
      機制，也不需要開放主系統／App.tasks 給船上使用。詳見 selfcheck_share_setup.sql。══════════ */
   _shareBaseFolder(){
-    const b=(typeof SelfCheck!=="undefined"&&SelfCheck.getExternalBase)?SelfCheck.getExternalBase():"https://sski2468-hua.github.io/fleet-inspection/submit-selfcheck.html";
+    const b=(typeof SelfCheck!=="undefined"&&SelfCheck.getExternalBase)?SelfCheck.getExternalBase():SHIP_SITE+"submit-selfcheck.html";
     return b.replace(/[^/]*$/,"");
   },
   openShareCheckWizard(airId){
@@ -25891,9 +25892,9 @@ const Air={
   /* ══════════ 對外回覆連結：把目前這筆缺失的中文內容（若已有）送到雲端 air_reply_drafts，
      產生一個網址給主管開啟外部填單網頁；同一網址依雲端目前的 stage 自動顯示對應畫面。══════════ */
   BASEKEY:"vsm_airform_base_url",
-  DEFAULT_FORM_BASE:"https://sski2468-hua.github.io/fleet-inspection/submit-airform.html",
+  DEFAULT_FORM_BASE:SHIP_SITE+"submit-airform.html",
   REPLY_BASEKEY:"vsm_airreply_base_url",
-  DEFAULT_REPLY_BASE:"https://sski2468-hua.github.io/fleet-inspection/submit-airreply.html",
+  DEFAULT_REPLY_BASE:SHIP_SITE+"submit-airreply.html",
   /* ════════ 發布「線上填單」外部頁面要用的下拉選單清單（檢查來源／油公司-單位／檢查員）到雲端。
      檢查來源＝固定官方清單＋篩選清單管理後台新增的項目（刻意不含歷史上打過的雜亂寫法，
      維持「鎖定、只能用系統設定好的」）；油公司/單位、檢查員＝目前系統實際在用的完整清單（含
@@ -25916,7 +25917,7 @@ const Air={
     }catch(e){console.warn("publishFormLists failed",e);}
   },
   getExternalFormBase(){
-    let v="";try{v=localStorage.getItem(this.BASEKEY)||"";}catch(e){}
+    let v="";try{v=shipSiteUrl(localStorage.getItem(this.BASEKEY)||"");}catch(e){}
     if(!v){
       v=this.DEFAULT_FORM_BASE;
       try{localStorage.setItem(this.BASEKEY,v);}catch(e){}
@@ -25924,7 +25925,7 @@ const Air={
     return v;
   },
   getExternalReplyBase(){
-    let v="";try{v=localStorage.getItem(this.REPLY_BASEKEY)||"";}catch(e){}
+    let v="";try{v=shipSiteUrl(localStorage.getItem(this.REPLY_BASEKEY)||"");}catch(e){}
     if(!v){
       v=this.DEFAULT_REPLY_BASE;
       try{localStorage.setItem(this.REPLY_BASEKEY,v);}catch(e){}
@@ -34417,9 +34418,9 @@ const SelfCheck={
      船上／督導在外部頁面作答，不會直接動系統這份共用資料，避免雙向同步互相覆蓋的問題；
      這裡只負責「開啟」時確保雲端草稿存在並更新參考內容，以及「查看」時唯讀顯示目前進度。══════════ */
   SC_BASEKEY:"vsm_selfcheck_base_url",
-  DEFAULT_SC_BASE:"https://sski2468-hua.github.io/fleet-inspection/submit-selfcheck.html",
+  DEFAULT_SC_BASE:SHIP_SITE+"submit-selfcheck.html",
   getExternalBase(){
-    let v="";try{v=localStorage.getItem(this.SC_BASEKEY)||"";}catch(e){}
+    let v="";try{v=shipSiteUrl(localStorage.getItem(this.SC_BASEKEY)||"");}catch(e){}
     if(!v){v=this.DEFAULT_SC_BASE;try{localStorage.setItem(this.SC_BASEKEY,v);}catch(e){}}
     return v;
   },

@@ -209,6 +209,9 @@ tr.done td{background:#eaf5ee}
 <div id="toast"></div>
 
 <script>
+/* 船上填答頁面放在獨立的船上網站（不跟主系統同一個網址） */
+const SHIP_SITE="https://sski2468-hua.github.io/vessel-portal/";
+
 const CLOUD = {
   url: "https://iqmbircjokdzdssouwkr.supabase.co",
   key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbWJpcmNqb2tkemRzc291d2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDAwODIsImV4cCI6MjA5NjgxNjA4Mn0.OZ2ez6ondz49kT90gwneYUXG7CbE8iiB6PnXE5fR6iY"
@@ -240,7 +243,7 @@ function fallbackCopyText(text,okMsg){
 function copyFillLink(id){
   const cid=id!=null?id:(curCampaign&&curCampaign.id);
   if(cid==null){notify("⚠ 請先選擇活動","err");return;}
-  const url=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${cid}`;
+  const url=`${SHIP_SITE}submit-selfcheck-share.html?cid=${cid}`;
   safeCopyText(url,"✓ 已複製填答連結");
 }
 /* MAIL船：複製「活動名稱＋連結」，可直接貼進郵件發給船隊 */
@@ -248,7 +251,7 @@ function copyMailText(id){
   const cid=id!=null?id:(curCampaign&&curCampaign.id);
   if(cid==null){notify("⚠ 請先選擇活動","err");return;}
   const c=campaigns.find(x=>String(x.id)===String(cid));
-  const url=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${cid}`;
+  const url=`${SHIP_SITE}submit-selfcheck-share.html?cid=${cid}`;
   const text=`${c&&c.title?c.title+"\n":""}${url}`; // 上面自查項目、下面連結
   safeCopyText(text,"✓ 已複製");
   alert("已複製下列內容，可貼入郵件發給船隊：\n\n"+text);
@@ -450,7 +453,7 @@ function renderDash(){
 /* 一艘船跨多個活動的提醒文字：每個活動一段（名稱＋專屬連結），已送出但未結案的再列出未結案項目 */
 function buildShipReminder(code){
   const x=(window._pendRows||[]).find(r=>r.code===code);if(!x)return "";
-  const base=location.href.replace(/[#?].*$/,"").replace(/[^/]*$/,"");
+  const base=SHIP_SITE;
   const un=x.arr.filter(p=>p.kind!=="trk"),tk=x.arr.filter(p=>p.kind==="trk");
   let s=`【分享自查提醒】\n\n${shipLabel(code)} 您好：\n`;
   if(un.length){
@@ -478,7 +481,7 @@ function exportPending(){
   const data=[];
   rows.forEach(x=>x.arr.forEach(p=>data.push({"船舶代碼":x.code,"船名":shipLabel(x.code),"活動":p.c.title||("活動 #"+p.c.id),"檢查來源":campaignSources(p.c).join("、"),"建立者":creatorOf(p.c),
     "建立日期":p.c.created_at?new Date(p.c.created_at).toLocaleDateString("zh-TW"):"","已過天數":daysSince(p.c.created_at),"狀態":p.info,
-    "填答連結":`${location.href.replace(/[#?].*$/,"").replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${p.c.id}&ship=${encodeURIComponent(x.code)}`})));
+    "填答連結":`${SHIP_SITE}submit-selfcheck-share.html?cid=${p.c.id}&ship=${encodeURIComponent(x.code)}`})));
   const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[{wch:8},{wch:26},{wch:40},{wch:14},{wch:10},{wch:12},{wch:8},{wch:14},{wch:60}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"需提醒船舶");
   const d=new Date(),fn=`分享自查_需提醒船舶_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.xlsx`;
@@ -616,7 +619,7 @@ function renderTable(){
     if(filter==="submitted"&&!submitted)return;
     const pct=st.total?Math.round(st.done/st.total*100):0;
     const trackPill=st.openTrack?`<span class="pill bad">⚠ ${st.openTrack} 項未結案</span>`:(st.closedTrack?`<span class="pill ok">✓ ${st.closedTrack} 項已結案</span>`:`<span class="pill na">—</span>`);
-    const editUrl=`submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(s.code)}`;
+    const editUrl=`${SHIP_SITE}submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(s.code)}`;
     rowsHtml.push(`
       <tr class="${st.openTrack?'track':(submitted&&st.total&&st.done===st.total?'done':'')}" data-ship="${esc(s.code)}" style="cursor:pointer" onclick="rowClick(event,'${esc(s.code)}')" title="點這一列查看這艘船的作答內容">
         <td>${esc(s.label||s.name||"")}</td>
@@ -779,7 +782,7 @@ function rowClick(ev,ship){
   toggleDetail(ship);
 }
 function copyShipLink(ship){
-  const url=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(ship)}`;
+  const url=`${SHIP_SITE}submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(ship)}`;
   safeCopyText(url,`✓ 已複製「${shipLabel(ship)}」專屬連結`);
 }
 const ST_LABEL={ok:"✅ 沒有",similar:"⚠️ 有，需處理",self:"🚩 當事船",na:"➖ 不適用",pending:"（未作答）"};
@@ -791,7 +794,7 @@ function toggleDetail(ship){
   document.querySelectorAll(".detailrow.show").forEach(r=>r.classList.remove("show"));
   if(!open)return;
   const resp=responses.find(r=>r.ship===ship);
-  const editUrl=`submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(ship)}`;
+  const editUrl=`${SHIP_SITE}submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(ship)}`;
   // 編輯（代填）與專屬連結放在「查看」展開的內容裡：這頁只有海技／督導看得到，
   // 平常是看內容，真的要代船上修改才進入編輯；船上不會看到這個頁面。
   const actions=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px">
@@ -845,7 +848,7 @@ async function setTrackDue(ship,i,val){
 function buildReminderText(ship){
   const resp=responses.find(r=>r.ship===ship);
   const open=((resp&&resp.items)||[]).map((it,i)=>({it,i})).filter(x=>x.it.status==="similar"&&!x.it.closed);
-  const url=`${location.href.replace(/[^/]*$/,"")}submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(ship)}`;
+  const url=`${SHIP_SITE}submit-selfcheck-share.html?cid=${curCampaign.id}&ship=${encodeURIComponent(ship)}`;
   const lines=open.map(({it,i})=>`#${i+1}　${it.code?"CODE "+it.code+"　":""}${it.detail||""}${it.trackDue?`（追蹤期限：${it.trackDue}）`:""}`);
   return `【自查案件追蹤】${curCampaign.title||""}\n\n${shipLabel(ship)} 您好，請查此自查項目類似情形是否已改善：\n\n${lines.join("\n\n")}\n\n若已改善，請點選下方連結進入，勾選「已完成改善（結案）」並說明改善情形、填上結案日期後送出；尚未改善的也請先填寫目前處理進度。\n\n連結：${url}`;
 }
