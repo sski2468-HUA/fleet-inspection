@@ -2338,8 +2338,9 @@ input[readonly]{background:#eef1f2;color:var(--ink-2);cursor:not-allowed}
    說明才看得到、也不用每個按鈕自己再處理換行。 */
 .air-export-row{display:flex;align-items:stretch;border:1px solid var(--line-2);border-radius:6px;overflow:hidden;cursor:pointer;transition:border-color .15s}
 .air-export-row:hover{border-color:var(--navy-3,#2e6db4)}
-.air-export-row-btn{flex:0 0 168px;border-radius:0;border:none;border-right:1px solid rgba(0,0,0,.1);white-space:normal;text-align:center;line-height:1.4;pointer-events:none}
-.air-export-row-desc{flex:1;padding:8px 14px;display:flex;align-items:center;font-size:12px;line-height:1.6}
+.air-export-row-btn{flex:0 0 168px;border-radius:0;border:none;border-right:1px solid rgba(0,0,0,.1);white-space:normal;text-align:center;line-height:1.4;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:10px 12px;font-size:13px}
+.air-export-row-btn .sub{font-weight:400;font-size:11.5px;opacity:.9}
+.air-export-row-desc{flex:1;padding:10px 14px;display:block;align-self:center;font-size:12.5px;line-height:1.65}
 /* 概念卡片：跟外部「對外回覆編輯」頁面（submit-airreply.html）同一套排版語言——
    一個概念一張卡（缺失狀況說明／矯正措施／根本原因／預防措施），船上填寫版本在上（這裡可編輯），
    岸上對外回覆在下（唯讀參考，中英文並排）。兩邊看習慣同一套視覺語言，不用切換時重新適應。 */
@@ -5948,9 +5949,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="mb">
       <p class="hint" style="margin-bottom:10px">請選擇要進行的操作：</p>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <div class="air-export-row" onclick="Air.closeNewOrImportModal();Air.openIntakeSite()"><button class="btn primary air-export-row-btn" tabindex="-1">🔗 外部檢查線上<br>填單(船上用)</button><div class="hint air-export-row-desc">有缺失的檢查，一律由船上在外部網站填寫缺失明細，不在系統內手動新建</div></div>
-        <div class="air-export-row" onclick="Air.closeNewOrImportModal();Air.importFile()"><button class="btn dark air-export-row-btn" tabindex="-1">⬆ 匯入 Excel／<br>Word／JSON<br><span style="font-weight:400">（維護者）</span></button><div class="hint air-export-row-desc">船上填妥 Excel、Word 範本或匯出草稿存檔（.json，含照片）後，批次匯入多筆；三種格式皆可</div></div>
-        <div class="air-export-row" onclick="Air.closeNewOrImportModal();Air.openQuick()"><button class="btn air-export-row-btn" tabindex="-1" style="background:#2e7d4f;border-color:#2e7d4f;color:#fff">⚡ 快速新增<br><span style="font-weight:400">（海技・零缺失）</span></button><div class="hint air-export-row-desc">檢查<b>沒有缺失</b>、船上也沒有回填線上填單時，海技人員可在這裡直接建一筆零缺失的填單（可同時轉入檢查紀錄）。<b>有缺失的請改走線上填單。</b></div></div>
+        <div class="air-export-row" onclick="Air.closeNewOrImportModal();Air.openIntakeSite()"><button class="btn primary air-export-row-btn" tabindex="-1"><span>🔗 外部檢查線上填單</span><span class="sub">（船上用）</span></button><div class="hint air-export-row-desc">有缺失的檢查，一律由船上在外部網站填寫缺失明細，不在系統內手動新建。</div></div>
+        <div class="air-export-row" onclick="Air.closeNewOrImportModal();Air.importFile()"><button class="btn dark air-export-row-btn" tabindex="-1"><span>⬆ 批次匯入檔案</span><span class="sub">Excel／Word／JSON（維護者）</span></button><div class="hint air-export-row-desc">船上填妥 Excel、Word 範本或匯出草稿存檔（.json，含照片）後，批次匯入多筆；三種格式皆可。</div></div>
+        <div class="air-export-row" onclick="Air.closeNewOrImportModal();Air.openQuick()"><button class="btn air-export-row-btn" tabindex="-1" style="background:#2e7d4f;border-color:#2e7d4f;color:#fff"><span>⚡ 快速新增</span><span class="sub">（海技・零缺失）</span></button><div class="hint air-export-row-desc">檢查<b>沒有缺失</b>、船上也沒有回填線上填單時，海技人員可在這裡直接建一筆零缺失的填單（可同時轉入檢查紀錄）。<b>有缺失的請改走線上填單。</b></div></div>
       </div>
     </div>
   </div>
@@ -10361,7 +10362,7 @@ const RecycleBin={
       case "auditDash": App.auditDash.push(r);return true;
       case "refDocs": App.refDocs.push(r);return true;
       case "refDocs2": App.refDocs2.push(r);return true;
-      case "air": App.air.push(r);return true;
+      case "air": App.air.push(r);if(typeof AirQueue!=="undefined")AirQueue.syncSourceStatus(r,"imported");return true;
       case "defsProjects": App.defsProjects.push(r);return true;
       default:return false;
     }
@@ -12849,7 +12850,8 @@ const IAPend={
     finally{this.busy=false;}
     try{if(typeof Todo!=="undefined")Todo.render();}catch(e){}
   },
-  supsOf(code){const s=(typeof SHIPINFO!=="undefined")?SHIPINFO.find(x=>x.code===code):null;return s?[s.deckSup,s.engineSup].map(v=>String(v||"").trim()).filter(Boolean):[];},
+  // 船舶資料的甲板／機艙督導欄位可能填多人（「A、B」），拆開比對，跟 intaudit.html 的 supOf 一致
+  supsOf(code){const s=(typeof SHIPINFO!=="undefined")?SHIPINFO.find(x=>x.code===code):null;return s?[s.deckSup,s.engineSup].flatMap(v=>String(v||"").split(/[、,，\/／;；\s]+/)).map(v=>v.trim()).filter(Boolean):[];},
   open(){const f=officeFolder();window.open(f+"intaudit.html?review=1","_blank");},
   /* 依船整理：{ship, n, oldestDays} */
   byShip(filter){
@@ -12971,7 +12973,7 @@ const Todo={
     const me=Role.personName?Role.personName():"";
     // 自己身為甲板／機艙督導的船舶，尚有自查待查核項目
     if(me&&typeof SHIPINFO!=="undefined"){
-      const myShips=new Set(SHIPINFO.filter(s=>s.deckSup===me||s.engineSup===me).map(s=>s.code));
+      const myShips=new Set(SHIPINFO.filter(s=>IAPend.supsOf(s.code).includes(me)).map(s=>s.code));
       let pendingTotal=0;
       (App.tasks||[]).forEach(t=>{
         if(!myShips.has(t.ship))return;
@@ -12980,9 +12982,10 @@ const Todo={
       if(pendingTotal>0)items.push({icon:"📋",text:`您負責的船舶尚有 ${pendingTotal} 項自查待完成`,
         action:()=>goToTab("self")});
     }
-    // 內部檢查：自己負責的船（甲板／機艙督導）或自己登錄的檢查，船上已回報改善、等督導審核
+    // 內部檢查：只提醒自己經管的船（甲板／機艙督導）。2026-10-20 起不再因為「自己是檢查人」就通知——
+    // 例如尹德序去 B Guard 檢查，但不是該船督導，改善單由該船經管督導審核，不該出現在他的待辦。
     if(me&&typeof IAPend!=="undefined"){
-      const mine=IAPend.byShip(r=>IAPend.supsOf(r.ship).includes(me)||r.insp.includes(me));
+      const mine=IAPend.byShip(r=>IAPend.supsOf(r.ship).includes(me));
       const n=mine.reduce((a,o)=>a+o.n,0);
       if(n>0){
         const old=mine[0];
@@ -24784,6 +24787,7 @@ const Air={
     if(_delAir&&typeof RecycleBin!=="undefined")RecycleBin.add("air",_delAir,`${_delAir.ship||""} ${_delAir.date||""}`);
     App.air=App.air.filter(x=>x.id!==id);this.selected.delete(id);
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();this.renderList();toast("已刪除");
+    if(_delAir&&typeof AirQueue!=="undefined")AirQueue.syncSourceStatus(_delAir,"rejected");
   },
   /* 哪些填單已經建立過「對外回覆」案件：案件草稿存在雲端 air_reply_drafts，本機填單紀錄沒有旗標，
      所以列表顯示時（至多每 60 秒）去雲端撈一次有草稿的填單 id，有變化才重畫，讓狀態欄看得出「已對外回覆」。 */
@@ -25007,7 +25011,11 @@ const Air={
         const rep=this._pushReport||{};
         const lines=targets.map(t=>{const r=rep[t];
           if(!r)return `• ${labelMap[t]}：沒有執行`;
-          if(r.ok)return `✓ ${labelMap[t]}：已轉入 ${r.n} 筆${t==="defs"?`（共 ${r.m} 筆缺失明細）`:t==="sirepos"?`（共 ${r.m} 筆正面評價）`:""}${r.filtered?`；另有 ${r.filtered} 筆因為${t==="defs"?"沒有缺失明細":"沒有正面評價內容"}而略過`:""}`;
+          const unit=t==="defs"?"筆缺失明細":t==="sirepos"?"筆正面評價":"筆";
+          const c=r.cnt; // {mode,updated,added}：有覆蓋到既有紀錄時，分開列出「覆蓋更新」「新增」各幾筆
+          const detail=(c&&c.updated)?`（${t==="insp"?"":`共 ${r.m} ${unit}：`}覆蓋更新 ${c.updated} ${unit}${c.added?`、新增 ${c.added} ${unit}`:""}）`
+            :(t==="defs"||t==="sirepos")?`（共 ${r.m} ${unit}${c&&c.mode==="add"&&c.added?"，全部新增":""}）`:"";
+          if(r.ok)return `✓ ${labelMap[t]}：${c&&c.updated?"已覆蓋轉入":"已轉入"} ${r.n} 筆${detail}${r.filtered?`；另有 ${r.filtered} 筆因為${t==="defs"?"沒有缺失明細":"沒有正面評價內容"}而略過`:""}`;
           return `⚠ ${labelMap[t]}：<b>沒有轉入</b>——${r.reason}`;});
         const allOk=targets.every(t=>rep[t]&&rep[t].ok);
         body.innerHTML=`<div style="font-size:34px;margin-bottom:10px;color:${allOk?"var(--ok)":"var(--warn,#c99a1f)"}">${allOk?"✓":"⚠"}</div><h3 style="margin:0 0 10px;color:${allOk?"var(--ok)":"var(--warn,#a67c00)"}">${allOk?"轉入成功":"部分項目沒有轉入"}</h3>
@@ -25096,15 +25104,16 @@ const Air={
       // 批次轉入時，使用者已經在「轉入紀錄」視窗按過「確認轉入」，這裡不再多跳一個瀏覽器 confirm（連續多個對話方塊容易被瀏覽器擋掉，變成沒轉到）
       if(!opts.fromBatch&&!confirm(`確定要將勾選的 ${items.length} 筆轉入「${labelMap[target]}」？`))return fail("您在確認視窗按了取消");
     }
-    let n=0,m=0;
+    let n=0,m=0,cnt=null;
     if(target==="insp"){
+      cnt={mode:"sync",updated:0,added:0};
       items.forEach(d=>{
         const payload={ship:d.ship,vtype:d.vtype,itype:d.itype,date:normDateSlash(d.date),loc:d.place,inspector:d.inspector,unit:d.oilco,ndef:d.ndef||0,npos:d.npos||0,flagType:d.flagType||"",_impAt:Date.now(),_impBy:(typeof Audit!=="undefined"?Audit.user():"")};
         let existing=d.pushedInspId!=null?App.insp.find(x=>x.id===d.pushedInspId):null;
         if(existing&&!pushTargetMatches(existing,d.ship,payload.date))existing=null; // 對應編號指到別船／別天 → 不覆蓋
         if(!existing&&d.usedInsp)existing=App.insp.find(x=>x.ship===d.ship&&x.itype===d.itype&&x.date===payload.date)||null;
-        if(existing){Object.assign(existing,payload);d.pushedInspId=existing.id;}
-        else{const newId=App.nextInspId();App.insp.push({id:newId,...payload,detain:""});d.pushedInspId=newId;}
+        if(existing){Object.assign(existing,payload);d.pushedInspId=existing.id;cnt.updated++;}
+        else{const newId=App.nextInspId();App.insp.push({id:newId,...payload,detain:""});d.pushedInspId=newId;cnt.added++;}
         d.usedInsp=true;n++;
       });
       if(typeof Audit!=="undefined")Audit.log("轉入","檢查紀錄",`由AIR轉入／同步 ${n} 筆`);
@@ -25152,6 +25161,7 @@ const Air={
         d.usedDef=true;n++;
       });
       if(typeof Audit!=="undefined")Audit.log("轉入","缺失紀錄總表",`由AIR轉入 ${items.length} 筆AIR資料，共 ${m} 筆缺失明細（模式：${mode==="overwrite"?"覆蓋":"新增"}，更新${updated}／新增${added}${mismatched?`／對應編號不符改新增${mismatched}`:""}）`);
+      cnt={mode,updated,added};
       if(mismatched)alert(`⚠ 有 ${mismatched} 筆缺失原本記錄的對應編號指到別艘船或別天的紀錄。\n為避免蓋掉別人的資料，這幾筆已改為新增，請到缺失紀錄總表確認是否有重複。`);
       if(typeof Defs!=="undefined"){Defs.init();Defs.render();}
     }else if(target==="sirepos"){
@@ -25186,11 +25196,12 @@ const Air={
         // 「已轉正面評價」但總表其實完全沒有對應資料。
         if(pushedAny){d.usedPos=true;n++;}
       });
+      cnt={mode,updated,added};
       if(typeof Audit!=="undefined")Audit.log("轉入","正面評價/優秀案例記錄",`由AIR轉入 ${items.length} 筆AIR資料，共 ${m} 筆正面評價（模式：${mode==="overwrite"?"覆蓋":"新增"}，更新${updated}／新增${added}）`);
       if(typeof SirePos!=="undefined")SirePos.init();
     }
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
-    rep[target]={ok:true,n,m,filtered};
+    rep[target]={ok:true,n,m,filtered,cnt};
     toast(target==="insp"?`✓ 已將 ${n} 筆轉入檢查紀錄`:target==="defs"?`✓ 已將 ${n} 筆填單資料（共 ${m} 筆缺失明細）轉入缺失紀錄總表`:`✓ 已將 ${n} 筆填單資料（共 ${m} 筆正面評價）轉入正面評價/優秀案例記錄`);
     return true;
   },
@@ -26830,6 +26841,17 @@ const AirQueue={
     if(typeof Audit!=="undefined")Audit.log("重新匯入","AIR審核佇列",`#${rec.id} ${rec.ship} ${rec.date}（補救重匯，來自線上填單 #${r.id}）`);
     toast("✓ 已補建一筆線上填單記錄 #"+rec.id+"，請自行確認沒有重複");
     this.render();
+  },
+  /* 主系統刪除／還原線上填單記錄時，同步船上原始送出的狀態：刪除→rejected（船舶填報平台就不再顯示），
+     從回收桶還原→imported。只動 status，不刪資料；失敗只提示，不影響本機刪除／還原。 */
+  async syncSourceStatus(rec,status){
+    const ids=[].concat(rec&&rec.importedFromQueueId||[],(rec&&rec.mergedQueueIds)||[]).map(Number).filter(n=>n>0);
+    if(!ids.length||typeof Cloud==="undefined")return;
+    const from=status==="rejected"?"imported":"rejected";
+    try{
+      await Cloud.api(`${this.TABLE}?id=in.(${[...new Set(ids)].join(",")})&status=eq.${from}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+        body:JSON.stringify({status})});
+    }catch(e){toast("⚠ 船上原始送出狀態未同步："+e.message);}
   },
   async rejectRow(id){
     if(!await Guard.require()){toast("⚠ 僅限維護者操作");return;}
@@ -32850,7 +32872,7 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
       setArr:(a)=>{ if(typeof SHIPINFO!=="undefined"){SHIPINFO.length=0;a.forEach(s=>SHIPINFO.push(s));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){} } }}
   },
   SNAP_PREFIX:"vsm_syncsnap_",
-  _pending:{},_busy:{},_failedKeys:new Set(),_retryTimer:null,
+  _pending:{},_busy:{},_again:{},_failedKeys:new Set(),_retryTimer:null,
   retryFailed(){
     if(!this._failedKeys.size)return;
     toast("🔄 正在重試同步…");
@@ -32938,8 +32960,11 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
   },
   async flush(key,skipGuard){
     if(!this.TABLES[key])return;
-    if(this._busy[key])return; // 避免同一個 key 重疊執行
-    this._busy[key]=true;
+    // 避免同一個 key 重疊執行。⚠ 2026-10-20：原本這裡直接 return，上傳進行中又有新修改（例如「轉入紀錄」
+    // 先轉檢查紀錄、緊接著轉缺失紀錄時標記 usedDef）要求上傳，會被無聲丟掉、雲端停在舊版（B201 已轉缺失卻沒顯示）。
+    // 改成記下「還要再跑一次」，目前這次結束後自動補跑。
+    if(this._busy[key]){this._again[key]=true;return;}
+    this._busy[key]=true;delete this._again[key];
     delete this._pending[key];
     let attempted=[];
     try{
@@ -33040,6 +33065,7 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
       }
     }finally{
       this._busy[key]=false;
+      if(this._again[key]){delete this._again[key];clearTimeout(this._pending[key]);this._pending[key]=setTimeout(()=>this.flush(key,skipGuard),300);}
     }
   },
   /* 開機／手動「從雲端載入」時呼叫：新表有資料就採用新表；新表是空的就沿用現有資料並自動遷移一次。
