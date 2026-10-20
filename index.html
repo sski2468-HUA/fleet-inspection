@@ -8561,6 +8561,8 @@ function dateSortVal(s){const d=parseDate(s);return d?d.getTime():0;}
 /* 船上用的頁面（船舶檢查填報平台、線上填單、改善單、自查…）放在獨立的 GitHub 網站，不跟主系統同一個網址 */
 const SHIP_SITE="https://sski2468-hua.github.io/vessel-portal/";
 /* 舊版存在瀏覽器裡的外部頁面網址如果還指向主系統（/fleet-inspection/），自動改成船上網站 */
+/* 主系統自己的資料夾（督導／海技用的頁面：intaudit、psc-analysis、selfcheck-share-summary、system-guide 都在這裡，不在船上網站） */
+function officeFolder(){return location.href.replace(/[#?].*$/,"").replace(/[^/]*$/,"");}
 function shipSiteUrl(v){return String(v||"").replace(/^https?:\/\/[^\/]+\/fleet-inspection\//,SHIP_SITE);}
 function normDateSlash(s){
   const m=String(s||"").match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
@@ -11226,32 +11228,32 @@ const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspe
 $$(".nav-item").forEach(n=>n.onclick=()=>{
   // 「操作說明」直接開新分頁的完整操作手冊（system-guide.html），舊的站內說明頁不再使用
   if(n.dataset.tab==="guide"){
-    const folderG=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
+    const folderG=officeFolder();
     window.open(folderG+"system-guide.html","_blank");
     if(typeof closeSidebar==="function")closeSidebar();return;
   }
   if(n.dataset.external){
     if(n.dataset.external==="__air_intake__"){if(typeof Air!=="undefined")Air.openIntakeSite();}
     else if(n.dataset.external==="__intaudit__"){
-      const folderIA=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
+      const folderIA=officeFolder();
       window.open(folderIA+"intaudit.html","_blank");
     }
     else if(n.dataset.external==="__intaudit_new__"){
       // 開新分頁停在「檢查紀錄登錄清單」（不直接跳到新增表單；要新增再按頁面上的「＋ 新增檢查記錄」）
-      const folderIA=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
+      const folderIA=officeFolder();
       window.open(folderIA+"intaudit.html","_blank");
     }
     else if(n.dataset.external==="__intaudit_sugg__"){
       // 開新分頁，直接停在「船舶訴求/建議清單」
-      const folderIA=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
+      const folderIA=officeFolder();
       window.open(folderIA+"intaudit.html?sugg=1","_blank");
     }
     else if(n.dataset.external==="__psc_analysis__"){
-      const folder=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
+      const folder=officeFolder();
       window.open(folder+"psc-analysis.html","_blank");
     }
     else if(n.dataset.external==="__selfcheck_share_summary__"){
-      const folder=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";
+      const folder=officeFolder();
       window.open(folder+"selfcheck-share-summary.html","_blank");
     }
     else window.open(n.dataset.external,"_blank");
@@ -12848,7 +12850,7 @@ const IAPend={
     try{if(typeof Todo!=="undefined")Todo.render();}catch(e){}
   },
   supsOf(code){const s=(typeof SHIPINFO!=="undefined")?SHIPINFO.find(x=>x.code===code):null;return s?[s.deckSup,s.engineSup].map(v=>String(v||"").trim()).filter(Boolean):[];},
-  open(){const f=(typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";window.open(f+"intaudit.html?review=1","_blank");},
+  open(){const f=officeFolder();window.open(f+"intaudit.html?review=1","_blank");},
   /* 依船整理：{ship, n, oldestDays} */
   byShip(filter){
     const m=new Map();
@@ -26888,7 +26890,7 @@ const IntAuditQueue={
   showPage(){
     if(typeof Role!=="undefined"&&Role.cur&&Role.cur.tier==="op2"){toast("⚠ 船舶帳號不開放查看內部檢查缺失登錄");return;}
     this.view=this.view==="replies"?"replies":"all";this.refresh();},
-  folder(){return (typeof Air!=="undefined"&&Air._shareBaseFolder)?Air._shareBaseFolder():"";},
+  folder(){return officeFolder();},
   openForm(){window.open(this.folder()+"intaudit.html","_blank");},
   async refresh(){
     const box=$("#air-ia-list");if(!box)return;
