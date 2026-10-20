@@ -3687,6 +3687,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <div class="msel" id="ms-f-insp"></div>
             <div class="msel" id="ms-f-icat"></div>
             <div class="msel" id="ms-f-ictopic"></div>
+            <div class="msel" id="ms-f-sup" title="依船舶資料的甲板／機艙督導篩選；可複選"></div>
           </div>
         </div>
         <div class="df-fgroup">
@@ -14397,7 +14398,7 @@ const AdvFilterEngine={
 
 /* ── 各頁面註冊：缺失紀錄總表／檢查紀錄／檢查管控／船舶資料 ── */
 FilterVisEngine.register("defs",{label:"缺失紀錄總表",fields:[
-  ["ship","船名","ms-f-ship"],["vtype","船型","ms-f-vtype"],["place","檢查地點","ms-f-place"],["insp","檢查員","ms-f-insp"],["icat","檢查類型","ms-f-icat"],["itype","檢查來源","ms-f-itype"],["icTopic","內稽類別","ms-f-ictopic"],
+  ["ship","船名","ms-f-ship"],["vtype","船型","ms-f-vtype"],["place","檢查地點","ms-f-place"],["insp","檢查員","ms-f-insp"],["icat","檢查類型","ms-f-icat"],["itype","檢查來源","ms-f-itype"],["icTopic","內稽類別","ms-f-ictopic"],["sup","督導","ms-f-sup"],
   ["rank","責任人職位","ms-f-rank"],["person","責任人姓名","ms-f-person"],
   ["ncprob","問題別","ms-f-ncprob"],["ncmain","大類","ms-f-ncmain"],["ncleaf","具體名稱","ms-f-ncleaf"],["ncfactor","根因","ms-f-ncfactor"],
   ["ncimp","重要程度","ms-f-ncimp"],["ncfocus","重要關注","ms-f-ncfocus"],["risk","風險","ms-f-risk"]],
@@ -14776,6 +14777,8 @@ const Defs={
     this.ms.icat=MSel("ms-f-icat","檢查類型",()=>ICAT_LIST.slice(),rerun);
     this.ms.icTopic=MSel("ms-f-ictopic","內稽類別",()=>[...new Set(App.defs.map(d=>d.intAuditTopic))].filter(Boolean).sort(),rerun);
     this.ms.insp=MSel("ms-f-insp","檢查員",()=>TagLists.withExtras("inspector",MultiName.flat(App.defs.map(d=>d.inspector))),rerun);
+    // 督導：船舶資料的甲板／機艙督導（可複選），選了就只看這些督導經管船的缺失
+    this.ms.sup=MSel("ms-f-sup","督導",()=>[...new Set((typeof SHIPINFO!=="undefined"?SHIPINFO:[]).flatMap(s=>[s.deckSup,s.engineSup]).flatMap(v=>String(v||"").split(/[、,，\/／;；]+/).map(x=>x.trim())))].filter(Boolean).sort(),rerun);
     this.ms.ym=MSel("ms-f-ym","年月",()=>[...new Set(App.defs.map(d=>d.ym||ymOf(d.date)))].filter(Boolean).sort().reverse(),rerun);
     this.ms.ncprob=MSel("ms-f-ncprob","問題別",()=>["设备问题","作业问题","(未分類)"],rerun);
     this.ms.ncmain=MSel("ms-f-ncmain","大類",()=>ncMainsForProbs(this.ms.ncprob.sel).sort(),rerun);
@@ -15690,6 +15693,7 @@ const Defs={
       if(!this.ms.icat.pass(icatOf(d.itype)))return false;
       if(!this.ms.icTopic.pass(d.intAuditTopic||""))return false;
       if(!this.ms.insp.passAny(d.inspector))return false;
+      if(this.ms.sup&&this.ms.sup.sel.size){const si=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(x=>x.code===d.ship)||{};if(![si.deckSup,si.engineSup].flatMap(v=>String(v||"").split(/[、,，\/／;；]+/).map(x=>x.trim())).some(n=>this.ms.sup.sel.has(n)))return false;}
       if(!this.ms.ym.pass(ym))return false;
       if(!passTags(this.ms.ncprob,d.ncProb,"(未分類)"))return false;
       if(!passTags(this.ms.ncmain,d.ncMain,"(未分類)"))return false;
