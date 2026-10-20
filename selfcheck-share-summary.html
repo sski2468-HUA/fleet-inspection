@@ -90,6 +90,10 @@ tr.done td{background:#eaf5ee}
   #printArea th{background:#e8edf1;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #printArea tr{page-break-inside:avoid}
 }
+.subtabs{display:flex;gap:6px;margin:4px 0 10px;border-bottom:2px solid var(--line,#dfe6eb);padding:0 4px}
+.subtabs button{border:0;background:none;padding:10px 16px;font-size:14.5px;font-weight:700;color:var(--ink-3,#7b8a94);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;font-family:inherit}
+.subtabs button.on{color:var(--navy,#1c3a5e);border-bottom-color:var(--signal,#e8862a)}
+.subtabs button .hint{font-weight:400}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -116,6 +120,13 @@ tr.done td{background:#eaf5ee}
         <button class="btn sm" onclick="clearDashFilters()">✕ 清除篩選</button>
       </div>
       <div class="kpis" id="dashKpis" style="margin-top:12px"></div>
+    </div>
+    <!-- 子標籤：需提醒的船舶／活動清單（兩者共用上方篩選） -->
+    <div class="subtabs" id="subTabs">
+      <button type="button" data-t="pend" class="on" onclick="setSubTab('pend')">🔔 需提醒的船舶</button>
+      <button type="button" data-t="list" onclick="setSubTab('list')">📋 活動清單 <span class="hint" id="campaignCountTab"></span></button>
+    </div>
+    <div class="card" id="pendCard">
       <div class="pendhead">
         <b style="color:var(--navy);font-size:14px">🔔 需提醒的船舶</b>
         <select id="fPendMode" onchange="renderDash()" style="width:auto;padding:5px 8px;font-size:13px">
@@ -129,7 +140,7 @@ tr.done td{background:#eaf5ee}
       </div>
       <div id="pendList"></div>
     </div>
-    <div class="card">
+    <div class="card" id="listCard" style="display:none">
       <div class="toolbar">
         <span style="font-weight:700;color:var(--ink-3);font-size:12px">共 <span id="campaignCount">0</span> 個活動</span>
         <button class="btn sm" onclick="loadCampaignList()">🔄 重新整理</button>
@@ -473,10 +484,20 @@ function exportPending(){
   const d=new Date(),fn=`分享自查_需提醒船舶_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.xlsx`;
   XLSX.writeFile(wb,fn);notify("✓ 已下載 "+fn,"ok2");
 }
+/* 子標籤切換：需提醒的船舶／活動清單（記住上次停留的分頁） */
+function setSubTab(t){
+  if(t!=="list")t="pend";
+  document.querySelectorAll("#subTabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
+  document.getElementById("pendCard").style.display=t==="pend"?"":"none";
+  document.getElementById("listCard").style.display=t==="list"?"":"none";
+  try{localStorage.setItem("scs_subtab",t);}catch(e){}
+}
+document.addEventListener("DOMContentLoaded",()=>{let t="pend";try{t=localStorage.getItem("scs_subtab")||"pend";}catch(e){}setSubTab(t);});
 function renderListView(fromDash){
   if(!fromDash){renderDash();return;} // 一律經由 renderDash()，活動表跟著篩選結果走
   const shown=dashFiltered();
   document.getElementById("campaignCount").textContent=shown.length===campaigns.length?campaigns.length:`${shown.length}（篩選中，全部 ${campaigns.length}）`;
+  const ct=document.getElementById("campaignCountTab");if(ct)ct.textContent=`（${shown.length}）`;
   const box=document.getElementById("campaignList");
   if(!campaigns.length){ box.innerHTML=`<p class="hint" style="text-align:center;padding:20px">目前沒有任何分享自查活動，請在填單審核頁按「📤 建立分享自查連結」建立一個。</p>`; return; }
   if(!shown.length){ box.innerHTML=`<p class="hint" style="text-align:center;padding:20px">篩選條件下沒有活動。</p>`; return; }

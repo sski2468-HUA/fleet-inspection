@@ -183,6 +183,7 @@ table.eo td.cur,table.eo th.cur{background:#fff8ec}
   <button data-p="home" class="on">🏠 首頁</button>
   <button data-p="insp">📋 檢查紀錄</button>
   <button data-p="air">📝 外部檢查線上填單紀錄</button>
+  <button data-p="camp">🔍 分享缺失自查</button>
   <button data-p="pos">👍 正面評價</button>
   <button data-p="exec">📅 執行情形一覽表</button>
   <button data-p="docs">📨 船隊通報單</button>
@@ -192,10 +193,8 @@ table.eo td.cur,table.eo th.cur{background:#fff8ec}
 <main>
   <!-- 首頁 -->
   <section class="page on" id="p-home">
-    <div class="kpis" id="homeKpi"></div>
     <h2 class="pt">要處理的事項 <span class="hint">點卡片前往</span></h2>
     <div class="grid" id="homeEntries"><div class="loading">載入中…</div></div>
-    <div class="panel" style="margin-top:14px" id="homeCamp"></div>
   </section>
 
 
@@ -228,6 +227,12 @@ table.eo td.cur,table.eo th.cur{background:#fff8ec}
     <div id="aList"></div>
   </section>
 
+
+  <!-- 分享缺失自查（本船要填寫的活動） -->
+  <section class="page" id="p-camp">
+    <h2 class="pt">🔍 分享缺失自查 <span class="hint">他船缺失分享給全船隊，請本船自查是否有類似情形並回覆</span></h2>
+    <div class="panel" id="campList"></div>
+  </section>
 
   <!-- 正面評價 -->
   <section class="page" id="p-pos">
@@ -392,29 +397,25 @@ async function loadIA(code){
 
 /* ════════ 首頁 ════════ */
 function renderHome(){
-  const cy=new Date().getFullYear(),inY=r=>(pd(r.date)||{}).y===cy;
-  $("#homeKpi").innerHTML=[
-    [D.insp.filter(inY).length,`${cy} 年檢查次數`],
-    [D.insp.filter(inY).reduce((s,r)=>s+(+r.ndef||0),0),`${cy} 年缺失數`],
-    [D.pos.filter(inY).length,`${cy} 年正面評價`],
-    [D.ia.pending+D.ia.returned,"改善單待填寫"]
-  ].map(([v,l])=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
   const base=location.href.replace(/[^/]*$/,"");
   const iaPills=[D.ia.pending?`<span class="pill bad">待填寫 ${D.ia.pending} 項</span>`:"",D.ia.returned?`<span class="pill warn">被退回需補充 ${D.ia.returned} 項</span>`:"",D.ia.waiting?`<span class="pill mute">待督導審核 ${D.ia.waiting} 項</span>`:"",(!D.ia.pending&&!D.ia.returned)?`<span class="pill ok">目前沒有待填寫的項目</span>`:""].join("");
   const openCamps=D.camps.filter(c=>!D.resps.some(r=>String(r.campaign_id)===String(c.id)&&r.submitted_at)).length;
   $("#homeEntries").innerHTML=[
     {c:"ext",t:"📝 外部檢查線上填單",d:"PSC、SIRE、CDI、FLAG 等外部檢查結束後，在這裡線上填寫檢查結果與缺失（After Inspection Review）。<b style=\"color:#c0392b\">零缺失也要填報</b>。（正面評論若有才需填寫）",href:`${base}submit-airform.html?ship=${encodeURIComponent(D.ship)}`,st:`<span class="pill mute">檢查後填寫</span><span class="pill ok">已送出 ${D.air.filter(r=>r.status!=="rejected").length} 份</span>`},
     {c:"int",t:"🛠 內部檢查改善單",d:"督導上船檢查（訪船、內稽等）發出的改善單：逐筆填寫改善措施、完成日期並上傳改善後照片。",href:`${base}intaudit-reply.html?ship=${encodeURIComponent(D.ship)}`,st:iaPills},
-    {c:"share",t:"🔍 分享缺失自查",d:"他船發生的缺失分享給全船隊，請本船自查是否有類似情形並回覆。",href:"#camp",st:openCamps?`<span class="pill bad">${openCamps} 項尚未送出</span>`:`<span class="pill ok">目前沒有待填寫的自查</span>`},
+    {c:"share",t:"🔍 分享缺失自查",d:"他船發生的缺失分享給全船隊，請本船自查是否有類似情形並回覆。",href:"#camp",go:"camp",st:openCamps?`<span class="pill bad">${openCamps} 項尚未送出</span>`:`<span class="pill ok">目前沒有待填寫的自查</span>`},
     {c:"sqms",t:"📘 SQMS 程序書修訂需求管理平台",d:"對 SQMS 程序書有修訂建議或需求時，到這裡提出。（另開新視窗）",href:"https://ttwonder.github.io/sqms-revision-system-ready/",st:`<span class="pill mute">外部平台 ↗</span>`}
-  ].map(e=>`<a class="entry ${e.c}" href="${esc(e.href)}" ${e.href.startsWith("#")?`onclick="event.preventDefault();document.getElementById('homeCamp').scrollIntoView({behavior:'smooth'})"`:`target="_blank" rel="noopener"`}><span class="t">${e.t}</span><span class="d">${e.d}</span><span class="st">${e.st}</span></a>`).join("");  // 分享自查清單
+  ].map(e=>`<a class="entry ${e.c}" href="${esc(e.href)}" ${e.go?`onclick="event.preventDefault();go('${e.go}')"`:`target="_blank" rel="noopener"`}><span class="t">${e.t}</span><span class="d">${e.d}</span><span class="st">${e.st}</span></a>`).join("");}
+/* ════════ 分享缺失自查（本船） ════════ */
+function renderCamp(){
+  const base=location.href.replace(/[^/]*$/,"");
   const rows=D.camps.map(c=>{
     const r=D.resps.find(x=>String(x.campaign_id)===String(c.id));
     const st=r&&r.submitted_at?`<span class="pill ok">已送出</span>`:r?`<span class="pill warn">填寫中</span>`:`<span class="pill bad">尚未填寫</span>`;
     const href=`${base}submit-selfcheck-share.html?cid=${encodeURIComponent(c.id)}&ship=${encodeURIComponent(D.ship)}`;
     return `<div class="camp"><div class="tt"><b>${esc(c.title||"缺失自查")}</b><div class="hint">發佈 ${pd(new Date(c.created_at).toISOString())?.txt||""}・${(c.items||[]).length} 題</div></div>${st}<a class="btn sm ${r&&r.submitted_at?"":"dark"}" href="${esc(href)}" target="_blank" rel="noopener">${r&&r.submitted_at?"查看":"前往填寫"}</a></div>`;
   }).join("");
-  $("#homeCamp").innerHTML=`<b style="color:var(--navy);font-size:15.5px">🔍 分享缺失自查（進行中）</b>${rows?`<div style="margin-top:6px">${rows}</div>`:`<div class="hint" style="margin-top:6px">目前沒有需要本船填寫的分享自查。</div>`}`;
+  $("#campList").innerHTML=`<b style="color:var(--navy);font-size:15.5px">進行中的分享自查</b>${rows?`<div style="margin-top:6px">${rows}</div>`:`<div class="hint" style="margin-top:6px">目前沒有需要本船填寫的分享自查。</div>`}`;
 }
 
 /* ════════ 外部檢查線上填單紀錄（唯讀）════════
@@ -514,7 +515,7 @@ function renderDocs(){
 }
 
 /* ════════ 頁籤 ════════ */
-const RENDER={home:renderHome,air:renderAir,insp:renderInsp,pos:renderPos,exec:renderExec,docs:renderDocs};
+const RENDER={home:renderHome,air:renderAir,camp:renderCamp,insp:renderInsp,pos:renderPos,exec:renderExec,docs:renderDocs};
 function go(p){
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.p===p));
   document.querySelectorAll(".page").forEach(s=>s.classList.toggle("on",s.id==="p-"+p));
