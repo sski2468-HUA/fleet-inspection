@@ -24711,7 +24711,8 @@ const Air={
       return;
     }
     recs.forEach(x=>{x.sharedCheckCampaignIds=[...(x.sharedCheckCampaignIds||[]),campaignId];});
-    App.saveAll();
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow(); // 立刻上傳「已分享自查」標記（2026-10-21：SA 那筆分享後標記沒傳上去）
+    if(this._shareSrc)recs.forEach(x=>{const k=String(x.id);this._shareSrc.set(k,(this._shareSrc.get(k)||0)+1);});
     if(typeof Audit!=="undefined")Audit.log("新增","分享自查",`由AIR#${recs.map(x=>x.id).join("、#")}（${recs.map(x=>x.ship+" "+x.date).join("、")}）分享 ${rows.length} 項缺失，建立分享自查活動 #${campaignId}${shipScope?`（限定 ${shipScope.length} 艘船）`:"（全船隊）"}`);
     const folder=this._shareBaseFolder();
     const fillLink=`${folder}submit-selfcheck-share.html?cid=${campaignId}`;
@@ -24845,17 +24846,21 @@ const Air={
   },
   /* 「已分享自查」標記只算「雲端上還存在」的分享活動：活動被刪除後，填單裡記的活動 id 就是孤兒，
      不該再顯示。載入時（至多每 60 秒）比對一次雲端現有活動；管理者開啟時順便把已不存在的 id 從填單紀錄裡清掉。 */
+  // 另外也看雲端活動本身記的來源填單（source_air_id）：填單上的標記萬一沒同步上去（或被覆蓋），一樣會顯示「已分享自查」
   _shareCount(d){
     const a=Array.isArray(d.sharedCheckCampaignIds)?d.sharedCheckCampaignIds:[];
-    return this._shareIds?a.filter(id=>this._shareIds.has(String(id))).length:a.length;
+    const flagged=this._shareIds?a.filter(id=>this._shareIds.has(String(id))).length:a.length;
+    const bySrc=this._shareSrc?(this._shareSrc.get(String(d.id))||0):0;
+    return Math.max(flagged,bySrc);
   },
   _loadShareIds(){
     if(typeof Cloud==="undefined"||!Cloud.enabled())return;
     if(Date.now()-(this._shareAt||0)<60000)return;
     this._shareAt=Date.now();
-    Cloud.api("selfcheck_share_campaigns?select=id").then(rows=>{
+    Cloud.api("selfcheck_share_campaigns?select=id,source_air_id").then(rows=>{
       if(!Array.isArray(rows))return;
       this._shareIds=new Set(rows.map(r=>String(r.id)));
+      this._shareSrc=new Map();rows.forEach(r=>{if(r.source_air_id!=null){const k=String(r.source_air_id);this._shareSrc.set(k,(this._shareSrc.get(k)||0)+1);}});
       let pruned=0;
       if(typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin()){
         (App.air||[]).forEach(d=>{
