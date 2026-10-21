@@ -1466,6 +1466,20 @@ table.ap-xl td.ap-selm{box-shadow:inset 2px 0 0 #1b6ec2,inset -2px 0 0 #1b6ec2}
 .imp-card{margin-top:10px}
 .imp-st{font-size:12px;padding:2px 10px;border-radius:12px;font-weight:700}
 .imp-chip{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:4px;background:#eef2f5;color:var(--ink-2);margin:0 4px 4px 0}
+/* SAR-FM29 專項檢查表編輯畫面：比照紙本表單的格線 */
+.sar-form{font-size:13px}
+.sar-form .sar-title{text-align:center;font-weight:700;font-size:17px;line-height:1.4;margin:0 0 10px}
+.sar-form table.sar-t{width:100%;border-collapse:collapse;margin-bottom:12px;table-layout:fixed}
+.sar-form .sar-t td,.sar-form .sar-t th{border:1px solid #6b7780;padding:4px 6px;vertical-align:middle}
+.sar-form .sar-t th,.sar-form .sar-t td.lb{background:#f2f2f2;font-weight:400;text-align:left;line-height:1.35;font-size:12.5px}
+.sar-form .sar-t td.lb small,.sar-form .sar-t th small{display:block;color:#555}
+.sar-form .sar-t input,.sar-form .sar-t textarea,.sar-form .sar-t select{width:100%;box-sizing:border-box;border:1px solid transparent;background:transparent;padding:3px 4px;font:inherit}
+.sar-form .sar-t input:focus,.sar-form .sar-t textarea:focus,.sar-form .sar-t select:focus{border-color:var(--navy-3,#2e6db4);background:#fff;outline:none}
+.sar-form .sar-t textarea{resize:vertical;min-height:30px}
+.sar-form .sar-sec td{background:#f2f2f2;font-weight:700}
+.sar-form .sar-add{font-size:12px;color:var(--navy-3,#2e6db4);cursor:pointer;margin-left:10px;font-weight:400}
+.sar-form .sar-del{color:#c0392b;cursor:pointer;font-size:12px}
+.sar-form .sar-note{font-size:12px;color:#444;line-height:1.6;margin:-4px 0 12px 18px}
 .imp-m{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 4px}
 .imp-m>div{font-size:12px;color:var(--ink-2)}.imp-m b{display:block;font-size:15px;color:var(--ink);margin:2px 0}
 .imp-sc{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);margin-top:4px}
@@ -2424,7 +2438,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <span><span class="num">📋</span>待辦事項</span>
       <span id="todo-navbadge" style="display:none;background:var(--bad);color:#fff;border-radius:9px;min-width:18px;height:18px;font-size:11px;line-height:18px;text-align:center;padding:0 4px;font-weight:700"></span>
     </div>
-    <div class="nav-quickload" onclick="Cloud.loadDBBlocking();if(typeof closeSidebar==='function')closeSidebar();" title="從雲端載入最新的檢查／缺失／船舶／檢查管控資料，覆蓋本機暫存"><span class="num">⬇</span>載入最新資料</div>
+    <div class="nav-quickload" onclick="Cloud.refreshLatest();if(typeof closeSidebar==='function')closeSidebar();" title="先送出本機尚未上傳的修改，再下載別人的最新變動（不會蓋掉您剛做的修改）"><span class="num">⬇</span>載入最新資料</div>
     <div class="nav-item nav-item-guide" data-tab="guide" title="開新分頁查看完整操作手冊（含流程圖）"><span class="num">📖</span>操作說明 <span style="margin-left:auto;font-size:10px;opacity:.7">↗</span></div>
   </div>
   <nav id="sidebarNav">
@@ -5044,7 +5058,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             </div>
             <div id="cl-quick-actions" style="display:none;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
               <button class="btn primary" onclick="Cloud.quickStart()">🔌 測試連線</button>
-              <button class="btn" onclick="Cloud.loadDBBlocking()" title="從雲端載入最新檢查與缺失資料，覆蓋本機">⬇ 載入最新資料</button>
+              <button class="btn" onclick="Cloud.refreshLatest()" title="先送出本機尚未上傳的修改，再下載別人的最新變動">⬇ 載入最新資料</button>
+              <button class="btn" onclick="if(confirm('完整重新載入會下載全部雲端資料（約 20 秒），並以雲端版本取代本機資料。\n只在資料看起來不一致、需要修復時使用；平常請用「載入最新資料」。\n\n載入期間請不要操作。確定要完整重新載入嗎？'))Cloud.loadDBBlocking()" title="下載全部雲端資料取代本機，修復資料不一致時使用">🔄 完整重新載入（修復用）</button>
               <span class="hint" style="font-size:11px">（以下按鈕僅 Owner／管理員可見，供連線異常時手動排查）</span>
             </div>
           </div>
@@ -6920,10 +6935,23 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div id="imp-e-ships" style="display:flex;flex-wrap:wrap;gap:2px 10px;max-height:110px;overflow:auto"></div>
       <div class="imp-sec">關聯「專案自查」任務（計算船上自查回報進度）</div>
       <div id="imp-e-sc" style="display:flex;flex-direction:column;gap:2px;max-height:120px;overflow:auto"></div>
+      <div class="imp-sec">專項檢查表（SAR-FM29 臨時專項檢查表，改善行動的檢查記錄）</div>
+      <div id="imp-e-sar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>
       <label class="fw" style="margin-top:8px">說明<textarea id="imp-e-note" rows="3"></textarea></label>
       <label class="fw" style="max-width:260px">狀態<select id="imp-e-status"><option value="open">進行中（系統自動判斷燈號）</option><option value="closed">已結案</option><option value="replaced">已改用其他措施</option></select></label>
     </div>
     <div class="mf"><button class="btn danger" id="imp-del" onclick="Improve.remove()" style="margin-right:auto">🗑 刪除</button><button class="btn" onclick="Improve.closeEdit()">取消</button><button class="btn primary" onclick="Improve.saveEdit()">儲存</button></div>
+  </div>
+</div>
+<!-- SAR-FM29 臨時專項檢查表：版面比照公司表單（基本資料／A～D 四段檢查項目／總結與簽名／海務、機務督導審核意見） -->
+<div class="modal-bg" id="sarModal">
+  <div class="modal" style="max-width:980px">
+    <div class="mh"><h3>📋 SAR-FM29 臨時專項檢查表 Ad-Hoc Specialized Inspection Form</h3><button class="x" onclick="Improve.closeSar()">✕</button></div>
+    <div class="mb sar-form" id="sar-body" style="max-height:74vh;overflow:auto"></div>
+    <div class="mf"><span class="hint" style="margin-right:auto">匯出的 Word 與公司表單 SAR-FM29 版面相同；列數依填寫的項目自動增加。</span>
+      <button class="btn" onclick="Improve.closeSar()">取消</button>
+      <button class="btn" onclick="Improve.sarFromUI();Improve.exportSar(Improve._draft)">⬇ 先匯出 Word 預覽</button>
+      <button class="btn primary" onclick="Improve.saveSar()">✓ 存入改善行動</button></div>
   </div>
 </div>
 <div class="modal-bg" id="fdaLogicModal">
@@ -27924,6 +27952,8 @@ const FleetDA={
     bar.innerHTML=`<b>☑ 已選 ${this.picks.size} 項</b>
       ${[...this.picks.values()].map(p=>`<span class="pkc" title="${esc(p.main?p.main+" › ":"")}${esc(p.name)}">${esc(p.name)}<button onclick="FleetDA.unpick('${esc(p.key).replace(/'/g,"\\'")}')" title="移除">✕</button></span>`).join("")}
       <span style="flex:1"></span>
+      <button class="btn sm" style="background:#fff;color:var(--navy);font-weight:700" onclick="FleetDA.openToImprove()" title="把勾選項目列為改善追蹤的標的，並帶入 SAR-FM29 專項檢查表（D 內外部檢查）">🎯 列入改善追蹤</button>
+      <button class="btn sm" style="background:#fff;color:var(--navy);font-weight:700" onclick="FleetDA.openListExport()" title="不經 AI，直接把勾選項目的全部缺失匯出成 Word／PDF（含排名總表）">📄 匯出缺失清單</button>
       <button class="btn sm" style="background:#fff;color:var(--navy);font-weight:700" onclick="FleetDA.openReportAi()" title="安全會議／月報向主管報告用：AI 寫現況、分析、改善建議，系統附圖表與勾選項目的缺失清單">📊 產生主管報告</button>
       <button class="btn sm primary" onclick="FleetDA.openPubAi()">🤖 AI 產生自查題目 → 發佈分享自查</button>
       <button class="btn sm" style="background:transparent;color:#fff" onclick="FleetDA.clearPicks()">清除勾選</button>`;
@@ -28108,6 +28138,7 @@ const FleetDA={
     const r=this._range||this.range(),period=this.rangeText(r),view=this._view||[];
     const TB=this._tb||{buckets:[],insp:[]};
     const totalInsp=TB.insp.reduce((a,b)=>a+b,0);
+    const LT=this.longTrend(T);
     const data={
       期間:period,篩選條件:this.filterText?this.filterText():"",
       船隊整體:{缺失總數:view.length,涉及船數:new Set(view.map(x=>x.d.ship)).size,檢查次數:totalInsp},
@@ -28115,7 +28146,10 @@ const FleetDA={
       報告項目:T.map((t,i)=>({圖表編號:`項目${i+1}`,名稱:t.name,所屬大類:t.main,件數:t.n,占全部缺失:view.length?Math.round(t.n/view.length*1000)/10+"%":"",
         涉及船數:t.ships,船內重複船數:t.rep.length,趨勢:t.trend,
         各期間件數:t.tr?t.tr.c:[],前半段每次檢查平均:t.tr?+t.tr.r1.toFixed(3):null,後半段每次檢查平均:t.tr?+t.tr.r2.toFixed(3):null,
-        檢查來源分布:t.src,改善狀態:t.status,最多的船:t.topShips,缺失摘要:t.summary}))
+        檢查來源分布:t.src,改善狀態:t.status,最多的船:t.topShips,
+        近12個月趨勢:LT?(s=>({每兩個月件數:s.c,前半年每次檢查平均:+s.r1.toFixed(3),後半年每次檢查平均:+s.r2.toFixed(3),判斷:this.ltTrendText(s)}))(LT.series[i]):null,
+        缺失摘要:t.summary})),
+      近12個月分段:LT?LT.buckets.map((b,i)=>({期間:`${b.from}～${b.to}`,檢查次數:LT.insp[i]})):[]
     };
     const buildPrompt=persona=>`${persona}
 
@@ -28126,12 +28160,13 @@ const FleetDA={
 ### 寫法規則
 1. 只能使用下方資料裡的數字與事實，不可自行補充或推估資料裡沒有的數字；推論請寫「可能」。
 2. 繁體中文、白話、條列為主，每條 40 字以內；關鍵數字用 **粗體**。不要客套話、不要說明分析方法。
-3. 系統會在報告後面自動附上三張圖，請在內文適當位置引用：
+3. 系統會在報告後面自動附上四張圖和一張趨勢表，請在內文適當位置引用：
    - 圖1：各項目件數與涉及船數
-   - 圖2：各項目期間趨勢（各期間件數）
+   - 圖2：各項目本期間分段件數
    - 圖3：各項目檢查來源分布
+   - 圖4：近 12 個月趨勢（每兩個月；每次檢查平均件數）＋「表 近 12 個月趨勢」
    以及「附錄：缺失清單」（勾選項目的全部缺失）。不要自己畫圖或列缺失清單。
-4. 趨勢判斷請用「每次檢查平均件數」（已用檢查次數校正），不要只看件數多寡。
+4. 趨勢判斷請用「每次檢查平均件數」（已用檢查次數校正），不要只看件數多寡；長期走勢以「近12個月趨勢」為準（本期間可能只有兩個月，看不出趨勢）。
 
 ### 固定輸出格式
 ## 報告摘要
@@ -28139,24 +28174,29 @@ const FleetDA={
 
 ## 一、現況說明
 - 期間、船隊整體缺失數、這 ${T.length} 項合計占比（見圖1）
-- 趨勢概況（見圖2）、主要來自哪些檢查（見圖3）
+- 主要來自哪些檢查（見圖3）
 
-## 二、重點項目分析
+## 二、趨勢分析（見圖2、圖4）
+- 近 12 個月哪些項目上升、哪些下降、哪些持平（用每次檢查平均件數，寫出前半年→後半年的數字）
+- 本期間（${period}）跟前幾期比是變好還是變差
+- 需要特別警示的項目（持續上升、或最近一期突然增加）
+
+## 三、重點項目分析
 ### 1. 〈項目名稱〉
-- **數據**：件數／涉及船數／船內重複船數／趨勢
+- **數據**：件數／涉及船數／船內重複船數／近 12 個月趨勢
 - **問題型態**：歸納共同問題（2～3 點）
 - **可能原因**：依人員／設備／系統（程序、PMS、訓練）分類
 - **風險**：若不改善可能造成的影響（例如檢查扣分、滯留、事故）
 （每個項目都照這個格式）
 
-## 三、改善建議
+## 四、改善建議
 | 項目 | 改善措施 | 建議負責單位 | 時程（短期／中期） |
 |------|----------|--------------|------------------|
 
-## 四、追蹤指標
+## 五、追蹤指標
 - 建議用哪些指標追蹤成效（例如每次檢查平均件數、船內重複船數、改善完成率），以及目標值
 
-## 五、需主管協助／決策事項
+## 六、需主管協助／決策事項
 - （例如：預算、備品、訓練資源、跨部門協調；沒有就寫「無」）
 
 ### 報告資料（JSON）
@@ -28207,6 +28247,210 @@ const FleetDA={
     groups.forEach((gp,gi)=>{g.fillStyle=this.RPT_COLORS[gi%10];g.fillRect(lx,ly-6,12,12);g.fillStyle="#15262f";g.fillText(gp,lx+16,ly);lx+=g.measureText(gp).width+34;if(lx>W-80){lx=L;ly+=20;}});
     return c.toDataURL("image/png");
   },
+  /* ── 近 12 個月趨勢（2026-10-21）──
+     主管報告的圖2 只依「目前期間」分段，期間只選 2 個月時幾乎看不出趨勢。這裡不管期間選多短，一律往回抓
+     「期間結束月」為止的 12 個月、每 2 個月一段，其他篩選（來源／船型／船舶／檢查來源／問題性質…）照舊；
+     趨勢＝後半年 vs 前半年的「每次檢查平均件數」（用檢查次數校正）。 */
+  longTrend(T){
+    if(!T||!T.length)return null;
+    const r=this._range||this.range(),now=new Date();
+    const end=r.to||`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+    let [y,m]=end.split("-").map(Number);const months=[];
+    for(let i=0;i<12;i++){months.unshift(`${y}-${String(m).padStart(2,"0")}`);m--;if(m<1){m=12;y--;}}
+    const idx=new Map(),buckets=[];
+    for(let b=0;b<6;b++){const ms=months.slice(b*2,b*2+2);ms.forEach(k=>idx.set(k,b));buckets.push({from:ms[0],to:ms[1]});}
+    const R={from:months[0],to:end},S=this.makeS(),all=[];
+    App.defs.forEach(d=>{
+      const ym=d.ym||ymOf(d.date);if(!idx.has(ym))return;
+      if(!this.passCommon(d.ship,d.vtype||this.vtOf(d.ship),d.itype,ym,R))return;
+      if(!this.ms.insp.passAny(d.inspector)||!this.ms.risk.pass(String(d.risk||""))||!this.ms.imp.pass(d.ncImp||""))return;
+      const c=this.classify(d,S);if(this.nature&&c.nature!==this.nature)return;
+      all.push({d,ym,c});
+    });
+    const insp=buckets.map(()=>0);
+    (App.insp||[]).forEach(i=>{const ym=ymOf(i.date);if(!idx.has(ym))return;if(!this.passCommon(i.ship,i.vtype||this.vtOf(i.ship),i.itype,ym,R))return;insp[idx.get(ym)]++;});
+    const sum=(a,s,e)=>a.slice(s,e).reduce((p,q)=>p+q,0);
+    const series=T.map(t=>{
+      const p=t.p,L=p.lens==="rc"?"eq":p.lens;
+      const c=buckets.map(()=>0);
+      all.forEach(x=>{const k=x.c[L];if(p.kind==="main"?k.mains.includes(p.name):k.leaves.some(([l,mm])=>l===p.name&&(!p.main||mm===p.main)))c[idx.get(x.ym)]++;});
+      const rate=c.map((n,i)=>insp[i]?n/insp[i]:0);
+      const i1=sum(insp,0,3),i2=sum(insp,3),a1=sum(c,0,3),a2=sum(c,3),r1=i1?a1/i1:0,r2=i2?a2/i2:0,chg=r1?(r2-r1)/r1:(r2?1:0);
+      return {name:t.name,c,rate,a1,a2,r1,r2,chg,dir:(a1+a2>=5&&Math.abs(chg)>=0.2)?(chg>0?"up":"down"):"flat"};
+    });
+    return {buckets,insp,series,from:months[0],to:end};
+  },
+  ltTrendText(s){return s.dir==="flat"?"持平":`${s.dir==="up"?"上升":"下降"} ${Math.round(Math.abs(s.chg)*100)}%`;},
+  rptChart4(LT){
+    if(!LT||!LT.series.length)return null;
+    const W=900,left=60,right=24,top=50,ph=250;
+    // 圖例可能很多項（10 項），先算要幾列再決定畫布高度
+    const probe=this._canvas(10,10).g;probe.font="12px 'Microsoft JhengHei',sans-serif";
+    const rows=[];let row=[],lx=left;
+    LT.series.forEach((s,i)=>{const lbl=this._trimLabel(probe,s.name,170),w=probe.measureText(lbl).width+34;if(lx+w>W-right&&row.length){rows.push(row);row=[];lx=left;}row.push([i,lbl]);lx+=w;});
+    if(row.length)rows.push(row);
+    const H=top+ph+56+rows.length*20;const {c,g}=this._canvas(W,H);
+    g.fillStyle="#16324f";g.font="bold 15px 'Microsoft JhengHei',sans-serif";g.fillText("圖4　近 12 個月趨勢（每兩個月；每次檢查平均件數，括號為檢查次數）",14,20);
+    const max=Math.max(0.01,...LT.series.flatMap(s=>s.rate))*1.15,pw=W-left-right,nb=LT.buckets.length,gx=i=>left+pw*(i+0.5)/nb,gy=v=>top+ph-ph*v/max;
+    g.font="11px 'Microsoft JhengHei',sans-serif";g.strokeStyle="#e3e8ec";g.fillStyle="#8195a0";g.lineWidth=1;
+    for(let k=0;k<=5;k++){const v=max*k/5,yy=gy(v);g.beginPath();g.moveTo(left,yy);g.lineTo(W-right,yy);g.stroke();g.textAlign="right";g.fillText(v.toFixed(2),left-6,yy);}
+    g.textAlign="center";
+    LT.buckets.forEach((b,i)=>{g.fillStyle="#15262f";g.fillText(`${b.from}～${b.to.slice(5)}`,gx(i),top+ph+16);g.fillStyle="#8195a0";g.fillText(`(${LT.insp[i]} 次)`,gx(i),top+ph+32);});
+    LT.series.forEach((s,si)=>{
+      const col=this.RPT_COLORS[si%10];g.strokeStyle=col;g.lineWidth=2;g.beginPath();
+      s.rate.forEach((v,i)=>{const X=gx(i),Y=gy(v);i?g.lineTo(X,Y):g.moveTo(X,Y);});g.stroke();
+      s.rate.forEach((v,i)=>{g.fillStyle="#fff";g.beginPath();g.arc(gx(i),gy(v),4,0,Math.PI*2);g.fill();g.strokeStyle=col;g.lineWidth=2;g.stroke();});
+    });
+    g.textAlign="left";g.font="12px 'Microsoft JhengHei',sans-serif";
+    rows.forEach((rw,ri)=>{let x=left;const yy=top+ph+52+ri*20;rw.forEach(([i,lbl])=>{g.fillStyle=this.RPT_COLORS[i%10];g.fillRect(x,yy-6,12,12);g.fillStyle="#15262f";g.fillText(lbl,x+16,yy);x+=g.measureText(lbl).width+34;});});
+    return c.toDataURL("image/png");
+  },
+  _longTrendTable(LT,F){
+    const th=v=>`<th style="${F};font-size:9pt;border:1px solid #999;padding:3pt 4pt;background:#16324f;color:#fff;text-align:center">${v}</th>`;
+    const td=(v,ex)=>`<td style="${F};font-size:9pt;border:1px solid #999;padding:3pt 4pt;text-align:center;${ex||""}">${v}</td>`;
+    const arrow=s=>s.dir==="up"?`<b style="color:#c0392b">▲ ${Math.round(Math.abs(s.chg)*100)}%</b>`:s.dir==="down"?`<b style="color:#2e8b57">▼ ${Math.round(Math.abs(s.chg)*100)}%</b>`:"— 持平";
+    return `<p style="${F};font-size:10.5pt;font-weight:bold;color:#16324f;margin:12pt 0 4pt">表　近 12 個月趨勢（${esc(LT.from)} ～ ${esc(LT.to)}，每兩個月件數）</p>
+      <table style="border-collapse:collapse;width:100%"><thead><tr>${th("項目")}${LT.buckets.map(b=>th(`${b.from}～${b.to.slice(5)}`)).join("")}${th("前半年<br>每次檢查")}${th("後半年<br>每次檢查")}${th("趨勢")}</tr></thead><tbody>
+      ${LT.series.map(s=>`<tr>${td(esc(s.name),"text-align:left")}${s.c.map(n=>td(n)).join("")}${td(s.r1.toFixed(2))}${td(s.r2.toFixed(2))}${td(arrow(s))}</tr>`).join("")}
+      <tr>${td("檢查次數","text-align:left;color:#666")}${LT.insp.map(n=>td(n,"color:#666")).join("")}${td("","")}${td("","")}${td("","")}</tr></tbody></table>
+      <p style="${F};font-size:8.5pt;color:#666;margin:2pt 0 8pt">趨勢＝後半年 vs 前半年的每次檢查平均件數；合計 5 件以上且變化 ≥ 20% 才標 ▲／▼。其他篩選條件同本報告。</p>`;
+  },
+  /* 附錄：各項目的完整缺失清單（主管報告、缺失清單匯出共用） */
+  _rptAppendix(T,F){
+    const cell=s=>esc(String(s||"")).replace(/\n/g,"<br>");
+    const td=(v,w,ex)=>`<td style="${F};font-size:9pt;border:1px solid #999;padding:3pt 5pt;vertical-align:top;width:${w};${ex||""}">${v}</td>`;
+    const th=(v,w)=>`<th style="${F};font-size:9.5pt;border:1px solid #999;padding:4pt 5pt;background:#16324f;color:#fff;text-align:left;width:${w}">${v}</th>`;
+    return T.map((t,i)=>{
+      const list=t.items.slice().sort((a,b)=>(parseDate(b.d.date)||0)-(parseDate(a.d.date)||0));
+      return `<h3 style="${F};font-size:12pt;color:#16324f;margin:12pt 0 4pt">${i+1}. ${esc(t.name)}${t.main&&t.main!==t.name?`（${esc(t.main)}）`:""}— ${t.n} 件／${t.ships} 艘</h3>
+        <table class="repeat-head" style="border-collapse:collapse;width:100%"><thead><tr>${th("#","4%")}${th("船名","13%")}${th("檢查來源／日期","13%")}${th("缺失詳情","34%")}${th("實際情況／改善措施","28%")}${th("狀態","8%")}</tr></thead><tbody>
+        ${list.map((x,j)=>`<tr>${td(j+1,"4%","text-align:center")}${td(cell(shipFullLabel(x.d.ship)),"13%")}${td(cell((x.d.itype||"")+"\n"+normDateSlash(x.d.date)),"13%")}${td(cell(x.d.detail),"34%")}${td(cell([x.d.actual,x.d.corrective?"改善："+x.d.corrective:""].filter(Boolean).join("\n")),"28%")}${td(cell(Defs.list3Status?Defs.list3Status(x.d)[1]:""),"8%")}</tr>`).join("")}</tbody></table>`;}).join("");
+  },
+  /* ════ 匯出缺失清單（2026-10-21）：勾選的排名項目 → 不經 AI，直接匯出每一項的全部缺失（Word／PDF）
+     用途：每兩個月把外部／內部檢查各抓設備類、作業類前 10 名，匯出缺失給相關單位。
+     依件數由多到少排序；內容＝篩選條件＋排名總表（件數／船數／船內重複／趨勢）＋各項目缺失清單。 ════ */
+  openListExport(){
+    if(!this.picks.size){toast("⚠ 請先在排名表勾選要匯出的項目");return;}
+    const T=this.rptTopics().slice().sort((a,b)=>b.n-a.n),empty=T.filter(t=>!t.n);
+    if(empty.length){toast(`⚠ 「${empty.map(t=>t.name).join("、")}」在目前篩選範圍內沒有缺失，請調整期間或移除`);return;}
+    let m=$("#fdaListModal");
+    if(!m){m=document.createElement("div");m.className="modal-bg";m.id="fdaListModal";document.body.appendChild(m);}
+    const r=this._range||this.range(),total=T.reduce((a,t)=>a+t.n,0),LT=this.longTrend(T);
+    T.forEach((t,i)=>{t._lt=LT?this.ltTrendText(LT.series[i]):"—";});
+    m.innerHTML=`<div class="modal" style="max-width:640px"><div class="mh"><h3>📄 匯出缺失清單（${T.length} 項）</h3><button class="x" onclick="$('#fdaListModal').classList.remove('show')">✕</button></div>
+      <div class="mb">
+        <div class="hint" style="margin-bottom:8px;line-height:1.7">依目前篩選條件匯出：<b>${esc(this._listCond())}</b>；期間 ${esc(this.rangeText(r))}</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f1f5f8"><th style="padding:5px;text-align:left">#</th><th style="padding:5px;text-align:left">項目</th><th style="padding:5px">件數</th><th style="padding:5px">船數</th><th style="padding:5px">近 12 個月趨勢</th></tr></thead>
+        <tbody>${T.map((t,i)=>`<tr style="border-top:1px solid var(--line)"><td style="padding:5px">${i+1}</td><td style="padding:5px">${esc(t.name)}${t.main&&t.main!==t.name?`<div class="hint">${esc(t.main)}</div>`:""}</td><td style="padding:5px;text-align:center">${t.n}</td><td style="padding:5px;text-align:center">${t.ships}</td><td style="padding:5px;text-align:center">${esc(t._lt)}</td></tr>`).join("")}</tbody></table>
+        <div class="hint" style="margin-top:8px">共 ${total} 筆（同一筆缺失若同時屬於多個項目會重複列出）。</div>
+      </div>
+      <div class="mf"><button class="btn" onclick="$('#fdaListModal').classList.remove('show')">取消</button>
+        <button class="btn" onclick="FleetDA.exportList('pdf')">🖨 PDF</button>
+        <button class="btn primary" onclick="FleetDA.exportList('word')">⬇ Word</button></div></div>`;
+    m.classList.add("show");
+  },
+  /* ════ 勾選項目 → 改善追蹤（2026-10-21）：每兩個月抓內／外部檢查設備、作業類前幾名，列為下一個週期的改善行動
+     標的＝勾選項目（大類勾選＝整個大類）；同時把項目帶進 SAR-FM29 專項檢查表的「D 內外部檢查」段。
+     可以新建，也可以併入既有改善行動（四份排名併成同一張專項檢查表）。 ════ */
+  openToImprove(){
+    if(!this.picks.size){toast("⚠ 請先在排名表勾選要列入改善追蹤的項目");return;}
+    if(typeof Improve==="undefined"||!Improve.canEdit()){toast("⚠ 改善行動僅限維護者以上新增／修改");return;}
+    Improve.load().then(()=>{
+      const open=(Improve.data.actions||[]).filter(a=>a.status!=="closed"&&a.status!=="replaced").sort((a,b)=>String(b.start).localeCompare(String(a.start)));
+      let m=$("#fdaImpModal");
+      if(!m){m=document.createElement("div");m.className="modal-bg";m.id="fdaImpModal";document.body.appendChild(m);}
+      const T=this._impTopics();
+      m.innerHTML=`<div class="modal" style="max-width:600px"><div class="mh"><h3>🎯 列入改善追蹤（${T.length} 項）</h3><button class="x" onclick="$('#fdaImpModal').classList.remove('show')">✕</button></div>
+        <div class="mb" style="font-size:13.5px">
+          <div class="hint" style="margin-bottom:8px">條件：<b>${esc(this._listCond())}</b>；期間 ${esc(this.rangeText(this._range||this.range()))}。勾選項目會成為改善標的，並帶入專項檢查表「D 內外部檢查」。</div>
+          <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="fda-imp-to" value="new" checked> 新建改善行動（下個週期：${esc(this._nextCycle().text)}）</label>
+          <label style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="radio" name="fda-imp-to" value="add" ${open.length?"":"disabled"}> 併入既有改善行動
+            <select id="fda-imp-act" style="margin-left:6px;max-width:300px" ${open.length?"":"disabled"} onchange="document.querySelector('input[name=fda-imp-to][value=add]').checked=true">${open.map(a=>`<option value="${esc(a.id)}">${esc(a.title||"（未命名）")}（${esc(a.start||"")}）</option>`).join("")||"<option>（沒有進行中的改善行動）</option>"}</select></label>
+          <div class="hint" style="margin-top:8px">例：同一週期先列「外部檢查・設備類」新建，再把「外部・作業」「內部・設備」「內部・作業」併入同一個，四份排名就會在同一張專項檢查表裡。</div>
+        </div>
+        <div class="mf"><button class="btn" onclick="$('#fdaImpModal').classList.remove('show')">取消</button><button class="btn primary" onclick="FleetDA.toImprove()">下一步</button></div></div>`;
+      m.classList.add("show");
+    });
+  },
+  _nextCycle(){
+    const now=new Date(),p=n=>String(n).padStart(2,"0"),s=new Date(now.getFullYear(),now.getMonth()+1,1),e=new Date(now.getFullYear(),now.getMonth()+3,0);
+    const ds=d=>`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+    return {start:ds(s),due:ds(e),text:`${s.getFullYear()}/${s.getMonth()+1}～${e.getFullYear()!==s.getFullYear()?e.getFullYear()+"/":""}${e.getMonth()+1} 月`};
+  },
+  _impTopics(){return this.pubTopics().slice().sort((a,b)=>b.n-a.n);},
+  toImprove(){
+    const mode=(document.querySelector('input[name="fda-imp-to"]:checked')||{}).value||"new";
+    const T=this._impTopics(),empty=T.filter(t=>!t.n);
+    if(empty.length){toast(`⚠ 「${empty.map(t=>t.name).join("、")}」在目前篩選範圍內沒有缺失，請調整期間或移除`);return;}
+    const r=this._range||this.range(),period=this.rangeText(r),cond=this._listCond();
+    const srcLbl=this.src==="ext"?"外部檢查":this.src==="int"?"內部檢查":"內外部檢查";
+    const targets=T.map(t=>{const lens=t.p.lens==="op"?"op":"eq";return t.p.kind==="main"?{lens,main:t.name,leaf:""}:{lens,main:t.main,leaf:t.name};});
+    const rows=T.map(t=>({src:`${srcLbl}\n${t.name}`,item:`近期（${period}）船隊共 ${t.n} 件、${t.ships} 艘船被開出「${t.name}」相關缺失，請確認本船有無同樣或類似情形，並依實際狀況改善。`,yn:"",rmk:""}));
+    const note=`來源：船隊缺失分析排名（${cond}，${period}）：${T.map((t,i)=>`${i+1}. ${t.name} ${t.n} 件／${t.ships} 艘`).join("；")}`;
+    $("#fdaImpModal").classList.remove("show");
+    this.tab="imp";this.render();
+    if(mode==="add"){
+      const id=($("#fda-imp-act")||{}).value;
+      Improve.openEdit(id);const d=Improve._draft;if(!d){toast("⚠ 找不到要併入的改善行動");return;}
+      targets.forEach(t=>{if(!d.targets.some(x=>x.lens===t.lens&&x.main===t.main&&(x.leaf||"")===t.leaf))d.targets.push(t);});
+      if(!d.sar29)d.sar29=Improve.sarBlank(d);
+      d.sar29.sec.D=[...(d.sar29.sec.D||[]),...rows];d.sar29.updated=todayStr();
+      d.note=[d.note,note].filter(Boolean).join("\n");
+      if(!(d.measures||[]).includes(Improve.SAR_TYPE))d.measures=[...(d.measures||[]),Improve.SAR_TYPE];
+      Improve.renderEdit();
+      toast(`✓ 已把 ${T.length} 項併入「${d.title}」，請確認後按「儲存」`);
+      return;
+    }
+    const cy=this._nextCycle();
+    const title=`${cy.text} 專項檢查：${cond}前 ${T.length} 名`;
+    const preset={title,targets,measures:[Improve.SAR_TYPE],start:cy.start,due:cy.due,note};
+    Improve.openEdit(null,preset);
+    const d=Improve._draft;
+    d.sar29=Object.assign(Improve.sarBlank(d),{topic:`${cy.text} 缺失重點專項檢查`,
+      goal:`依 ${period} ${cond}缺失排名，針對前 ${T.length} 名項目（${T.slice(0,3).map(t=>t.name).join("、")}${T.length>3?"…":""}）進行船上專項檢查，確認本船有無同樣或類似缺失並改善。`,
+      deadline:cy.due,sec:{A:[],B:[],C:[],D:rows}});
+    Improve.renderEdit();
+    toast("✓ 已帶入改善標的與專項檢查表，可按「✎ 編輯檢查表」修改檢查項目，確認後按「儲存」");
+  },
+  _listCond(){
+    const lens=[...new Set([...this.picks.values()].map(p=>p.lens))].map(l=>(this.LENS[l]||[l])[0]).join("／");
+    return [this.src==="ext"?"外部檢查":this.src==="int"?"內部檢查":"全部來源",this.vt==="tanker"?"油輪":this.vt==="bulk"?"散裝":"",lens?lens+"類":""].filter(Boolean).join("・");
+  },
+  exportList(fmt){
+    const T=this.rptTopics().slice().sort((a,b)=>b.n-a.n);if(!T.length){toast("⚠ 沒有勾選項目");return;}
+    const r=this._range||this.range(),F="font-family:'Microsoft JhengHei','Calibri',Arial,sans-serif";
+    const cond=this._listCond(),title=`船隊缺失清單（${cond}・前 ${T.length} 名）`;
+    const sel=k=>this.ms[k]&&this.ms[k].sel&&this.ms[k].sel.size?[...this.ms[k].sel]:null;
+    const fsum=[sel("ship")&&"船舶："+sel("ship").join("、"),sel("itype")&&"檢查來源："+sel("itype").join("、"),
+      this.nature&&"問題性質："+((this.NATURE.find(n=>n[0]===this.nature)||[])[1]||""),this._inclSold&&"含已售出船舶"].filter(Boolean).join("；");
+    const meta=`期間：${this.rangeText(r)}　｜　條件：${cond}${fsum?"　｜　"+fsum:""}　｜　產出日期：${todayStr()}`;
+    const th=(v,w,al)=>`<th style="${F};font-size:9.5pt;border:1px solid #999;padding:4pt 5pt;background:#16324f;color:#fff;text-align:${al||"center"};width:${w}">${v}</th>`;
+    const td=(v,al)=>`<td style="${F};font-size:9.5pt;border:1px solid #999;padding:3pt 5pt;text-align:${al||"center"}">${v}</td>`;
+    const total=T.reduce((a,t)=>a+t.n,0),LT=this.longTrend(T);
+    const showMain=T.some(t=>t.main&&t.main!==t.name); // 勾的都是大類時，「所屬大類」就是自己，不顯示
+    const sumTbl=`<h2 style="${F};font-size:14pt;color:#16324f;margin:10pt 0 4pt">排名總表</h2>
+      <table style="border-collapse:collapse;width:100%"><thead><tr>${th("排名","7%")}${th("項目",showMain?"33%":"50%","left")}${showMain?th("所屬大類","24%","left"):""}${th("件數","8%")}${th("船數","8%")}${th("船內重複船數","10%")}${th("近 12 個月趨勢","14%")}</tr></thead><tbody>
+      ${T.map((t,i)=>`<tr>${td(i+1)}${td(esc(t.name),"left")}${showMain?td(esc(t.main),"left"):""}${td(t.n)}${td(t.ships)}${td(t.rep.length||"—")}${td(LT?esc(this.ltTrendText(LT.series[i])):"—")}</tr>`).join("")}
+      </tbody></table><p style="${F};font-size:8.5pt;color:#666;margin:2pt 0 8pt">合計 ${total} 筆。船內重複＝同一艘船在 2 次以上不同檢查被開同一項目。近 12 個月趨勢＝${LT?`${esc(LT.from)}～${esc(LT.to)} `:""}後半年 vs 前半年的每次檢查平均件數（合計 5 件以上且變化 ≥ 20% 才判斷上升／下降）。</p>
+      ${LT?this._longTrendTable(LT,F):""}`;
+    const app=`<br clear="all" style="page-break-before:always"><h2 style="${F};font-size:14pt;color:#16324f;margin:0 0 4pt">各項目缺失清單</h2>${this._rptAppendix(T,F)}`;
+    const fn=`船隊缺失清單_${cond.replace(/[・／]/g,"_")}_${(r.from||"").replace("-","")}-${(r.to||todayStr().slice(0,7)).replace("-","")}`;
+    if(fmt==="word"){
+      const html=`<p style="${F};font-size:10pt;color:#16324f;margin:0 0 2pt"><b>台塑海運股份有限公司</b>　QMS &amp; Vetting Unit（海技組）</p>
+        <h1 style="${F};font-size:18pt;color:#16324f;margin:4pt 0 2pt">${esc(title)}</h1><p style="${F};font-size:9.5pt;color:#666;margin:0 0 10pt">${esc(meta)}</p>${sumTbl}${app}`;
+      dl(this._mhtDoc(html,[],title),fn+".doc");
+      toast("✓ 已匯出 Word 缺失清單");
+    }else{
+      $("#printArea").innerHTML=`<div class="pc"><table class="pc-wrap"><thead><tr><td>
+          <div class="pc-brand"><img src="${FPMC_LOGO_B64}" alt="台塑海運股份有限公司"><div class="unit"><b>QMS &amp; Vetting Unit</b>海技組</div></div>
+          <div class="pc-head"><p class="k">FLEET DEFICIENCY LIST</p><h1 style="font-size:20px">${esc(title)}</h1><p class="s">${esc(meta)}</p></div>
+        </td></tr></thead><tbody><tr><td><div class="pc-md">${sumTbl}${app}</div></td></tr></tbody></table>
+        <div class="pc-foot"><span>台塑海運股份有限公司　QMS &amp; Vetting Unit（海技組）</span><span>${esc(title)}</span></div></div>`;
+      doPrint(false,"margin:11mm 11mm 15mm");
+    }
+    $("#fdaListModal").classList.remove("show");
+    if(typeof Audit!=="undefined")Audit.log("匯出","船隊缺失分析",`缺失清單 ${fmt==="word"?"Word":"PDF"}（${cond}，${this.rangeText(r)}）：${T.map(t=>t.name).join("、")}`);
+  },
   /* Word：用 MHTML（.doc）把圖片一起包進檔案，Word 可以直接開、圖片不會掉 */
   _mhtDoc(html,images,title){
     const b64=s=>btoa(unescape(encodeURIComponent(s)));
@@ -28224,20 +28468,14 @@ const FleetDA={
     const r=this._range||this.range(),F="font-family:'Microsoft JhengHei','Calibri',Arial,sans-serif";
     const title="船隊缺失重點分析報告";
     const meta=`期間：${this.rangeText(r)}　｜　報告項目：${T.map(t=>t.name).join("、")}　｜　產出日期：${todayStr()}`;
-    const imgs=[["fig1.png",this.rptChart1(T),"圖1　各項目件數與涉及船數"],["fig2.png",this.rptChart2(T),"圖2　各項目期間趨勢"],["fig3.png",this.rptChart3(T),"圖3　各項目檢查來源分布"]].filter(x=>x[1]);
+    const imgs=[["fig1.png",this.rptChart1(T),"圖1　各項目件數與涉及船數"],["fig2.png",this.rptChart2(T),"圖2　各項目期間趨勢"],["fig3.png",this.rptChart3(T),"圖3　各項目檢查來源分布"],["fig4.png",this.rptChart4(this.longTrend(T)),"圖4　近 12 個月趨勢（每兩個月；每次檢查平均件數）"]].filter(x=>x[1]);
     const imgTag=(name,url,cap)=>fmt==="word"
       ?`<p style="text-align:center;margin:8pt 0 2pt"><img src="${name}" width="620"></p><p style="${F};font-size:9.5pt;color:#555;text-align:center;margin:0 0 10pt">${cap}</p>`
       :`<div style="text-align:center;margin:8px 0 14px;page-break-inside:avoid"><img src="${url}" style="width:100%;max-width:720px"><div style="font-size:11px;color:#555">${cap}</div></div>`;
-    const cell=s=>esc(String(s||"")).replace(/\n/g,"<br>");
-    const td=(v,w,ex)=>`<td style="${F};font-size:9pt;border:1px solid #999;padding:3pt 5pt;vertical-align:top;width:${w};${ex||""}">${v}</td>`;
-    const th=(v,w)=>`<th style="${F};font-size:9.5pt;border:1px solid #999;padding:4pt 5pt;background:#16324f;color:#fff;text-align:left;width:${w}">${v}</th>`;
-    const appendix=T.map((t,i)=>{
-      const list=t.items.slice().sort((a,b)=>(parseDate(b.d.date)||0)-(parseDate(a.d.date)||0));
-      return `<h3 style="${F};font-size:12pt;color:#16324f;margin:12pt 0 4pt">${i+1}. ${esc(t.name)}（${esc(t.main)}）— ${t.n} 件／${t.ships} 艘</h3>
-        <table class="repeat-head" style="border-collapse:collapse;width:100%"><thead><tr>${th("#","4%")}${th("船名","13%")}${th("檢查來源／日期","13%")}${th("缺失詳情","34%")}${th("實際情況／改善措施","28%")}${th("狀態","8%")}</tr></thead><tbody>
-        ${list.map((x,j)=>`<tr>${td(j+1,"4%","text-align:center")}${td(cell(shipFullLabel(x.d.ship)),"13%")}${td(cell((x.d.itype||"")+"\n"+normDateSlash(x.d.date)),"13%")}${td(cell(x.d.detail),"34%")}${td(cell([x.d.actual,x.d.corrective?"改善："+x.d.corrective:""].filter(Boolean).join("\n")),"28%")}${td(cell(Defs.list3Status?Defs.list3Status(x.d)[1]:""),"8%")}</tr>`).join("")}</tbody></table>`;}).join("");
+    const appendix=this._rptAppendix(T,F);
     const body=Ref._mdToWordHtml(md);
-    const figs=`<h2 style="${F};font-size:15pt;color:#16324f;margin:16pt 0 6pt">附圖</h2>`+imgs.map(([n,u,cap])=>imgTag(n,u,cap)).join("");
+    const LT=this.longTrend(T);
+    const figs=`<h2 style="${F};font-size:15pt;color:#16324f;margin:16pt 0 6pt">附圖</h2>`+imgs.map(([n,u,cap])=>imgTag(n,u,cap)).join("")+(LT?this._longTrendTable(LT,F):"");
     const app=`<br clear="all" style="page-break-before:always"><h2 style="${F};font-size:15pt;color:#16324f;margin:0 0 4pt">附錄：缺失清單（${T.reduce((a,t)=>a+t.n,0)} 筆）</h2><p style="${F};font-size:9pt;color:#666;margin:0 0 6pt">期間：${esc(this.rangeText(r))}；依各項目列出，同一筆缺失若同時屬於多個項目會重複列出。</p>${appendix}`;
     if(fmt==="word"){
       const html=`<p style="${F};font-size:10pt;color:#16324f;margin:0 0 2pt"><b>台塑海運股份有限公司</b>　QMS &amp; Vetting Unit（海技組）</p>
@@ -28348,7 +28586,9 @@ const FleetDA={
    新增／修改：維護者以上（Role.isAdmin）；其他人可以看。 */
 const Improve={
   KEY:"improveActions",BEFORE_MONTHS:6,JUDGE_MONTHS:3,DROP_OK:0.3,MIN_INSP:10,
-  DEFAULT_TYPES:["船隊通報","程序修改","訓練","PMS 保養週期","物料／備品","船上自查清單","設計改善","其他"],
+  DEFAULT_TYPES:["船隊通報","程序修改","訓練","PMS 保養週期","物料／備品","船上自查清單","專項檢查表（SAR-FM29）","設計改善","其他"],
+  SAR_TYPE:"專項檢查表（SAR-FM29）",
+  tgText(t){return `${t.lens==="op"?"作業":"設備"} › ${esc(t.main||"")}${t.leaf?" › "+esc(t.leaf):"（整個大類）"}`;},
   data:{actions:[],types:[]},updated:null,loaded:false,_loading:null,flt:"",editId:null,_draft:null,
   canEdit(){return typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();},
   types(){return [...new Set([...this.DEFAULT_TYPES,...(this.data.types||[])])];},
@@ -28392,7 +28632,8 @@ const Improve={
     const startYm=String(a.start||"").slice(0,7);if(!/^\d{4}-\d{2}$/.test(startYm))return null;
     const nowYm=ymOf(todayStr()),fromYm=this.ymAdd(startYm,-this.BEFORE_MONTHS);
     const shipOk=s=>!isSoldShip(s)&&(!(a.ships||[]).length||a.ships.includes(s));
-    const hitsTarget=c=>(a.targets||[]).some(tg=>{const side=c[tg.lens||"eq"];return side&&side.leaves.some(([l,m])=>l===tg.leaf&&(!tg.main||m===tg.main));});
+    // 標的沒有具體名稱＝整個大類（從排名分析勾大類列入改善追蹤時）
+    const hitsTarget=c=>(a.targets||[]).some(tg=>{const side=c[tg.lens||"eq"];if(!side)return false;return tg.leaf?side.leaves.some(([l,m])=>l===tg.leaf&&(!tg.main||m===tg.main)):side.mains.includes(tg.main);});
     const before={defs:[],insp:0},after={defs:[],insp:0},monthly={};
     (App.defs||[]).forEach(d=>{
       if(!shipOk(d.ship))return;const ym=d.ym||ymOf(d.date);if(!ym||ym<fromYm||ym>nowYm)return;
@@ -28438,7 +28679,10 @@ const Improve={
     const kpi=(k)=>{const s=this.ST[k];return `<div class="imp-kpi${this.flt===k?" on":""}" onclick="Improve.flt=Improve.flt==='${k}'?'':'${k}';Improve.render()"><div class="l"><span class="imp-lamp" style="background:${s[1]}"></span>${s[0]}</div><div class="v">${cnt(k)}</div></div>`;};
     const fmt=v=>v==null?"—":v.toFixed(1);
     const card=({a,m,st,sc})=>{
-      const s=this.ST[st],tg=(a.targets||[]).map(t=>`${t.lens==="op"?"作業":"設備"} › ${t.main?esc(t.main)+" › ":""}${esc(t.leaf)}`).join("<br>");
+      const s=this.ST[st],tg=(a.targets||[]).map(t=>this.tgText(t)).join("<br>");
+      const sar=a.sar29?(()=>{const n=["A","B","C","D"].reduce((k,S)=>k+((a.sar29.sec||{})[S]||[]).filter(r=>r.src||r.item).length,0);
+        return `<div class="imp-sc" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">📋 <b>SAR-FM29 專項檢查表</b><span class="hint">${esc(a.sar29.topic||"")}・${n} 項檢查項目${a.sar29.deadline?"・期限 "+esc(a.sar29.deadline):""}</span><span style="flex:1"></span>
+          ${adm?`<button class="btn sm" onclick="Improve.openEdit('${esc(a.id)}');Improve.openSar()">✎ 檢查表</button>`:""}<button class="btn sm" onclick="Improve.exportSar(Improve.data.actions.find(x=>x.id==='${esc(a.id)}'))">⬇ Word</button></div>`;})():"";
       let delta="";if(m&&m.before.per100!=null&&m.after.per100!=null&&m.before.per100>0){const r=(m.after.per100-m.before.per100)/m.before.per100;delta=`<span style="color:${r<=-this.DROP_OK?"#2e8b57":r>0?"#c0392b":"#8195a0"};font-size:12px">${r<0?"▼":"▲"}${Math.abs(Math.round(r*100))}%</span>`;}
       return `<div class="card imp-card">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:15px">${esc(a.title||((a.targets||[])[0]||{}).leaf||"（未命名）")}</b>
@@ -28447,12 +28691,13 @@ const Improve={
         <div class="hint" style="font-size:12px;margin-top:2px">${tg}</div>
         <div style="margin-top:6px">${(a.measures||[]).map(x=>`<span class="imp-chip">${esc(x)}</span>`).join("")}<span class="hint" style="font-size:12px">${a.owner?"負責："+esc(a.owner)+"・":""}開始 ${esc(a.start||"—")}${a.due?"・預計完成 "+esc(a.due):""}${(a.ships||[]).length?"・適用 "+a.ships.length+" 艘船":"・全船隊"}</span></div>
         ${m?`<div class="imp-m"><div>每 100 次檢查<b>${fmt(m.before.per100)} → ${fmt(m.after.per100)} 件 ${delta}</b><span class="hint">改善前 ${m.before.insp} 次檢查／改善後 ${m.after.insp} 次</span></div><div>涉及船數<b>${m.before.ships} → ${m.after.ships} 艘</b></div><div>船內重複<b>${m.before.rep} → ${m.after.rep} 艘</b></div></div>${this.spark(m)}`:`<div class="hint">請設定開始日期與改善標的。</div>`}
+        ${sar}
         ${sc?`<div class="imp-sc">船上自查回報 <div class="bar"><div style="width:${sc.total?Math.round(sc.done/sc.total*100):0}%"></div></div> ${sc.done}／${sc.total} 艘${sc.total?"":"（找不到關聯的自查任務）"}</div>`:""}
         ${a.note?`<div class="hint" style="font-size:12px;margin-top:6px;white-space:pre-line">${esc(a.note)}</div>`:""}
         ${st==="bad"?`<div style="font-size:12px;color:#c0392b;margin-top:6px">建議：檢討措施是否有效，必要時改用其他措施。</div>`:""}
       </div>`;};
     box.innerHTML=`<div class="card"><div class="fda-head"><b>改善追蹤</b><span class="hint">比較措施開始「前 ${this.BEFORE_MONTHS} 個月」與「開始後到今天」；滿 ${this.JUDGE_MONTHS} 個月、改善後至少 ${this.MIN_INSP} 次檢查才判斷，每 100 次檢查件數下降 ${Math.round(this.DROP_OK*100)}% 以上算有效。上方篩選不套用在這頁。</span>
-        <span style="flex:1"></span>${adm?`<button class="btn sm dark" onclick="Improve.openEdit()">＋ 新增改善行動</button>`:""}</div>
+        <span style="flex:1"></span>${adm?`<button class="btn sm" onclick="Improve.openEdit(null,{measures:[Improve.SAR_TYPE]});Improve.openSar()" title="新增一個改善行動，並填寫 SAR-FM29 臨時專項檢查表">📋 新增專項檢查表</button> <button class="btn sm dark" onclick="Improve.openEdit()">＋ 新增改善行動</button>`:""}</div>
       <div class="imp-kpis">${["run","ok","bad","na","closed"].map(kpi).join("")}</div></div>
       ${shown.length?shown.map(card).join(""):`<div class="card hint">${list.length?"這個狀態沒有改善行動。":"還沒有改善行動。可以在「排名分析」點選具體名稱後按「立為改善行動」，或按上方「＋ 新增改善行動」。"}</div>`}`;
   },
@@ -28469,18 +28714,117 @@ const Improve={
   renderEdit(){
     const d=this._draft;
     $("#imp-e-title").value=d.title||"";$("#imp-e-owner").value=d.owner||"";$("#imp-e-start").value=d.start||"";$("#imp-e-due").value=d.due||"";$("#imp-e-note").value=d.note||"";$("#imp-e-status").value=d.status||"open";
-    $("#imp-e-targets").innerHTML=(d.targets||[]).map((t,i)=>`<span class="imp-chip" style="background:#e7f0fa;color:#1c3a5e">${t.lens==="op"?"作業":"設備"} › ${t.main?esc(t.main)+" › ":""}${esc(t.leaf)} <a style="cursor:pointer;color:#c0392b" onclick="Improve._draft.targets.splice(${i},1);Improve.renderEdit()">✕</a></span>`).join("")||`<span class="hint">還沒有改善標的</span>`;
+    $("#imp-e-targets").innerHTML=(d.targets||[]).map((t,i)=>`<span class="imp-chip" style="background:#e7f0fa;color:#1c3a5e">${this.tgText(t)} <a style="cursor:pointer;color:#c0392b" onclick="Improve._draft.targets.splice(${i},1);Improve.renderEdit()">✕</a></span>`).join("")||`<span class="hint">還沒有改善標的</span>`;
     const lens=$("#imp-e-lens").value||"eq",base=lens==="op"?NCDB.ops:NCDB.equip;
     const mains=[...new Set(base.map(x=>x[0]))];const curMain=$("#imp-e-main").value;
     $("#imp-e-main").innerHTML=mains.map(m=>`<option ${m===curMain?"selected":""}>${esc(m)}</option>`).join("");
-    const mm=$("#imp-e-main").value;$("#imp-e-leaf").innerHTML=base.filter(x=>x[0]===mm).map(x=>`<option>${esc(x[1])}</option>`).join("");
+    const mm=$("#imp-e-main").value;$("#imp-e-leaf").innerHTML=base.filter(x=>x[0]===mm).map(x=>`<option>${esc(x[1])}</option>`).join("")+`<option value="">（整個大類）</option>`;
+    const sr=d.sar29,sn=sr?["A","B","C","D"].reduce((k,S)=>k+((sr.sec||{})[S]||[]).filter(r=>r.src||r.item).length,0):0;
+    $("#imp-e-sar").innerHTML=sr
+      ?`<span>📋 <b>${esc(sr.topic||"（未填主題）")}</b> <span class="hint">${sn} 項檢查項目${sr.deadline?"・期限 "+esc(sr.deadline):""}</span></span><button class="btn sm" onclick="Improve._sync();Improve.openSar()">✎ 編輯檢查表</button><button class="btn sm" onclick="Improve.exportSar(Improve._draft)">⬇ 匯出 Word</button><a style="cursor:pointer;color:#c0392b;font-size:12px" onclick="if(confirm('移除這個改善行動的專項檢查表內容？（按「儲存」後才會生效）')){Improve._sync();delete Improve._draft.sar29;Improve.renderEdit();}">移除</a>`
+      :`<button class="btn sm" onclick="Improve._sync();Improve.openSar()">📋 填寫專項檢查表</button><span class="hint">這個改善行動若要發 SAR-FM29 給船上做專項檢查，在這裡填寫，可匯出公司表單格式的 Word。</span>`;
     $("#imp-e-measures").innerHTML=this.types().map(x=>`<label class="imp-ck"><input type="checkbox" ${(d.measures||[]).includes(x)?"checked":""} onchange="Improve.toggleMeasure(this.value,this.checked)" value="${esc(x)}"> ${esc(x)}</label>`).join("");
     $("#imp-e-ships").innerHTML=SHIPINFO.filter(s=>!isSoldShip(s.code)).map(s=>`<label class="imp-ck"><input type="checkbox" value="${esc(s.code)}" ${(d.ships||[]).includes(s.code)?"checked":""} onchange="Improve.toggleShip(this.value,this.checked)"> ${esc(s.code)}</label>`).join("");
     const titles=new Map();(App.tasks||[]).forEach(t=>{const k=t.title||"";if(!k)return;titles.set(k,(titles.get(k)||0)+1);});
     $("#imp-e-sc").innerHTML=titles.size?[...titles.entries()].map(([k,n])=>`<label class="imp-ck"><input type="checkbox" value="${esc(k)}" ${(d.scTitles||[]).includes(k)?"checked":""} onchange="Improve.toggleSc(this.value,this.checked)"> ${esc(k)} <span class="hint">（${n} 艘）</span></label>`).join(""):`<span class="hint">專案自查目前沒有任務</span>`;
   },
   _sync(){const d=this._draft;d.title=$("#imp-e-title").value.trim();d.owner=$("#imp-e-owner").value.trim();d.start=$("#imp-e-start").value;d.due=$("#imp-e-due").value;d.note=$("#imp-e-note").value.trim();d.status=$("#imp-e-status").value;},
-  addTarget(){this._sync();const t={lens:$("#imp-e-lens").value||"eq",main:$("#imp-e-main").value,leaf:$("#imp-e-leaf").value};if(!t.leaf)return;if(!this._draft.targets.some(x=>x.lens===t.lens&&x.main===t.main&&x.leaf===t.leaf))this._draft.targets.push(t);if(!this._draft.title)this._draft.title=t.leaf;this.renderEdit();},
+  addTarget(){this._sync();const t={lens:$("#imp-e-lens").value||"eq",main:$("#imp-e-main").value,leaf:$("#imp-e-leaf").value||""};if(!t.main)return;if(!this._draft.targets.some(x=>x.lens===t.lens&&x.main===t.main&&(x.leaf||"")===t.leaf))this._draft.targets.push(t);if(!this._draft.title)this._draft.title=t.leaf||t.main;this.renderEdit();},
+  /* ════ SAR-FM29 臨時專項檢查表（2026-10-21）════
+     改善行動的一種記錄：每兩個月從排名分析抓內／外部檢查設備、作業類前幾名，彙總成專項檢查發給船上，
+     表單內容存在改善行動的 sar29 欄位（隨改善追蹤一起存在 app_db improveActions）。
+     匯出 Word 用 sar-fm29-template.docx（公司原表單加上 {{佔位字}}），A～D 四段的列數依項目自動增加，
+     少於原表單列數（4／5／5／5）時補空白列，版面跟原表單一致。 */
+  SAR_SECS:[["A","專案檢查項目","Project inspection items",4],["B","虛驚案例","Near Misses",5],["C","事故","Accident",5],["D","內外部檢查","External & Internal Inspections",5]],
+  sarBlank(d){return {vessel:"",date:"",topic:(d&&d.title)||"",location:"",goal:"",deadline:(d&&d.due)||"",updated:todayStr(),sec:{A:[],B:[],C:[],D:[]},summary:"",inspector:"",captain:"",marineCmt:"",techCmt:"",marineSig:"",techSig:""};},
+  openSar(){
+    if(!this._draft){toast("⚠ 請先開啟改善行動");return;}
+    if(!this._draft.sar29)this._draft.sar29=this.sarBlank(this._draft);
+    const s=this._draft.sar29;s.sec=s.sec||{};this.SAR_SECS.forEach(([S,,,n])=>{if(!Array.isArray(s.sec[S]))s.sec[S]=[];});
+    this.renderSar();$("#sarModal").classList.add("show");
+  },
+  closeSar(){$("#sarModal").classList.remove("show");},
+  renderSar(){
+    const s=this._draft.sar29,v=k=>esc(s[k]||"");
+    const inp=(k,ph,type)=>`<input type="${type||"text"}" id="sar-f-${k}" value="${v(k)}" placeholder="${ph||""}">`;
+    const ta=(k,rows,ph)=>`<textarea id="sar-f-${k}" rows="${rows}" placeholder="${ph||""}">${v(k)}</textarea>`;
+    const lb=(zh,en)=>`<td class="lb">${zh}<small>${en}</small></td>`;
+    const yn=(S,i,val)=>`<select id="sar-${S}-${i}-yn"><option value=""></option>${["Y","N","N/A"].map(o=>`<option ${val===o?"selected":""}>${o}</option>`).join("")}</select>`;
+    const secRows=([S,zh,en,min])=>{
+      const rows=s.sec[S],n=Math.max(rows.length,1);
+      let h=`<tr class="sar-sec"><td style="text-align:center">${S}</td><td colspan="4">${zh}　${en}<span class="sar-add" onclick="Improve.sarAddRow('${S}')">＋ 加一列</span></td><td></td></tr>`;
+      for(let i=0;i<n;i++){const r=rows[i]||{};
+        h+=`<tr><td style="text-align:center">${i+1}</td><td><textarea id="sar-${S}-${i}-src" rows="2">${esc(r.src||"")}</textarea></td><td><textarea id="sar-${S}-${i}-item" rows="2">${esc(r.item||"")}</textarea></td><td>${yn(S,i,r.yn)}</td><td><textarea id="sar-${S}-${i}-rmk" rows="2">${esc(r.rmk||"")}</textarea></td><td style="text-align:center">${rows[i]?`<span class="sar-del" title="刪除這一列" onclick="Improve.sarDelRow('${S}',${i})">✕</span>`:""}</td></tr>`;}
+      return h;};
+    $("#sar-body").innerHTML=`
+      <div class="sar-title">臨時專項檢查表<br>Ad-Hoc Specialized Inspection Form</div>
+      <table class="sar-t"><colgroup><col style="width:26%"><col style="width:35%"><col style="width:18%"><col style="width:21%"></colgroup>
+        <tr>${lb("船舶","Vessel")}<td>${inp("vessel","全船隊／各船自填")}</td>${lb("檢查時間","Inspection Date")}<td>${inp("date","","date")}</td></tr>
+        <tr>${lb("專項檢查主題","Specialized Inspection Topic")}<td>${inp("topic")}</td>${lb("船舶位置","Location")}<td>${inp("location")}</td></tr>
+        <tr>${lb("本次專項檢查要求和目的","Inspection goal &amp; requirement").replace("<td ","<td rowspan=\"2\" ")}<td rowspan="2">${ta("goal",4,"例：依 2026/9～10 外部檢查缺失排名，針對前 10 名項目進行船上自查")}</td>${lb("執行期限","Execution Deadline")}<td><span style="display:flex;align-items:center;gap:4px">Before ${inp("deadline","","date")}</span></td></tr>
+        <tr>${lb("檢查項目更新日期","Checking Items Last Update Time")}<td>${inp("updated","","date")}</td></tr>
+      </table>
+      <table class="sar-t"><colgroup><col style="width:5%"><col style="width:15%"><col style="width:46%"><col style="width:9%"><col style="width:21%"><col style="width:4%"></colgroup>
+        <tr><th style="text-align:center">No.</th><th style="text-align:center">來源/主題<small>Source Topics</small></th><th style="text-align:center">檢查項目<small>Checking Items</small></th><th style="text-align:center">是/否/不適用<small>Y/N/N/A</small></th><th style="text-align:center">備註<small>Remarks</small></th><th></th></tr>
+        ${this.SAR_SECS.map(secRows).join("")}
+      </table>
+      <div class="sar-note">● 該表格於公司或船舶對指定檢查主題的專項檢查。當由船上自行檢查時，船舶應該按照公司指示按時完成檢查。<br>● 發現的問題按照異常程序《DMP》進行處理。</div>
+      <table class="sar-t"><tr>${lb("檢查人員 - 對審核工作簡要的總結和建議","Inspection - Brief Summary of the overall audit and recommendation")}</tr><tr><td>${ta("summary",3)}</td></tr></table>
+      <table class="sar-t"><tr>${lb("檢查人員簽名確認","Inspector Verify and Signature")}<td>${inp("inspector")}</td>${lb("船長簽名確認","Captain Verify and Signature")}<td>${inp("captain")}</td></tr></table>
+      <table class="sar-t"><tr>${lb("分管海務督導的審核意見","Review comments by the responsible Marine Superintendent")}</tr><tr><td>${ta("marineCmt",3)}</td></tr></table>
+      <table class="sar-t"><tr>${lb("分管機務督導的審核意見","Review comments by the responsible Technical Superintendent")}</tr><tr><td>${ta("techCmt",3)}</td></tr></table>
+      <table class="sar-t"><tr>${lb("海務督導簽名確認","Marine Superintendent Verify and Signature")}<td>${inp("marineSig")}</td>${lb("機務督導簽名確認","Technical Superintendent Verify and Signature")}<td>${inp("techSig")}</td></tr></table>`;
+  },
+  SAR_FIELDS:["vessel","date","topic","location","goal","deadline","updated","summary","inspector","captain","marineCmt","techCmt","marineSig","techSig"],
+  sarFromUI(){
+    const s=this._draft&&this._draft.sar29;if(!s||!$("#sar-f-topic"))return;
+    this.SAR_FIELDS.forEach(k=>{const el=$("#sar-f-"+k);if(el)s[k]=el.value.trim();});
+    this.SAR_SECS.forEach(([S])=>{
+      const out=[];for(let i=0;$(`#sar-${S}-${i}-item`);i++){
+        const g=f=>($(`#sar-${S}-${i}-${f}`).value||"").trim(),r={src:g("src"),item:g("item"),yn:g("yn"),rmk:g("rmk")};
+        if(r.src||r.item||r.yn||r.rmk)out.push(r);}
+      s.sec[S]=out;});
+  },
+  sarAddRow(S){this.sarFromUI();this._draft.sar29.sec[S].push({src:"",item:"",yn:"",rmk:""});this.renderSar();},
+  sarDelRow(S,i){this.sarFromUI();this._draft.sar29.sec[S].splice(i,1);this.renderSar();},
+  async saveSar(){
+    this.sarFromUI();const s=this._draft.sar29;
+    if(!s.topic){toast("⚠ 請填「專項檢查主題」");return;}
+    if(!(this._draft.measures||[]).includes(this.SAR_TYPE))this._draft.measures=[...(this._draft.measures||[]),this.SAR_TYPE];
+    if(!this._draft.title)this._draft.title=s.topic;
+    if(!this._draft.due&&s.deadline)this._draft.due=s.deadline;
+    this.closeSar();this.renderEdit();
+    if(this.editId)await this.saveEdit(); // 既有改善行動：直接存檔
+    else toast((this._draft.targets||[]).length?"✓ 已填入檢查表，請確認改善行動內容後按「儲存」":"✓ 已填入檢查表；請再加入改善標的（要追蹤成效的設備／作業項目）後按「儲存」");
+  },
+  async exportSar(a){
+    const s=a&&a.sar29;if(!s){toast("⚠ 這個改善行動還沒有專項檢查表");return;}
+    if(typeof JSZip==="undefined"){toast("⚠ Word 元件尚未載入，請重新整理後再試");return;}
+    let buf;
+    try{const r=await fetch(officeFolder()+"sar-fm29-template.docx",{cache:"no-cache"});if(!r.ok)throw new Error("HTTP "+r.status);buf=await r.arrayBuffer();}
+    catch(e){toast("⚠ 讀不到 SAR-FM29 範本檔（sar-fm29-template.docx）："+e.message);return;}
+    const zip=await JSZip.loadAsync(buf);let x=await zip.file("word/document.xml").async("string");
+    const xe=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+    const val=v=>xe(v).replace(/\r?\n/g,'</w:t><w:br/><w:t xml:space="preserve">');
+    const sl=v=>String(v||"").replace(/-/g,"/");
+    // A～D：範本每段只留一列（含 {{S_SRC}} 等佔位字），依項目數複製；未達原表單列數就補空白列。No. 欄是 Word 自動編號，每段各自從 1 起算
+    this.SAR_SECS.forEach(([S,,,min])=>{
+      const tok=`{{${S}_SRC}}`,i=x.indexOf(tok);if(i<0)return;
+      const st=x.lastIndexOf("<w:tr ",i),en=x.indexOf("</w:tr>",i)+7;
+      const row=x.slice(st,en).replace(/ w14:(paraId|textId)="[^"]*"/g,"");
+      const items=((s.sec||{})[S]||[]).filter(r=>r.src||r.item||r.yn||r.rmk),n=Math.max(min,items.length);
+      let out="";for(let k=0;k<n;k++){const r=items[k]||{};out+=row.replace(tok,val(r.src)).replace(`{{${S}_ITEM}}`,val(r.item)).replace(`{{${S}_YN}}`,val(r.yn)).replace(`{{${S}_RMK}}`,val(r.rmk));}
+      x=x.slice(0,st)+out+x.slice(en);
+    });
+    const F={VESSEL:s.vessel,DATE:sl(s.date),TOPIC:s.topic,LOCATION:s.location,GOAL:s.goal,DEADLINE:sl(s.deadline),UPDATED:sl(s.updated),
+      SUMMARY:s.summary,INSPECTOR:s.inspector,CAPTAIN:s.captain,MARINE_CMT:s.marineCmt,TECH_CMT:s.techCmt,MARINE_SIG:s.marineSig,TECH_SIG:s.techSig};
+    Object.entries(F).forEach(([k,v])=>{x=x.split(`{{${k}}}`).join(val(v));});
+    zip.file("word/document.xml",x);
+    const blob=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
+    const fn=`SAR-FM29 臨時專項檢查表_${(s.topic||"專項檢查").replace(/[\\\/:*?"<>|]/g,"_").slice(0,40)}${s.vessel?"_"+s.vessel.replace(/[\\\/:*?"<>|]/g,"_"):""}_${(s.updated||todayStr()).replace(/-/g,"")}.docx`;
+    dl(blob,fn);toast("✓ 已匯出 SAR-FM29 Word");
+    if(typeof Audit!=="undefined")Audit.log("匯出","改善追蹤",`SAR-FM29 專項檢查表：${s.topic||""}`);
+  },
   toggleMeasure(v,on){const a=this._draft.measures;on?(!a.includes(v)&&a.push(v)):a.splice(a.indexOf(v),1);},
   toggleShip(v,on){const a=this._draft.ships;on?(!a.includes(v)&&a.push(v)):a.splice(a.indexOf(v),1);},
   toggleSc(v,on){const a=this._draft.scTitles;on?(!a.includes(v)&&a.push(v)):a.splice(a.indexOf(v),1);},
@@ -28493,9 +28837,9 @@ const Improve={
   },
   async saveEdit(){
     this._sync();const d=this._draft;
-    if(!d.targets.length){toast("⚠ 請至少加一個改善標的（選大類、具體名稱後按「加入」）");return;}
+    if(!d.targets.length&&!d.sar29){toast("⚠ 請至少加一個改善標的（選大類、具體名稱後按「加入」）");return;}
     if(!d.start){toast("⚠ 請填開始日期");return;}
-    if(!d.title)d.title=d.targets[0].leaf;
+    if(!d.title)d.title=d.targets.length?(d.targets[0].leaf||d.targets[0].main):(d.sar29.topic||"專項檢查");
     const by=(typeof Audit!=="undefined"?Audit.user():""),now=Date.now();
     const rec=Object.assign({},d,{id:this.editId||("imp"+now),updatedBy:by,updatedAt:now},this.editId?{}:{createdBy:by,createdAt:now});
     const actions=this.editId?this.data.actions.map(x=>x.id===this.editId?rec:x):[...this.data.actions,rec];
@@ -33265,7 +33609,9 @@ const Cloud={
            換取更明顯的流量下降；等額度回穩、重複資料清理完成後，可以視情況再縮短回來
            （改這個數字就好，不用改其他地方）。手動按「⬇ 載入最新資料」仍不受影響，隨時
            可以強制立即刷新。 */
-        const LOADDB_THROTTLE_MS=30*60*1000;
+        // 2026-10-21：30 分鐘 → 24 小時。開頁時的完整載入約 20 秒，期間的操作（匯入、轉入）可能被雲端版本蓋掉；
+        // 平常改走「只抓變動」的快速更新（下面 else 分支），一天只做一次完整載入當作校正。
+        const LOADDB_THROTTLE_MS=24*60*60*1000;
         let lastLoadDB=0;
         try{lastLoadDB=+(localStorage.getItem("vsm_last_loaddb_at")||0);}catch(e){}
         if(Date.now()-lastLoadDB>LOADDB_THROTTLE_MS){
@@ -33678,6 +34024,91 @@ const Cloud={
       this.quickRefresh().catch(e=>console.warn("quickRefresh",e));
     });
   },
+  /* app_db 裡不走逐筆同步的小型設定（人員名單／參考連結／海技參考資料／操演紀錄／缺失代碼對照表）：完整載入與「載入最新資料」共用 */
+  SMALL_KEYS:["roster","refDocs","refDocs2","drillRecords","chapterConfig"],
+  _applySmallKeys(map,info){
+    if(map.roster&&typeof GateIdentity!=="undefined"&&Array.isArray(map.roster.payload)){GateIdentity.saveRosterFromCloud(map.roster.payload);info.push("人員名單 "+map.roster.payload.length);if(typeof RosterMgr!=="undefined")RosterMgr.refreshCount();}
+    if(map.refDocs&&Array.isArray(map.refDocs.payload)){App.refDocs=map.refDocs.payload;try{LZSet(App.LSK.rd,JSON.stringify(App.refDocs));}catch(e){}info.push("參考連結 "+App.refDocs.length);if(typeof RefDocs!=="undefined")RefDocs.render();}
+    if(map.refDocs2&&Array.isArray(map.refDocs2.payload)){App.refDocs2=map.refDocs2.payload;try{LZSet(App.LSK.rd2,JSON.stringify(App.refDocs2));}catch(e){}info.push("海技參考資料 "+App.refDocs2.length);if(typeof RefDocs2!=="undefined")RefDocs2.render();}
+    if(map.drillRecords&&Array.isArray(map.drillRecords.payload)){App.drillRecords=map.drillRecords.payload;try{LZSet(App.LSK.dr,JSON.stringify(App.drillRecords));}catch(e){}info.push("操演紀錄 "+App.drillRecords.length);}
+    if(map.chapterConfig&&map.chapterConfig.payload&&typeof map.chapterConfig.payload==="object"){
+      const cc=map.chapterConfig.payload;
+      App.chapterOverrides=cc.overrides||{};App.chapterCustomCodes=cc.custom||{};App.chapterDeleted=cc.deleted||{};App.chapterGroups=cc.groups||[];
+      try{LZSet(App.LSK.ch,JSON.stringify({overrides:App.chapterOverrides,custom:App.chapterCustomCodes,deleted:App.chapterDeleted,groups:App.chapterGroups}));}catch(e){}
+      info.push("缺失代碼對照表");
+      if(typeof ChapterMgr!=="undefined"&&ChapterMgr.open)ChapterMgr.render();
+    }
+  },
+  /* ═ 2026-10-21「⬇ 載入最新資料」改成只抓有變動的部分 ═
+     原本手動載入＝完整載入（loadDB）：整包下載約 20 秒、再整批取代本機資料，這段期間做的匯入／轉入／編輯
+     會被雲端舊版蓋掉（F31 CDI 匯入兩次都消失的原因）。改成：
+       1) 先把本機尚未上傳的修改送出；
+       2) 各逐筆同步表只抓上次之後變動的紀錄（RecordSync.pullDelta，本機有未上傳修改的紀錄保留本機版本）；
+       3) 小型設定（人員名單等）照舊整包重抓（很小）。
+     這台裝置從沒載入過（沒有「上次載入時間」）才退回完整載入。完整載入仍保留在「資料管理」頁，修復資料用。 */
+  async refreshLatest(){
+    const modal=$("#syncStatusModal"),body=$("#syncStatusBody");
+    if(!this.enabled()||typeof RecordSync==="undefined"||!modal||!body)return this.loadDBBlocking();
+    const show=(html)=>{body.innerHTML=html;modal.classList.add("show");};
+    const done=(ok,title,msg)=>show(`<div style="font-size:34px;margin-bottom:10px;color:${ok?"var(--ok)":"var(--bad)"}">${ok?"✓":"⚠"}</div><h3 style="margin:0 0 10px;color:${ok?"var(--ok)":"var(--bad)"}">${title}</h3>
+        <p style="text-align:left;background:${ok?"#f7f9f9":"#fdf2f0"};border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7;white-space:pre-line">${esc(msg)}</p>
+        <button class="btn primary" style="margin-top:14px" onclick="Cloud.closeSyncModal()">確認</button>`);
+    show(`<div style="font-size:34px;margin-bottom:10px">⏳</div><h3 style="margin:0 0 8px">正在更新最新資料…</h3><p class="hint">先送出本機尚未上傳的修改，再下載別人的更新，通常幾秒內完成。</p>`);
+    const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+    const keys=Object.keys(RecordSync.TABLES);
+    try{
+      // 1) 本機尚未上傳的修改先送出（排隊中、失敗待重試的都算），並等正在進行的上傳結束
+      for(const k of keys){if(RecordSync._pending[k]!=null||RecordSync._failedKeys.has(k)){try{await RecordSync.flushNow(k);}catch(e){}}}
+      for(let i=0;i<40&&(keys.some(k=>RecordSync._busy[k])||this._loading||this._qrBusy);i++)await sleep(500); // 最多等 20 秒
+      if(this._loading||this._qrBusy){done(false,"目前正在背景載入資料","系統正在背景載入雲端資料，請稍等約半分鐘後再按一次「載入最新資料」。");return;}
+      this._qrBusy=true;this._qrLast=Date.now();
+      let n=0;const changedKeys=[],errKeys=[];let needFull=false;
+      for(const k of keys){
+        if(RecordSync._busy[k]){errKeys.push(k);continue;}
+        const r=await RecordSync.pullDelta(k);
+        if(r.source==="nosince"){needFull=true;break;}
+        if(r.source==="error"){errKeys.push(k);continue;}
+        if(r.upd+r.add+r.del){n+=r.upd+r.add+r.del;changedKeys.push(k);}
+      }
+      if(needFull){ // 這台裝置第一次使用：沒有基準時間，只能完整載入一次
+        this._qrBusy=false;modal.classList.remove("show");
+        await this.loadDBBlocking();
+        try{localStorage.setItem("vsm_last_loaddb_at",String(Date.now()));}catch(e){}
+        return;
+      }
+      // 2) 小型設定整包重抓
+      const info=[];
+      try{
+        const rows=await this.api(`app_db?select=k,updated,by,payload&k=in.(${this.SMALL_KEYS.join(",")})`)||[];
+        const map={};rows.forEach(r=>map[r.k]=r);
+        this._applySmallKeys(map,info);
+        rows.forEach(r=>this.markSeen(r.k,r.updated));
+      }catch(e){errKeys.push("app_db");}
+      // 3) 存本機、重繪
+      try{
+        LZSet(App.LSK.i,JSON.stringify(App.insp));LZSet(App.LSK.d,JSON.stringify(App.defs));
+        LZSet(App.LSK.sp,JSON.stringify(App.sirePos));LZSet(App.LSK.air,JSON.stringify(App.air));
+        LZSet(App.LSK.ic,JSON.stringify(App.inspCtrl));LZSet(App.LSK.ap,JSON.stringify(App.annualPlan));
+        LZSet(App.LSK.ad,JSON.stringify(App.auditDash));LZSet(App.LSK.dp,JSON.stringify(App.defsProjects));
+      }catch(e){}
+      App._lastSaved={};
+      App.refreshMeta&&App.refreshMeta();
+      this._rerenderPages(true);
+      try{if(typeof FleetDA!=="undefined"&&$("#tab-fleetda")&&$("#tab-fleetda").classList.contains("show"))FleetDA.render();}catch(e){}
+      try{if(typeof AnnualPlan!=="undefined")AnnualPlan.render();if(typeof AuditDash!=="undefined")AuditDash.render();}catch(e){}
+      const LBL=(typeof EditLock!=="undefined"&&EditLock.LABELS)||{};
+      const counts=`檢查 ${App.insp.length}／缺失 ${App.defs.length}／填單 ${App.air.length}／正面評價 ${App.sirePos.length}／檢查管控 ${App.inspCtrl.length}`;
+      this.dbState("⬇ 已更新（"+new Date().toLocaleTimeString()+"）");
+      if(typeof Audit!=="undefined")Audit.log("載入","資料庫",`載入最新資料（只抓變動）：更新 ${n} 筆${changedKeys.length?`（${changedKeys.map(k=>LBL[k]||k).join("、")}）`:""}；目前 ${counts}`);
+      if(errKeys.length){
+        done(false,"部分資料沒有更新成功",`以下項目這次沒有更新成功，請檢查網路後再按一次「載入最新資料」：${errKeys.map(k=>LBL[k]||k).join("、")}。其餘項目已更新（${n} 筆變動）。`);
+      }else{
+        done(true,"已是最新資料",(n?`已更新 ${n} 筆別人新增／修改／刪除的資料（${changedKeys.map(k=>LBL[k]||k).join("、")}）。`:"雲端沒有新的變動。")+`\n目前：${counts} 筆。`);
+      }
+    }catch(e){
+      done(false,"更新失敗",(e&&e.message)||"未知錯誤，請檢查網路連線後再試一次。");
+    }finally{this._qrBusy=false;}
+  },
   async loadDB(silent,notifyOnly){
     if(!silent&&typeof Air!=="undefined"&&(Air._formDirty||Air._replyDirty)){
       if(!confirm("⚠ 偵測到您目前在「線上填單」或「海技對外回覆」還有尚未存檔的輸入內容。\n\n「載入最新資料」會用雲端版本整批覆蓋本機資料，尚未存檔的部分將會遺失且無法復原。\n\n建議先回到該頁面，確認畫面上的自動儲存狀態已顯示「已儲存」，再回來點這裡載入。\n\n仍要不儲存、直接載入最新資料嗎？"))return;
@@ -33764,17 +34195,7 @@ const Cloud={
       if(migResult.ships&&migResult.ships.source==="new"){
         info.push("船舶 "+(typeof SHIPINFO!=="undefined"?SHIPINFO.length:0));
       }else if(map.ships&&typeof SHIPINFO!=="undefined"){SHIPINFO.length=0;(map.ships.payload||[]).forEach(s=>SHIPINFO.push(s));try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}info.push("船舶 "+SHIPINFO.length);}
-      if(map.roster&&typeof GateIdentity!=="undefined"&&Array.isArray(map.roster.payload)){GateIdentity.saveRosterFromCloud(map.roster.payload);info.push("人員名單 "+map.roster.payload.length);if(typeof RosterMgr!=="undefined")RosterMgr.refreshCount();}
-      if(map.refDocs&&Array.isArray(map.refDocs.payload)){App.refDocs=map.refDocs.payload;try{LZSet(App.LSK.rd,JSON.stringify(App.refDocs));}catch(e){}info.push("參考連結 "+App.refDocs.length);if(typeof RefDocs!=="undefined")RefDocs.render();}
-      if(map.refDocs2&&Array.isArray(map.refDocs2.payload)){App.refDocs2=map.refDocs2.payload;try{LZSet(App.LSK.rd2,JSON.stringify(App.refDocs2));}catch(e){}info.push("海技參考資料 "+App.refDocs2.length);if(typeof RefDocs2!=="undefined")RefDocs2.render();}
-      if(map.drillRecords&&Array.isArray(map.drillRecords.payload)){App.drillRecords=map.drillRecords.payload;try{LZSet(App.LSK.dr,JSON.stringify(App.drillRecords));}catch(e){}info.push("操演紀錄 "+App.drillRecords.length);}
-      if(map.chapterConfig&&map.chapterConfig.payload&&typeof map.chapterConfig.payload==="object"){
-        const cc=map.chapterConfig.payload;
-        App.chapterOverrides=cc.overrides||{};App.chapterCustomCodes=cc.custom||{};App.chapterDeleted=cc.deleted||{};App.chapterGroups=cc.groups||[];
-        try{LZSet(App.LSK.ch,JSON.stringify({overrides:App.chapterOverrides,custom:App.chapterCustomCodes,deleted:App.chapterDeleted,groups:App.chapterGroups}));}catch(e){}
-        info.push("缺失代碼對照表");
-        if(typeof ChapterMgr!=="undefined"&&ChapterMgr.open)ChapterMgr.render();
-      }
+      this._applySmallKeys(map,info);
       if(migResult.annualPlan&&migResult.annualPlan.source==="new"){
         try{LZSet(App.LSK.ap,JSON.stringify(App.annualPlan));}catch(e){}
         info.push("年度計畫 "+App.annualPlan.length);if(typeof AnnualPlan!=="undefined")AnnualPlan.render();
