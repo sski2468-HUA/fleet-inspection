@@ -26797,6 +26797,7 @@ const AirQueue={
     App.air.push(rec);
     App.saveAll();if(App.refreshMeta)App.refreshMeta();
     if(typeof Audit!=="undefined")Audit.log("合併匯入","AIR審核佇列",`#${rec.id} ${rec.ship} ${rec.date}（合併線上填單 ${rows.map(r=>"#"+r.id).join("、")}，共 ${rec.ndef} 筆缺失）`);
+    await this.ensureUploaded(rec);
     const by=(function(){try{return localStorage.getItem("vsm_user_v1")||"";}catch(e){return "";}})();
     let fail=0;
     for(const r of rows){
@@ -26816,6 +26817,7 @@ const AirQueue={
     App.air.push(rec);
     App.saveAll();if(App.refreshMeta)App.refreshMeta();
     if(typeof Audit!=="undefined")Audit.log("匯入","AIR審核佇列",`#${rec.id} ${rec.ship} ${rec.date}（來自線上填單 #${r.id}）`);
+    await this.ensureUploaded(rec);
     try{
       await Cloud.api(`${this.TABLE}?id=eq.${r.id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
         body:JSON.stringify({status:"imported",imported_at:new Date().toISOString(),imported_by:(function(){try{return localStorage.getItem("vsm_user_v1")||"";}catch(e){return "";}})()})});
@@ -26839,8 +26841,26 @@ const AirQueue={
     App.air.push(rec);
     App.saveAll();if(App.refreshMeta)App.refreshMeta();
     if(typeof Audit!=="undefined")Audit.log("重新匯入","AIR審核佇列",`#${rec.id} ${rec.ship} ${rec.date}（補救重匯，來自線上填單 #${r.id}）`);
+    await this.ensureUploaded(rec);
     toast("✓ 已補建一筆線上填單記錄 #"+rec.id+"，請自行確認沒有重複");
     this.render();
+  },
+  /* 匯入後立即上傳並確認雲端真的有這筆（2026-10-21 F31 CDI 事件：匯入只排了 1.5 秒後的背景上傳，
+     期間若被「載入最新資料」／背景更新整批換成雲端版本，這筆就無聲消失，船上原始單卻已標記「已匯入」）。
+     最多等約 15 秒；確認不到就跳明確警告，請使用者先不要載入最新資料。 */
+  async ensureUploaded(rec){
+    if(typeof RecordSync==="undefined"||typeof Cloud==="undefined"||!Cloud.enabled())return true;
+    for(let i=0;i<6;i++){
+      try{await RecordSync.flushNow("airReviews");}catch(e){}
+      await new Promise(r=>setTimeout(r,i?2500:400));
+      try{
+        const got=await Cloud.api(`sync_air?select=id&id=eq.${encodeURIComponent(rec.id)}`);
+        if(Array.isArray(got)&&got.length)return true;
+      }catch(e){}
+      if(!App.air.some(a=>a.id===rec.id))App.air.push(rec); // 被載入覆蓋掉了就補回本機，再傳一次
+    }
+    alert(`⚠ 線上填單記錄 #${rec.id}（${rec.ship} ${rec.date}）還沒有成功上傳到雲端。\n\n請先「不要」按「載入最新資料」或重新整理（會把這筆未上傳的資料蓋掉），\n檢查網路後到「資料管理」重試同步；若仍失敗請截圖回報。`);
+    return false;
   },
   /* 主系統刪除／還原線上填單記錄時，同步船上原始送出的狀態：刪除→rejected（船舶填報平台就不再顯示），
      從回收桶還原→imported。只動 status，不刪資料；失敗只提示，不影響本機刪除／還原。 */
@@ -32952,9 +32972,15 @@ grant select, insert, update, delete on public.sync_insp, public.sync_defs, publ
     this._carry={};
     Object.keys(this.TABLES).forEach(key=>{
       try{
-        const ids=this._loadUnsent(key);if(!ids.size)return;
+        const ids=this._loadUnsent(key);
         const idField=this.TABLES[key].idField||"id";
         const {upserts}=this.diff(key);
+        // 2026-10-21：另外保留「本機新建、快照裡從沒有過、還沒上傳」的紀錄（例如剛匯入的填單，背景上傳還沒跑到就按了載入最新資料）。
+        // 快照裡沒有＝從來沒跟雲端同步過，不會是別人刪掉的舊資料；一次超過 20 筆視為異常（例如快照被重置），不保留，避免把舊資料灌回雲端。
+        const snap=this.loadSnap(key)||{};
+        const fresh=Object.keys(snap).length?upserts.filter(r=>!(String(r[idField]) in snap)):[];
+        if(fresh.length<=20)fresh.forEach(r=>ids.add(String(r[idField])));
+        if(!ids.size)return;
         const keep=upserts.filter(r=>ids.has(String(r[idField])));
         if(keep.length)this._carry[key]=JSON.parse(JSON.stringify(keep));
       }catch(e){console.warn("RecordSync capturePending 失敗",key,e);}
