@@ -28306,25 +28306,30 @@ const FleetDA={
     return c.toDataURL("image/png");
   },
   _longTrendTable(LT,F){
-    const th=v=>`<th style="${F};font-size:9pt;border:1px solid #999;padding:3pt 4pt;background:#16324f;color:#fff;text-align:center">${v}</th>`;
-    const td=(v,ex)=>`<td style="${F};font-size:9pt;border:1px solid #999;padding:3pt 4pt;text-align:center;${ex||""}">${v}</td>`;
+    // 欄寬固定（項目 25%、6 個期間各 8%、前後半年各 8%、趨勢 11%），表頭用短字＋換行，避免 Word 把標題擠成一字一行
+    const W=["25%","8%","8%","8%","8%","8%","8%","8%","8%","11%"];
+    const th=(v,i)=>`<th style="${F};font-size:9pt;border:1px solid #999;padding:3pt 4pt;background:#16324f;color:#fff;text-align:center;width:${W[i]}">${v}</th>`;
+    const td=(v,i,ex)=>`<td style="${F};font-size:9pt;border:1px solid #999;padding:3pt 4pt;text-align:center;width:${W[i]};${ex||""}">${v}</td>`;
+    const tr=cells=>`<tr style="page-break-inside:avoid">${cells}</tr>`;
     const arrow=s=>s.dir==="up"?`<b style="color:#c0392b">▲ ${Math.round(Math.abs(s.chg)*100)}%</b>`:s.dir==="down"?`<b style="color:#2e8b57">▼ ${Math.round(Math.abs(s.chg)*100)}%</b>`:"— 持平";
-    return `<p style="${F};font-size:10.5pt;font-weight:bold;color:#16324f;margin:12pt 0 4pt">表　近 12 個月趨勢（${esc(LT.from)} ～ ${esc(LT.to)}，每兩個月件數）</p>
-      <table style="border-collapse:collapse;width:100%"><thead><tr>${th("項目")}${LT.buckets.map(b=>th(`${b.from}～${b.to.slice(5)}`)).join("")}${th("前半年<br>每次檢查")}${th("後半年<br>每次檢查")}${th("趨勢")}</tr></thead><tbody>
-      ${LT.series.map(s=>`<tr>${td(esc(s.name),"text-align:left")}${s.c.map(n=>td(n)).join("")}${td(s.r1.toFixed(2))}${td(s.r2.toFixed(2))}${td(arrow(s))}</tr>`).join("")}
-      <tr>${td("檢查次數","text-align:left;color:#666")}${LT.insp.map(n=>td(n,"color:#666")).join("")}${td("","")}${td("","")}${td("","")}</tr></tbody></table>
+    return `<p style="${F};font-size:10.5pt;font-weight:bold;color:#16324f;margin:12pt 0 4pt;page-break-after:avoid">表　近 12 個月趨勢（${esc(LT.from)} ～ ${esc(LT.to)}，每兩個月件數）</p>
+      <table style="border-collapse:collapse;width:100%;table-layout:fixed"><thead>${tr(th("項目",0)+LT.buckets.map((b,i)=>th(`${b.from}<br>～${b.to.slice(5)}`,i+1)).join("")+th("前半年<br>每次",7)+th("後半年<br>每次",8)+th("趨勢",9))}</thead><tbody>
+      ${LT.series.map(s=>tr(td(esc(s.name),0,"text-align:left")+s.c.map((n,i)=>td(n,i+1)).join("")+td(s.r1.toFixed(2),7)+td(s.r2.toFixed(2),8)+td(arrow(s),9))).join("")}
+      ${tr(td("檢查次數",0,"text-align:left;color:#666")+LT.insp.map((n,i)=>td(n,i+1,"color:#666")).join("")+td("",7)+td("",8)+td("",9))}</tbody></table>
       <p style="${F};font-size:8.5pt;color:#666;margin:2pt 0 8pt">趨勢＝後半年 vs 前半年的每次檢查平均件數；合計 5 件以上且變化 ≥ 20% 才標 ▲／▼。其他篩選條件同本報告。</p>`;
   },
   /* 附錄：各項目的完整缺失清單（主管報告、缺失清單匯出共用） */
-  _rptAppendix(T,F){
+  _rptAppendix(T,F,noStatus){
+    // noStatus：缺失清單匯出不需要「狀態」欄（2026-10-21 使用者要求），寬度分給缺失詳情與實際情況；主管報告保留
     const cell=s=>esc(String(s||"")).replace(/\n/g,"<br>");
     const td=(v,w,ex)=>`<td style="${F};font-size:9pt;border:1px solid #999;padding:3pt 5pt;vertical-align:top;width:${w};${ex||""}">${v}</td>`;
     const th=(v,w)=>`<th style="${F};font-size:9.5pt;border:1px solid #999;padding:4pt 5pt;background:#16324f;color:#fff;text-align:left;width:${w}">${v}</th>`;
+    const W=noStatus?["4%","13%","12%","37%","34%"]:["4%","13%","13%","34%","28%","8%"];
     return T.map((t,i)=>{
       const list=t.items.slice().sort((a,b)=>(parseDate(b.d.date)||0)-(parseDate(a.d.date)||0));
-      return `<h3 style="${F};font-size:12pt;color:#16324f;margin:12pt 0 4pt">${i+1}. ${esc(t.name)}${t.main&&t.main!==t.name?`（${esc(t.main)}）`:""}— ${t.n} 件／${t.ships} 艘</h3>
-        <table class="repeat-head" style="border-collapse:collapse;width:100%"><thead><tr>${th("#","4%")}${th("船名","13%")}${th("檢查來源／日期","13%")}${th("缺失詳情","34%")}${th("實際情況／改善措施","28%")}${th("狀態","8%")}</tr></thead><tbody>
-        ${list.map((x,j)=>`<tr>${td(j+1,"4%","text-align:center")}${td(cell(shipFullLabel(x.d.ship)),"13%")}${td(cell((x.d.itype||"")+"\n"+normDateSlash(x.d.date)),"13%")}${td(cell(x.d.detail),"34%")}${td(cell([x.d.actual,x.d.corrective?"改善："+x.d.corrective:""].filter(Boolean).join("\n")),"28%")}${td(cell(Defs.list3Status?Defs.list3Status(x.d)[1]:""),"8%")}</tr>`).join("")}</tbody></table>`;}).join("");
+      return `<h3 style="${F};font-size:12pt;color:#16324f;margin:12pt 0 4pt;page-break-after:avoid">${i+1}. ${esc(t.name)}${t.main&&t.main!==t.name?`（${esc(t.main)}）`:""}— ${t.n} 件／${t.ships} 艘</h3>
+        <table class="repeat-head" style="border-collapse:collapse;width:100%"><thead><tr>${th("#",W[0])}${th("船名",W[1])}${th("檢查來源／日期",W[2])}${th("缺失詳情",W[3])}${th("實際情況／改善措施",W[4])}${noStatus?"":th("狀態",W[5])}</tr></thead><tbody>
+        ${list.map((x,j)=>`<tr>${td(j+1,W[0],"text-align:center")}${td(cell(shipFullLabel(x.d.ship)),W[1])}${td(cell((x.d.itype||"")+"\n"+normDateSlash(x.d.date)),W[2])}${td(cell(x.d.detail),W[3])}${td(cell([x.d.actual,x.d.corrective?"改善："+x.d.corrective:""].filter(Boolean).join("\n")),W[4])}${noStatus?"":td(cell(Defs.list3Status?Defs.list3Status(x.d)[1]:""),W[5])}</tr>`).join("")}</tbody></table>`;}).join("");
   },
   /* ════ 匯出缺失清單（2026-10-21）：勾選的排名項目 → 不經 AI，直接匯出每一項的全部缺失（Word／PDF）
      用途：每兩個月把外部／內部檢查各抓設備類、作業類前 10 名，匯出缺失給相關單位。
@@ -28433,12 +28438,12 @@ const FleetDA={
       ${T.map((t,i)=>`<tr>${td(i+1)}${td(esc(t.name),"left")}${showMain?td(esc(t.main),"left"):""}${td(t.n)}${td(t.ships)}${td(t.rep.length||"—")}${td(LT?esc(this.ltTrendText(LT.series[i])):"—")}</tr>`).join("")}
       </tbody></table><p style="${F};font-size:8.5pt;color:#666;margin:2pt 0 8pt">合計 ${total} 筆。船內重複＝同一艘船在 2 次以上不同檢查被開同一項目。近 12 個月趨勢＝${LT?`${esc(LT.from)}～${esc(LT.to)} `:""}後半年 vs 前半年的每次檢查平均件數（合計 5 件以上且變化 ≥ 20% 才判斷上升／下降）。</p>
       ${LT?this._longTrendTable(LT,F):""}`;
-    const app=`<br clear="all" style="page-break-before:always"><h2 style="${F};font-size:14pt;color:#16324f;margin:0 0 4pt">各項目缺失清單</h2>${this._rptAppendix(T,F)}`;
+    const app=`<br clear="all" style="page-break-before:always"><h2 style="${F};font-size:14pt;color:#16324f;margin:0 0 4pt">各項目缺失清單</h2>${this._rptAppendix(T,F,true)}`;
     const fn=`船隊缺失清單_${cond.replace(/[・／]/g,"_")}_${(r.from||"").replace("-","")}-${(r.to||todayStr().slice(0,7)).replace("-","")}`;
     if(fmt==="word"){
       const html=`<p style="${F};font-size:10pt;color:#16324f;margin:0 0 2pt"><b>台塑海運股份有限公司</b>　QMS &amp; Vetting Unit（海技組）</p>
         <h1 style="${F};font-size:18pt;color:#16324f;margin:4pt 0 2pt">${esc(title)}</h1><p style="${F};font-size:9.5pt;color:#666;margin:0 0 10pt">${esc(meta)}</p>${sumTbl}${app}`;
-      dl(this._mhtDoc(html,[],title),fn+".doc");
+      dl(this._mhtDoc(html,[],title,true),fn+".doc");
       toast("✓ 已匯出 Word 缺失清單");
     }else{
       $("#printArea").innerHTML=`<div class="pc"><table class="pc-wrap"><thead><tr><td>
@@ -28446,18 +28451,21 @@ const FleetDA={
           <div class="pc-head"><p class="k">FLEET DEFICIENCY LIST</p><h1 style="font-size:20px">${esc(title)}</h1><p class="s">${esc(meta)}</p></div>
         </td></tr></thead><tbody><tr><td><div class="pc-md">${sumTbl}${app}</div></td></tr></tbody></table>
         <div class="pc-foot"><span>台塑海運股份有限公司　QMS &amp; Vetting Unit（海技組）</span><span>${esc(title)}</span></div></div>`;
-      doPrint(false,"margin:11mm 11mm 15mm");
+      doPrint(true,"margin:11mm 11mm 15mm"); // 橫式：跟 Word 一致，趨勢表與缺失清單比較不擠
     }
-    $("#fdaListModal").classList.remove("show");
+    {const lm=$("#fdaListModal");if(lm)lm.classList.remove("show");}
     if(typeof Audit!=="undefined")Audit.log("匯出","船隊缺失分析",`缺失清單 ${fmt==="word"?"Word":"PDF"}（${cond}，${this.rangeText(r)}）：${T.map(t=>t.name).join("、")}`);
   },
   /* Word：用 MHTML（.doc）把圖片一起包進檔案，Word 可以直接開、圖片不會掉 */
-  _mhtDoc(html,images,title){
+  _mhtDoc(html,images,title,landscape){
     const b64=s=>btoa(unescape(encodeURIComponent(s)));
     const wrap=s=>s.replace(/(.{76})/g,"$1\r\n");
     const B="----=_NextPart_FPMC_RPT";
+    // landscape：Word 版面改橫式 A4（寬表格用，例如缺失清單的近 12 個月趨勢表）
+    const page=landscape?`<style>@page WordSection1{size:841.9pt 595.3pt;mso-page-orientation:landscape;margin:42pt 42pt 42pt 42pt}div.WordSection1{page:WordSection1}</style>`:"";
+    if(landscape)html=`<div class="WordSection1">${html}</div>`;
     let out=`MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary="${B}"\r\n\r\n--${B}\r\nContent-Location: file:///C:/rpt/report.htm\r\nContent-Transfer-Encoding: base64\r\nContent-Type: text/html; charset="utf-8"\r\n\r\n`;
-    out+=wrap(b64(`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${esc(title)}</title></head><body>${html}</body></html>`))+"\r\n";
+    out+=wrap(b64(`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${esc(title)}</title>${page}</head><body>${html}</body></html>`))+"\r\n";
     images.forEach(im=>{out+=`\r\n--${B}\r\nContent-Location: file:///C:/rpt/${im.name}\r\nContent-Transfer-Encoding: base64\r\nContent-Type: image/png\r\n\r\n${wrap(im.dataUrl.split(",")[1])}\r\n`;});
     return new Blob([out+`\r\n--${B}--\r\n`],{type:"application/msword"});
   },
