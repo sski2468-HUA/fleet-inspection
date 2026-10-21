@@ -9217,7 +9217,7 @@ function dl(blob,name){
     setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);
   }catch(e){toast("⚠ 此瀏覽器封鎖了檔案下載,請改用電腦版 Chrome/Edge/Firefox 開啟");}
 }
-function doPrint(landscape,extraPageCss){
+function doPrint(landscape,extraPageCss,pdfName){
   /* 列印／另存 PDF 同樣是把資料帶出系統的途徑，因此適用相同的匯出權限 */
   if(!requireExport())return;
   if(typeof window.print!=="function"){toast("⚠ 此瀏覽器不支援列印/另存PDF,請改用 Excel 匯出");return;}
@@ -9238,9 +9238,13 @@ function doPrint(landscape,extraPageCss){
     tf.innerHTML=`<tr><td><div style="height:9mm"></div></td></tr>`;t.appendChild(tf);
   });
   // 延遲確保列印內容完成排版(部分瀏覽器立即print會印到空白)
+  // pdfName：「另存為 PDF」的預設檔名＝列印當下的網頁標題，印的時候暫時換成報告檔名，印完還原
+  const oldTitle=document.title;
   setTimeout(()=>{
+    if(pdfName)document.title=String(pdfName).replace(/[\\\/:*?"<>|]/g,"_");
     try{window.print();}catch(e){toast("⚠ 無法開啟列印視窗,請使用瀏覽器選單的「列印」");}
     styleTag.textContent=""; // 印完立即還原成直式，避免影響其他頁面的列印/PDF
+    if(pdfName)setTimeout(()=>{document.title=oldTitle;},500);
   },120);
 }
 // 導覽跳轉：借用既有的側邊欄點擊邏輯（含頁面切換、各模組 render），避免另外維護一套跳轉規則。
@@ -28451,7 +28455,7 @@ const FleetDA={
       </tbody></table><p style="${F};font-size:8.5pt;color:#666;margin:2pt 0 8pt">合計 ${total} 筆。船內重複＝同一艘船在 2 次以上不同檢查被開同一項目。近 12 個月趨勢＝${LT?`${esc(LT.from)}～${esc(LT.to)} `:""}後半年 vs 前半年的每次檢查平均件數（合計 5 件以上且變化 ≥ 20% 才判斷上升／下降）。</p>
       ${LT?this._longTrendTable(LT,F):""}`;
     const app=`<br clear="all" style="page-break-before:always"><h2 style="${F};font-size:14pt;color:#16324f;margin:0 0 4pt">各項目缺失清單</h2>${this._rptAppendix(T,F,true)}`;
-    const fn=`船隊缺失清單_${cond.replace(/[・／]/g,"_")}_${(r.from||"").replace("-","")}-${(r.to||todayStr().slice(0,7)).replace("-","")}`;
+    const fn=`船隊缺失清單_${cond.replace(/・/g,"_").replace(/／/g,"+")}_${r.from?r.from.replace("-",""):"最早"}-${(r.to||todayStr().slice(0,7)).replace("-","")}`;
     if(fmt==="word"){
       const html=`<p style="${F};font-size:10pt;color:#16324f;margin:0 0 2pt"><b>台塑海運股份有限公司</b>　QMS &amp; Vetting Unit（海技組）</p>
         <h1 style="${F};font-size:18pt;color:#16324f;margin:4pt 0 2pt">${esc(title)}</h1><p style="${F};font-size:9.5pt;color:#666;margin:0 0 10pt">${esc(meta)}</p>${sumTbl}${app}`;
@@ -28463,7 +28467,7 @@ const FleetDA={
           <div class="pc-head"><p class="k">FLEET DEFICIENCY LIST</p><h1 style="font-size:20px">${esc(title)}</h1><p class="s">${esc(meta)}</p></div>
         </td></tr></thead><tbody><tr><td><div class="pc-md">${sumTbl}${app}</div></td></tr></tbody></table>
         <div class="pc-foot"><span>台塑海運股份有限公司　QMS &amp; Vetting Unit（海技組）</span><span>${esc(title)}</span></div></div>`;
-      doPrint(true,"margin:11mm 11mm 15mm"); // 橫式：跟 Word 一致，趨勢表與缺失清單比較不擠
+      doPrint(true,"margin:11mm 11mm 15mm",fn); // 橫式：跟 Word 一致，趨勢表與缺失清單比較不擠；PDF 檔名同 Word
     }
     {const lm=$("#fdaListModal");if(lm)lm.classList.remove("show");}
     if(typeof Audit!=="undefined")Audit.log("匯出","船隊缺失分析",`缺失清單 ${fmt==="word"?"Word":"PDF"}（${cond}，${this.rangeText(r)}）：${T.map(t=>t.name).join("、")}`);
@@ -28490,6 +28494,9 @@ const FleetDA={
     const T=this.rptTopics();if(!T.length){toast("⚠ 沒有勾選項目");return;}
     const r=this._range||this.range(),F="font-family:'Microsoft JhengHei','Calibri',Arial,sans-serif";
     const title="船隊缺失重點分析報告";
+    // 檔名（Word／PDF 共用）：船隊缺失重點分析報告_外部檢查_設備類_202609-202610
+    const ymTxt=v=>String(v||"").replace("-","");
+    const rptFn=`${title}_${this._listCond().replace(/・/g,"_").replace(/／/g,"+")}_${r.from?ymTxt(r.from):"最早"}-${ymTxt(r.to||todayStr().slice(0,7))}`;
     const meta=`期間：${this.rangeText(r)}　｜　報告項目：${T.map(t=>t.name).join("、")}　｜　產出日期：${todayStr()}`;
     const imgs=[["fig1.png",this.rptChart1(T),"圖1　各項目件數與涉及船數"],["fig2.png",this.rptChart2(T),"圖2　各項目期間趨勢"],["fig3.png",this.rptChart3(T),"圖3　各項目檢查來源分布"],["fig4.png",this.rptChart4(this.longTrend(T)),"圖4　近 12 個月趨勢（每兩個月；每次檢查平均件數）"]].filter(x=>x[1]);
     // Word 只給寬度時會用圖片本身的像素高度（圖是 2 倍解析度），整張圖被拉長變形；從 PNG 檔頭讀實際寬高、依比例算高度
@@ -28505,7 +28512,7 @@ const FleetDA={
     if(fmt==="word"){
       const html=`<p style="${F};font-size:10pt;color:#16324f;margin:0 0 2pt"><b>台塑海運股份有限公司</b>　QMS &amp; Vetting Unit（海技組）</p>
         <h1 style="${F};font-size:20pt;color:#16324f;margin:4pt 0 2pt">${title}</h1><p style="${F};font-size:9.5pt;color:#666;margin:0 0 10pt">${esc(meta)}</p>${body}${figs}${app}`;
-      dl(this._mhtDoc(html,imgs.map(([n,u])=>({name:n,dataUrl:u})),title),`${title}_${todayStr().replace(/-/g,"")}.doc`);
+      dl(this._mhtDoc(html,imgs.map(([n,u])=>({name:n,dataUrl:u})),title),`${rptFn}.doc`);
       toast("✓ 已產出 Word 主管報告（含附圖與缺失清單）");
       if(typeof Audit!=="undefined")Audit.log("匯出","船隊缺失分析",`主管報告 Word：${T.map(t=>t.name).join("、")}`);
       return;
@@ -28515,7 +28522,7 @@ const FleetDA={
         <div class="pc-head"><p class="k">FLEET DEFICIENCY REPORT</p><h1 style="font-size:22px">${title}</h1><p class="s">${esc(meta)}</p></div>
       </td></tr></thead><tbody><tr><td><div class="pc-md">${body}${figs}${app}</div></td></tr></tbody></table>
       <div class="pc-foot"><span>台塑海運股份有限公司　QMS &amp; Vetting Unit（海技組）</span><span>${title}</span></div></div>`;
-    doPrint(false,"margin:11mm 11mm 15mm");
+    doPrint(false,"margin:11mm 11mm 15mm",rptFn); // 另存 PDF 預設檔名：船隊缺失重點分析報告_外部檢查_設備類_202609-202610
     if(typeof Audit!=="undefined")Audit.log("匯出","船隊缺失分析",`主管報告 PDF：${T.map(t=>t.name).join("、")}`);
   },
   openAi(){
