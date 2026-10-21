@@ -2141,6 +2141,7 @@ table.tbl tbody tr.attn-row.sel:hover>td{background:#fbe8d4}
   #printArea .pc *{box-sizing:border-box}
   #printArea .pc table.pc-wrap{width:100%;border-collapse:collapse;margin-bottom:22px}
   #printArea .pc table.pc-wrap>thead{display:table-header-group}
+  #printArea .pc table.pc-wrap>tfoot{display:table-footer-group}
   #printArea .pc table.pc-wrap td{padding:0;border:none;background:none}
   #printArea .pc-brand{display:flex;align-items:center;justify-content:space-between;padding:0 2px 7px}
   #printArea .pc-brand img{height:32px;width:auto;display:block}
@@ -9228,6 +9229,14 @@ function doPrint(landscape,extraPageCss){
   // extraPageCss 從此改傳「@page 內的宣告」（例如 "margin-top:2.6cm"），不要再包含 @page{...} 外殼。
   const pageDecls=(landscape?"size:A4 landscape;":"")+(extraPageCss||"");
   styleTag.textContent=pageDecls?`@page{${pageDecls}}`:"";
+  // 2026-10-21：.pc 報告的頁尾（.pc-foot）是 position:fixed 貼在每頁底部，內容沒有預留空間時，
+  // 每頁最後幾列會跟頁尾文字疊在一起（橫式頁面較矮更明顯）。這裡統一在 pc-wrap 表格補一個
+  // 每頁重複的空白 tfoot，等於每頁底部都保留頁尾的高度，所有用 pc-wrap 的報告一次修好。
+  document.querySelectorAll("#printArea table.pc-wrap").forEach(t=>{
+    if(t.querySelector(":scope>tfoot.pc-foot-space"))return;
+    const tf=document.createElement("tfoot");tf.className="pc-foot-space";
+    tf.innerHTML=`<tr><td><div style="height:9mm"></div></td></tr>`;t.appendChild(tf);
+  });
   // 延遲確保列印內容完成排版(部分瀏覽器立即print會印到空白)
   setTimeout(()=>{
     try{window.print();}catch(e){toast("⚠ 無法開啟列印視窗,請使用瀏覽器選單的「列印」");}
@@ -28221,7 +28230,10 @@ const FleetDA={
   },
   rptChart2(T){
     const TB=this._tb||{buckets:[],insp:[]};const nb=TB.buckets.length;if(!nb)return null;
-    const W=900,H=400,top=50,bottom=70,left=50,right=20;const {c,g}=this._canvas(W,H);
+    // 圖例項目多（10 項）時一列放不下會被切掉：先算要幾列，再加高畫布
+    const probe=this._canvas(10,10).g;probe.font="12px 'Microsoft JhengHei',sans-serif";
+    const lrows=[];{let row=[],lx=50;T.forEach((t,i)=>{const lbl=this._trimLabel(probe,t.name,150),w=probe.measureText(lbl).width+34;if(lx+w>880&&row.length){lrows.push(row);row=[];lx=50;}row.push([i,lbl]);lx+=w;});if(row.length)lrows.push(row);}
+    const W=900,top=50,bottom=52+lrows.length*20,left=50,right=20,H=top+280+bottom;const {c,g}=this._canvas(W,H);
     g.fillStyle="#16324f";g.font="bold 15px 'Microsoft JhengHei',sans-serif";g.fillText("圖2　各項目期間趨勢（各期間件數；括號為該期間檢查次數）",14,20);
     const series=T.map(t=>t.tr?t.tr.c:new Array(nb).fill(0)),max=Math.max(1,...series.flat());
     const ph=H-top-bottom,pw=W-left-right,gw=pw/nb,bw=Math.min(26,(gw-14)/T.length);
@@ -28232,8 +28244,8 @@ const FleetDA={
       series.forEach((s,si)=>{const h=ph*s[bi]/max;g.fillStyle=this.RPT_COLORS[si%10];g.fillRect(startX+si*bw,top+ph-h,bw-2,h);if(s[bi]){g.fillStyle="#15262f";g.font="10px sans-serif";g.fillText(s[bi],startX+si*bw+bw/2-1,top+ph-h-8);}});
       g.fillStyle="#15262f";g.font="11px 'Microsoft JhengHei',sans-serif";
       g.fillText(b.from===b.to?b.from:`${b.from}～${b.to.slice(5)}`,cx,top+ph+16);g.fillStyle="#8195a0";g.fillText(`(${TB.insp[bi]} 次)`,cx,top+ph+32);});
-    let lx=left;g.textAlign="left";g.font="12px 'Microsoft JhengHei',sans-serif";
-    T.forEach((t,i)=>{const lbl=this._trimLabel(g,t.name,150);g.fillStyle=this.RPT_COLORS[i%10];g.fillRect(lx,H-18,12,12);g.fillStyle="#15262f";g.fillText(lbl,lx+16,H-12);lx+=g.measureText(lbl).width+34;});
+    g.textAlign="left";g.font="12px 'Microsoft JhengHei',sans-serif";
+    lrows.forEach((rw,ri)=>{let lx=left;const ly=top+ph+48+ri*20;rw.forEach(([i,lbl])=>{g.fillStyle=this.RPT_COLORS[i%10];g.fillRect(lx,ly-6,12,12);g.fillStyle="#15262f";g.fillText(lbl,lx+16,ly);lx+=g.measureText(lbl).width+34;});});
     return c.toDataURL("image/png");
   },
   rptChart3(T){
@@ -28320,7 +28332,7 @@ const FleetDA={
   },
   /* 附錄：各項目的完整缺失清單（主管報告、缺失清單匯出共用） */
   _rptAppendix(T,F,noStatus){
-    // noStatus：缺失清單匯出不需要「狀態」欄（2026-10-21 使用者要求），寬度分給缺失詳情與實際情況；主管報告保留
+    // noStatus：不顯示「狀態」欄（缺失清單、主管報告都不需要，2026-10-21 使用者要求），寬度分給缺失詳情與實際情況
     const cell=s=>esc(String(s||"")).replace(/\n/g,"<br>");
     const td=(v,w,ex)=>`<td style="${F};font-size:9pt;border:1px solid #999;padding:3pt 5pt;vertical-align:top;width:${w};${ex||""}">${v}</td>`;
     const th=(v,w)=>`<th style="${F};font-size:9.5pt;border:1px solid #999;padding:4pt 5pt;background:#16324f;color:#fff;text-align:left;width:${w}">${v}</th>`;
@@ -28461,9 +28473,12 @@ const FleetDA={
     const b64=s=>btoa(unescape(encodeURIComponent(s)));
     const wrap=s=>s.replace(/(.{76})/g,"$1\r\n");
     const B="----=_NextPart_FPMC_RPT";
-    // landscape：Word 版面改橫式 A4（寬表格用，例如缺失清單的近 12 個月趨勢表）
-    const page=landscape?`<style>@page WordSection1{size:841.9pt 595.3pt;mso-page-orientation:landscape;margin:42pt 42pt 42pt 42pt}div.WordSection1{page:WordSection1}</style>`:"";
-    if(landscape)html=`<div class="WordSection1">${html}</div>`;
+    // landscape：Word 版面改橫式 A4（寬表格用，例如缺失清單的近 12 個月趨勢表）；
+    // 直式（主管報告）也明確設定 A4＋邊界（上下 2cm、左右 1.8cm），不再用 Word 對 HTML 的預設邊界
+    const page=landscape
+      ?`<style>@page WordSection1{size:841.9pt 595.3pt;mso-page-orientation:landscape;margin:42pt 42pt 42pt 42pt}div.WordSection1{page:WordSection1}</style>`
+      :`<style>@page WordSection1{size:595.3pt 841.9pt;margin:56.7pt 51pt 56.7pt 51pt}div.WordSection1{page:WordSection1}</style>`;
+    html=`<div class="WordSection1">${html}</div>`;
     let out=`MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary="${B}"\r\n\r\n--${B}\r\nContent-Location: file:///C:/rpt/report.htm\r\nContent-Transfer-Encoding: base64\r\nContent-Type: text/html; charset="utf-8"\r\n\r\n`;
     out+=wrap(b64(`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${esc(title)}</title>${page}</head><body>${html}</body></html>`))+"\r\n";
     images.forEach(im=>{out+=`\r\n--${B}\r\nContent-Location: file:///C:/rpt/${im.name}\r\nContent-Transfer-Encoding: base64\r\nContent-Type: image/png\r\n\r\n${wrap(im.dataUrl.split(",")[1])}\r\n`;});
@@ -28477,10 +28492,12 @@ const FleetDA={
     const title="船隊缺失重點分析報告";
     const meta=`期間：${this.rangeText(r)}　｜　報告項目：${T.map(t=>t.name).join("、")}　｜　產出日期：${todayStr()}`;
     const imgs=[["fig1.png",this.rptChart1(T),"圖1　各項目件數與涉及船數"],["fig2.png",this.rptChart2(T),"圖2　各項目期間趨勢"],["fig3.png",this.rptChart3(T),"圖3　各項目檢查來源分布"],["fig4.png",this.rptChart4(this.longTrend(T)),"圖4　近 12 個月趨勢（每兩個月；每次檢查平均件數）"]].filter(x=>x[1]);
+    // Word 只給寬度時會用圖片本身的像素高度（圖是 2 倍解析度），整張圖被拉長變形；從 PNG 檔頭讀實際寬高、依比例算高度
+    const pngWH=u=>{try{const b=atob(u.split(",")[1].slice(0,44));const n=i=>(b.charCodeAt(i)<<24|b.charCodeAt(i+1)<<16|b.charCodeAt(i+2)<<8|b.charCodeAt(i+3))>>>0;return [n(16),n(20)];}catch(e){return [900,400];}};
     const imgTag=(name,url,cap)=>fmt==="word"
-      ?`<p style="text-align:center;margin:8pt 0 2pt"><img src="${name}" width="620"></p><p style="${F};font-size:9.5pt;color:#555;text-align:center;margin:0 0 10pt">${cap}</p>`
+      ?`<p style="text-align:center;margin:8pt 0 2pt"><img src="${name}" width="620" height="${(([w,h])=>Math.round(620*h/w))(pngWH(url))}"></p><p style="${F};font-size:9.5pt;color:#555;text-align:center;margin:0 0 10pt">${cap}</p>`
       :`<div style="text-align:center;margin:8px 0 14px;page-break-inside:avoid"><img src="${url}" style="width:100%;max-width:720px"><div style="font-size:11px;color:#555">${cap}</div></div>`;
-    const appendix=this._rptAppendix(T,F);
+    const appendix=this._rptAppendix(T,F,true); // 主管報告附錄也不顯示「狀態」欄（2026-10-21 使用者要求）
     const body=Ref._mdToWordHtml(md);
     const LT=this.longTrend(T);
     const figs=`<h2 style="${F};font-size:15pt;color:#16324f;margin:16pt 0 6pt">附圖</h2>`+imgs.map(([n,u,cap])=>imgTag(n,u,cap)).join("")+(LT?this._longTrendTable(LT,F):"");
