@@ -5349,6 +5349,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <a class="btn" href="https://sski2468-hua.github.io/vessel-portal/" target="_blank" rel="noopener" title="船上專用網站（與本系統分開）">開啟船舶檢查填報平台 ↗</a>
             </div>
           </div>
+          <div class="card" id="pv-card">
+            <h3>👁 船舶平台預覽（Owner／管理員）</h3>
+            <p class="hint" style="margin-bottom:10px;line-height:1.7">選一艘船，免輸入船上密碼，直接開啟該輪在船舶檢查填報平台看到的實際畫面（跑馬燈、待辦、分享自查清單、檢查紀錄等），方便確認發給船上的訊息與項目。預覽<b>不會記錄成船上操作</b>（不影響「船舶平台使用情形」），也<b>不開放填單／改善單／分享自查等會寫入資料的頁面</b>。需在同一個瀏覽器以 Owner／管理員身分登入本系統。</p>
+            <div class="toolbar">
+              <select id="pv-ship" style="min-width:240px"></select>
+              <button class="btn primary" onclick="PortalPreview.open()">👁 開啟該輪畫面</button>
+            </div>
+          </div>
           <div class="card" id="pn-card">
             <h3>📢 船舶平台跑馬燈訊息（Owner）</h3>
             <p class="hint" style="margin-bottom:10px;line-height:1.7">船舶檢查填報平台最上方的跑馬燈：預設會自動顯示各船自己還沒辦理的項目（改善單待填寫、分享自查未送出、需追蹤未結案）；這裡新增的訊息會一起輪播。可以發給<b>全船隊</b>或<b>指定船舶</b>，設定顯示期間，過期自動不顯示。僅 Owner 可新增／刪除。</p>
@@ -7790,7 +7798,7 @@ const DataHub={
     {id:"cfg",   icon:"⚙️", name:"主系統｜畫面與清單",
      cards:["側邊欄項目管理","篩選清單管理","各頁面篩選欄位顯示設定"]},
     {id:"ship",  icon:"🚢", name:"船舶檢查填報平台",
-     cards:["船舶檢查填報平台入口密碼","船舶平台跑馬燈訊息","船舶平台使用情形"]},
+     cards:["船舶檢查填報平台入口密碼","船舶平台預覽","船舶平台跑馬燈訊息","船舶平台使用情形"]},
     {id:"air",   icon:"📝", name:"外部檢查線上填單",
      cards:["填單","填單轉入缺失紀錄總表 — 必填欄位設定","填單「海技確認」— 可確認人員設定","「線上填單」缺失矯正前/後照片上傳設定","對外回覆「缺失佐證證據」上傳設定"]},
     {id:"ia",    icon:"🛠", name:"內部檢查改善單／船舶自查",
@@ -10096,6 +10104,8 @@ const App={
     refreshInspectorList();refreshPlaceList();
     this.refreshMeta();
     NavConfig.apply();
+    // 側邊欄顯示設定優先讀雲端：原本排在開機資料同步之後才讀，新瀏覽器（沒有本機設定）在同步完成前會看到全部項目
+    if(typeof Cloud!=="undefined"&&Cloud.enabled())NavConfig.loadCloud();
     if(typeof Snap!=="undefined")Snap.render();
     if(typeof ReadOnlyMode!=="undefined")ReadOnlyMode.load();
     if(typeof RecycleBin!=="undefined")RecycleBin.purgeExpired();
@@ -11245,8 +11255,15 @@ const NavConfig={
       it.querySelector(".num").textContent=n++;
     });
   },
+  _cloudAt:0,
   async loadCloud(){
     if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    this._cloudAt=Date.now();
+    if(!this._visHook){
+      this._visHook=true;
+      // 分頁切回來時，超過 5 分鐘沒讀就重新讀一次（別人剛改了側邊欄設定，不用重新整理也會套用）
+      document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&Date.now()-this._cloudAt>5*60*1000)this.loadCloud();});
+    }
     try{
       const rows=await Cloud.api("app_db?select=payload&k=eq."+encodeURIComponent(this.CLOUD_KEY));
       const p=rows&&rows[0]&&rows[0].payload;
@@ -28895,6 +28912,23 @@ ${KEYPOINT_RULE}
    Owner 在資料管理新增要給船上看的訊息（全船隊或指定船舶、顯示期間），存在 app_db k=portal_notices：
    {items:[{id,text,ships:[],from,to,createdBy,createdAt}]}。船舶檢查填報平台只讀這個 key，跟本船待辦一起輪播。
    用 updated 時間戳做樂觀鎖（同 Improve.save），避免兩人同時編輯互相覆蓋。 */
+/* ════════ 👁 船舶平台預覽：以 Owner／管理員身分開某輪的船舶檢查填報平台畫面（平台端依同網域的主系統登入身分放行）════════ */
+const PortalPreview={
+  URL:"https://sski2468-hua.github.io/vessel-portal/",
+  fill(){
+    const sel=$("#pv-ship");if(!sel||sel.options.length)return;
+    sel.innerHTML=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>s&&s.code&&!(typeof isSoldShip==="function"&&isSoldShip(s.code)))
+      .sort((a,b)=>String(a.code).localeCompare(String(b.code),undefined,{numeric:true}))
+      .map(s=>`<option value="${esc(s.code)}">${esc(shipFullLabel(s.code))}</option>`).join("");
+  },
+  open(){
+    if(!(typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin())){toast("⚠ 船舶平台預覽僅限 Owner／管理員");return;}
+    const c=($("#pv-ship")||{}).value;if(!c){toast("⚠ 請先選擇船舶");return;}
+    if(location.protocol==="file:")toast("⚠ 本機檔案開啟的主系統無法讓平台確認身分，請改用網站版（github.io）操作");
+    window.open(this.URL+"?preview="+encodeURIComponent(c),"_blank","noopener");
+    if(typeof Audit!=="undefined")Audit.log("檢視","船舶平台預覽",`以 ${c} 的畫面預覽船舶檢查填報平台`);
+  }
+};
 const PortalNotice={
   KEY:"portal_notices",data:{items:[]},updated:null,loaded:false,
   canEdit(){return typeof Role!=="undefined"&&Role.isOwner&&Role.isOwner();},
@@ -32497,7 +32531,8 @@ const DM={
       if(typeof DataHub!=="undefined")DataHub.build();
       if(typeof Perms!=="undefined")Perms.renderEditor();TagLists.render();if(typeof Classify!=="undefined")Classify.render();if(typeof Snap!=="undefined")Snap.render();
       if(typeof PortalNotice!=="undefined")PortalNotice.render();
-      if(typeof PortalUsage!=="undefined")PortalUsage.load();}
+      if(typeof PortalUsage!=="undefined")PortalUsage.load();
+      if(typeof PortalPreview!=="undefined")PortalPreview.fill();}
     $("#dm-tab-oper-btn").className="btn"+(which==="oper"?" primary":"");
     $("#dm-tab-maint-btn").className="btn"+(which==="maint"?" primary":"");
   }
@@ -33067,6 +33102,8 @@ const Role={
     localStorage.setItem(this.SKEY,JSON.stringify(obj));
     localStorage.setItem("vsm_user_v1",obj.name);
     this.renderBadge();
+    // 切換身份後立即重新套用側邊欄隱藏設定（Owner／管理員看得到已隱藏項目，其他身份看不到）
+    if(typeof NavConfig!=="undefined"){try{NavConfig.apply();}catch(e){}}
   },
   tier(){return this.cur?this.cur.tier:"op3";},
   name(){return this.cur?this.cur.name:(localStorage.getItem("vsm_user_v1")||"未具名");},
