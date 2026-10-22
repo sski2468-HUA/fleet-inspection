@@ -2543,6 +2543,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <option value="ty">今年</option>
           <option value="ly">去年</option>
           <option value="all">全部期間</option>
+          <option value="custom">自訂區間…</option>
+        </select>
+        <span id="d-custom" style="display:none;align-items:center;gap:4px">
+          <select id="d-from" onchange="Dash.render()"></select><span>～</span><select id="d-to" onchange="Dash.render()"></select>
+        </span>
+        <span class="lbl" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px;margin-left:8px">檢查別</span>
+        <select id="d-io" onchange="Dash.render()">
+          <option value="">外部＋內部</option>
+          <option value="ext">只看外部檢查</option>
+          <option value="int">只看內部檢查</option>
         </select>
         <span class="hint" id="d-cmp"></span>
         <span class="spacer" style="flex:1"></span>
@@ -4835,7 +4845,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <span class="lbl" style="margin-left:10px">單船</span>
             <select id="tw-ship" class="trend-shipsel" onchange="Trend.render()"><option value="">全船隊</option></select>
           </div>
-          <p class="hint" style="margin-bottom:6px;line-height:1.6">以上方「時間區段」的<b>結束月</b>為準，比較「近期」與「近期之前的 12 個月」。每個項目都換算成「<b>每 100 次檢查會被抓幾件</b>」，消除檢查次數多寡的影響；篩選同時套用在缺失與檢查次數。<b>點大類</b>可展開底下哪些具體缺失在增加，<b>點「近期件數」</b>會跳出缺失清單。「新出現」＝基準期完全沒有。</p>
+          <p class="hint" style="margin-bottom:6px;line-height:1.6">以上方「時間區段」的<b>結束月</b>為準，比較「近期」與「近期之前的 12 個月」。每個項目都換算成「<b>平均每次檢查會被抓幾件</b>」（被抓件數 ÷ 檢查次數，下方小字是原始數字），消除檢查次數多寡的影響；篩選同時套用在缺失與檢查次數。<b>點大類</b>可展開底下哪些具體缺失在增加，<b>點「近期件數」</b>會跳出缺失清單。「新出現」＝基準期完全沒有。</p>
           <div class="tblwrap" style="max-height:620px"><div id="trend-warn-table"></div></div>
           <div class="hint" id="trend-warn-note" style="font-size:11.5px;margin-top:4px"></div>
         </div>
@@ -12926,11 +12936,14 @@ const Dash={
     this.ms.ncimp=MSel("ms-d-ncimp","重要程度",()=>[...new Set(App.defs.map(d=>d.ncImp||""))].filter(Boolean).sort(),()=>{this.page=1;this.render();});
     this.render();
   },
-  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());this.page=1;this.render();},
-  filtered(){return App.insp.filter(i=>this.ms.ship.pass(i.ship)&&this.ms.itype.pass(i.itype)&&this.ms.year.pass(yearOf(i.date))&&this.ms.vtype.pass(i.vtype));},
+  clearFilters(){Object.values(this.ms).forEach(m=>m.clear());if($("#d-io"))$("#d-io").value="";this.page=1;this.render();},
+  /* 檢查別：""＝外部＋內部、ext＝只看外部、int＝只看內部（依「外部/內部檢查對應定義」） */
+  io(){return $("#d-io")?$("#d-io").value:"";},
+  passIo(itype){const v=this.io();return !v||(v==="int"?isInternal(itype):!isInternal(itype));},
+  filtered(){return App.insp.filter(i=>this.passIo(i.itype)&&this.ms.ship.pass(i.ship)&&this.ms.itype.pass(i.itype)&&this.ms.year.pass(yearOf(i.date))&&this.ms.vtype.pass(i.vtype));},
   filteredDefs(){
     ncPruneCascade(this.ms.ncprob,this.ms.ncmain,null);
-    return App.defs.filter(d=>this.ms.ship.pass(d.ship)&&this.ms.itype.pass(d.itype)&&this.ms.year.pass(yearOf(d.date))&&this.ms.vtype.pass(d.vtype)
+    return App.defs.filter(d=>this.passIo(d.itype)&&this.ms.ship.pass(d.ship)&&this.ms.itype.pass(d.itype)&&this.ms.year.pass(yearOf(d.date))&&this.ms.vtype.pass(d.vtype)
     &&passTags(this.ms.ncprob,d.ncProb,"(未分類)")&&passTags(this.ms.ncmain,d.ncMain,"(未分類)")&&this.ms.ncimp.pass(d.ncImp||""));},
   tagActive(){return this.ms.ncprob.sel.size>0||this.ms.ncmain.sel.size>0||this.ms.ncimp.sel.size>0;},
   /* 統計區間：近 12 個月／今年／去年／全部；前期＝緊接在前、同樣長度的一段（全部期間不比較）。
@@ -12942,6 +12955,19 @@ const Dash={
     if(v==="12"){b=cur;a=ymAdd(cur,-11);}
     else if(v==="ty"){a=`${y}-01`;b=`${y}-12`;}
     else if(v==="ly"){a=`${y-1}-01`;b=`${y-1}-12`;}
+    // 自訂區間：起訖年月選單（選項取檢查紀錄有資料的月份，保留目前選擇）
+    const cw=$("#d-custom");if(cw)cw.style.display=v==="custom"?"inline-flex":"none";
+    if(v==="custom"){
+      const yms=[...new Set(App.insp.map(i=>ymOf(i.date)))].filter(Boolean).sort();
+      const f=$("#d-from"),t=$("#d-to");
+      if(f&&t){
+        const fv=f.value,tv=t.value,opts=yms.map(m=>`<option value="${m}">${m}</option>`).join("");
+        if(f.options.length!==yms.length){f.innerHTML=opts;t.innerHTML=opts;}
+        f.value=yms.includes(fv)?fv:(yms.includes(ymAdd(cur,-11))?ymAdd(cur,-11):yms[0]||"");
+        t.value=yms.includes(tv)?tv:(yms[yms.length-1]||"");
+        a=f.value;b=t.value;if(a&&b&&a>b){const x=a;a=b;b=x;}
+      }
+    }
     if(!a)return {a:"",b:"",pa:"",pb:""};
     const n=ymSpan(a,b).length;
     return {a,b,pa:ymAdd(a,-n),pb:ymAdd(a,-1)};
@@ -12956,10 +12982,13 @@ const Dash={
     const prevRows=P.pa?rowsAll.filter(r=>inP(ymOf(r.date),P.pa,P.pb)):null;
     const prevDefs=P.pa?defsAll.filter(d=>inP(d.ym||ymOf(d.date),P.pa,P.pb)):null;
     if($("#d-cmp"))$("#d-cmp").textContent=P.a?`本期 ${P.a}～${P.b}　vs　前期 ${P.pa}～${P.pb}`:"全部期間（不做前期比較）";
+    // 平均缺失／零缺失率：預設看外部檢查；選「只看內部檢查」時改看內部
+    const onlyInt=this.io()==="int",ioLbl=onlyInt?"內部檢查":"外部檢查";
     const st=(rows,defs)=>{
-      const ext=rows.filter(r=>!isInternal(r.itype));
+      const ext=rows.filter(r=>onlyInt?isInternal(r.itype):!isInternal(r.itype));
       const nDef=rows.reduce((s,r)=>s+(+r.ndef||0),0),nExtDef=ext.reduce((s,r)=>s+(+r.ndef||0),0);
-      return {n:rows.length,ext:ext.length,int:rows.length-ext.length,nDef,
+      const nInt=rows.filter(r=>isInternal(r.itype)).length;
+      return {n:rows.length,ext:rows.length-nInt,int:nInt,nDef,
         avgE:ext.length?nExtDef/ext.length:NaN,
         zero:ext.length?ext.filter(r=>(+r.ndef||0)===0).length/ext.length*100:NaN,
         det:rows.filter(r=>(r.detain||"").toUpperCase().startsWith("Y")).length,
@@ -12979,8 +13008,8 @@ const Dash={
     $("#d-kpis").innerHTML=`
       <div class="kpi"><div class="v">${a.n}</div><div class="l">檢查次數</div>${dl("n",false,f0)}<div class="sb">外部 ${a.ext}・內部 ${a.int}</div></div>
       <div class="kpi orange"><div class="v">${a.nDef}</div><div class="l">缺失總數</div>${dl("nDef",true,f0)}<div class="sb">受檢船舶 ${a.ships} 艘</div></div>
-      <div class="kpi"><div class="v">${kv("avgE",f2)}</div><div class="l">外部檢查平均缺失／次</div>${dl("avgE",true,f2)}<div class="sb">越低越好</div></div>
-      <div class="kpi green"><div class="v">${kv("zero",fp)}</div><div class="l">外部檢查零缺失率</div>${dl("zero",false,fp)}<div class="sb">越高越好</div></div>
+      <div class="kpi"><div class="v">${kv("avgE",f2)}</div><div class="l">${ioLbl}平均缺失／次</div>${dl("avgE",true,f2)}<div class="sb">越低越好</div></div>
+      <div class="kpi green"><div class="v">${kv("zero",fp)}</div><div class="l">${ioLbl}零缺失率</div>${dl("zero",false,fp)}<div class="sb">越高越好</div></div>
       <div class="kpi red"><div class="v">${a.det}</div><div class="l">扣船次數</div>${dl("det",true,f0)}</div>
       <div class="kpi red"><div class="v">${a.hi}</div><div class="l">高風險（3）缺失</div>${dl("hi",true,f0)}</div>`;
     $("#d-stat").textContent=`${rows.length} 筆檢查 / ${defs.length} 筆缺失明細`;
@@ -13054,7 +13083,7 @@ const Dash={
       <table class="tbl"><thead><tr><th>船舶</th><th>具體缺失名稱</th><th>次數</th><th>來源</th><th>最近一次</th></tr></thead><tbody>${rl.slice(0,40).map(x=>`<tr><td><b>${esc(shipFullLabel(x.s))}</b></td><td>${esc(x.f.replace(/‖/g," › "))}</td><td style="text-align:center"><span class="dpill ${x.n>=3?"r":"n"}">${x.n}</span></td><td>${esc([...x.src].join("、"))}</td><td>${esc(x.last)}</td></tr>`).join("")}</tbody></table>${rl.length>40?`<div class="hint">只列前 40 組</div>`:""}`
       :`<div class="hint">此條件下沒有同一艘船重複發生的缺失</div>`;
     // ④ 各船平均缺失／次（外部檢查 ≥2 次）
-    const sc={};rows.filter(r=>!isInt(r)).forEach(r=>{const x=sc[r.ship]=sc[r.ship]||{n:0,d:0};x.n++;x.d+=(+r.ndef||0);});
+    const sc={};rows.filter(r=>this.io()==="int"?isInt(r):!isInt(r)).forEach(r=>{const x=sc[r.ship]=sc[r.ship]||{n:0,d:0};x.n++;x.d+=(+r.ndef||0);});
     const totN=Object.values(sc).reduce((s,x)=>s+x.n,0),totD=Object.values(sc).reduce((s,x)=>s+x.d,0);
     const fleetAvg=totN?+(totD/totN).toFixed(2):0;
     const shipList=Object.keys(sc).filter(s=>sc[s].n>=2).map(s=>[s,+(sc[s].d/sc[s].n).toFixed(2),sc[s].n]).sort((x,y)=>y[1]-x[1]).slice(0,20);
@@ -31187,22 +31216,22 @@ const Trend={
     defs.forEach(d=>{const m=dm(d);const per=inR(m,rA,end)?"r":inR(m,bA,bB)?"b":null;if(!per)return;
       key(d).forEach(k=>{const x=o[k]=o[k]||{k,r:0,b:0,ships:{},srcs:{}};x[per]++;if(per==="r"){x.ships[d.ship]=(x.ships[d.ship]||0)+1;const s=this.srcKey(d.itype);x.srcs[s]=(x.srcs[s]||0)+1;}});});
     const minN=(src==="ext"||src==="all")&&!vt&&!ship?3:2; // 有篩選時樣本小，門檻降為 2 件
-    const rows=Object.values(o).filter(x=>x.r>=minN).map(x=>({...x,rr:nR?x.r/nR*100:0,br:nB?x.b/nB*100:0})).map(x=>({...x,diff:x.rr-x.br,ratio:x.br?x.rr/x.br:Infinity})).filter(x=>x.diff>0).sort((a,b)=>b.diff-a.diff).slice(0,25);
+    const rows=Object.values(o).filter(x=>x.r>=minN).map(x=>({...x,rr:nR?x.r/nR:0,br:nB?x.b/nB:0})).map(x=>({...x,diff:x.rr-x.br,ratio:x.br?x.rr/x.br:Infinity})).filter(x=>x.diff>0).sort((a,b)=>b.diff-a.diff).slice(0,25);
     const chg=x=>x.b===0?`<span class="dpill r">新出現</span>`:x.ratio>=2?`<span class="dpill r">×${x.ratio.toFixed(1)}</span>`:x.ratio>=1?`<span class="dpill n" style="background:#fff1e3;color:#b5610f">×${x.ratio.toFixed(1)}</span>`:`<span class="dpill g">×${x.ratio.toFixed(1)}</span>`;
     const shipsTxt=sh=>{const e=Object.entries(sh).sort((a,b)=>b[1]-a[1]);return e.slice(0,4).map(([s,n])=>`${esc(s)}${n>1?`（${n}）`:""}`).join("、")+(e.length>4?` 等 ${e.length} 艘`:"");};
     const lk=(n,title,fn)=>`<a style="cursor:pointer;color:var(--navy);text-decoration:underline dotted" onclick="event.stopPropagation();Trend.showList(${this.regList(title,fn)})">${n} 📋</a>`;
     const sub=main=>{
       const s={};defs.forEach(d=>{const m=dm(d);const per=inR(m,rA,end)?"r":inR(m,bA,bB)?"b":null;if(!per)return;this.pairsOf(d).filter(p=>p.m===main).forEach(p=>{const x=s[p.l]=s[p.l]||{l:p.l,r:0,b:0,ships:{}};x[per]++;if(per==="r")x.ships[d.ship]=(x.ships[d.ship]||0)+1;});});
-      const rs=Object.values(s).filter(x=>x.r>0).map(x=>({...x,rr:nR?x.r/nR*100:0,br:nB?x.b/nB*100:0})).map(x=>({...x,ratio:x.br?x.rr/x.br:Infinity})).sort((a,b)=>(b.rr-b.br)-(a.rr-a.br)).slice(0,12);
-      return rs.map(x=>`<tr style="background:#f7f9fb"><td></td><td style="padding-left:26px">└ ${esc(x.l)}</td><td style="text-align:right">${lk(x.r,`${main} › ${x.l}｜近期 ${rA}～${end}`,d=>ok(d)&&inR(dm(d),rA,end)&&this.pairsOf(d).some(p=>p.m===main&&p.l===x.l))}</td><td style="text-align:right">${x.rr.toFixed(1)}</td><td style="text-align:right">${x.br.toFixed(1)}</td><td>${chg(x)}</td><td></td><td>${shipsTxt(x.ships)}</td><td></td></tr>`).join("")
+      const rs=Object.values(s).filter(x=>x.r>0).map(x=>({...x,rr:nR?x.r/nR:0,br:nB?x.b/nB:0})).map(x=>({...x,ratio:x.br?x.rr/x.br:Infinity})).sort((a,b)=>(b.rr-b.br)-(a.rr-a.br)).slice(0,12);
+      return rs.map(x=>`<tr style="background:#f7f9fb"><td></td><td style="padding-left:26px">└ ${esc(x.l)}</td><td style="text-align:right">${lk(x.r,`${main} › ${x.l}｜近期 ${rA}～${end}`,d=>ok(d)&&inR(dm(d),rA,end)&&this.pairsOf(d).some(p=>p.m===main&&p.l===x.l))}</td><td style="text-align:right">${x.rr.toFixed(2)}<div class="hint" style="font-size:11px">${x.r} 件／${nR} 次</div></td><td style="text-align:right">${x.br.toFixed(2)}<div class="hint" style="font-size:11px">${x.b} 件／${nB} 次</div></td><td>${chg(x)}</td><td></td><td>${shipsTxt(x.ships)}</td><td></td></tr>`).join("")
         ||`<tr style="background:#f7f9fb"><td></td><td colspan="8" class="hint">近期沒有具體缺失資料</td></tr>`;
     };
     const m18=ymSpan(ymAdd(end,-17),end);
-    box.innerHTML=`<table class="tbl"><thead><tr><th>#</th><th>${lvl==="m"?"大類":"具體缺失（大類 › 具體名稱）"}</th><th style="text-align:right">近期件數</th><th style="text-align:right">近期<br>每100次</th><th style="text-align:right">基準<br>每100次</th><th>變化</th><th>近 18 個月（紅＝近期）</th><th>主要涉及船舶</th><th>主要來源</th></tr></thead><tbody>${rows.map((x,i)=>{
+    box.innerHTML=`<table class="tbl"><thead><tr><th>#</th><th>${lvl==="m"?"大類":"具體缺失（大類 › 具體名稱）"}</th><th style="text-align:right">近期件數</th><th style="text-align:right" title="近期被抓到的件數 ÷ 近期檢查次數">近期<br>平均每次幾件</th><th style="text-align:right" title="基準期被抓到的件數 ÷ 基準期檢查次數">基準<br>平均每次幾件</th><th>變化</th><th>近 18 個月（紅＝近期）</th><th>主要涉及船舶</th><th>主要來源</th></tr></thead><tbody>${rows.map((x,i)=>{
       const open=lvl==="m"&&this.warnOpen===x.k;
       const sr=Object.entries(x.srcs).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([s,n])=>`${esc(s)} ${n}`).join("、");
       return `<tr${lvl==="m"?` style="cursor:pointer" data-wk="${esc(encodeURIComponent(x.k))}" onclick="Trend.warnToggle(this.dataset.wk)"`:""}><td style="text-align:right">${i+1}</td><td><b>${lvl==="m"?(open?"▾ ":"▸ "):""}${esc(x.k)}</b></td>
-        <td style="text-align:right">${lk(x.r,`${x.k}｜近期 ${rA}～${end}`,d=>ok(d)&&inR(dm(d),rA,end)&&key(d).includes(x.k))}</td><td style="text-align:right"><b>${x.rr.toFixed(1)}</b></td><td style="text-align:right">${x.br.toFixed(1)}</td><td>${chg(x)}</td>
+        <td style="text-align:right">${lk(x.r,`${x.k}｜近期 ${rA}～${end}`,d=>ok(d)&&inR(dm(d),rA,end)&&key(d).includes(x.k))}</td><td style="text-align:right"><b>${x.rr.toFixed(2)}</b><div class="hint" style="font-size:11px">${x.r} 件／${nR} 次</div></td><td style="text-align:right">${x.br.toFixed(2)}<div class="hint" style="font-size:11px">${x.b} 件／${nB} 次</div></td><td>${chg(x)}</td>
         <td><canvas class="tw-spark" data-k="${esc(encodeURIComponent(x.k))}" width="120" height="28" style="width:120px;height:28px"></canvas></td><td>${shipsTxt(x.ships)}</td><td>${sr}</td></tr>${open?sub(x.k):""}`;}).join("")
       ||`<tr><td colspan="9" class="hint" style="text-align:center;padding:14px">此篩選條件下，近期沒有明顯上升的項目（近期 ≥${minN} 件且比基準期增加）</td></tr>`}</tbody></table>`;
     box.querySelectorAll("canvas.tw-spark").forEach(cv=>{
@@ -31211,7 +31240,7 @@ const Trend={
       vals.forEach((v,i)=>{c.fillStyle=i>=vals.length-win?"#c0392b":"#b9c6d0";const bh=v/mx*(h-2);c.fillRect(i*bw+1,h-bh,bw-2,bh);});
     });
     const note=$("#trend-warn-note");
-    if(note)note.textContent=`近期 ${rA}～${end}（${nR} 次檢查）vs 基準 ${bA}～${bB}（${nB} 次檢查）。共 ${rows.length} 項上升（近期 ≥${minN} 件才列入）；依「每 100 次檢查增加的件數」排序。`;
+    if(note)note.textContent=`近期 ${rA}～${end}（${nR} 次檢查）vs 基準 ${bA}～${bB}（${nB} 次檢查）。共 ${rows.length} 項上升（近期 ≥${minN} 件才列入）；依「平均每次檢查增加的件數」排序。單船或篩選後檢查次數少時，多 1 件比例就會跳很多，請點件數看清單再判斷。`;
   },
   warnToggle(enc){const k=decodeURIComponent(enc);this.warnOpen=this.warnOpen===k?null:k;this.renderWarn();},
   smSort:{col:null,dir:-1},smOpen:null,
