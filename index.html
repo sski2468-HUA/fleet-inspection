@@ -5232,6 +5232,22 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               </div>
             </div>
           </div>
+          <div class="card" id="pn-card">
+            <h3>📢 船舶平台跑馬燈訊息（Owner）</h3>
+            <p class="hint" style="margin-bottom:10px;line-height:1.7">船舶檢查填報平台最上方的跑馬燈：預設會自動顯示各船自己還沒辦理的項目（改善單待填寫、分享自查未送出、需追蹤未結案）；這裡新增的訊息會一起輪播。可以發給<b>全船隊</b>或<b>指定船舶</b>，設定顯示期間，過期自動不顯示。僅 Owner 可新增／刪除。</p>
+            <div id="pn-form" style="display:grid;gap:8px">
+              <textarea id="pn-text" rows="2" maxlength="200" placeholder="要給船上看到的訊息，例：11/15 前請完成救生艇下水演練並上傳紀錄（200 字內）" style="width:100%"></textarea>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="pn-to" value="all" checked onchange="PortalNotice.toggleShips()"> 全船隊</label>
+                <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="pn-to" value="pick" onchange="PortalNotice.toggleShips()"> 指定船舶</label>
+                <label>顯示期間 <input type="date" id="pn-from"> ～ <input type="date" id="pn-to-date"></label>
+                <span class="hint">（結束日空白＝一直顯示到刪除為止）</span>
+                <button class="btn primary" onclick="PortalNotice.add()">＋ 新增訊息</button>
+              </div>
+              <div id="pn-ships" style="display:none;flex-wrap:wrap;gap:2px 12px;max-height:120px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px"></div>
+            </div>
+            <div id="pn-list" style="margin-top:10px"></div>
+          </div>
           <div class="card">
             <h3>🛠 內部檢查／稽核「檢查人 Auditor」名單（Owner）</h3>
             <p class="hint" style="margin-bottom:10px;line-height:1.7">內部檢查缺失登錄（intaudit.html）新增檢查記錄時，①基本資料「檢查人 Auditor」下拉選單即依此名單產生，可從人員名冊任一部門挑選（含督導、海技、管理層等），督導人選異動時自行增減即可，不受名冊部門欄位文字限制。未設定（名單為空）時，intaudit.html 會沿用舊規則：自動抓名冊部門＝「督導」或「海技組」的人。此設定為全公司統一設定，儲存後同步給所有人。</p>
@@ -7647,7 +7663,7 @@ const DataHub={
     {id:"sync",  icon:"☁", name:"發布資料給全公司",
      cards:["發布資料給全公司"]},
     {id:"perm",  icon:"🔐", name:"人員與權限",
-     cards:["人員名單與系統權限","權限矩陣","內稽動態／年度計畫暨執行情形","缺失專案分析","操演紀錄","填單「海技確認」— 可確認人員設定"]},
+     cards:["人員名單與系統權限","船舶平台跑馬燈訊息","權限矩陣","內稽動態／年度計畫暨執行情形","缺失專案分析","操演紀錄","填單「海技確認」— 可確認人員設定"]},
     {id:"data",  icon:"🗄", name:"各資料表匯入匯出",
      cards:["資料庫管理","缺失紀錄總表","檢查紀錄資料庫","檢查管控（含排程）","船舶資料管理",
             "SIRE正向評論","填單","船舶缺失自查","正面評價/優秀案例"]},
@@ -28228,8 +28244,9 @@ ${KEYPOINT_RULE}
 ## 三、重點項目分析
 ### 1. 〈項目名稱〉
 - **數據**：件數／涉及船數／船內重複船數／近 12 個月趨勢
-- **缺失重點**：（照「缺失重點」寫法，同類合併，2～5 行，涵蓋這個項目所有缺失）
-  - 救生艇：脫鉤裝置故障、下水間隔超過 3 個月
+- **缺失重點**：（照「缺失重點」寫法，把這個項目所有缺失歸納成 3～8 行，每行「對象（N 件）：重點、重點」，依件數由多到少；跨設備的人員／紀錄問題可另成一行）
+  - 救生艇（5 件）：脫鉤裝置故障、下水間隔超過 3 個月
+  - 應急消防泵（2 件）：壓力錶損壞、無法維持規定壓力
   - 船員不熟悉：水霧系統操作、備用啟動馬達測試方法
 - **可能原因**：依人員／設備／系統（程序、PMS、訓練）分類
 - **風險**：若不改善可能造成的影響（例如檢查扣分、滯留、事故）
@@ -28561,9 +28578,16 @@ ${KEYPOINT_RULE}
   openAi(){
     if(typeof Ref==="undefined"||!Ref.openAiModal){toast("⚠ AI 提示詞元件尚未載入");return;}
     const row=this.selLeaf?(this._leafRows||[]).find(r=>r.name===this.selLeaf):this.selMain?(this._mainRows||[]).find(r=>r.name===this.selMain):null;
-    let items,label;
+    let items,label,pickMains=null;
     if(this.tab!=="cat"&&row){items=[...row.items];label=`${this.LENS[this.lens][0]} › ${this.selMain||""}${this.selLeaf?" › "+this.selLeaf:""}`;}
     else if(this.tab!=="cat"&&this.repDrill&&this._repItems){items=this._repItems;label="船內重複的缺失";}
+    else if(this.tab!=="cat"&&this.picks.size){
+      // 2026-10-21：有在排名表勾選項目時，只整理勾選的大類（原本會把整個篩選範圍、含幾百筆未分類都丟給 AI）
+      const ps=[...this.picks.values()].filter(p=>(p.lens==="rc"?"eq":p.lens)===(this.lens==="rc"?"eq":this.lens));
+      pickMains=new Set();items=[];
+      ps.forEach(p=>{const its=this.pickItems(p);items.push(...its);const m=this.pickMainOf(p,its);if(m)pickMains.add(m);});
+      label=`勾選的 ${pickMains.size} 個大類`;
+    }
     else{items=this._view||[];label="目前篩選範圍全部";}
     if(this.src)label+=`・${this.src==="ext"?"外部檢查":"內部檢查"}`;
     if(this.vt)label+=`・${this.vt==="tanker"?"油輪":"散裝"}`;
@@ -28579,37 +28603,40 @@ ${KEYPOINT_RULE}
     // 有點選大類／具體名稱時只整理那一類（同一筆缺失可能也勾了別的大類，不要混進來）
     const onlyMain=this.tab!=="cat"&&this.lens!=="rc"&&row?this.selMain:null,onlyLeaf=onlyMain?this.selLeaf:null;
     items.forEach(x=>{const c=x.c[L];let hit=false;
-      c.leaves.forEach(([leaf,main])=>{if(onlyMain&&main!==onlyMain)return;if(onlyLeaf&&leaf!==onlyLeaf)return;hit=true;put(main||"(未對應大類)",leaf,x);});
-      c.mains.forEach(m=>{if(onlyMain&&m!==onlyMain)return;if(!c.leaves.some(z=>z[1]===m)){hit=true;put(m,"(未填具體名稱)",x);}});
-      if(!hit&&!onlyMain)put("(未分類)","(未分類)",x);});
+      c.leaves.forEach(([leaf,main])=>{if(onlyMain&&main!==onlyMain)return;if(onlyLeaf&&leaf!==onlyLeaf)return;if(pickMains&&!pickMains.has(main))return;hit=true;put(main||"(未對應大類)",leaf,x);});
+      c.mains.forEach(m=>{if(onlyMain&&m!==onlyMain)return;if(pickMains&&!pickMains.has(m))return;if(!c.leaves.some(z=>z[1]===m)){hit=true;put(m,"(未填具體名稱)",x);}});
+      if(!hit&&!onlyMain&&!pickMains)put("(未分類)","(未分類)",x);});
     const shipName=s=>{const o=SHIPINFO.find(z=>z.code===s);return o&&o.name?o.name:s;};
     const cut=(s,n)=>{s=String(s||"").replace(/\s+/g," ").trim();return s.length>n?s.slice(0,n)+"…":s;};
     const common=this._commonMin||5;
-    const data=[...M.entries()].sort((a,b)=>b[1].items.size-a[1].items.size).map(([main,m])=>({
-      大類:main,件數:m.items.size,
+    // 依排名（件數由多到少）；「(未分類)」「(未對應大類)」這類一律排最後
+    const isUnc=n=>/^\(/.test(n);
+    const data=[...M.entries()].sort((a,b)=>(isUnc(a[0])-isUnc(b[0]))||(b[1].items.size-a[1].items.size)).map(([main,m],mi)=>({
+      排名:mi+1,大類:main,件數:m.items.size,船數:new Set([...m.items].map(x=>x.d.ship)).size,
       具體名稱:[...m.leaves.entries()].sort((a,b)=>b[1].size-a[1].size).map(([leaf,set])=>{
         const arr=[...set],ships=[...new Set(arr.map(x=>x.d.ship))];
         return {名稱:leaf,件數:arr.length,船數:ships.length,優先檢查:ships.length>=common,
-          缺失摘要:arr.slice(0,20).map(x=>`${shipName(x.d.ship)} ${normDateSlash(x.d.date)} ${x.d.itype||""}：${cut(x.d.detail,140)}`)};
+          缺失摘要:arr.slice(0,15).map(x=>`${shipName(x.d.ship)} ${normDateSlash(x.d.date)} ${x.d.itype||""}：${cut(x.d.detail,140)}`)};
       })}));
     const r=this._range||this.range(),period=this.rangeText(r);
     const buildPrompt=persona=>`${persona}
 
 ### 任務
-你是資深船舶督導／航技人員。以下是船隊近期（${period}）的檢查缺失，共 ${items.length} 筆，已依「${lensName}大類 → 具體名稱」整理好。
-請整理成一份「給船上看的近期缺失重點與自查清單」，讓船長、輪機長和各部門主管快速知道：最近船隊在哪些地方被開缺失、每一項回船上要確認什麼。
+你是資深船舶督導／航技人員。以下是船隊近期（${period}）的檢查缺失，共 ${items.length} 筆，已依「${lensName}大類排名 → 具體名稱」整理好（「排名」欄就是大類的排名順序）。
+請整理成一份「給船上看的近期缺失重點與自查清單」：依大類排名，讓船長、輪機長和各部門主管一眼看懂「每個大類最近被開了哪些缺失、回船上要確認什麼」。
 讀者不會去讀每一條缺失原文，所以請歸納重點，不要逐條轉述。
 
 ### 寫法規則
 1. 只能根據下方資料，不可補充資料裡沒有的缺失或數字。
-2. 依大類「件數」由多到少排列；每個大類底下列出具體名稱（件數由多到少）。只有 1 件、又沒有代表性的具體名稱，可合併成同一大類最後的「其他」一段簡述。
-3. 每個具體名稱寫兩部分：
-   - 「問題重點」：照下方「缺失重點」寫法，1～3 行，每行「對象：重點、重點」，不要逐條改寫、不要列船名。
-   - 「船上確認細目」：2～4 條船上可以馬上做的檢查動作（看哪裡、試什麼、量什麼、紀錄要有什麼），每條 30 字以內，開頭用「□」。
-4. 「優先檢查」為 true 的具體名稱（很多艘船都被開過），標題後加「★ 優先檢查」；其他項目不要加任何標示。不要使用「船隊共通」「多船發生」這類用語。
-5. 最前面先寫「本期重點」3 條（每條 35 字以內），挑全船隊最需要注意的。
-6. 繁體中文、白話、條列；不要長段落、不要客套話、不要說明分析方法。
-7. 「(未分類)」「(未填具體名稱)」「(未對應大類)」只有在看得出明確共同問題時才寫，否則略過。
+2. **一個大類寫一節，照資料的「排名」順序**（不要自己重排、不要漏掉任何大類）。大類底下不要再分具體名稱小節。
+3. 每個大類寫兩部分：
+   - 「缺失重點」：照下方「缺失重點」寫法，把這個大類所有缺失歸納成 4～10 行，每行「對象（N 件）：重點、重點」。
+     對象優先用具體名稱（例：救生艇、應急發電機），行的順序依件數由多到少；「優先檢查」為 true 的對象在件數後加「★」。
+     跨設備的人員或紀錄問題（例：船員不熟悉、紀錄缺漏）可以另外歸成一行，不用標件數；只有 1 件又沒代表性的，併成最後一行「其他：重點、重點」。
+   - 「船上確認細目」：整個大類 3～6 條船上可以馬上做的檢查動作（看哪裡、試什麼、量什麼、紀錄要有什麼），每條 30 字以內，開頭用「□」，優先對應件數多、有★的對象。
+4. 最前面先寫「本期重點」3 條（每條 35 字以內），挑全船隊最需要注意的。
+5. 繁體中文、白話、條列；不要長段落、不要客套話、不要說明分析方法；不要使用「船隊共通」「多船發生」這類用語。
+6. 「(未分類)」「(未填具體名稱)」「(未對應大類)」排在最後，只有在看得出明確共同問題時才寫，否則略過。
 
 ${KEYPOINT_RULE}
 
@@ -28619,21 +28646,21 @@ ${KEYPOINT_RULE}
 - ……
 - ……
 
-## 一、救生、消防、應急及安全設備（共 N 件）
-### 1. 救生艇和吊艇架（N 件／N 艘船）★ 優先檢查
-**問題重點：**
-- 救生艇：脫鉤裝置故障、下水間隔超過 3 個月
-- 船員不熟悉：釋放程序操作
+## 1. 救生、消防、應急及安全設備（N 件／N 艘船）
+**缺失重點：**
+- 救生艇（23 件）★：下水間隔超過 3 個月、釋放裝置卡死、引擎排氣漏洩
+- 應急發電機（11 件）：起動失敗、電瓶接線不良、季度帶載測試無紀錄
+- 應急照明（13 件）：燈不亮、燈罩破損、接線外露
+- 船員不熟悉：水霧系統、救助艇釋放鉤程序
+- 其他：救生圈被漆蓋、消防栓缺 IMO 標誌
 **船上確認細目：**
 - □ ……
 - □ ……
 
-### 2. ……（N 件／N 艘船）
+## 2. 機艙設備（N 件／N 艘船）
 ……
 
-## 二、……
-
-### 缺失資料（JSON，已依大類 → 具體名稱整理；缺失摘要每項最多列 20 筆）
+### 缺失資料（JSON，已依大類排名 → 具體名稱整理；缺失摘要每項最多列 15 筆）
 [PASTE_DATA_HERE]`;
     Ref._ext={defs:items.map(x=>x.d),from:r.from,to:r.to,label,data,buildPrompt};
     Ref.openAiModal();
@@ -28653,6 +28680,76 @@ ${KEYPOINT_RULE}
    - 船上自查進度：關聯「專案自查」任務名稱，依各船任務題目是否都已查核，算幾艘完成。
    資料存在雲端 app_db 的 improveActions：{actions:[…], types:[自訂措施類型…]}，寫入用樂觀鎖。
    新增／修改：維護者以上（Role.isAdmin）；其他人可以看。 */
+/* ════════ 📢 船舶平台跑馬燈訊息（2026-10-22）════════
+   Owner 在資料管理新增要給船上看的訊息（全船隊或指定船舶、顯示期間），存在 app_db k=portal_notices：
+   {items:[{id,text,ships:[],from,to,createdBy,createdAt}]}。船舶檢查填報平台只讀這個 key，跟本船待辦一起輪播。
+   用 updated 時間戳做樂觀鎖（同 Improve.save），避免兩人同時編輯互相覆蓋。 */
+const PortalNotice={
+  KEY:"portal_notices",data:{items:[]},updated:null,loaded:false,
+  canEdit(){return typeof Role!=="undefined"&&Role.isOwner&&Role.isOwner();},
+  async load(force){
+    if(this.loaded&&!force)return;
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api(`app_db?select=payload,updated&k=eq.${this.KEY}`)||[];
+      const p=rows[0]&&rows[0].payload;
+      this.data={items:Array.isArray(p&&p.items)?p.items:[]};this.updated=rows[0]?rows[0].updated:null;this.loaded=true;
+    }catch(e){console.warn("讀取跑馬燈訊息失敗",e);}
+  },
+  async save(next,msg){
+    if(!this.canEdit()){toast("⚠ 跑馬燈訊息僅限 Owner 新增／刪除");return false;}
+    const now=Date.now();
+    try{
+      let rows;
+      if(this.updated==null){
+        const ex=await Cloud.api(`app_db?select=updated&k=eq.${this.KEY}`)||[];
+        if(ex.length){toast("⚠ 雲端剛有人建立了跑馬燈訊息，已重新載入，請再操作一次",true);await this.load(true);this.render();return false;}
+        rows=await Cloud.api("app_db",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify([{k:this.KEY,payload:next,updated:now}])});
+      }else{
+        rows=await Cloud.api(`app_db?k=eq.${this.KEY}&updated=eq.${this.updated}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify({payload:next,updated:now})});
+      }
+      if(!rows||!rows.length){toast("⚠ 跑馬燈訊息剛被其他人更新過，已重新載入，請再操作一次",true);await this.load(true);this.render();return false;}
+      this.data=next;this.updated=now;
+      if(typeof Audit!=="undefined")Audit.log("修改","船舶平台跑馬燈",msg||"");
+      toast("✓ 已儲存，船上重新整理平台後就會看到");this.render();return true;
+    }catch(e){toast("⚠ 儲存失敗："+e.message,true);return false;}
+  },
+  statusOf(n){const t=todayStr();if(n.from&&n.from>t)return ["未開始","#8195a0"];if(n.to&&n.to<t)return ["已過期","#b0b8bf"];return ["顯示中","#2e8b57"];},
+  toggleShips(){
+    const pick=(document.querySelector('input[name="pn-to"]:checked')||{}).value==="pick";
+    const box=$("#pn-ships");if(!box)return;box.style.display=pick?"flex":"none";
+    if(pick&&!box.childElementCount)box.innerHTML=SHIPINFO.filter(s=>!(typeof isSoldShip==="function"&&isSoldShip(s.code))).map(s=>`<label style="display:flex;gap:4px;align-items:center;font-size:12.5px"><input type="checkbox" value="${esc(s.code)}"> ${esc(s.code)}</label>`).join("");
+  },
+  async render(){
+    const box=$("#pn-list");if(!box)return;
+    const form=$("#pn-form");if(form)form.style.display=this.canEdit()?"grid":"none";
+    if(!this.loaded){box.innerHTML=`<div class="hint">讀取中…</div>`;await this.load();}
+    if($("#pn-from")&&!$("#pn-from").value)$("#pn-from").value=todayStr();
+    const items=(this.data.items||[]).slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    box.innerHTML=(this.canEdit()?"":`<div class="hint" style="margin-bottom:6px">僅 Owner 可新增／刪除，這裡只能查看。</div>`)+(items.length?`<table class="tbl"><thead><tr><th style="width:70px">狀態</th><th>訊息</th><th style="width:170px">對象</th><th style="width:170px">期間</th><th style="width:60px"></th></tr></thead><tbody>${items.map(n=>{const [st,col]=this.statusOf(n);
+      return `<tr><td><b style="color:${col}">${st}</b></td><td>${esc(n.text)}<div class="hint" style="font-size:11px">${esc(n.createdBy||"")}・${n.createdAt?new Date(n.createdAt).toLocaleString("zh-TW",{hour12:false}):""}</div></td><td>${(n.ships||[]).length?esc(n.ships.join("、")):"全船隊"}</td><td>${esc(n.from||"")} ～ ${esc(n.to||"不限")}</td><td>${this.canEdit()?`<button class="btn sm danger" onclick="PortalNotice.remove('${esc(n.id)}')">刪除</button>`:""}</td></tr>`;}).join("")}</tbody></table>`:`<div class="hint">目前沒有訊息；船上跑馬燈只會顯示各船自己的待辦項目。</div>`);
+  },
+  async add(){
+    if(!this.canEdit()){toast("⚠ 跑馬燈訊息僅限 Owner 新增");return;}
+    const text=($("#pn-text").value||"").trim();if(!text){toast("⚠ 請輸入訊息內容");return;}
+    const pick=(document.querySelector('input[name="pn-to"]:checked')||{}).value==="pick";
+    const ships=pick?[...document.querySelectorAll("#pn-ships input:checked")].map(x=>x.value):[];
+    if(pick&&!ships.length){toast("⚠ 請勾選要發給哪些船");return;}
+    const from=$("#pn-from").value||todayStr(),to=$("#pn-to-date").value||"";
+    if(to&&to<from){toast("⚠ 結束日不能早於開始日");return;}
+    await this.load(true);
+    const n={id:"pn"+Date.now(),text,ships,from,to,createdBy:(typeof Audit!=="undefined"?Audit.user():""),createdAt:Date.now()};
+    if(await this.save({items:[...(this.data.items||[]),n]},`新增：${text}（${ships.length?ships.join("、"):"全船隊"}，${from}～${to||"不限"}）`)){
+      $("#pn-text").value="";$("#pn-to-date").value="";
+    }
+  },
+  async remove(id){
+    const n=(this.data.items||[]).find(x=>x.id===id);if(!n)return;
+    if(!confirm(`確定刪除這則跑馬燈訊息？\n\n${n.text}`))return;
+    await this.load(true);
+    await this.save({items:(this.data.items||[]).filter(x=>x.id!==id)},`刪除：${n.text}`);
+  }
+};
 const Improve={
   KEY:"improveActions",BEFORE_MONTHS:6,JUDGE_MONTHS:3,DROP_OK:0.3,MIN_INSP:10,
   DEFAULT_TYPES:["船隊通報","程序修改","訓練","PMS 保養週期","物料／備品","船上自查清單","專項檢查表（SAR-FM29）","設計改善","其他"],
@@ -31803,7 +31900,8 @@ const DM={
     if(which==="oper"){oper.style.display="";maint.style.display="none";}
     else{oper.style.display="none";maint.style.display="";
       if(typeof DataHub!=="undefined")DataHub.build();
-      if(typeof Perms!=="undefined")Perms.renderEditor();TagLists.render();if(typeof Classify!=="undefined")Classify.render();if(typeof Snap!=="undefined")Snap.render();}
+      if(typeof Perms!=="undefined")Perms.renderEditor();TagLists.render();if(typeof Classify!=="undefined")Classify.render();if(typeof Snap!=="undefined")Snap.render();
+      if(typeof PortalNotice!=="undefined")PortalNotice.render();}
     $("#dm-tab-oper-btn").className="btn"+(which==="oper"?" primary":"");
     $("#dm-tab-maint-btn").className="btn"+(which==="maint"?" primary":"");
   }
