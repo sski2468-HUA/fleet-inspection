@@ -4402,6 +4402,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <button class="btn" id="ap-btn-clear" onclick="AnnualPlan.clearYear()">↺ 清除本年度手動調整</button>
           <span class="hint" id="ap-readonly-hint" style="color:#a04030;font-weight:600"></span>
           <span class="spacer" style="flex:1"></span>
+          <button class="btn primary" onclick="CaemFm01.open()" title="比照紙本 CAEM-FM01：內稽＋訪船合併（或單獨），油輪／散裝船各一頁，含公司頁首頁尾與簽名欄">📄 CAEM-FM01 年度計畫表</button>
           <button class="btn" onclick="AnnualPlan.exportXlsx()">⬇ 匯出 Excel（紙本格式）</button>
           <button class="btn" onclick="AnnualPlan.exportPdf()">🖨 列印／PDF</button>
         </div>
@@ -7809,7 +7810,7 @@ const DataHub={
     {id:"sync",  icon:"☁", name:"發布資料給全公司",
      cards:["發布資料給全公司"]},
     {id:"perm",  icon:"🔐", name:"帳號與權限",
-     cards:["人員名單與系統權限","權限矩陣","缺失專案分析","操演紀錄","內稽動態／年度計畫暨執行情形"]},
+     cards:["人員名單與系統權限","權限矩陣","缺失專案分析","內稽動態／年度計畫暨執行情形"]},
     {id:"data",  icon:"🗂", name:"資料表匯入匯出",
      cards:["資料庫管理","缺失紀錄總表","檢查紀錄資料庫","檢查管控（含排程）","船舶資料管理","SIRE正向評論","正面評價/優秀案例"]},
     {id:"rule",  icon:"🌳", name:"缺失分類與代碼",
@@ -7971,6 +7972,9 @@ const DataHub={
     if(!host||this._done)return;
 
     const placed=new Set();
+    /* 已停用功能的設定卡：不放進後台（只隱藏，資料與程式保留，之後要恢復把名稱從這裡拿掉即可）
+       操演紀錄：2026-10-22 使用者確認操演計畫表（drill-plan.html）已不在系統內使用、雲端也無資料 */
+    ["操演紀錄 — 新增／編輯權限"].forEach(n=>{const c=this.findCard(host,n,placed);if(c){placed.add(c);c.style.display="none";}});
     const sections=this.GROUPS.map(g=>{
       const found=[];
       g.cards.forEach(n=>{const c=this.findCard(host,n,placed);if(c){found.push(c);placed.add(c);}});
@@ -20322,6 +20326,221 @@ const InspCtrl={
 };
 
 /* ════════ 📅 年度稽核／訪船／隨船計畫 ════════ */
+/* ════════ 📄 CAEM-FM01 年度公司和船隊內稽、訪船計劃表（2026-10-22）════════
+   比照紙本表單 CAEM-FM01：內稽（I）＋訪船（V）合併在同一張「船名 × 12 個月」表（也可只出內稽或只出訪船），
+   依船型分兩頁（油輪／散裝船），每頁含公司頁首（Logo＋表單編號框）、備註、四個簽名欄、頁尾（CAEM-FM01-頁/總頁、Ed.）。
+   預計月份與上次日期都沿用「年度計畫暨執行情形」的計算（AnnualPlan.planFor／recsOf），畫面上怎麼排就怎麼印。
+   公司／勞務公司／高層訪船三列：預計月份寫在 App.annualPlan（跟主畫面點格子同一份資料），
+   上次日期預設抓這三列歷年最後一筆完成日，可在小表手動覆寫；Rev.／Ed. 與覆寫值存在雲端 app_db（caem_fm01_cfg）。 */
+const CaemFm01={
+  KEY:"caem_fm01_cfg",
+  cfg:{rev:"2025.01.31",ed:"Jan 2025",last:{}},updated:null,loaded:false,
+  EXTRA:[
+    {key:"__COMPANY__",pt:"audit",mark:"I",label:"公司 / COMPANY"},
+    {key:"__AGENCY__",pt:"audit",mark:"I",label:"勞務公司 / Manning agency"},
+    {key:"__TOPMGMT__",pt:"visit",mark:"V",label:"公司高層訪船 / Top Management Vessel Vist"}
+  ],
+  TITLES:{
+    both:["年度公司和船隊內稽、訪船計劃表","Annual Company and Fleet Internal Audit and Ship Visit Plan"],
+    audit:["年度公司和船隊內稽計劃表","Annual Company and Fleet Internal Audit Plan"],
+    visit:["年度船隊訪船計劃表","Annual Fleet Ship Visit Plan"]
+  },
+  // 備註：照紙本 CAEM-FM01（2026 年版）原文
+  REMARKS:[
+    ["*","\"I\"表示ISM/ISO內部稽核，\"V\"表示訪船"],
+    ["","\"I\" stands for SMS/ISO internal audit, \"V\" stands for Ship visit."],
+    ["*","依ISM code規定，內部稽核每年至少一次，不得由管理之船東督導擔任。"],
+    ["","According to ISM code, the internal audit should be carried out at least once a year, and the superintendent could not be the auditor for own ships."],
+    ["*","ISM稽核員: (1)台灣地區：海技組人員；(2)大陸地區：華中辦事處人員；(3)其他國外地區：視狀況安排"],
+    ["","The DPA shall designate competent auditors to conduct an annual audit on-site for each manning agency to ensure legal compliance, and crew management with operations compliance with the company's policies and procedures for evidence of contract continuation."],
+    ["*","岸上指定人員指派適任之稽核員對船員勞務代理公司之法規符合性、船員管理與操作進行現場年度稽核，確保其符合公司政策與程序，以為繼續委託其雇用船員之依據。"],
+    ["","The DPA shall designate competent auditors to conduct an annual audit on-site for each manning agency to ensure legal compliance, and crew management with operations compliance with the company's policies and procedures for evidence of contract continuation."],
+    ["*","副總經理、資深經理、岸上指定人員、航運處處長、安全衛生處處長，屬於公司管理層成員；每年至少有1次的公司管理層訪船，每次至少有一名管理層人員前往。"],
+    ["","The Deputy General Manager, Senior Managers, designated shore personnel, Head of the Shipping Department, and Head of the Health and Safety Department are considered members of company top management. There shall be at least one vessel visits by company top management each year, with at least one management representative participating in each visit."]
+  ],
+  SIGNS:["副總/Vice President：","岸上指派人員/DPA：","主管/Approved by：","規劃者/Prepared by："],
+  MON:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+  year:null,mode:"both",
+  canEdit(){return typeof AnnualPlan!=="undefined"&&AnnualPlan.canEdit();},
+  async load(force){
+    if(this.loaded&&!force)return;
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api(`app_db?select=payload,updated&k=eq.${this.KEY}`)||[];
+      const p=rows[0]&&rows[0].payload;
+      if(p)this.cfg={rev:p.rev||"2025.01.31",ed:p.ed||"Jan 2025",last:(p.last&&typeof p.last==="object")?p.last:{}};
+      this.updated=rows[0]?rows[0].updated:null;this.loaded=true;
+    }catch(e){console.warn("讀取 CAEM-FM01 設定失敗",e);}
+  },
+  async saveCfg(next){
+    if(!this.canEdit()){toast("⚠ 僅年度計畫指定編輯者或 Owner 可修改");return false;}
+    const now=Date.now();
+    try{
+      let rows;
+      if(this.updated==null){
+        const ex=await Cloud.api(`app_db?select=updated&k=eq.${this.KEY}`)||[];
+        if(ex.length){toast("⚠ 雲端剛有人改過表單設定，已重新載入，請再存一次",true);await this.load(true);this.renderModal();return false;}
+        rows=await Cloud.api("app_db",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify([{k:this.KEY,payload:next,updated:now}])});
+      }else{
+        rows=await Cloud.api(`app_db?k=eq.${this.KEY}&updated=eq.${this.updated}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify({payload:next,updated:now})});
+      }
+      if(!rows||!rows.length){toast("⚠ 表單設定剛被其他人更新過，已重新載入，請再存一次",true);await this.load(true);this.renderModal();return false;}
+      this.cfg=next;this.updated=now;
+      if(typeof Audit!=="undefined")Audit.log("修改","CAEM-FM01 設定",`Rev. ${next.rev}／Ed. ${next.ed}／上次日期覆寫 ${Object.keys(next.last||{}).filter(k=>next.last[k]).length} 項`);
+      return true;
+    }catch(e){toast("⚠ 儲存失敗："+e.message,true);return false;}
+  },
+  fmtD(s){const m=String(s||"").match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);return m?`${m[1]}/${m[2].padStart(2,"0")}/${m[3].padStart(2,"0")}`:"";},
+  /* 船舶：FPMC 管理、未出售；油輪頁依 FPMC 27～36 → C 系列 → S 系列，散裝船頁依代碼（數字船名在前） */
+  shipPages(){
+    const list=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>s&&s.code&&s.operator==="FPMC"&&!(typeof isSoldShip==="function"&&isSoldShip(s.code)));
+    const pre={F:0,C:1,S:2};
+    const tk=list.filter(s=>s.vtype!=="bulk").sort((a,b)=>((pre[a.code[0]]??9)-(pre[b.code[0]]??9))||a.code.localeCompare(b.code,undefined,{numeric:true}));
+    const bk=list.filter(s=>s.vtype==="bulk").sort((a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true}));
+    return [{key:"TANKER",ships:tk},{key:"BULK",ships:bk}].filter(p=>p.ships.length);
+  },
+  lastShip(code,pt,year){const r=AnnualPlan.recsOf(code,pt).filter(x=>x.y<year);return r.length?r[r.length-1].iso:"";},
+  lastExtraAuto(key,year){
+    const ds=(App.annualPlan||[]).filter(e=>e.ship===key&&e.actualDate&&String(e.actualDate)<`${year}-01-01`).map(e=>String(e.actualDate)).sort();
+    return ds.length?ds[ds.length-1]:"";
+  },
+  lastExtra(key,year){return (this.cfg.last||{})[key]||this.lastExtraAuto(key,year);},
+  extraMonths(x,year){return [...new Set((App.annualPlan||[]).filter(e=>e.year===year&&e.planType===x.pt&&e.ship===x.key).map(e=>e.month))].sort((a,b)=>a-b);},
+  /* 匯出資料：pages[{key,rows:[{no,zh,en,lastA,lastV,marks[12]}]}]、extra[{label,last,marks[12]}] */
+  data(year,mode){
+    const pts=mode==="both"?["audit","visit"]:[mode];
+    const mk=(code)=>{const m=Array.from({length:12},()=>[]);pts.forEach(pt=>{const p=AnnualPlan.planFor(code,pt,year);p.months.forEach(mm=>{if(mm>=1&&mm<=12)m[mm-1].push(AnnualPlan.PLAN_TYPES[pt].short);});});return m.map(a=>a.join(" "));};
+    const pages=this.shipPages().map(pg=>({key:pg.key,rows:pg.ships.map((s,i)=>({no:i+1,zh:s.zh||s.code,en:String(s.name||s.code).toUpperCase(),
+      lastA:pts.includes("audit")?this.fmtD(this.lastShip(s.code,"audit",year)):"",lastV:pts.includes("visit")?this.fmtD(this.lastShip(s.code,"visit",year)):"",marks:mk(s.code)}))}));
+    const extra=this.EXTRA.filter(x=>pts.includes(x.pt)).map(x=>{const ms=this.extraMonths(x,year);return {key:x.key,label:x.label,last:this.fmtD(this.lastExtra(x.key,year)),marks:Array.from({length:12},(_,i)=>ms.includes(i+1)?x.mark:"")};});
+    return {year,mode,pts,pages,extra,title:this.TITLES[mode]};
+  },
+  /* ── 匯出視窗：年度、類型、表單設定（Rev.／Ed.）、三列小表 ── */
+  async open(){
+    if(typeof AnnualPlan==="undefined")return;
+    this.year=this.year||AnnualPlan.curYear||new Date().getFullYear();
+    let m=document.getElementById("caemModal");
+    if(!m){
+      m=document.createElement("div");m.className="modal-bg";m.id="caemModal";
+      m.innerHTML=`<div class="modal" style="max-width:980px;width:96vw"><div class="mh"><h3>📄 CAEM-FM01 年度計畫表</h3><button class="x" onclick="CaemFm01.close()">✕</button></div><div class="mb" id="caem-body"></div></div>`;
+      document.body.appendChild(m);
+    }
+    m.classList.add("show");
+    $("#caem-body").innerHTML=`<div class="hint">讀取表單設定中…</div>`;
+    await this.load(true);
+    this.renderModal();
+  },
+  close(){const m=document.getElementById("caemModal");if(m)m.classList.remove("show");},
+  renderModal(){
+    const box=$("#caem-body");if(!box)return;
+    const y=this.year,ed=this.canEdit(),dis=ed?"":"disabled";
+    const yrs=[y-1,y,y+1].filter((v,i,a)=>a.indexOf(v)===i);
+    const ships=this.shipPages();
+    box.innerHTML=`
+      <div class="toolbar" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
+        <span class="lbl">年度</span><select id="caem-year" onchange="CaemFm01.year=+this.value;CaemFm01.renderModal()">${yrs.map(v=>`<option ${v===y?"selected":""}>${v}</option>`).join("")}</select>
+        <span class="lbl" style="margin-left:6px">內容</span>
+        ${[["both","內稽＋訪船合併"],["audit","只內稽"],["visit","只訪船"]].map(([v,l])=>`<label style="display:inline-flex;gap:4px;align-items:center;cursor:pointer"><input type="radio" name="caem-mode" value="${v}" ${this.mode===v?"checked":""} onchange="CaemFm01.mode=this.value;CaemFm01.renderModal()">${l}</label>`).join("")}
+        <span class="hint">油輪 ${ships[0]?ships[0].ships.length:0} 艘、散裝船 ${ships[1]?ships[1].ships.length:0} 艘，各一頁</span>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+        <b>表單設定</b> <span class="hint">（全公司共用；表單改版時修改）</span>
+        <div class="toolbar" style="margin-top:6px;gap:8px;flex-wrap:wrap">
+          <span class="lbl">頁首 Rev.：</span><input id="caem-rev" value="${esc(this.cfg.rev)}" style="width:120px" ${dis}>
+          <span class="lbl" style="margin-left:8px">頁尾 Ed.：</span><input id="caem-ed" value="${esc(this.cfg.ed)}" style="width:120px" ${dis}>
+        </div>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px">
+        <b>公司／勞務公司／高層訪船（${y} 年預計月份）</b>
+        <div class="hint" style="margin:2px 0 6px">勾選＝該月預計執行（跟年度計畫主畫面點格子是同一份資料）。上次日期留空＝自動抓系統裡最後一次完成日。</div>
+        <div class="tblwrap"><table class="tbl" style="font-size:12.5px"><thead><tr><th style="width:230px">項目</th><th style="width:140px">上次日期</th>${this.MON.map(mn=>`<th style="text-align:center;width:44px">${mn}</th>`).join("")}</tr></thead><tbody>
+        ${this.EXTRA.map(x=>{const ms=this.extraMonths(x,y);const auto=this.fmtD(this.lastExtraAuto(x.key,y));const ov=(this.cfg.last||{})[x.key]||"";
+          return `<tr><td>${esc(x.label)} <span class="hint">（${x.mark}）</span></td>
+            <td><input class="caem-last" data-k="${x.key}" value="${esc(ov)}" placeholder="${esc(auto||"YYYY/MM/DD")}" style="width:120px" ${dis}></td>
+            ${this.MON.map((_,i)=>`<td style="text-align:center"><input type="checkbox" ${ms.includes(i+1)?"checked":""} ${dis} onchange="CaemFm01.toggleExtra('${x.key}',${i+1},this.checked,this)"></td>`).join("")}</tr>`;}).join("")}
+        </tbody></table></div>
+      </div>
+      <div class="toolbar" style="justify-content:flex-end;margin-top:12px;gap:8px">
+        ${ed?`<button class="btn" onclick="CaemFm01.saveSettings()">💾 儲存表單設定</button>`:`<span class="hint">僅年度計畫指定編輯者或 Owner 可修改設定</span>`}
+        <button class="btn primary" onclick="CaemFm01.exportPdf()">🖨 匯出 PDF</button>
+      </div>`;
+  },
+  async saveSettings(){
+    const last={};$$("#caem-body .caem-last").forEach(i=>{const v=this.fmtD(i.value)||"";if(i.value.trim()&&!v){toast(`⚠ 「${i.value}」不是有效日期，請用 YYYY/MM/DD`);}if(v)last[i.dataset.k]=v;});
+    const next={rev:($("#caem-rev").value||"").trim()||"2025.01.31",ed:($("#caem-ed").value||"").trim()||"Jan 2025",last};
+    if(await this.saveCfg(next)){toast("✓ 已儲存表單設定（全公司共用）");this.renderModal();}
+  },
+  toggleExtra(key,month,on,cb){
+    if(!AnnualPlan.requireEdit()){cb.checked=!on;return;}
+    const x=this.EXTRA.find(e=>e.key===key);const y=this.year;
+    const ex=(App.annualPlan||[]).filter(e=>e.year===y&&e.planType===x.pt&&e.ship===key&&e.month===month);
+    if(on){
+      if(!ex.length)App.annualPlan.push({id:AnnualPlan.nextId(),year:y,ship:key,planType:x.pt,month,actualDate:"",actualInspId:null,source:"manual",note:""});
+    }else{
+      const done=ex.filter(e=>e.actualDate);
+      if(done.length&&!confirm(`${x.label} ${y}年${month}月已記錄完成日（${done.map(e=>e.actualDate).join("、")}），取消勾選會一併刪除這筆紀錄，確定嗎？`)){cb.checked=true;return;}
+      App.annualPlan=App.annualPlan.filter(e=>!ex.includes(e));
+    }
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
+    if(typeof Audit!=="undefined")Audit.log("編輯","年度計畫",`CAEM-FM01 ${x.label} ${y}年${month}月 ${on?"設定":"取消"}預計`);
+    if(typeof AnnualPlan.render==="function")AnnualPlan.render();
+  },
+  /* ── PDF：每頁一張 A4 橫式，頁首／頁尾自己畫（每頁固定兩頁，頁碼直接寫死 1/2、2/2）── */
+  exportPdf(){
+    const D=this.data(this.year,this.mode),both=D.mode==="both",n=D.pages.length;
+    const logo=officeFolder()+"caem-logo.jpg";
+    const dateCols=both?2:1;
+    const head=`<tr>
+        <th rowspan="1" style="width:2.6%">No</th>
+        <th colspan="2" class="caem-diag" style="width:23%"><span class="caem-m">Month</span><span class="caem-s">Ship Name</span></th>
+        ${D.pts.includes("audit")?`<th style="width:7%">The latest date<div class="caem-sm">(Internal audit)</div></th>`:""}
+        ${D.pts.includes("visit")?`<th style="width:7%">The latest date<div class="caem-sm">(Ship visit)</div></th>`:""}
+        ${this.MON.map(m=>`<th>${m}</th>`).join("")}</tr>`;
+    const extraRows=D.extra.map(x=>`<tr class="caem-x"><td colspan="3" style="text-align:center">${esc(x.label)}</td><td colspan="${dateCols}" style="text-align:center">${esc(x.last)}</td>${x.marks.map(v=>`<td class="caem-mk">${esc(v)}</td>`).join("")}</tr>`).join("");
+    // 列高依該頁列數自動調整：表格本體固定約 102mm，船少的頁（散裝船）列高放大填滿，最多 6.2mm（同紙本）
+    const rh=pg=>Math.min(6.2,102/(pg.rows.length+D.extra.length)).toFixed(2)+"mm";
+    const pageHtml=(pg,pi)=>`<div class="caem-page" style="--rh:${rh(pg)}">
+      <div class="caem-hd"><img src="${logo}" class="caem-logo"><div class="caem-cat"><div>Cat.: CAEM-FM01</div><div><i>Office use</i></div><div>Rev.: ${esc(this.cfg.rev)}</div></div></div>
+      <div class="caem-title">${esc(D.title[0])} ${esc(D.title[1])}</div>
+      <div class="caem-year"><span>年度</span> year： <b>${D.year}</b></div>
+      <table class="caem-tbl"><thead>${head}</thead><tbody>
+        ${pg.rows.map(r=>`<tr><td class="caem-no">${r.no}</td><td class="caem-zh">${esc(r.zh)}</td><td class="caem-en">${esc(r.en)}</td>${D.pts.includes("audit")?`<td class="caem-d">${esc(r.lastA)}</td>`:""}${D.pts.includes("visit")?`<td class="caem-d">${esc(r.lastV)}</td>`:""}${r.marks.map(v=>`<td class="caem-mk">${esc(v)}</td>`).join("")}</tr>`).join("")}
+        ${extraRows}
+      </tbody></table>
+      <div class="caem-rm"><div>備註/Remark：</div>${this.REMARKS.map(([a,b])=>`<div class="caem-rl"><span>${a}</span><span>${esc(b)}</span></div>`).join("")}</div>
+      <div class="caem-sign">${this.SIGNS.map(s=>`<span>${esc(s)}</span>`).join("")}</div>
+      <div class="caem-ft"><span></span><span>CAEM-FM01-${pi+1}/${n}</span><span>Ed.: ${esc(this.cfg.ed)}</span></div>
+    </div>`;
+    const css=`<style>
+      #printArea{background:#fff!important}.caem-page{position:relative;width:281mm;height:193mm;box-sizing:border-box;padding:0 2mm 13mm;background:#fff;font-family:Arial,"Microsoft JhengHei",sans-serif;color:#000;page-break-after:always;break-after:page;overflow:hidden}
+      .caem-page:last-child{page-break-after:auto;break-after:auto}
+      .caem-hd{display:flex;justify-content:space-between;align-items:flex-start;height:17mm;margin-bottom:.5mm}
+      .caem-logo{height:13mm;margin-top:1.5mm}
+      .caem-cat{border:3px double #000;padding:.8mm 6mm .8mm 4mm;font-family:"Times New Roman",serif;font-size:11.5px;line-height:1.25;outline:1px solid #000;outline-offset:1.5px;margin-right:2mm}
+      .caem-title{text-align:center;font-weight:700;font-size:12px;text-decoration:underline;font-family:"Times New Roman","PMingLiU",serif;margin-bottom:.5mm}
+      .caem-year{text-align:right;font-size:11px;margin:0 30mm 1mm 0}.caem-year span{font-size:9px}.caem-year b{font-weight:400;margin-left:6mm}
+      .caem-tbl{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.5px;border:2px solid #000}
+      .caem-tbl th,.caem-tbl td{border:1px solid #000;padding:0 2px;height:var(--rh,4.45mm);vertical-align:middle;white-space:nowrap;overflow:hidden;line-height:1.05}
+      .caem-tbl th{font-weight:400;text-align:center;font-size:9.5px;line-height:1.1;height:8mm;white-space:normal}
+      .caem-sm{font-size:8px}
+      .caem-diag{position:relative;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' preserveAspectRatio='none'><line x1='0' y1='0' x2='100' y2='100' stroke='black' stroke-width='1' vector-effect='non-scaling-stroke'/></svg>") no-repeat;background-size:100% 100%}
+      .caem-m{position:absolute;right:6px;top:2px;font-size:10px}.caem-s{position:absolute;left:3px;bottom:2px;font-size:10px}
+      .caem-no{text-align:center;font-size:7.5px}.caem-zh{font-family:"PMingLiU","MingLiU",serif;font-size:9.5px}.caem-en{font-size:9px}.caem-d{text-align:center;font-size:9px}
+      .caem-mk{text-align:center;font-family:"Times New Roman",serif;font-size:10.5px}
+      .caem-rm{font-size:7.3px;line-height:1.2;margin-top:1mm;font-family:"Courier New","MingLiU",monospace}
+      .caem-rl{display:flex;gap:2mm}.caem-rl span:first-child{width:3mm;flex:none;text-align:right}
+      .caem-sign{display:flex;justify-content:space-between;font-size:8.5px;margin-top:2.5mm;padding:0 2mm}.caem-sign span{width:24%}
+      .caem-ft{position:absolute;left:2mm;right:2mm;bottom:0;display:flex;justify-content:space-between;font-size:9.5px}
+      .caem-ft span{flex:1}.caem-ft span:nth-child(2){text-align:center}.caem-ft span:last-child{text-align:right}
+    </style>`;
+    $("#printArea").innerHTML=css+D.pages.map(pageHtml).join("");
+    // 船舶列與公司列之間是粗線（同紙本）
+    $$("#printArea .caem-page").forEach(p=>{const r=p.querySelector("tr.caem-x");if(r)r.querySelectorAll("td").forEach(td=>td.style.borderTop="2px solid #000");});
+    const nm=`CAEM-FM01_${D.year}年度${D.mode==="both"?"內稽訪船":D.mode==="audit"?"內稽":"訪船"}計劃表`;
+    doPrint(true,"margin:8mm 8mm 6mm 8mm",nm);
+    if(typeof Audit!=="undefined")Audit.log("匯出","年度計畫",`CAEM-FM01 ${D.year}年 ${D.mode==="both"?"內稽＋訪船":D.mode==="audit"?"內稽":"訪船"} PDF`);
+  }
+};
 const AnnualPlan={
   PLAN_TYPES:{
     audit:{label:"內部稽核",short:"I",itypes:["INTERNAL AUDIT","Internal audit"],interval:12,ruleHint:"每年進行一次船隊內部稽核（依 ISM Code）；若該船在「檢查管控」被勾選為加強稽核，實務上應為每6個月一次。",
