@@ -13283,11 +13283,25 @@ const Todo={
     else if(Role.isAdmin())items=this.forMaintainer();
     else return [];
     items=items.concat(this.forAirAssigned());
+    items=items.concat(this.forReplyPend());
     /* 對應頁面已被隱藏的待辦不再提示 —— 功能都看不到了還一直催人去做，
        只會讓人困惑（船上看不到「航次報表收件」，卻被提醒有表單未上傳）。 */
     if(typeof NavConfig!=="undefined")
       items=items.filter(x=>!(x.tab&&NavConfig.isHidden(x.tab)));
     return items;
+  },
+  /* 對外回覆已更新、還沒轉入缺失紀錄總表（2026-10-27）：轉入限 Owner／管理員，所以只提醒這兩種身分——
+     Owner 看全部，管理員看「自己匯入的填單」（匯入者＝承辦人）。資料由 Air._loadExtReplyIds 每 60 秒更新。 */
+  forReplyPend(){
+    if(typeof Air==="undefined"||!(Role.isAdmin&&Role.isAdmin()))return [];
+    if(!Air._replyPend){Air._loadExtReplyIds();return [];}
+    const me=Role.personName?Role.personName():"";
+    const recs=[...Air._replyPend.keys()].map(id=>App.air.find(x=>String(x.id)===id)).filter(Boolean)
+      .filter(d=>Role.isOwner()||(me&&String(d.createdBy||"").includes(me)));
+    if(!recs.length)return [];
+    const n=recs.reduce((s,d)=>s+Air.replyPendCount(d),0);
+    return [{icon:"📥",tab:"air",text:`對外回覆未轉入缺失紀錄總表：${recs.length} 筆填單、共 ${n} 條（${recs.slice(0,3).map(d=>`${d.ship} ${d.date}`).join("、")}${recs.length>3?"…":""}）`,
+      action:()=>goToTab("air",()=>{try{Air.showList();}catch(e){}if(Air.ms&&Air.ms.status){Air.ms.status.set([Air.PEND_LABEL]);}Air.page=1;Air.renderList();})}];
   },
   /* 對外回覆的「通知」與「Follow Up」指定給我的待辦，任何身份都可能被指定，故獨立於分身分計算之外 */
   forAirAssigned(){
@@ -23818,7 +23832,7 @@ const Air={
       const known=order.filter(x=>set.has(x));
       const others=[...set].filter(x=>!order.includes(x)&&x!=="已轉全部").sort();
       const tail=set.has("已轉全部")?["已轉全部"]:[];
-      return [...known,...others,...tail];
+      return [...known,...others,...tail,Air.PEND_LABEL];
     },()=>{this.page=1;this.renderList();});
     this.ms.reviewed=MSel("ms-air-reviewed","督導確認",()=>["已確認","尚未確認"],()=>{this.page=1;this.renderList();});
     if(typeof AirQueue!=="undefined")setTimeout(()=>AirQueue.refresh(),1500); // 延後執行，等 Cloud.init() 連線完成
@@ -23847,7 +23861,11 @@ const Air={
     const arr=App.air.filter(d=>{
       if(this.ms.ship&&!this.ms.ship.pass(d.ship))return false;
       if(this.ms.itype&&!this.ms.itype.pass(d.itype))return false;
-      if(this.ms.status&&!this.ms.status.pass(this.statusText(d)))return false;
+      // 「⚠ 對外回覆未轉入」是額外條件：有勾它時，符合它或符合其他勾選狀態的都列出
+      if(this.ms.status&&this.ms.status.sel&&this.ms.status.sel.size){
+        const sel=this.ms.status.sel,pend=this.replyPendCount(d)>0;
+        if(!(sel.has(this.statusText(d))||(pend&&sel.has(this.PEND_LABEL))))return false;
+      }
       if(this.ms.reviewed&&!this.ms.reviewed.pass(d.reviewed?"已確認":"尚未確認"))return false;
       return true;
     });
@@ -25375,16 +25393,68 @@ const Air={
   },
   /* 哪些填單已經建立過「對外回覆」案件：案件草稿存在雲端 air_reply_drafts，本機填單紀錄沒有旗標，
      所以列表顯示時（至多每 60 秒）去雲端撈一次有草稿的填單 id，有變化才重畫，讓狀態欄看得出「已對外回覆」。 */
-  _loadExtReplyIds(){
+  /* 2026-10-27 一併抓回覆內容（items，不含版本歷史），算出「對外回覆有內容、但跟缺失紀錄總表的對外回覆版欄位不一致」
+     的條目（_replyPend：填單 id → 缺失序號陣列），狀態欄標「⚠ 對外回覆未轉入總表」、待辦事項提醒承辦人。 */
+  async _loadExtReplyIds(force){
     if(typeof Cloud==="undefined"||!Cloud.enabled())return;
-    if(Date.now()-(this._extAt||0)<60000)return;
+    if(!force&&Date.now()-(this._extAt||0)<60000)return;
     this._extAt=Date.now();
-    Cloud.api("air_reply_drafts?select=air_record_id").then(rows=>{
-      const s=new Set((rows||[]).map(r=>String(r.air_record_id)));
-      const old=this._extIds;
+    try{
+      let rows=[],off=0;
+      while(true){const b=await Cloud.api(`air_reply_drafts?select=air_record_id,defect_idx,items&order=id&limit=100&offset=${off}`)||[];rows=rows.concat(b);if(b.length<100)break;off+=100;}
+      const s=new Set(rows.map(r=>String(r.air_record_id)));
+      const old=this._extIds,oldPend=JSON.stringify([...(this._replyPend||new Map())]);
       this._extIds=s;
-      if(!old||old.size!==s.size)this.renderList();
-    }).catch(()=>{});
+      this._drafts=new Map(rows.map(r=>[`${r.air_record_id}|${r.defect_idx}`,(Array.isArray(r.items)&&r.items[0])||null]));
+      this.computeReplyPend();
+      if(!old||old.size!==s.size||oldPend!==JSON.stringify([...this._replyPend]))this.renderList();
+      if(typeof Todo!=="undefined")Todo.render();
+    }catch(e){/* 離線：維持上次結果 */}
+  },
+  PEND_LABEL:"⚠ 對外回覆未轉入",
+  REPLY_MAP:{opCommentReply:"opCommentCn",immediateCauseReply:"immediateCauseCn",correctiveReply:"correctiveCn",rootCauseReply:"rootCauseCn",preventiveReply:"preventiveCn"},
+  _rnorm(v){const x=String(v??"").replace(/\r\n/g,"\n").trim();return x==="(To be filled)"?"":x;}, // 佔位字視同空白
+  /* 對外回覆有內容、該條缺失已轉入總表、但總表的對外回覆版欄位跟回覆不一致 → 待轉入 */
+  computeReplyPend(){
+    const pend=new Map();
+    if(!this._drafts){this._replyPend=pend;return pend;}
+    const defById=new Map((App.defs||[]).map(x=>[String(x.id),x]));
+    (App.air||[]).forEach(d=>{
+      (d.defects||[]).forEach((row,i)=>{
+        const it=this._drafts.get(`${d.id}|${i}`);if(!it||row.pushedDefId==null)return;
+        const vals=Object.values(this.REPLY_MAP).map(k=>this._rnorm(it[k]));
+        if(!vals.some(Boolean))return; // 回覆還是空白
+        const def=defById.get(String(row.pushedDefId));if(!def)return;
+        if(Object.entries(this.REPLY_MAP).some(([dk,rk])=>this._rnorm(def[dk])!==this._rnorm(it[rk]))){
+          if(!pend.has(String(d.id)))pend.set(String(d.id),[]);pend.get(String(d.id)).push(i);
+        }
+      });
+    });
+    this._replyPend=pend;return pend;
+  },
+  replyPendCount(d){return ((this._replyPend&&this._replyPend.get(String(d.id)))||[]).length;},
+  /* ③ 只把對外回覆的 5 個中文欄位寫進已轉入的缺失紀錄（其他欄位、分類、照片都不動）；ids 不給＝全部待轉入的填單 */
+  async pushReplyOnly(airIds){
+    if(!await Guard.require())return;
+    await this._loadExtReplyIds(true);
+    const ids=(airIds&&airIds.length?airIds:[...this._replyPend.keys()]).map(String).filter(id=>this._replyPend.has(id));
+    if(!ids.length){toast("✓ 對外回覆都已轉入缺失紀錄總表");this.renderList();return;}
+    const list=ids.map(id=>{const d=App.air.find(x=>String(x.id)===id);return d?`${d.ship} ${d.date} ${d.itype}：${this._replyPend.get(id).length} 條`:"";}).filter(Boolean);
+    if(!confirm(`把對外回覆更新到缺失紀錄總表？\n\n${list.join("\n")}\n\n只會更新總表的「對外回覆版」五個欄位（Operator Comment、直接原因、根本原因、改正措施、預防措施），其他內容、分類、照片都不會動。`))return;
+    const defById=new Map(App.defs.map(x=>[String(x.id),x]));let n=0;
+    ids.forEach(id=>{
+      const d=App.air.find(x=>String(x.id)===id);if(!d)return;
+      this._replyPend.get(id).forEach(i=>{
+        const row=d.defects[i],it=this._drafts.get(`${d.id}|${i}`),def=row&&defById.get(String(row.pushedDefId));
+        if(!it||!def)return;
+        Object.entries(this.REPLY_MAP).forEach(([dk,rk])=>{def[dk]=this._rnorm(it[rk]);});
+        def._impAt=Date.now();def._impBy=(typeof Audit!=="undefined"?Audit.user():"");n++;
+      });
+    });
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
+    if(typeof Audit!=="undefined")Audit.log("轉入","缺失紀錄總表",`對外回覆更新到總表 ${n} 條（${list.join("；")}）`);
+    this.computeReplyPend();this.renderList();if(typeof Defs!=="undefined"&&Defs.render)Defs.render();if(typeof Todo!=="undefined")Todo.render();
+    toast(`✓ 已把 ${n} 條對外回覆更新到缺失紀錄總表`);
   },
   /* 「已分享自查」標記只算「雲端上還存在」的分享活動：活動被刪除後，填單裡記的活動 id 就是孤兒，
      不該再顯示。載入時（至多每 60 秒）比對一次雲端現有活動；管理者開啟時順便把已不存在的 id 從填單紀錄裡清掉。 */
@@ -25444,7 +25514,7 @@ const Air={
           ${(canPush&&d.defects&&d.defects.length)?`<button class="btn sm" style="background:#e4f1f2;border-color:#8cc3ca;color:#16606b;font-weight:700" onclick="Air.openShareCheckWizard(${d.id})" title="建立缺失分享：把這筆的缺失做成一條連結，分享給船隊自查">分</button>`:""}
           ${canPush?`<button class="btn sm dark" onclick="Air.openPushModal(${d.id})" title="轉入檢查紀錄／缺失紀錄總表／正面評價，可複選">轉</button>`:""}
         </td>
-        <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${(this._shareCount(d)>0)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${this._shareCount(d)>1?" ×"+this._shareCount(d):""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span></div>`:""}</td>
+        <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${(this._shareCount(d)>0)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${this._shareCount(d)>1?" ×"+this._shareCount(d):""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span></div>`:""}${this.replyPendCount(d)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;cursor:pointer" title="對外回覆內容已更新，但還沒轉入缺失紀錄總表（點一下只更新總表的對外回覆版欄位）" onclick="event.stopPropagation();Air.pushReplyOnly(['${esc(String(d.id))}'])">⚠ 對外回覆未轉入總表 ${this.replyPendCount(d)} 條・點此轉入</span></div>`:""}</td>
         <td>${d.reviewed?'<span style="font-size:11.5px;font-weight:700;color:var(--ok)">✅ 已確認</span>':'<span style="font-size:11.5px;color:var(--ink-3)">⬜ 尚未確認</span>'}</td>
         <td><b>${esc(shipFullLabel(d.ship))}</b></td>
         <td style="font-family:var(--mono);white-space:nowrap">${esc(normDateSlash(d.date))}</td>
