@@ -34022,7 +34022,9 @@ const GateSite={
     await this.pullCloudPass(); // 先確認密碼是否已被其他人更新過，再評估是否需要顯示密碼輸入畫面
     if(typeof GateIdentity!=="undefined")await GateIdentity.pullCloud(); // 同時確認部門／姓名名冊是否已被維護者更新過
     const siteOk=this.siteOk();
-    const identity=Role.load();
+    let identity=Role.load();
+    // 之前以「訪客／船舶」身份登入而留在這台裝置的記錄：作廢，要求重新選擇公司人員身份
+    if(identity&&typeof GateIdentity!=="undefined"&&!GateIdentity.allowed(identity)){try{localStorage.removeItem(Role.SKEY);}catch(e){}Role.cur=null;identity=null;}
     if(siteOk&&identity){this.unlock();return;}
     if(siteOk){this.showIdentity();return;}
     const g=$("#gateSite");if(g)g.style.display="flex";
@@ -34104,8 +34106,12 @@ const GateIdentity={
       if(p&&Array.isArray(p)&&p.length)this.saveRosterFromCloud(p);
     }catch(e){/* 離線或讀取失敗：維持本機快取值，不阻擋系統繼續啟動 */}
   },
+  /* 2026-10-27：主系統只限公司人員登入——「訪客」與「船舶」（操作者2-船舶）不出現在部門清單、也不能登入
+     （名冊資料本身不動；船上請使用船舶檢查填報平台） */
+  BLOCK_DEPTS:["訪客","船舶"],
+  allowed(x){return !!x&&!this.BLOCK_DEPTS.includes(x.dept)&&x.tier!=="op2";},
   show(){
-    const r=this.loadRoster();
+    const r=this.loadRoster().filter(x=>this.allowed(x));
     const depts=[...new Set(r.map(x=>x.dept))];
     const dEl=$("#gi-dept");if(dEl)dEl.innerHTML=depts.map(d=>`<option>${esc(d)}</option>`).join("");
     this.onDept();
@@ -34146,6 +34152,7 @@ const GateIdentity={
     const errEl=$("#gi-err");
     let rec;
     if(dept===this.GUEST_DEPT){
+      if(errEl)errEl.textContent="⚠ 本系統僅限公司人員登入";return;
       const typedName=($("#gi-name-text")?$("#gi-name-text").value:"").trim();
       if(!typedName){if(errEl)errEl.textContent="⚠ 請輸入您的姓名";return;}
       const guestTierRec=r.find(x=>x.dept===this.GUEST_DEPT);
@@ -34154,6 +34161,7 @@ const GateIdentity={
       const name=$("#gi-name")?$("#gi-name").value:"";
       rec=r.find(x=>x.dept===dept&&x.name===name);
       if(!rec){if(errEl)errEl.textContent="⚠ 請選擇部門與姓名";return;}
+      if(!this.allowed(rec)){if(errEl)errEl.textContent="⚠ 本系統僅限公司人員登入";return;}
       if(rec.tier==="owner"||rec.tier==="admin"){
         const pass=($("#gi-pass")?$("#gi-pass").value:"").trim();
         if(!pass){if(errEl)errEl.textContent="⚠ 請輸入密碼";return;}
