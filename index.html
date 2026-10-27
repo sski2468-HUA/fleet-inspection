@@ -3840,6 +3840,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn sm dark" onclick="Defs.openBatchEdit()">✎✎ 批量編輯（維護者）</button>
             <button class="btn sm" onclick="Defs.openDownloadModal()">⬇ 下載表單</button>
+            <button class="btn sm" onclick="AttachDL.defs(Defs.exportSet())" title="下載附件照片／PDF（有勾選＝勾選的缺失；沒勾選＝目前篩選結果），打包成 zip">📎 下載附件</button>
             <button class="btn sm" style="background:#f3edf8;border-color:#d9c3ef;color:#6a3b8f" onclick="Defs.openInternalControlList()">🔒 內控清單</button>
             <button class="btn sm" onclick="Defs.exportTemplate()">📋 下載匯入模板</button>
             <button class="btn sm" onclick="Defs.openColPicker()" title="設定顯示欄位與欄位排序">⚙ 欄位設定</button>
@@ -4036,6 +4037,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               </select>
               <button class="btn sm" id="dfedit-miss-btn" onclick="DefsGrid.toggleMiss();Defs.renderEditMode();">🔍 只看資料未齊全</button>
               <button class="btn sm" id="dfedit-unconfirmed-btn" onclick="Defs.toggleOnlyUnconfirmed();">☐ 只看未確認</button>
+              <button class="btn sm" onclick="Defs.showRecentEdits()" title="彙整全部缺失在編輯模式／批量編輯的人工修改紀錄（誰、何時、改了什麼）">🕐 最近修改紀錄</button>
               <button class="btn sm" onclick="Defs.toggleFieldPanel()">⚙ 顯示欄位</button>
               <span class="hint" id="dfedit-stat"></span>
             </span>
@@ -8691,8 +8693,72 @@ const Density={
 function toast(msg){const t=$("#toast");t.textContent=msg;t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",2600);}
 
 /* ══════════ Photobox：全站共用的照片放大檢視 modal（缺失矯正前/後照片等處共用）══════════ */
+/* ════════ 附件：照片或 PDF（2026-10-27 起船上可上傳 PDF）════════
+   PDF 跟照片存在同一個陣列（photosBefore／photosAfter），格式 {name,url,type:"application/pdf",size}。
+   畫面上很多地方直接用 <img src=網址> 顯示縮圖，這裡統一處理：PDF 的縮圖載入失敗時自動換成 📄 圖示，
+   點開（Photobox.open）時改用新分頁開啟 PDF，不必每個顯示照片的地方各改一次。 */
+function isPdfAtt(p){
+  if(!p)return false;
+  if(typeof p==="string")return /\.pdf(\?|#|$)/i.test(p)||/^data:application\/pdf/i.test(p);
+  return p.type==="application/pdf"||/\.pdf$/i.test(p.name||"")||/\.pdf(\?|#|$)/i.test(p.url||"")||/^data:application\/pdf/i.test(p.dataUrl||"");
+}
+/* 匯出（PDF/Word）時 PDF 附件不能當圖片嵌入，改列「📄 附件：檔名」（可點開） */
+function pdfAttText(list){
+  const pdfs=(list||[]).filter(isPdfAtt); if(!pdfs.length)return"";
+  return `<div style="margin:3px 0;font-size:12px">📄 附件：${pdfs.map(p=>{const nm=esc(p.name||"PDF檔"),u=p.url||"";return u?`<a href="${esc(u)}" target="_blank">${nm}</a>`:nm;}).join("、")}</div>`;
+}
+const PDF_ICON="data:image/svg+xml;utf8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="#fdecea"/><path d="M18 8h20l10 10v38H18z" fill="#fff" stroke="#c0392b" stroke-width="3"/><path d="M38 8v10h10" fill="none" stroke="#c0392b" stroke-width="3"/><text x="33" y="46" font-family="Arial" font-size="13" font-weight="700" fill="#c0392b" text-anchor="middle">PDF</text></svg>');
+window.addEventListener("error",e=>{
+  const el=e.target;
+  if(el&&el.tagName==="IMG"&&!el.dataset.pdfIcon&&isPdfAtt(el.getAttribute("src")||"")){
+    el.dataset.pdfIcon="1";el.dataset.pdfSrc=el.getAttribute("src");el.src=PDF_ICON;el.title=(el.title?el.title+"｜":"")+"PDF 附件（點一下開啟）";
+  }
+},true);
+/* 📎 下載附件：把一筆或多筆缺失的照片／PDF 打包成 zip。檔名＝船名_日期_序號_CODE_改善前／改善後_第幾個.副檔名 */
+const AttachDL={
+  safe(s){return String(s||"").replace(/[\\\/:*?"<>|\r\n\t]+/g,"_").replace(/\s+/g," ").trim().slice(0,60);},
+  ext(p){const n=String(p.name||p.url||"");const m=n.match(/\.([a-z0-9]{2,5})(?:\?|#|$)/i);return m?m[1].toLowerCase():(isPdfAtt(p)?"pdf":"jpg");},
+  count(def){return ((def&&def.photosBefore)||[]).filter(p=>p&&(p.url||p.dataUrl)).length+((def&&def.photosAfter)||[]).filter(p=>p&&(p.url||p.dataUrl)).length;},
+  entriesOf(def,prefix){
+    const out=[];
+    [["photosBefore","改善前"],["photosAfter","改善後"]].forEach(([k,lbl])=>((def&&def[k])||[]).filter(p=>p&&(p.url||p.dataUrl)).forEach((p,i)=>{
+      out.push({p,name:`${prefix}_${lbl}_${i+1}${p.name?"_"+this.safe(String(p.name).replace(/\.[a-z0-9]{2,5}$/i,"")):""}.${this.ext(p)}`});
+    }));
+    return out;
+  },
+  async zip(entries,zipName){
+    if(typeof requireExport==="function"&&!requireExport())return;
+    if(!entries.length){toast("⚠ 沒有附件可下載");return;}
+    if(typeof JSZip==="undefined"){toast("⚠ 系統缺少 ZIP 元件，請重新整理後再試");return;}
+    const zip=new JSZip();const used=new Set();let ok=0,bad=[];
+    toast(`⏳ 下載 ${entries.length} 個附件中…`);
+    for(const e of entries){
+      let n=e.name,k=2;while(used.has(n)){n=e.name.replace(/(\.[a-z0-9]+)$/i,`(${k++})$1`);}used.add(n);
+      try{const r=await fetch(e.p.dataUrl||e.p.url);if(!r.ok)throw new Error("HTTP "+r.status);zip.file(n,await r.blob());ok++;}
+      catch(err){bad.push(n);}
+    }
+    if(bad.length)zip.file("_下載失敗清單.txt","以下附件下載失敗（可能已從雲端刪除）：\r\n"+bad.join("\r\n"));
+    const blob=await zip.generateAsync({type:"blob"});
+    dl(blob,zipName.replace(/[\\\/:*?"<>|]/g,"_"));
+    if(typeof Audit!=="undefined")Audit.log("匯出","附件",`${zipName}：${ok} 個${bad.length?`，${bad.length} 個失敗`:""}`);
+    toast(`✓ 已下載 ${ok} 個附件${bad.length?`（${bad.length} 個失敗，清單在 zip 裡）`:""}`);
+  },
+  air(id){
+    const d=(App.air||[]).find(x=>String(x.id)===String(id));if(!d)return;
+    const base=`${this.safe(d.ship)}_${this.safe(String(d.date).replace(/\//g,"-"))}`;
+    const entries=(d.defects||[]).flatMap((df,i)=>this.entriesOf(df,`${base}_${String(i+1).padStart(2,"0")}${df.code?"_"+this.safe(df.code):""}`));
+    this.zip(entries,`附件_${base}_${this.safe(d.itype)}.zip`);
+  },
+  defs(list){
+    const rows=(list||[]).filter(d=>this.count(d));
+    if(!rows.length){toast("⚠ 選取的缺失沒有附件");return;}
+    const entries=rows.flatMap(d=>this.entriesOf(d,`${this.safe(d.ship)}_${this.safe(String(d.date).replace(/\//g,"-"))}${d.code?"_"+this.safe(d.code):""}_#${d.id}`));
+    this.zip(entries,`缺失附件_${rows.length}筆_${todayStr()}.zip`);
+  }
+};
 const Photobox={
   open(dataUrl,label){
+    if(isPdfAtt(dataUrl)){window.open(dataUrl,"_blank","noopener");return;} // PDF 附件：新分頁開啟
     $("#photoboxImg").src=dataUrl||"";
     $("#photoboxLabel").textContent=label||"";
     $("#photoboxModal").classList.add("show");
@@ -15372,6 +15438,45 @@ const Defs={
     $("#classifyLogModal").classList.add("show");
   },
   closeClassifyLog(){$("#classifyLogModal").classList.remove("show");},
+  /* 🕐 最近修改紀錄（2026-10-27）：把每筆缺失身上的 _classifyLog 彙整成一張表（新的在上），
+     可依操作者／期間／欄位篩選，點一列開啟那筆缺失。只讀既有歷程，不改資料。 */
+  showRecentEdits(){
+    let m=document.getElementById("recentEditsModal");
+    if(!m){
+      m=document.createElement("div");m.className="modal-bg";m.id="recentEditsModal";
+      m.innerHTML=`<div class="modal" style="max-width:1100px;width:96vw"><div class="mh"><h3>🕐 最近修改紀錄（編輯模式／批量編輯）</h3><button class="x" onclick="$('#recentEditsModal').classList.remove('show')">✕</button></div>
+        <div class="mb"><div class="toolbar" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
+          <span class="lbl">操作者</span><select id="re-by" onchange="Defs.renderRecentEdits()"></select>
+          <span class="lbl">期間</span><select id="re-days" onchange="Defs.renderRecentEdits()"><option value="1">今天</option><option value="7" selected>近 7 天</option><option value="30">近 30 天</option><option value="0">全部</option></select>
+          <span class="lbl">欄位</span><select id="re-field" onchange="Defs.renderRecentEdits()"></select>
+          <span class="hint" id="re-stat"></span></div>
+          <div class="tblwrap" style="max-height:62vh"><div id="re-body"></div></div>
+          <p class="hint" style="margin-top:6px">每筆缺失最多保留最近 50 筆修改；透過匯入／線上填單轉入帶入的內容不在這裡（看各欄位旁的 ℹ）。</p></div></div>`;
+      document.body.appendChild(m);
+    }
+    const all=[];
+    (App.defs||[]).forEach(d=>(d._classifyLog||[]).forEach(e=>all.push({...e,d})));
+    all.sort((a,b)=>(b.at||0)-(a.at||0));
+    this._reAll=all;
+    const keep=(id,opts)=>{const el=$(id),v=el.value;el.innerHTML=opts;if([...el.options].some(o=>o.value===v))el.value=v;};
+    keep("#re-by",`<option value="">全部（${new Set(all.map(e=>e.by)).size} 人）</option>`+[...new Set(all.map(e=>e.by))].filter(Boolean).sort().map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join(""));
+    keep("#re-field",`<option value="">全部欄位</option>`+Object.entries(this.CLASSIFY_LOG_FIELDS).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join(""));
+    m.classList.add("show");
+    this.renderRecentEdits();
+  },
+  renderRecentEdits(){
+    const by=$("#re-by").value,days=+$("#re-days").value,field=$("#re-field").value;
+    const since=days===1?new Date(new Date().toDateString()).getTime():days?Date.now()-days*864e5:0;
+    const rows=(this._reAll||[]).filter(e=>(!by||e.by===by)&&(!field||e.field===field)&&(e.at||0)>=since);
+    const show=rows.slice(0,500);
+    $("#re-stat").textContent=`共 ${rows.length} 筆修改、涉及 ${new Set(rows.map(e=>e.d.id)).size} 筆缺失${rows.length>500?"（只列最近 500 筆）":""}`;
+    $("#re-body").innerHTML=show.length?`<table class="tbl" style="font-size:12px"><thead><tr><th style="width:130px">時間</th><th style="width:110px">操作者</th><th style="width:150px">缺失</th><th style="width:80px">欄位</th><th>變更</th></tr></thead><tbody>${show.map(e=>`<tr style="cursor:pointer" title="點一下開啟這筆缺失" onclick="Defs.openEdit(${typeof e.d.id==="number"?e.d.id:`'${esc(String(e.d.id))}'`})">
+        <td style="white-space:nowrap">${esc(new Date(e.at).toLocaleString("zh-TW",{hour12:false}))}</td><td>${esc(e.by||"")}</td>
+        <td>${esc(e.d.ship||"")} ${esc(e.d.date||"")}<div class="hint" style="font-size:11px">${esc(e.d.itype||"")} ${esc(e.d.code||"")}</div></td>
+        <td>${esc(this.CLASSIFY_LOG_FIELDS[e.field]||e.field)}</td>
+        <td>${esc(e.from)||'<span class="hint">（空白）</span>'} → <b>${esc(e.to)||'<span class="hint">（空白）</span>'}</b></td></tr>`).join("")}</tbody></table>`
+      :`<div class="hint" style="padding:16px;text-align:center">這個條件下沒有修改紀錄</div>`;
+  },
   _applyClassifyParts(d,parts){
     const mains=[parts.eqMain,parts.opMain].filter(Boolean);
     const leafs=[...parts.eqLeaves,...parts.opLeaves];
@@ -17274,7 +17379,7 @@ const Defs={
     };
     const photoRow=(d)=>{
       if(!includePhotos)return"";
-      const mk=(label,list)=>(!list||!list.length)?"":`<div style="margin-top:3px"><b>${label}：</b>${list.map(p=>`<img src="${p.url||p.dataUrl}" style="width:110px;height:110px;object-fit:cover;margin:2px;border:1px solid #ccc">`).join("")}</div>`;
+      const mk=(label,list)=>(!list||!list.length)?"":`<div style="margin-top:3px"><b>${label}：</b>${list.filter(p=>!isPdfAtt(p)).map(p=>`<img src="${p.url||p.dataUrl}" style="width:110px;height:110px;object-fit:cover;margin:2px;border:1px solid #ccc">`).join("")}${pdfAttText(list)}</div>`;
       const html=mk("矯正前",d.photosBefore)+mk("矯正後",d.photosAfter);
       return html?`<tr style="page-break-inside:avoid"><td colspan="${cols.length}" style="padding-top:4px;page-break-inside:avoid">${html}</td></tr>`:"";
     };
@@ -25648,6 +25753,7 @@ const Air={
         <td style="white-space:nowrap">
           <button class="btn sm" onclick="Air.showForm(${d.id})">✎</button>
           <button class="btn sm" onclick="Air.openListDownloadModal(${d.id})" title="下載此筆的匯出檔">⬇</button>
+          ${(()=>{const n=(d.defects||[]).reduce((s,df)=>s+AttachDL.count(df),0);return n?`<button class="btn sm" onclick="AttachDL.air(${d.id})" title="下載這筆填單的附件（照片／PDF 共 ${n} 個，打包成 zip）">📎${n}</button>`:"";})()}
           <button class="btn sm danger" onclick="Air.delAir(${d.id})">🗑</button>
           ${(d.defects&&d.defects.length)?`<button class="btn sm" style="background:#fff3cd;border-color:#f1c86b;color:#7a5a10;font-weight:700" onclick="Air.goToExternalReply(${d.id},0)" title="開新分頁前往對外回覆編輯">外</button>`:""}
           ${(canPush&&d.defects&&d.defects.length)?`<button class="btn sm" style="background:#e4f1f2;border-color:#8cc3ca;color:#16606b;font-weight:700" onclick="Air.openShareCheckWizard(${d.id})" title="建立缺失分享：把這筆的缺失做成一條連結，分享給船隊自查">分</button>`:""}
@@ -27228,12 +27334,12 @@ const Air={
     const DOC_IMG_W=200;
     const photoRow=(label,list)=>{
       if(!list||!list.length)return"";
-      const imgs=list.map(p=>{
+      const imgs=list.filter(p=>!isPdfAtt(p)).map(p=>{
         const w=DOC_IMG_W;
         const h=(p.w&&p.h)?Math.round(DOC_IMG_W*p.h/p.w):Math.round(DOC_IMG_W*0.75);
         return `<img src="${p.url||p.dataUrl}" width="${w}" height="${h}" style="width:${w}px;height:${h}px;margin:3px" alt="${esc(p.name||"")}">`;
       }).join("");
-      return `<tr><td width="140"><b>${label}</b></td><td colspan="3">${imgs}</td></tr>`;
+      return `<tr><td width="140"><b>${label}</b></td><td colspan="3">${imgs}${pdfAttText(list)}</td></tr>`;
     };
     (d.defects||[]).forEach((df,i)=>{
       const rp=(d.reply&&d.reply.items&&d.reply.items[i])||{};
@@ -27270,8 +27376,8 @@ const Air={
     const nl2br=s=>esc(s||"").replace(/\n/g,"<br/>");
     const photoBlock=(label,list)=>{
       if(!list||!list.length)return"";
-      const imgs=list.map(p=>`<img src="${p.url||p.dataUrl}" style="width:150px;height:150px;object-fit:cover;margin:3px;border:1px solid #ccc" alt="${esc(p.name||"")}">`).join("");
-      return `<div style="margin-top:6px"><b>${label}：</b><br/>${imgs}</div>`;
+      const imgs=list.filter(p=>!isPdfAtt(p)).map(p=>`<img src="${p.url||p.dataUrl}" style="width:150px;height:150px;object-fit:cover;margin:3px;border:1px solid #ccc" alt="${esc(p.name||"")}">`).join("");
+      return `<div style="margin-top:6px"><b>${label}：</b><br/>${imgs}${pdfAttText(list)}</div>`;
     };
     let body=`<h1 style="text-align:center">線上填單報告 — ${esc(shipFullLabel(d.ship))} ${esc(d.date)}</h1>
       <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px" border="1" cellpadding="6">
