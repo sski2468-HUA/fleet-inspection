@@ -20476,6 +20476,7 @@ const CaemFm01={
       </div>
       <div class="toolbar" style="justify-content:flex-end;margin-top:12px;gap:8px">
         ${ed?`<button class="btn" onclick="CaemFm01.saveSettings()">💾 儲存表單設定</button>`:`<span class="hint">僅年度計畫指定編輯者或 Owner 可修改設定</span>`}
+        <button class="btn" onclick="CaemFm01.exportXlsx()">📊 匯出 Excel</button>
         <button class="btn primary" onclick="CaemFm01.exportPdf()">🖨 匯出 PDF</button>
       </div>`;
   },
@@ -20500,9 +20501,147 @@ const CaemFm01={
     if(typeof AnnualPlan.render==="function")AnnualPlan.render();
   },
   /* ── PDF：每頁一張 A4 橫式，頁首／頁尾自己畫（每頁固定兩頁，頁碼直接寫死 1/2、2/2）── */
-  exportPdf(){
+  /* ── Excel：版面比照原 CAEM-FM01 工作表（A4 橫式、縮成一頁、油輪／散裝船各一張工作表）。
+     頁首的兩張圖（左：公司 Logo、右：表單編號框）ExcelJS 不支援，寫完後再用 JSZip 補上
+     Excel 原生的「頁首圖片」（legacyDrawingHF＋vmlDrawing，跟原表單同一種做法），頁尾＝CAEM-FM01-&P/&N、Ed.。 ── */
+  async catBoxPng(){
+    const c=document.createElement("canvas");c.width=657;c.height=306;const g=c.getContext("2d");
+    g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.strokeStyle="#000";
+    g.lineWidth=9;g.strokeRect(6,6,c.width-12,c.height-12);g.lineWidth=3;g.strokeRect(22,22,c.width-44,c.height-44);
+    g.fillStyle="#000";g.textBaseline="alphabetic";
+    g.font='44px "Times New Roman",serif';g.fillText("Cat.: CAEM-FM01",62,104);
+    g.font='italic 44px "Times New Roman",serif';g.fillText("Office use",62,176);
+    g.font='44px "Times New Roman",serif';g.fillText("Rev.: "+this.cfg.rev,62,248);
+    const b=await new Promise(r=>c.toBlob(r,"image/png"));return new Uint8Array(await b.arrayBuffer());
+  },
+  async exportXlsx(){
+    if(typeof requireExport==="function"&&!requireExport())return;
+    if(!hasExcelJS())return;
+    if(typeof JSZip==="undefined"){toast("⚠ 系統缺少 ZIP 元件，無法加上頁首圖片，請重新整理後再試");return;}
+    const D=this.data(this.year,this.mode),pts=D.pts,mon=this.MON;
+    const dateCols=pts.map(pt=>pt==="audit"?["The latest date\n(Internal audit)","lastA"]:["The latest date\n(Ship visit)","lastV"]);
+    const firstM=4+dateCols.length,lastC=firstM+11; // A No、B 中文船名、C 英文船名、日期欄、12 個月
+    const colL=n=>{let s="";while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;};
+    const thin={style:"thin",color:{argb:"FF000000"}},med={style:"medium",color:{argb:"FF000000"}};
+    const wb=new ExcelJS.Workbook();wb.creator="FPMC";wb.created=new Date();
+    D.pages.forEach(pg=>{
+      const ws=wb.addWorksheet(`CAEM-FM01 ${D.year} ${pg.key}`.slice(0,31),{views:[{showGridLines:false}]});
+      ws.columns=[{width:3.6},{width:11},{width:22},...dateCols.map(()=>({width:11})),...mon.map(()=>({width:7.6}))];
+      const f9={name:"Arial",size:9};
+      // 第 1 列：標題；第 2 列：年度
+      ws.mergeCells(1,2,1,lastC);const t=ws.getCell(1,2);t.value=`${D.title[0]} ${D.title[1]}`;
+      t.font={name:"Times New Roman",size:11,bold:true,underline:true};t.alignment={horizontal:"center",vertical:"middle"};ws.getRow(1).height=20;
+      ws.getCell(2,lastC-3).value="年度";ws.getCell(2,lastC-3).font={name:"Arial",size:8};ws.getCell(2,lastC-3).alignment={horizontal:"right"};
+      ws.getCell(2,lastC-2).value="year：";ws.getCell(2,lastC-2).font=f9;
+      ws.mergeCells(2,lastC-1,2,lastC);ws.getCell(2,lastC-1).value=D.year;ws.getCell(2,lastC-1).font={name:"Arial",size:10};ws.getCell(2,lastC-1).alignment={horizontal:"left"};
+      // 第 3 列：表頭（船名欄斜線：Month 在右上、Ship Name 在左下）
+      const H=3;ws.getRow(H).height=30;
+      ws.getCell(H,1).value="No";
+      ws.mergeCells(H,2,H,3);const hc=ws.getCell(H,2);
+      hc.value="                                              Month\nShip Name";hc.alignment={wrapText:true,vertical:"top",horizontal:"left"};
+      hc.border={diagonal:{up:false,down:true,style:"thin",color:{argb:"FF000000"}}};
+      dateCols.forEach(([lbl],i)=>{ws.getCell(H,4+i).value=lbl;});
+      mon.forEach((m,i)=>{ws.getCell(H,firstM+i).value=m;});
+      for(let c=1;c<=lastC;c++){const x=ws.getCell(H,c);x.font=c>=4?{name:"Arial",size:c<firstM?8:9}:f9;if(c!==2)x.alignment={horizontal:"center",vertical:"middle",wrapText:true};}
+      // 船舶列
+      let r=H+1;
+      pg.rows.forEach(row=>{
+        ws.getRow(r).height=17;
+        ws.getCell(r,1).value=row.no;ws.getCell(r,2).value=row.zh;ws.getCell(r,3).value=row.en;
+        dateCols.forEach(([,k],i)=>{ws.getCell(r,4+i).value=row[k]||"";});
+        row.marks.forEach((v,i)=>{ws.getCell(r,firstM+i).value=v||"";});
+        ws.getCell(r,1).font={name:"Arial",size:7};ws.getCell(r,1).alignment={horizontal:"center",vertical:"middle"};
+        ws.getCell(r,2).font={name:"新細明體",size:9};ws.getCell(r,3).font=f9;
+        for(let c=4;c<=lastC;c++){const x=ws.getCell(r,c);x.alignment={horizontal:"center",vertical:"middle"};x.font=c<firstM?f9:{name:"Times New Roman",size:10};}
+        [2,3].forEach(c=>ws.getCell(r,c).alignment={vertical:"middle"});
+        r++;
+      });
+      const extraStart=r;
+      D.extra.forEach(x=>{
+        ws.getRow(r).height=18;
+        ws.mergeCells(r,1,r,3);const l=ws.getCell(r,1);l.value=x.label;l.font={name:"Arial",size:8.5};l.alignment={horizontal:"center",vertical:"middle"};
+        if(dateCols.length>1)ws.mergeCells(r,4,r,3+dateCols.length);
+        const dc=ws.getCell(r,4);dc.value=x.last||"";dc.font={name:"Arial",size:9};dc.alignment={horizontal:"center",vertical:"middle"};
+        x.marks.forEach((v,i)=>{const m=ws.getCell(r,firstM+i);m.value=v||"";m.font={name:"Times New Roman",size:10};m.alignment={horizontal:"center",vertical:"middle"};});
+        r++;
+      });
+      const last=r-1;
+      // 框線：內框細線、外框與「船舶／公司列」分隔用粗線
+      for(let rr=H;rr<=last;rr++)for(let c=1;c<=lastC;c++){
+        const x=ws.getCell(rr,c),b=Object.assign({},x.border||{});
+        b.top=(rr===H||rr===extraStart)?med:thin;b.bottom=rr===last?med:thin;b.left=c===1?med:thin;b.right=c===lastC?med:thin;
+        x.border=b;
+      }
+      // 備註
+      r++;
+      ws.getCell(r,1).value="備註/Remark：";ws.getCell(r,1).font={name:"Arial",size:8};r++;
+      this.REMARKS.forEach(([a,b])=>{
+        ws.getCell(r,1).value=a;ws.getCell(r,1).font={name:"Arial",size:8};ws.getCell(r,1).alignment={horizontal:"right",vertical:"top"};
+        ws.mergeCells(r,2,r,lastC);const x=ws.getCell(r,2);x.value=b;x.font={name:"Arial",size:7.5};x.alignment={wrapText:true,vertical:"top"};
+        ws.getRow(r).height=b.length>150?21:11.5;r++;
+      });
+      // 簽名欄
+      r++;ws.getRow(r).height=26;
+      const pos=[2,Math.round(lastC*0.3),Math.round(lastC*0.56),Math.round(lastC*0.8)];
+      this.SIGNS.forEach((s,i)=>{const x=ws.getCell(r,pos[i]);x.value=s;x.font={name:"Arial",size:8};x.alignment={vertical:"top"};});
+      ws.pageSetup={paperSize:9,orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:1,horizontalCentered:true,
+        margins:{left:0.32,right:0.32,top:0.9,bottom:0.35,header:0.2,footer:0.16}};
+      ws.headerFooter={oddHeader:"&L&G&R&G",oddFooter:`&C&10CAEM-FM01-&P/&N&R&10Ed.: ${this.cfg.ed}`};
+    });
+    // 補上頁首圖片
+    try{
+      const buf=await wb.xlsx.writeBuffer();
+      const zip=await JSZip.loadAsync(buf);
+      const logo=new Uint8Array(await (await fetch(officeFolder()+"caem-logo.jpg",{cache:"force-cache"})).arrayBuffer());
+      const cat=await this.catBoxPng();
+      zip.file("xl/media/caem_logo.jpeg",logo);zip.file("xl/media/caem_cat.png",cat);
+      let ct=await zip.file("[Content_Types].xml").async("string");
+      [["vml","application/vnd.openxmlformats-officedocument.vmlDrawing"],["jpeg","image/jpeg"],["png","image/png"]].forEach(([ext,type])=>{
+        if(!new RegExp(`Extension="${ext}"`,"i").test(ct))ct=ct.replace("<Types ",`<Types `).replace(/(<Types[^>]*>)/,`$1<Default Extension="${ext}" ContentType="${type}"/>`);
+      });
+      zip.file("[Content_Types].xml",ct);
+      const VML=n=>`<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+ <o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="${n}"/></o:shapelayout>
+ <v:shapetype id="_x0000_t75" coordsize="21600,21600" o:spt="75" o:preferrelative="t" path="m@4@5l@4@11@9@11@9@5xe" filled="f" stroked="f">
+  <v:stroke joinstyle="miter"/>
+  <v:formulas><v:f eqn="if lineDrawn pixelLineWidth 0"/><v:f eqn="sum @0 1 0"/><v:f eqn="sum 0 0 @1"/><v:f eqn="prod @2 1 2"/><v:f eqn="prod @3 21600 pixelWidth"/><v:f eqn="prod @3 21600 pixelHeight"/><v:f eqn="sum @0 0 1"/><v:f eqn="prod @6 1 2"/><v:f eqn="prod @7 21600 pixelWidth"/><v:f eqn="sum @8 21600 0"/><v:f eqn="prod @7 21600 pixelHeight"/><v:f eqn="sum @10 21600 0"/></v:formulas>
+  <v:path o:extrusionok="f" gradientshapeok="t" o:connecttype="rect"/><o:lock v:ext="edit" aspectratio="t"/>
+ </v:shapetype>
+ <v:shape id="LH" o:spid="_x0000_s${n*1024+1}" type="#_x0000_t75" style="position:absolute;margin-left:0;margin-top:0;width:332.25pt;height:57pt;z-index:1"><v:imagedata o:relid="rId1" o:title="FORM LOGO"/><o:lock v:ext="edit" rotation="t"/></v:shape>
+ <v:shape id="RH" o:spid="_x0000_s${n*1024+2}" type="#_x0000_t75" style="position:absolute;margin-left:0;margin-top:0;width:164.25pt;height:76.5pt;z-index:2"><v:imagedata o:relid="rId2" o:title="CAT"/><o:lock v:ext="edit" rotation="t"/></v:shape>
+</xml>`;
+      const REL='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+      for(let i=1;i<=D.pages.length;i++){
+        const sp=`xl/worksheets/sheet${i}.xml`,rp=`xl/worksheets/_rels/sheet${i}.xml.rels`;
+        let sx=await zip.file(sp).async("string");
+        if(!/xmlns:r=/.test(sx))sx=sx.replace(/<worksheet /,`<worksheet xmlns:r="${REL}" `);
+        const tag=`<legacyDrawingHF r:id="rIdCaemHF"/>`;
+        const m=sx.match(/<(picture|oleObjects|controls|webPublishItems|tableParts|extLst)[\s>\/]/);
+        sx=m?sx.slice(0,m.index)+tag+sx.slice(m.index):sx.replace("</worksheet>",tag+"</worksheet>");
+        zip.file(sp,sx);
+        let rx=zip.file(rp)?await zip.file(rp).async("string"):`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
+        rx=rx.replace("</Relationships>",`<Relationship Id="rIdCaemHF" Type="${REL}/vmlDrawing" Target="../drawings/vmlDrawingCaem${i}.vml"/></Relationships>`);
+        zip.file(rp,rx);
+        zip.file(`xl/drawings/vmlDrawingCaem${i}.vml`,VML(i));
+        zip.file(`xl/drawings/_rels/vmlDrawingCaem${i}.vml.rels`,`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/image" Target="../media/caem_logo.jpeg"/><Relationship Id="rId2" Type="${REL}/image" Target="../media/caem_cat.png"/></Relationships>`);
+      }
+      const blob=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+      dl(blob,`CAEM-FM01_${D.year}年度${D.mode==="both"?"內稽訪船":D.mode==="audit"?"內稽":"訪船"}計劃表.xlsx`);
+      if(typeof Audit!=="undefined")Audit.log("匯出","年度計畫",`CAEM-FM01 ${D.year}年 ${D.mode==="both"?"內稽＋訪船":D.mode==="audit"?"內稽":"訪船"} Excel`);
+      toast("✓ 已下載 Excel（頁首 Logo／表單編號框在「列印預覽」或「頁面配置」檢視才看得到）");
+    }catch(e){toast("⚠ Excel 產生失敗："+e.message,true);console.error(e);}
+  },
+  /* Logo 先讀成 data URL 再列印：直接用檔案網址時，列印視窗常在圖片載入前就開了（第一次列印 Logo 會不見） */
+  async logoData(){
+    if(this._logo)return this._logo;
+    try{const r=await fetch(officeFolder()+"caem-logo.jpg",{cache:"force-cache"});const b=await r.blob();
+      this._logo=await new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(f.result);f.onerror=rej;f.readAsDataURL(b);});}
+    catch(e){this._logo=officeFolder()+"caem-logo.jpg";}
+    return this._logo;
+  },
+  async exportPdf(){
     const D=this.data(this.year,this.mode),both=D.mode==="both",n=D.pages.length;
-    const logo=officeFolder()+"caem-logo.jpg";
+    const logo=await this.logoData();
     const dateCols=both?2:1;
     const head=`<tr>
         <th rowspan="1" style="width:2.6%">No</th>
@@ -20526,30 +20665,30 @@ const CaemFm01={
       <div class="caem-ft"><span></span><span>CAEM-FM01-${pi+1}/${n}</span><span>Ed.: ${esc(this.cfg.ed)}</span></div>
     </div>`;
     const css=`<style>
-      #printArea{background:#fff!important}.caem-page{position:relative;width:281mm;height:193mm;box-sizing:border-box;padding:0 2mm 13mm;background:#fff;font-family:Arial,"Microsoft JhengHei",sans-serif;color:#000;page-break-after:always;break-after:page;overflow:hidden}
-      .caem-page:last-child{page-break-after:auto;break-after:auto}
-      .caem-hd{display:flex;justify-content:space-between;align-items:flex-start;height:17mm;margin-bottom:.5mm}
-      .caem-logo{height:13mm;margin-top:1.5mm}
-      .caem-cat{border:3px double #000;padding:.8mm 6mm .8mm 4mm;font-family:"Times New Roman",serif;font-size:11.5px;line-height:1.25;outline:1px solid #000;outline-offset:1.5px;margin-right:2mm}
-      .caem-title{text-align:center;font-weight:700;font-size:12px;text-decoration:underline;font-family:"Times New Roman","PMingLiU",serif;margin-bottom:.5mm}
-      .caem-year{text-align:right;font-size:11px;margin:0 30mm 1mm 0}.caem-year span{font-size:9px}.caem-year b{font-weight:400;margin-left:6mm}
-      .caem-tbl{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.5px;border:2px solid #000}
-      .caem-tbl th,.caem-tbl td{border:1px solid #000;padding:0 2px;height:var(--rh,4.45mm);vertical-align:middle;white-space:nowrap;overflow:hidden;line-height:1.05}
-      .caem-tbl th{font-weight:400;text-align:center;font-size:9.5px;line-height:1.1;height:8mm;white-space:normal}
-      .caem-sm{font-size:8px}
-      .caem-diag{position:relative;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' preserveAspectRatio='none'><line x1='0' y1='0' x2='100' y2='100' stroke='black' stroke-width='1' vector-effect='non-scaling-stroke'/></svg>") no-repeat;background-size:100% 100%}
-      .caem-m{position:absolute;right:6px;top:2px;font-size:10px}.caem-s{position:absolute;left:3px;bottom:2px;font-size:10px}
-      .caem-no{text-align:center;font-size:7.5px}.caem-zh{font-family:"PMingLiU","MingLiU",serif;font-size:9.5px}.caem-en{font-size:9px}.caem-d{text-align:center;font-size:9px}
-      .caem-mk{text-align:center;font-family:"Times New Roman",serif;font-size:10.5px}
-      .caem-rm{font-size:7.3px;line-height:1.2;margin-top:1mm;font-family:"Courier New","MingLiU",monospace}
-      .caem-rl{display:flex;gap:2mm}.caem-rl span:first-child{width:3mm;flex:none;text-align:right}
-      .caem-sign{display:flex;justify-content:space-between;font-size:8.5px;margin-top:2.5mm;padding:0 2mm}.caem-sign span{width:24%}
-      .caem-ft{position:absolute;left:2mm;right:2mm;bottom:0;display:flex;justify-content:space-between;font-size:9.5px}
-      .caem-ft span{flex:1}.caem-ft span:nth-child(2){text-align:center}.caem-ft span:last-child{text-align:right}
+      #printArea{background:#fff!important}#printArea .caem-page{position:relative;width:281mm;height:193mm;box-sizing:border-box;padding:0 2mm 13mm;background:#fff;font-family:Arial,"Microsoft JhengHei",sans-serif;color:#000;page-break-after:always;break-after:page;overflow:hidden}
+      #printArea .caem-page:last-child{page-break-after:auto;break-after:auto}
+      #printArea .caem-hd{display:flex;justify-content:space-between;align-items:flex-start;height:17mm;margin-bottom:.5mm}
+      #printArea .caem-logo{height:13mm;margin-top:1.5mm}
+      #printArea .caem-cat{border:3px double #000;padding:.8mm 6mm .8mm 4mm;font-family:"Times New Roman",serif;font-size:11.5px;line-height:1.25;outline:1px solid #000;outline-offset:1.5px;margin-right:2mm}
+      #printArea .caem-title{text-align:center;font-weight:700;font-size:12px;text-decoration:underline;font-family:"Times New Roman","PMingLiU",serif;margin-bottom:.5mm}
+      #printArea .caem-year{text-align:right;font-size:11px;margin:0 30mm 1mm 0}#printArea .caem-year span{font-size:9px}#printArea .caem-year b{font-weight:400;margin-left:6mm}
+      #printArea .caem-tbl{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.5px;border:1.5pt solid #000}
+      #printArea .caem-tbl th,#printArea .caem-tbl td{border:.75pt solid #000;padding:0 2px;background:none;text-align:left;height:var(--rh,4.45mm);vertical-align:middle;white-space:nowrap;overflow:hidden;line-height:1.05}
+      #printArea .caem-tbl th{font-weight:400;text-align:center!important;font-size:9.5px;line-height:1.1;height:8mm;white-space:normal}
+      #printArea .caem-sm{font-size:8px}
+      #printArea .caem-diag{position:relative;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' preserveAspectRatio='none'><line x1='0' y1='0' x2='100' y2='100' stroke='black' stroke-width='1' vector-effect='non-scaling-stroke'/></svg>") no-repeat;background-size:100% 100%}
+      #printArea .caem-m{position:absolute;right:6px;top:2px;font-size:10px}#printArea .caem-s{position:absolute;left:3px;bottom:2px;font-size:10px}
+      #printArea .caem-tbl td.caem-no{text-align:center;font-size:7.5px}#printArea .caem-zh{font-family:"PMingLiU","MingLiU",serif;font-size:9.5px}#printArea .caem-en{font-size:9px}#printArea .caem-tbl td.caem-d{text-align:center;font-size:9px}
+      #printArea .caem-tbl td.caem-mk{text-align:center;font-family:"Times New Roman",serif;font-size:10.5px}
+      #printArea .caem-rm{font-size:7.3px;line-height:1.2;margin-top:1mm;font-family:"Courier New","MingLiU",monospace}
+      #printArea .caem-rl{display:flex;gap:2mm}#printArea .caem-rl span:first-child{width:3mm;flex:none;text-align:right}
+      #printArea .caem-sign{display:flex;justify-content:space-between;font-size:8.5px;margin-top:2.5mm;padding:0 2mm}#printArea .caem-sign span{width:24%}
+      #printArea .caem-ft{position:absolute;left:2mm;right:2mm;bottom:0;display:flex;justify-content:space-between;font-size:9.5px}
+      #printArea .caem-ft span{flex:1}#printArea .caem-ft span:nth-child(2){text-align:center}#printArea .caem-ft span:last-child{text-align:right}
     </style>`;
     $("#printArea").innerHTML=css+D.pages.map(pageHtml).join("");
     // 船舶列與公司列之間是粗線（同紙本）
-    $$("#printArea .caem-page").forEach(p=>{const r=p.querySelector("tr.caem-x");if(r)r.querySelectorAll("td").forEach(td=>td.style.borderTop="2px solid #000");});
+    $$("#printArea .caem-page").forEach(p=>{const r=p.querySelector("tr.caem-x");if(r)r.querySelectorAll("td").forEach(td=>td.style.setProperty("border-top","1.5pt solid #000","important"));});
     const nm=`CAEM-FM01_${D.year}年度${D.mode==="both"?"內稽訪船":D.mode==="audit"?"內稽":"訪船"}計劃表`;
     doPrint(true,"margin:8mm 8mm 6mm 8mm",nm);
     if(typeof Audit!=="undefined")Audit.log("匯出","年度計畫",`CAEM-FM01 ${D.year}年 ${D.mode==="both"?"內稽＋訪船":D.mode==="audit"?"內稽":"訪船"} PDF`);
