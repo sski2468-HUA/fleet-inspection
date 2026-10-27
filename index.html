@@ -8757,27 +8757,39 @@ const AttachDL={
     const entries=rows.flatMap(d=>this.entriesOf(d,`${this.safe(d.ship)}_${this.safe(String(d.date).replace(/\//g,"-"))}${d.code?"_"+this.safe(d.code):""}_#${d.id}`));
     this.zip(entries,`缺失附件_${rows.length}筆_${todayStr()}.zip`);
   },
-  /* 缺失紀錄總表「📎 下載附件」：先跳視窗確認範圍，依船舶勾選要下載哪些（避免一按就把全部附件抓下來）。
-     有勾選缺失列＝範圍是勾選的那幾筆（船舶預設全勾）；沒勾選＝目前篩選結果（船舶預設不勾，要自己選或按「全部」） */
+  /* 缺失紀錄總表「📎 下載附件」：先跳視窗選範圍，可依「船舶／檢查來源／檢查日期」篩選（三者同時成立）；
+     每一組都沒勾＝該條件不限。範圍＝有勾選缺失列時為勾選的那幾筆，否則為目前篩選結果。
+     完全沒設條件時按鈕會變成「下載全部」，並再跳一次確認，避免一按就把全部附件抓下來。 */
   _pick:null,
+  _dkey(s){const m=String(s||"").match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);return m?`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`:"";},
   defsPick(){
     const fromSel=!!(Defs.selected&&Defs.selected.size);
     const rows=(Defs.exportSet()||[]).filter(d=>this.count(d));
     if(!rows.length){toast(fromSel?"⚠ 勾選的缺失沒有附件":"⚠ 目前篩選結果沒有附件");return;}
-    const by={};rows.forEach(d=>{const k=d.ship||"（未填船名）";(by[k]=by[k]||{rows:[],n:0});by[k].rows.push(d);by[k].n+=this.count(d);});
-    const ships=Object.keys(by).sort((a,b)=>String(shipFullLabel(a)).localeCompare(String(shipFullLabel(b)),"zh-Hant"));
-    this._pick={by,ships,fromSel};
+    const grp=(keyFn,labelFn)=>{const by={};rows.forEach(d=>{const k=keyFn(d);(by[k]=by[k]||{r:0,n:0});by[k].r++;by[k].n+=this.count(d);});
+      const keys=Object.keys(by).sort((a,b)=>String(labelFn(a)).localeCompare(String(labelFn(b)),"zh-Hant"));return {by,keys};};
+    const shipKey=d=>d.ship||"（未填船名）",srcKey=d=>d.itype||"（未填檢查來源）";
+    const ships=grp(shipKey,shipFullLabel),srcs=grp(srcKey,x=>x);
+    const dks=rows.map(d=>this._dkey(d.date)).filter(Boolean).sort();
+    this._pick={rows,ships,srcs,shipKey,srcKey,fromSel};
     let m=document.getElementById("attachPickModal");
     if(!m){m=document.createElement("div");m.className="modal-bg";m.id="attachPickModal";document.body.appendChild(m);}
     const total=rows.reduce((s,d)=>s+this.count(d),0);
-    m.innerHTML=`<div class="modal" style="max-width:560px;width:94vw"><div class="mh"><h3>📎 下載附件</h3><button class="x" onclick="$('#attachPickModal').classList.remove('show')">✕</button></div>
+    const list=(g,cls,lbl)=>`<div style="max-height:38vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:2px 10px">${g.keys.map((k,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line);cursor:pointer"><input type="checkbox" class="${cls}" data-i="${i}" ${fromSel?"checked":""} onchange="AttachDL.pickSum()"><span style="flex:1">${esc(lbl(k))}</span><span class="hint" style="white-space:nowrap">${g.by[k].r} 筆／${g.by[k].n} 個</span></label>`).join("")}</div>`;
+    const head=(t,cls)=>`<div style="display:flex;align-items:center;gap:6px;margin:0 0 4px"><b style="flex:1">${t}</b><button class="btn sm" onclick="AttachDL.pickAll('${cls}',true)">全選</button><button class="btn sm" onclick="AttachDL.pickAll('${cls}',false)">清除</button></div>`;
+    m.innerHTML=`<div class="modal" style="max-width:860px;width:96vw"><div class="mh"><h3>📎 下載附件</h3><button class="x" onclick="$('#attachPickModal').classList.remove('show')">✕</button></div>
       <div class="mb">
-        <p class="hint" style="margin:0 0 8px;line-height:1.7">範圍：<b>${fromSel?`已勾選的缺失`:`目前篩選結果`}</b>，其中有附件的缺失 <b>${rows.length}</b> 筆、共 <b>${total}</b> 個檔案（照片／PDF）。<br>請勾選要下載哪些船舶的附件：</p>
-        <div class="toolbar" style="gap:6px;margin-bottom:6px"><button class="btn sm" onclick="AttachDL.pickAll(true)">全選</button><button class="btn sm" onclick="AttachDL.pickAll(false)">全不選</button></div>
-        <div style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 10px">
-          ${ships.map((s,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line);cursor:pointer"><input type="checkbox" class="ap-ship" data-i="${i}" ${fromSel?"checked":""} onchange="AttachDL.pickSum()"><span style="flex:1">${esc(shipFullLabel(s))}</span><span class="hint">${by[s].rows.length} 筆／${by[s].n} 個檔</span></label>`).join("")}
+        <p class="hint" style="margin:0 0 10px;line-height:1.7">範圍：<b>${fromSel?`已勾選的缺失`:`目前篩選結果`}</b>，其中有附件的缺失 <b>${rows.length}</b> 筆、共 <b>${total}</b> 個檔案（照片／PDF）。<br>可依下方條件挑選（條件同時成立；某一組都不勾＝該條件不限）。</p>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><b>檢查日期</b>
+          <input type="date" id="ap-from" value="" min="${dks[0]||""}" max="${dks[dks.length-1]||""}" onchange="AttachDL.pickSum()"> ～
+          <input type="date" id="ap-to" value="" min="${dks[0]||""}" max="${dks[dks.length-1]||""}" onchange="AttachDL.pickSum()">
+          <button class="btn sm" onclick="$('#ap-from').value='';$('#ap-to').value='';AttachDL.pickSum()">不限日期</button>
+          <span class="hint">（資料期間 ${dks[0]||"—"} ～ ${dks[dks.length-1]||"—"}）</span></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+          <div>${head("船舶","ap-ship")}${list(ships,"ap-ship",shipFullLabel)}</div>
+          <div>${head("檢查來源","ap-src")}${list(srcs,"ap-src",x=>x)}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">
           <span class="hint" id="ap-sum" style="flex:1"></span>
           <button class="btn" onclick="$('#attachPickModal').classList.remove('show')">取消</button>
           <button class="btn primary" id="ap-go" onclick="AttachDL.pickGo()">⬇ 下載</button>
@@ -8786,18 +8798,31 @@ const AttachDL={
     m.classList.add("show");
     this.pickSum();
   },
-  pickAll(on){document.querySelectorAll("#attachPickModal .ap-ship").forEach(c=>c.checked=on);this.pickSum();},
-  _picked(){const P=this._pick;if(!P)return [];return [...document.querySelectorAll("#attachPickModal .ap-ship:checked")].map(c=>P.ships[+c.dataset.i]);},
+  pickAll(cls,on){document.querySelectorAll(`#attachPickModal .${cls}`).forEach(c=>c.checked=on);this.pickSum();},
+  _sel(cls,g){return new Set([...document.querySelectorAll(`#attachPickModal .${cls}:checked`)].map(c=>g.keys[+c.dataset.i]));},
+  _matched(){
+    const P=this._pick;if(!P)return {rows:[],any:false};
+    const sh=this._sel("ap-ship",P.ships),sr=this._sel("ap-src",P.srcs);
+    const f=($("#ap-from")||{}).value||"",t=($("#ap-to")||{}).value||"";
+    const rows=P.rows.filter(d=>{
+      if(sh.size&&!sh.has(P.shipKey(d)))return false;
+      if(sr.size&&!sr.has(P.srcKey(d)))return false;
+      if(f||t){const k=this._dkey(d.date);if(!k||(f&&k<f)||(t&&k>t))return false;}
+      return true;});
+    return {rows,any:!!(sh.size||sr.size||f||t),sh,sr,f,t};
+  },
   pickSum(){
-    const P=this._pick,sel=this._picked();
-    const n=sel.reduce((s,k)=>s+P.by[k].n,0),r=sel.reduce((s,k)=>s+P.by[k].rows.length,0);
-    const el=$("#ap-sum");if(el)el.textContent=sel.length?`已選 ${sel.length} 艘船：${r} 筆缺失、${n} 個檔案`:"尚未勾選船舶";
-    const b=$("#ap-go");if(b){b.disabled=!sel.length;b.textContent=sel.length?`⬇ 下載 ${n} 個檔案`:"⬇ 下載";}
+    const M=this._matched(),n=M.rows.reduce((s,d)=>s+this.count(d),0);
+    const conds=[M.sh&&M.sh.size?`${M.sh.size} 艘船`:"",M.sr&&M.sr.size?`${M.sr.size} 種檢查來源`:"",(M.f||M.t)?`${M.f||"最早"}～${M.t||"最新"}`:""].filter(Boolean).join("、");
+    const el=$("#ap-sum");if(el)el.textContent=M.any?`條件：${conds} → ${M.rows.length} 筆缺失、${n} 個檔案`:`尚未設定條件（＝全部 ${M.rows.length} 筆、${n} 個檔案）`;
+    const b=$("#ap-go");if(b){b.disabled=!M.rows.length;b.textContent=!M.rows.length?"⬇ 沒有符合的附件":M.any?`⬇ 下載 ${n} 個檔案`:`⬇ 下載全部 ${n} 個檔案`;}
   },
   pickGo(){
-    const P=this._pick,sel=this._picked();if(!sel.length){toast("⚠ 請先勾選船舶");return;}
+    const M=this._matched();if(!M.rows.length){toast("⚠ 沒有符合條件的附件");return;}
+    const n=M.rows.reduce((s,d)=>s+this.count(d),0);
+    if(!M.any&&!confirm(`沒有設定任何條件，將下載全部 ${M.rows.length} 筆缺失的 ${n} 個附件，檔案可能很大、需要一些時間。\n\n確定要全部下載嗎？`))return;
     $("#attachPickModal").classList.remove("show");
-    this.defs(sel.flatMap(k=>P.by[k].rows));
+    this.defs(M.rows);
   }
 };
 const Photobox={
