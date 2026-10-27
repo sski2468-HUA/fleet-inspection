@@ -984,7 +984,7 @@ const SHIP_SITE="https://sski2468-hua.github.io/vessel-portal/";
 const replyUrl=r=>`${SHIP_SITE}intaudit-reply.html?rid=${r.id}`;
 const statCls=s=>s==="FLOW 結案"?"s-flow":s==="待船上改善"?"s-wait":s==="船上已回報"?"s-rep":s==="已退回待重填"?"s-wait":"s-done";
 const rankSelect=(cur,onchange,extra)=>`<select ${extra||""} onchange="${onchange}"><option value="">— 職級 —</option>${RANK_OPTIONS.map(r=>`<option ${cur===r?"selected":""}>${esc(r)}</option>`).join("")}${cur&&!RANK_OPTIONS.includes(cur)?`<option selected>${esc(cur)}</option>`:""}</select>`;
-function openLightbox(url){$("#lightboxImg").src=url;$("#lightbox").style.display="flex";}
+function openLightbox(url){const pu=PhotoCloud.pdfUrlFromSrc(url);if(pu){window.open(pu,"_blank","noopener");return;}$("#lightboxImg").src=url;$("#lightbox").style.display="flex";}
 function download(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
 
 /* ══════ 登錄紀錄（清單） ══════ */
@@ -1185,7 +1185,7 @@ function exportDefsList(){
   if(nPh)toast(`⏳ 正在把 ${nPh} 張照片放進 Excel，請稍候…`);
   XlsxPretty.writeFile(wb,`缺失清單列表_${todayIso()}.xlsx`,{photos:{"缺失清單":photos}}).then(()=>toast(`✓ 已匯出 ${data.length} 筆${nPh?`（含 ${nPh} 張照片）`:""}`));
 }
-const xlPhotoSrcs=arr=>(arr||[]).map(ph=>ph&&(ph.dataUrl||ph.url)).filter(Boolean);function setListView(v){
+const xlPhotoSrcs=arr=>(arr||[]).filter(ph=>!PhotoCloud.isPdf(ph)).map(ph=>ph&&(ph.dataUrl||ph.url)).filter(Boolean);function setListView(v){
   listView=v;
   $("#cardView").style.display=v==="cards"?"":"none";$("#tableView").style.display=v==="table"?"":"none";$("#yearView").style.display=v==="year"?"":"none";$("#defsView").style.display=v==="defs"?"":"none";
   $("#lvCards").classList.toggle("primary",v==="cards");$("#lvTable").classList.toggle("primary",v==="table");$("#lvYear").classList.toggle("primary",v==="year");$("#lvDefs").classList.toggle("primary",v==="defs");
@@ -2521,9 +2521,11 @@ function listOf(scope,i,j){return scope==="top4"?cur.top4.photos:scope==="best"?
 function phHtml(scope,i,max){
   const list=listOf(scope,i),full=max&&list.length>=max;
   return `<div class="phs">${list.map((p,k)=>`<div class="ph"><img src="${PhotoCloud.src(p)}" title="${esc(p.name)}" onclick="openLightbox(this.src)"><button type="button" title="刪除這張照片" onclick="delPhoto('${scope}',${i},${k})">×</button></div>`).join("")}
-    ${full?`<span class="hint">最多 ${max} 張</span>`:`<label class="phadd">＋ 上傳照片${max?`<br>（最多 ${max} 張）`:""}<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos('${scope}',${i},this,${max||0})"></label>`}</div>`;
+    ${full?`<span class="hint">最多 ${max} 張</span>`:`<label class="phadd">＋ 上傳照片／PDF${max?`<br>（最多 ${max} 張）`:""}<input type="file" accept="image/*,application/pdf,.pdf" multiple style="display:none" onchange="addPhotos('${scope}',${i},this,${max||0})"></label>`}</div>`;
 }
-function readImg(file){return new Promise(res=>{const fr=new FileReader();fr.onload=()=>{const img=new Image();img.onload=()=>{const M=1280,s=Math.min(1,M/Math.max(img.width,img.height));const cv=document.createElement("canvas");cv.width=Math.round(img.width*s);cv.height=Math.round(img.height*s);cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);res({name:file.name,dataUrl:cv.toDataURL("image/jpeg",0.8)});};img.onerror=()=>res(null);img.src=fr.result;};fr.onerror=()=>res(null);fr.readAsDataURL(file);});}
+/* PDF：不縮圖，直接上傳 Storage（需連網、≤10MB），回傳 {name,url,path,type,size}；失敗回 null 並提示 */
+async function readPdf(file){try{toast(`「${file.name}」上傳中…`);const p=await PhotoCloud.uploadPdf(file);toast(`✓「${file.name}」已上傳`);return p;}catch(e){toast(`⚠ PDF 需連網上傳：「${file.name}」未加入（${e.message||e}）`,true);return null;}}
+function readImg(file){if(PhotoCloud.isPdfFile(file))return readPdf(file);return new Promise(res=>{const fr=new FileReader();fr.onload=()=>{const img=new Image();img.onload=()=>{const M=1280,s=Math.min(1,M/Math.max(img.width,img.height));const cv=document.createElement("canvas");cv.width=Math.round(img.width*s);cv.height=Math.round(img.height*s);cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);res({name:file.name,dataUrl:cv.toDataURL("image/jpeg",0.8)});};img.onerror=()=>res(null);img.src=fr.result;};fr.onerror=()=>res(null);fr.readAsDataURL(file);});}
 async function addPhotos(scope,i,input,max){
   const files=[...input.files];input.value="";if(!files.length)return;
   const list=listOf(scope,i);let skipped=0;
@@ -2833,7 +2835,7 @@ function renderBatch(){
     <td><input type="date" value="${esc(r.reported)}" onchange="setBR(${i},'reported',this.value)"></td>
     <td><textarea placeholder="待改善描述（中英文皆可）" oninput="setBR(${i},'finding',this.value)">${esc(r.finding)}</textarea></td>
     <td><select onchange="setBR(${i},'closeMode',this.value)"><option value="">— 請選擇 —</option>${MODES.map(m=>`<option value="${m.k}" ${r.closeMode===m.k?"selected":""}>${esc(m.label)}</option>`).join("")}</select></td>
-    <td><div class="phs">${r.photos.map((p,k)=>`<div class="ph s"><img src="${PhotoCloud.src(p)}" onclick="openLightbox(this.src)"><button type="button" title="刪除這張照片" onclick="batch.rows[${i}].photos.splice(${k},1);renderBatch()">×</button></div>`).join("")}${r.photos.length<MAX_DEF_PHOTOS?`<label class="phadd s">＋<input type="file" accept="image/*" multiple style="display:none" onchange="addBatchPhotos(${i},this)"></label>`:""}</div></td>
+    <td><div class="phs">${r.photos.map((p,k)=>`<div class="ph s"><img src="${PhotoCloud.src(p)}" onclick="openLightbox(this.src)"><button type="button" title="刪除這張照片" onclick="batch.rows[${i}].photos.splice(${k},1);renderBatch()">×</button></div>`).join("")}${r.photos.length<MAX_DEF_PHOTOS?`<label class="phadd s">＋<input type="file" accept="image/*,application/pdf,.pdf" multiple style="display:none" onchange="addBatchPhotos(${i},this)"></label>`:""}</div></td>
     <td><button class="btn sm danger" type="button" title="刪除這一列" onclick="delBatchRow(${i})">×</button></td></tr>`).join("");
   updateBatchCount();
 }

@@ -55,6 +55,8 @@ function buildDocx_photos(ctx){
     if(!photos||!photos.length)return wPara("",{after:0});
     let runs="";
     for(const p of photos){
+      // PDF 附件不能當圖片嵌入 Word：改列檔名
+      if(typeof PhotoCloud!=="undefined"&&PhotoCloud.isPdf&&PhotoCloud.isPdf(p)){runs+=`<w:r><w:t xml:space="preserve">📄 附件：${String(p.name||"PDF").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}  </w:t></w:r>`;continue;}
       // 照片可能是內嵌的 dataUrl，也可能已經改存 Storage 只剩網址（photo-cloud.js）：網址的先下載回來再放進 Word
       const du=p&&p.dataUrl?p.dataUrl:(typeof PhotoCloud!=="undefined"?await PhotoCloud.toDataUrl(p):"");
       if(!du)continue;
