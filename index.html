@@ -5545,7 +5545,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       </div>
 
       <div class="card" style="margin-bottom:14px">
-        <h3>船舶缺失自查</h3>
+        <h3>專案自查清單（任務資料）</h3>
         <p class="hint" id="dm-taskn"></p>
         <div class="toolbar">
           <button class="btn" onclick="SelfCheck.openListExport()">⬇ 匯出任務</button>
@@ -7812,7 +7812,7 @@ const DataHub={
     {id:"perm",  icon:"🔐", name:"帳號與權限",
      cards:["人員名單與系統權限","權限矩陣","缺失專案分析","內稽動態／年度計畫暨執行情形"]},
     {id:"data",  icon:"🗂", name:"資料表匯入匯出",
-     cards:["資料庫管理","缺失紀錄總表","檢查紀錄資料庫","檢查管控（含排程）","船舶資料管理","SIRE正向評論","正面評價/優秀案例"]},
+     cards:["資料庫管理","缺失紀錄總表","檢查紀錄資料庫","檢查管控（含排程）","船舶資料管理","SIRE正向評論","正面評價/優秀案例","專案自查清單（任務資料）"]},
     {id:"rule",  icon:"🌳", name:"缺失分類與代碼",
      cards:["缺失分類階層管理","缺失根因分類","缺失代碼對照表","外部/內部檢查、檢查類型對應定義"]},
     {id:"cfg",   icon:"⚙️", name:"畫面與清單",
@@ -7821,8 +7821,8 @@ const DataHub={
      cards:["船舶檢查填報平台入口密碼","船舶平台預覽","船舶平台跑馬燈訊息","船舶平台使用情形"]},
     {id:"air",   icon:"📝", name:"外部檢查線上填單",
      cards:["填單","填單轉入缺失紀錄總表 — 必填欄位設定","填單「海技確認」— 可確認人員設定","「線上填單」缺失矯正前/後照片上傳設定","對外回覆「缺失佐證證據」上傳設定"]},
-    {id:"ia",    icon:"🛠", name:"內部檢查改善單／船舶自查",
-     cards:["檢查人 Auditor」名單","船舶缺失自查"]},
+    {id:"ia",    icon:"🛠", name:"內部檢查改善單",
+     cards:["檢查人 Auditor」名單"]},
     {id:"backup",icon:"📦", name:"備份與還原",
      cards:["一鍵下載全部備份","預設資料／備份還原","系統設定備份／還原","資源回收桶","唯讀模式（全站凍結寫入）","全部歸零"]},
     {id:"storage",icon:"🩺", name:"儲存空間與資料健檢",
@@ -7836,7 +7836,7 @@ const DataHub={
     {id:"main",icon:"🖥",name:"主系統",groups:["perm","data","rule","cfg"]},
     {id:"ship",icon:"🚢",name:"船舶檢查填報平台",groups:["ship"]},
     {id:"air", icon:"📝",name:"外部檢查線上填單",groups:["air"]},
-    {id:"ia",  icon:"🛠",name:"內部檢查改善單／船舶自查",groups:["ia"]},
+    {id:"ia",  icon:"🛠",name:"內部檢查改善單",groups:["ia"]},
     {id:"sys", icon:"🧰",name:"系統維護",groups:["sync","backup","storage","audit","other"]}
   ],
   AREA_KEY:"vsm_dh_area_v1",
@@ -26664,7 +26664,10 @@ const Air={
         });
         rp._replyStage=draft.stage; rp._confirmCount=draft.confirm_count||0;
         rp._confirmedBy=draft.confirmed_by||""; rp._confirmedAt=draft.confirmed_at||"";
-        rp._replyHistory=Array.isArray(draft.history)?draft.history:[]; // 完整版本歷史也一併備份，不只是目前版本
+        // 2026-10-27：版本歷史不再複製進 App.air（每存一次就整份複製，單筆填單可長到 2.7MB，整張填單表 10MB，
+        // 拖慢「載入最新資料」與同步）。歷史本來就完整留在雲端 air_reply_drafts.history，一鍵備份（JS）另外整張帶上。
+        delete rp._replyHistory;
+        rp._replyHistoryN=Array.isArray(draft.history)?draft.history.length:0;
         n++;
       });
       if(n)App.saveAll();
@@ -32287,11 +32290,15 @@ const DM={
     }else if(!confirm("⚠ 目前沒有連上雲端，備份會是「這台電腦本機」的資料，不是雲端資料。\n\n確定仍要用本機資料備份嗎？"))return;
     toast("⏳ 同步對外回覆最新內容中…");
     await Air.syncAllReplyDrafts().catch(()=>{});
+    // 對外回覆的版本歷史只存在雲端 air_reply_drafts（不再複製進填單紀錄），備份時整張一起帶上
+    let airReplyDrafts=null;
+    try{if(typeof Cloud!=="undefined"&&Cloud.enabled())airReplyDrafts=await Cloud.api("air_reply_drafts?select=*");}catch(e){console.warn("備份 air_reply_drafts 失敗",e);}
     const bundle={
       type:"vsm_full_backup",
       exportedAt:new Date().toISOString(),
       exportedBy:(typeof Audit!=="undefined")?Audit.user():"",
       data:{
+        airReplyDrafts,
         inspections:App.insp,
         deficiencies:App.defs,
         sirePositive:App.sirePos,
@@ -35194,13 +35201,13 @@ const Cloud={
         rows.forEach(r=>this.markSeen(r.k,r.updated));
       }catch(e){errKeys.push("app_db");}
       // 3) 存本機、重繪
-      try{
-        LZSet(App.LSK.i,JSON.stringify(App.insp));LZSet(App.LSK.d,JSON.stringify(App.defs));
-        LZSet(App.LSK.sp,JSON.stringify(App.sirePos));LZSet(App.LSK.air,JSON.stringify(App.air));
-        LZSet(App.LSK.ic,JSON.stringify(App.inspCtrl));LZSet(App.LSK.ap,JSON.stringify(App.annualPlan));
-        LZSet(App.LSK.ad,JSON.stringify(App.auditDash));LZSet(App.LSK.dp,JSON.stringify(App.defsProjects));
-      }catch(e){}
-      App._lastSaved={};
+      // 只把「這次真的有變動」的資料表壓縮存回本機：原本每次都把 8 張表全部重新壓縮（缺失 4MB、填單 10MB），
+      // 沒有變動也要花好幾秒，是「載入最新資料」要等一陣子的主因（2026-10-27）
+      const LS_OF={inspections:[App.LSK.i,()=>App.insp],deficiencies:[App.LSK.d,()=>App.defs],sirePositive:[App.LSK.sp,()=>App.sirePos],
+        airReviews:[App.LSK.air,()=>App.air],inspctrl:[App.LSK.ic,()=>App.inspCtrl],annualPlan:[App.LSK.ap,()=>App.annualPlan],
+        auditDash:[App.LSK.ad,()=>App.auditDash],defsProjects:[App.LSK.dp,()=>App.defsProjects]};
+      changedKeys.forEach(k=>{const x=LS_OF[k];if(x){try{LZSet(x[0],JSON.stringify(x[1]()));}catch(e){}}});
+      if(changedKeys.length)App._lastSaved={};
       App.refreshMeta&&App.refreshMeta();
       this._rerenderPages(true);
       try{if(typeof FleetDA!=="undefined"&&$("#tab-fleetda")&&$("#tab-fleetda").classList.contains("show"))FleetDA.render();}catch(e){}
