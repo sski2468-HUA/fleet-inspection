@@ -29218,7 +29218,7 @@ const PortalPreview={
   URL:"https://sski2468-hua.github.io/vessel-portal/",
   fill(){
     const sel=$("#pv-ship");if(!sel||sel.options.length)return;
-    sel.innerHTML=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>s&&s.code&&!(typeof isSoldShip==="function"&&isSoldShip(s.code)))
+    sel.innerHTML=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>s&&s.code&&s.operator==="FPMC"&&!(typeof isSoldShip==="function"&&isSoldShip(s.code)))
       .sort((a,b)=>String(a.code).localeCompare(String(b.code),undefined,{numeric:true}))
       .map(s=>`<option value="${esc(s.code)}">${esc(shipFullLabel(s.code))}</option>`).join("");
   },
@@ -29325,7 +29325,8 @@ const PortalUsage={
       resps.forEach(r=>{if(r.ship){const o=S(r.ship);o.lastSc=Math.max(o.lastSc,tsOf(r.submitted_at));}});
       const now=new Date(),ym=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`,d30=Date.now()-30*86400000;
       const dayOf=ts=>{const d=new Date(ts);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
-      const ships=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>s&&s.code&&!(typeof isSoldShip==="function"&&isSoldShip(s.code)));
+      // 只列 FPMC 自管船：管理公司船舶（FPMC 25／26、P IDEAL、P HERO 等）不使用船舶平台（2026-10-27）
+      const ships=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>s&&s.code&&s.operator==="FPMC"&&!(typeof isSoldShip==="function"&&isSoldShip(s.code)));
       this.rows=ships.map(s=>{const o=M.get(s.code)||{logs:[],lastAir:0,lastIa:0,lastSc:0};
         const last=o.logs.length?Math.max(...o.logs.map(l=>+l.ts||0)):0;
         const days=new Set(o.logs.filter(l=>dayOf(+l.ts).startsWith(ym)).map(l=>dayOf(+l.ts))).size;
