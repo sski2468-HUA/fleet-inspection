@@ -3840,7 +3840,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn sm dark" onclick="Defs.openBatchEdit()">✎✎ 批量編輯（維護者）</button>
             <button class="btn sm" onclick="Defs.openDownloadModal()">⬇ 下載表單</button>
-            <button class="btn sm" onclick="AttachDL.defs(Defs.exportSet())" title="下載附件照片／PDF（有勾選＝勾選的缺失；沒勾選＝目前篩選結果），打包成 zip">📎 下載附件</button>
+            <button class="btn sm" onclick="AttachDL.defsPick()" title="下載附件照片／PDF：先選船舶再打包成 zip（有勾選缺失＝只從勾選的缺失裡選）">📎 下載附件</button>
             <button class="btn sm" style="background:#f3edf8;border-color:#d9c3ef;color:#6a3b8f" onclick="Defs.openInternalControlList()">🔒 內控清單</button>
             <button class="btn sm" onclick="Defs.exportTemplate()">📋 下載匯入模板</button>
             <button class="btn sm" onclick="Defs.openColPicker()" title="設定顯示欄位與欄位排序">⚙ 欄位設定</button>
@@ -8754,6 +8754,48 @@ const AttachDL={
     if(!rows.length){toast("⚠ 選取的缺失沒有附件");return;}
     const entries=rows.flatMap(d=>this.entriesOf(d,`${this.safe(d.ship)}_${this.safe(String(d.date).replace(/\//g,"-"))}${d.code?"_"+this.safe(d.code):""}_#${d.id}`));
     this.zip(entries,`缺失附件_${rows.length}筆_${todayStr()}.zip`);
+  },
+  /* 缺失紀錄總表「📎 下載附件」：先跳視窗確認範圍，依船舶勾選要下載哪些（避免一按就把全部附件抓下來）。
+     有勾選缺失列＝範圍是勾選的那幾筆（船舶預設全勾）；沒勾選＝目前篩選結果（船舶預設不勾，要自己選或按「全部」） */
+  _pick:null,
+  defsPick(){
+    const fromSel=!!(Defs.selected&&Defs.selected.size);
+    const rows=(Defs.exportSet()||[]).filter(d=>this.count(d));
+    if(!rows.length){toast(fromSel?"⚠ 勾選的缺失沒有附件":"⚠ 目前篩選結果沒有附件");return;}
+    const by={};rows.forEach(d=>{const k=d.ship||"（未填船名）";(by[k]=by[k]||{rows:[],n:0});by[k].rows.push(d);by[k].n+=this.count(d);});
+    const ships=Object.keys(by).sort((a,b)=>String(shipFullLabel(a)).localeCompare(String(shipFullLabel(b)),"zh-Hant"));
+    this._pick={by,ships,fromSel};
+    let m=document.getElementById("attachPickModal");
+    if(!m){m=document.createElement("div");m.className="modal-bg";m.id="attachPickModal";document.body.appendChild(m);}
+    const total=rows.reduce((s,d)=>s+this.count(d),0);
+    m.innerHTML=`<div class="modal" style="max-width:560px;width:94vw"><div class="mh"><h3>📎 下載附件</h3><button class="x" onclick="$('#attachPickModal').classList.remove('show')">✕</button></div>
+      <div class="mb">
+        <p class="hint" style="margin:0 0 8px;line-height:1.7">範圍：<b>${fromSel?`已勾選的缺失`:`目前篩選結果`}</b>，其中有附件的缺失 <b>${rows.length}</b> 筆、共 <b>${total}</b> 個檔案（照片／PDF）。<br>請勾選要下載哪些船舶的附件：</p>
+        <div class="toolbar" style="gap:6px;margin-bottom:6px"><button class="btn sm" onclick="AttachDL.pickAll(true)">全選</button><button class="btn sm" onclick="AttachDL.pickAll(false)">全不選</button></div>
+        <div style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 10px">
+          ${ships.map((s,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line);cursor:pointer"><input type="checkbox" class="ap-ship" data-i="${i}" ${fromSel?"checked":""} onchange="AttachDL.pickSum()"><span style="flex:1">${esc(shipFullLabel(s))}</span><span class="hint">${by[s].rows.length} 筆／${by[s].n} 個檔</span></label>`).join("")}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <span class="hint" id="ap-sum" style="flex:1"></span>
+          <button class="btn" onclick="$('#attachPickModal').classList.remove('show')">取消</button>
+          <button class="btn primary" id="ap-go" onclick="AttachDL.pickGo()">⬇ 下載</button>
+        </div>
+      </div></div>`;
+    m.classList.add("show");
+    this.pickSum();
+  },
+  pickAll(on){document.querySelectorAll("#attachPickModal .ap-ship").forEach(c=>c.checked=on);this.pickSum();},
+  _picked(){const P=this._pick;if(!P)return [];return [...document.querySelectorAll("#attachPickModal .ap-ship:checked")].map(c=>P.ships[+c.dataset.i]);},
+  pickSum(){
+    const P=this._pick,sel=this._picked();
+    const n=sel.reduce((s,k)=>s+P.by[k].n,0),r=sel.reduce((s,k)=>s+P.by[k].rows.length,0);
+    const el=$("#ap-sum");if(el)el.textContent=sel.length?`已選 ${sel.length} 艘船：${r} 筆缺失、${n} 個檔案`:"尚未勾選船舶";
+    const b=$("#ap-go");if(b){b.disabled=!sel.length;b.textContent=sel.length?`⬇ 下載 ${n} 個檔案`:"⬇ 下載";}
+  },
+  pickGo(){
+    const P=this._pick,sel=this._picked();if(!sel.length){toast("⚠ 請先勾選船舶");return;}
+    $("#attachPickModal").classList.remove("show");
+    this.defs(sel.flatMap(k=>P.by[k].rows));
   }
 };
 const Photobox={
