@@ -24581,7 +24581,29 @@ const Air={
   /* ── 缺失改善明細 ── */
   blankDefect(){return {id:this.defSeq++,psc:"",code:"",actual:"",detail:"",opComment:"",immediateCause:"",corrective:"",rootCause:"",preventive:"",needControl:false,rank:"",person:"",people:[{rank:"",person:""}],ncProb:"",ncMain:"",ncLeaf:"",ncRoot:"",ncFactor:"",ncImp:"",ncFocus:"",ncMethod:"",ncOpinion:"",risk:""};},
   addDefectRow(){this.defRows.push(this.blankDefect());this.activeDefRowIdx=this.defRows.length-1;this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
-  rmDefectRow(id){this.defRows=this.defRows.filter(r=>r.id!==id);this.defSel.delete(id);this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();},
+  /* 刪除一條缺失明細。對外回覆草稿（雲端 air_reply_drafts）是用「第幾條缺失」（defect_idx）對應的，
+     以前刪缺失不會動到草稿，對外回覆那邊就還留著被刪的那條，後面幾條也會跟錯缺失。
+     現在這筆填單若已建立對外回覆案件：一併刪掉這條的草稿，後面的草稿 defect_idx 往前遞補。 */
+  async rmDefectRow(id){
+    const k=this.defRows.findIndex(r=>r.id===id);if(k<0)return;
+    const rid=this.editId,d=App.air.find(x=>x.id===rid),r=this.defRows[k];
+    let drafts=[];
+    if(d&&typeof Cloud!=="undefined"&&Cloud.enabled()){
+      try{drafts=await Cloud.api(`air_reply_drafts?air_record_id=eq.${rid}&select=id,defect_idx&order=defect_idx.asc`)||[];}
+      catch(e){toast("⚠ 無法確認對外回覆案件（"+e.message+"），請確認網路後再刪除");return;}
+    }
+    if(drafts.length&&!confirm(`這筆填單已建立對外回覆案件。\n\n刪除缺失 #${k+1}（CODE ${r.code||"未填"}）會一併刪除它在對外回覆的內容，後面的缺失往前遞補。\n\n確定刪除？`))return;
+    this.defRows.splice(k,1);this.defSel.delete(id);
+    if(d&&d.reply&&Array.isArray(d.reply.items)&&d.reply.items.length>k)d.reply.items.splice(k,1);
+    this.renderDefectRows();this.syncNdefField();this.scheduleFormAutoSave();
+    if(!drafts.length)return;
+    try{
+      const H=Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"});
+      for(const x of drafts.filter(x=>x.defect_idx===k))await Cloud.api(`air_reply_drafts?id=eq.${x.id}`,{method:"DELETE",headers:H});
+      for(const x of drafts.filter(x=>x.defect_idx>k))await Cloud.api(`air_reply_drafts?id=eq.${x.id}`,{method:"PATCH",headers:H,body:JSON.stringify({defect_idx:x.defect_idx-1})});
+      toast(`✓ 已刪除缺失 #${k+1}，對外回覆已同步`);
+    }catch(e){toast("⚠ 對外回覆同步失敗："+e.message+"（下次按「前往對外回覆編輯」時會再檢查）");console.warn("rmDefectRow draft sync failed",e);}
+  },
   syncNdefField(){const el=$("#air-ndef");if(el)el.value=this.defRows.length;},
   /* ── 缺失明細照片（矯正前/後）：原本這裡只有唯讀縮圖（船上填單附帶的才看得到），維護者／督導
      在「填單紀錄」編輯缺失時完全沒有上傳功能，只有「缺失紀錄總表」的編輯視窗才能傳照片——
@@ -27000,7 +27022,14 @@ const Air={
       try{
         // 確保這筆記錄「每一條缺失」都有對應的草稿，不只是目前正在看的這條，
         // 這樣外部編輯頁一次打開就能看到全部缺失、可以切換分頁，不用每條缺失各自產生一次連結
-        const existingRows=await Cloud.api(`air_reply_drafts?air_record_id=eq.${this.replyId}&select=defect_idx,items`);
+        let existingRows=await Cloud.api(`air_reply_drafts?air_record_id=eq.${this.replyId}&select=defect_idx,items`);
+        // 填單裡已經刪掉的缺失（草稿 defect_idx 超出目前缺失條數），問一下要不要從對外回覆移除
+        const nDef=(d.defects||[]).length,orphans=(existingRows||[]).filter(r=>r.defect_idx>=nDef);
+        if(orphans.length&&nDef&&confirm(`對外回覆裡有 ${orphans.length} 條缺失，在填單紀錄已經刪除了：\n${orphans.map(r=>`#${r.defect_idx+1} CODE ${((r.items&&r.items[0]&&r.items[0]._defectMeta)||{}).code||"未填"}`).join("\n")}\n\n要一併從對外回覆移除嗎？`)){
+          await Cloud.api(`air_reply_drafts?air_record_id=eq.${this.replyId}&defect_idx=gte.${nDef}`,{method:"DELETE",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"})});
+          existingRows=existingRows.filter(r=>r.defect_idx<nDef);
+          if(d.reply&&Array.isArray(d.reply.items)&&d.reply.items.length>nDef){d.reply.items.length=nDef;App.saveAll();}
+        }
         // ⚠ 只在「這筆記錄完全還沒有任何對外回覆草稿」時才跳出確認——代表這次點擊會真的
         // 新建一個案件。如果已經有草稿了（之前已經建過案），代表使用者只是要回來繼續編輯，
         // 屬於低風險動作，不需要每次都跳確認視窗打斷操作。
