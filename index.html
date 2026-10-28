@@ -35394,7 +35394,25 @@ const Cloud={
     document.body.style.paddingTop="42px";
     const t=$("#syncFailText");if(t)t.textContent="⚠ "+msg;
   },
+  /* 船舶資料改成逐筆存 sync_ships 之後，app_db 的 ships 整包就沒人更新了（停在 2026/8/6），
+     但船上平台、內部檢查登錄、PSC 分析等獨立頁面都還在讀它 → 督導換人後這些頁面仍顯示舊人。
+     現在船舶資料一有變動，就順便把整包鏡像回 app_db ships，讓那些頁面拿到最新內容。 */
+  _mirrorShips(){
+    clearTimeout(this._shipMirrorT);
+    this._shipMirrorT=setTimeout(async()=>{
+      try{
+        if(!this.enabled())return;
+        const list=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>s&&s.code&&!s._deleted);
+        if(list.length<10)return; // 防呆：本機船舶資料異常（還沒載入完成）時不覆蓋
+        const now=Date.now();
+        await this.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(this.hdr(),{"Prefer":"resolution=merge-duplicates"}),
+          body:JSON.stringify([{k:"ships",updated:now,by:(typeof Audit!=="undefined"?Audit.user():""),payload:list}])});
+        if(this._cloudSeen)this._cloudSeen.ships=now;
+      }catch(e){console.warn("ships mirror to app_db failed",e);}
+    },3000);
+  },
   queueAutoPublish(key){
+    if(key==="ships")this._mirrorShips();
     if(typeof RecordSync!=="undefined"&&RecordSync.TABLES[key]){RecordSync.queuePush(key);return;} // 已改逐筆同步的表，統一轉給 RecordSync 處理
     if(!this.enabled()||!this.cfg.auto)return; // 沿用既有「自動同步」開關
     this._autoKeys.add(key);
