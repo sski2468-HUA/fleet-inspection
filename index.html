@@ -3587,6 +3587,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <button class="btn sm" id="air-clearsel-btn" onclick="Air.clearSel()">✕ 取消勾選</button>
               <button class="btn sm" onclick="Air.openShareCheckWizardMulti()" title="先勾選 2 筆以上的填單，把它們的缺失合併成一個分享自查活動">📤 合併分享</button>
               <button class="btn sm dark" id="air-pushmodal-btn" onclick="Air.openPushModal()">➜ 轉入紀錄</button>
+              <button class="btn sm" id="air-restorereply-btn" onclick="Air.restoreExtReply()" title="選取「✕ 取消對外回覆」時下載的「對外回覆留存_….json」，把對外回覆案件匯回">📥 匯回對外回覆</button>
             </span>
           </h3>
           <div class="tblwrap" style="max-height:520px">
@@ -24579,7 +24580,7 @@ const Air={
     // 改成清空表頭文字內容、但保留這個 <th> 本身，維持欄位數量兩邊一致。
     const selallTh=$("#air-selall-th");if(selallTh)selallTh.innerHTML=ok?'<input type="checkbox" id="air-selall" onchange="Air.toggleAll(this.checked)">':"";
     ["air-tab-cloudqueue-btn","air-tab-intaudit-btn","air-replyedit-btn","air-replylist-btn","air-replyurl-btn","air-adddef-btn","air-addpos-btn",
-     "air-newimport-btn","air-clearsel-btn","air-pushmodal-btn","air-sel-count"]
+     "air-newimport-btn","air-clearsel-btn","air-pushmodal-btn","air-sel-count","air-restorereply-btn"]
       .forEach(id=>{const el=$(id.startsWith("#")?id:"#"+id);if(el)el.style.display=ok?"":"none";});
     // 勾選狀態本身也一併清掉，避免「權限被拿掉前已經勾好的幾筆」殘留在背景、
     // 下次身份切回有權限時卻莫名其妙已經勾了幾筆。
@@ -26222,6 +26223,34 @@ const Air={
     }catch(e){toast("⚠ 取消失敗："+e.message,true);return;}
     if(typeof Audit!=="undefined")Audit.log("刪除","對外回覆",`取消對外回覆：${lbl}（${rows.length} 條，已下載 JSON 留存）`);
     toast(`✓ 已取消對外回覆（${rows.length} 條），留存檔已下載`);
+    await this._loadExtReplyIds(true);this.renderList();
+  },
+  /* 匯回對外回覆：讀取 cancelExtReply 下載的留存 JSON，把案件原封不動寫回 air_reply_drafts
+     （回覆內容、版本歷史、確認狀態都保留；id 由資料庫重新編號）。這筆填單目前已經有對外回覆案件時不匯回，
+     避免同一條缺失出現兩份案件——要匯回請先按「✕ 取消」。 */
+  restoreExtReply(){
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 匯回對外回覆僅限 Owner／維護者");return;}
+    const fp=$("#filepick");fp.accept=".json";fp.value="";
+    fp.onchange=()=>{const f=fp.files[0];if(!f)return;const r=new FileReader();
+      r.onload=()=>{let j;try{j=JSON.parse(r.result);}catch(e){toast("⚠ 檔案不是有效的 JSON",true);return;}this._restoreExtReply(j);};
+      r.readAsText(f);};
+    fp.click();
+  },
+  async _restoreExtReply(j){
+    const drafts=j&&Array.isArray(j.drafts)?j.drafts:null,id=j&&j.airRecordId;
+    if(!drafts||!drafts.length||id==null||drafts.some(x=>String(x.air_record_id)!==String(id))){toast("⚠ 這不是「對外回覆留存」檔（請選取取消對外回覆時下載的 對外回覆留存_….json）",true);return;}
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){toast("⚠ 雲端未連線");return;}
+    const d=(App.air||[]).find(x=>String(x.id)===String(id));
+    let ex;try{ex=await Cloud.api(`air_reply_drafts?select=id&air_record_id=eq.${encodeURIComponent(id)}&limit=1`)||[];}catch(e){toast("⚠ 讀取雲端失敗："+e.message,true);return;}
+    if(ex.length){toast("⚠ 這筆填單目前已經有對外回覆案件，請先在狀態欄按「✕ 取消」再匯回",true);return;}
+    const lbl=j.label||(d?`${shipFullLabel(d.ship)} ${d.date||""}`:`#${id}`);
+    const nDef=d?(d.defects||[]).length:null;
+    if(!confirm(`匯回對外回覆？\n\n${lbl}\n取消時間：${j.canceledAt?new Date(j.canceledAt).toLocaleString("zh-TW",{hour12:false}):"—"}\n案件：${drafts.length} 條缺失${!d?"\n\n⚠ 填單紀錄裡找不到這筆填單（可能已刪除），匯回後清單上不會顯示":""}${nDef!=null&&drafts.some(x=>x.defect_idx>=nDef)?`\n\n⚠ 填單目前只有 ${nDef} 條缺失，留存檔裡有超出的條目（缺失可能已刪除）`:""}`))return;
+    const rows=drafts.map(x=>{const o={...x};delete o.id;return o;});
+    try{await Cloud.api("air_reply_drafts",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),body:JSON.stringify(rows)});}
+    catch(e){toast("⚠ 匯回失敗："+e.message,true);return;}
+    if(typeof Audit!=="undefined")Audit.log("匯入","對外回覆",`匯回對外回覆：${lbl}（${rows.length} 條）`);
+    toast(`✓ 已匯回對外回覆（${rows.length} 條）`);
     await this._loadExtReplyIds(true);this.renderList();
   },
   PEND_LABEL:"⚠ 對外回覆未轉入",
