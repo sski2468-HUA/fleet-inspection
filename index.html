@@ -26202,6 +26202,28 @@ const Air={
       if(typeof Todo!=="undefined")Todo.render();
     }catch(e){/* 離線：維持上次結果 */}
   },
+  /* 取消對外回覆：這筆填單不需要對外回覆時，刪掉雲端 air_reply_drafts 裡這筆填單的回覆案件（只限 Owner／維護者）。
+     刪除前先自動下載一份 JSON 留存（含回覆內容與版本歷史），萬一按錯還找得回來；
+     填單本身、缺失紀錄總表都不動，狀態欄的「已對外回覆」「對外回覆未轉入總表」會一起消失。 */
+  async cancelExtReply(id){
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 取消對外回覆僅限 Owner／維護者");return;}
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){toast("⚠ 雲端未連線");return;}
+    const d=(App.air||[]).find(x=>String(x.id)===String(id));
+    let rows;
+    try{rows=await Cloud.api(`air_reply_drafts?air_record_id=eq.${encodeURIComponent(id)}&order=defect_idx.asc`)||[];}
+    catch(e){toast("⚠ 讀取對外回覆失敗："+e.message,true);return;}
+    if(!rows.length){toast("這筆填單沒有對外回覆案件");this._loadExtReplyIds(true);return;}
+    const filled=rows.filter(r=>{const it=(Array.isArray(r.items)&&r.items[0])||{};return Object.values(this.REPLY_MAP).some(k=>this._rnorm(it[k]));}).length;
+    const lbl=d?`${shipFullLabel(d.ship)} ${d.date||""} ${d.itype||""}`:`#${id}`;
+    if(!confirm(`取消這筆填單的對外回覆？\n\n${lbl}\n對外回覆案件：${rows.length} 條缺失${filled?`（其中 ${filled} 條已經寫了回覆內容）`:""}\n\n・會刪除這筆填單的對外回覆內容與版本歷史（刪除前會自動下載一份 JSON 留存）\n・填單本身、已轉入缺失紀錄總表的資料都不會變動\n・之後如果又需要，可以再從填單「前往對外回覆編輯」重新建立`))return;
+    try{dl(new Blob([JSON.stringify({airRecordId:id,label:lbl,canceledAt:new Date().toISOString(),by:(typeof Audit!=="undefined"?Audit.user():""),drafts:rows},null,1)],{type:"application/json"}),`對外回覆留存_${(d&&d.ship)||id}_${todayStr()}.json`);}catch(e){}
+    try{
+      await Cloud.api(`air_reply_drafts?air_record_id=eq.${encodeURIComponent(id)}`,{method:"DELETE",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"})});
+    }catch(e){toast("⚠ 取消失敗："+e.message,true);return;}
+    if(typeof Audit!=="undefined")Audit.log("刪除","對外回覆",`取消對外回覆：${lbl}（${rows.length} 條，已下載 JSON 留存）`);
+    toast(`✓ 已取消對外回覆（${rows.length} 條），留存檔已下載`);
+    await this._loadExtReplyIds(true);this.renderList();
+  },
   PEND_LABEL:"⚠ 對外回覆未轉入",
   REPLY_MAP:{opCommentReply:"opCommentCn",immediateCauseReply:"immediateCauseCn",correctiveReply:"correctiveCn",rootCauseReply:"rootCauseCn",preventiveReply:"preventiveCn"},
   _rnorm(v){const x=String(v??"").replace(/\r\n/g,"\n").trim();return x==="(To be filled)"?"":x;}, // 佔位字視同空白
@@ -26306,7 +26328,7 @@ const Air={
           ${(canPush&&d.defects&&d.defects.length)?`<button class="btn sm" style="background:#e4f1f2;border-color:#8cc3ca;color:#16606b;font-weight:700" onclick="Air.openShareCheckWizard(${d.id})" title="建立缺失分享：把這筆的缺失做成一條連結，分享給船隊自查">分</button>`:""}
           ${canPush?`<button class="btn sm dark" onclick="Air.openPushModal(${d.id})" title="轉入檢查紀錄／缺失紀錄總表／正面評價，可複選">轉</button>`:""}
         </td>
-        <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${(this._shareCount(d)>0)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${this._shareCount(d)>1?" ×"+this._shareCount(d):""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span></div>`:""}${this.replyPendCount(d)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;cursor:pointer" title="對外回覆內容已更新，但還沒轉入缺失紀錄總表（點一下只更新總表的對外回覆版欄位）" onclick="event.stopPropagation();Air.pushReplyOnly(['${esc(String(d.id))}'])">⚠ 對外回覆未轉入總表 ${this.replyPendCount(d)} 條・點此轉入</span></div>`:""}</td>
+        <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${(this._shareCount(d)>0)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${this._shareCount(d)>1?" ×"+this._shareCount(d):""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span>${(typeof Role!=="undefined"&&Role.isAdmin())?`<button type="button" class="btn sm" style="padding:0 6px;margin-left:4px;font-size:10.5px;line-height:1.5" title="這筆不需要對外回覆：刪除對外回覆案件（會先下載 JSON 留存）" onclick="event.stopPropagation();Air.cancelExtReply('${esc(String(d.id))}')">✕ 取消</button>`:""}</div>`:""}${this.replyPendCount(d)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;cursor:pointer" title="對外回覆內容已更新，但還沒轉入缺失紀錄總表（點一下只更新總表的對外回覆版欄位）" onclick="event.stopPropagation();Air.pushReplyOnly(['${esc(String(d.id))}'])">⚠ 對外回覆未轉入總表 ${this.replyPendCount(d)} 條・點此轉入</span></div>`:""}</td>
         <td>${d.reviewed?'<span style="font-size:11.5px;font-weight:700;color:var(--ok)">✅ 已確認</span>':'<span style="font-size:11.5px;color:var(--ink-3)">⬜ 尚未確認</span>'}</td>
         <td><b>${esc(shipFullLabel(d.ship))}</b></td>
         <td style="font-family:var(--mono);white-space:nowrap">${esc(normDateSlash(d.date))}</td>
