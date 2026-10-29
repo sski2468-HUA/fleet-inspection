@@ -3039,7 +3039,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <button class="btn sm" onclick="StaffDir.exportXlsx()">⬇ 匯出 Excel</button>
           </div>
           <div class="tblwrap" style="max-height:640px"><table class="tbl" style="font-size:13px">
-            <thead><tr><th>中文姓名</th><th>英文姓名</th><th>職稱（中）</th><th>職稱（英）</th><th>部門</th><th>分機</th><th>手機</th><th>負責船（依船舶資料）</th><th>備註</th><th style="width:70px">操作</th></tr></thead>
+            <thead><tr id="staff-thead"></tr></thead>
             <tbody id="staff-tbody"></tbody></table></div>
         </div>
       </div>
@@ -12910,61 +12910,88 @@ const ShipEvents={
    人員的英文名、分機、手機從 dir.people 用中文姓名對出來。輸出成 HTML：預覽、列印存 PDF、存成 Word（.doc）共用同一份。
    ⚠ 船舶檢查填報平台（上傳GitHub_船上\index.html）有一份相同的 NotifyDoc，改版面時兩邊要一起改。 */
 const NotifyDoc={
+  // 公司 MARK（取自原本 Notification List Excel 左上角的圖）
+  LOGO:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAABLCAYAAAAs2+QLAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAFxEAABcRAcom8z8AAAj/SURBVHhe7Zp7UFTXHceXlwVBBASFXQQ0NNqicUS6sKIStKiI0fhA1KARH4k2bUbbpBJEiMYoDgiiKVWjVSQUEeMDrUZlRR4iMkHio0A1WJFgheiQIs/C8u2cs7kX9p5dnksms+xv5vPP/n6/c85n9z7OvSCqrq5GYmIikpKSfjbEx8fjwIEDzOd9gTgSV1F2djZEItGAgLrm5eUxCV2FuuqFdRi9sK6jF9Z19MK6jl5Y19EL6zp6YV1HL6zr6IV1Hb2wrqMX1nV+cuFhdsMgkUggdhZD7CSGxFECC0sLpq6/6Hdh8yHm8J3hi9i9scjNy0VjcyOEUf28GhmZcoSGhULqKWXG0Cb9Jmw22AybPtiEh4/K2s3aFJDL5Ug7cQJpJ1ORmpqKlJQUFBYWdvRHVm42FgctZsbUBtoXNhBh45824tsfRWtrqpF4cA/efXsxRjnas/U/MtHNFR+8vwbnTiYCaKG95IhYsHABU9sXtCps72iP69nX+V8qcvP7sLMyY+q6wtV5OJL/9hk/zqEjByEyZOt6g9aEPTw9cK/4Pl1gQe4VzPT5jUp+/K9dERMTjehodcRg545tsBlqrtKzbsVCPKtUHiln0s/AQezAzNtTtCI8xGoIyivK6cLSvjgIK3MTpiY4cA7/i2mKMS52TJ+bqwT3Cm/Q/Olzp5l8T+mzsKGxIbJys+iCvjgcByM1NYQD8bsEeqrR2tqKkOXzmT6CxNYCRbcyaV10XDST7wl9Fv4w9EO6kONHEjTK2g41QdVT5RHQWci/OsP0cojthqCo8Bat85nuw+S7S5+EP9r6EV3A0ydlsLZgD2OOvVFhAjX1oVAoEDhXs8w0qRu5t6GhoQH+b/gz+e7Qa+EtkVv4hb61YAaT5/Cb6o662hoVsc7i29I7kNhZMuNw7NutnLepuQlz35zL5LuiV8K7Y6L4BX60cS2T53B3G40nZcUddNqDnLOaQn7pS9hamjLjEUyNRUg5+hda19LaguBVwUxNZ/RI+JdjXHH+4nl+YZs2rGBqOJYt8EN1J+et/1x/hG4JFX7MR1FBFmTuY5hxCcYiERIPxfG1sftiu70f75bwBPcJ9OL0sr6OTvC0/CE2hCzh8wYGBnB1FmPJfD+8GxKEbPkFKBTK3ZK6iNsXp+wzMkBefp4wzUf9yxqcTP4cK4LmY57/6xgxrP1QJ9J7o8LR0qRcU+mDUqwKeRsSJwmz/o4wwoN+MQhGxkZwcnbCuvXrkH4+nV+A4n+NOHYwDk72ViqDODjYo+o/TzssVXNkXMuA8SBjvtf5FWdUVFYIy9SG/OoVRsDbww1X/pHG17yoqcHxpONYHLgINsNsqAtxUhG+efMm/8G+/ftQ8Z3qAl7WVOFwQgwmur3CTEhwdJSgsbFJpUddFN0pgo2tNdMvlUlR89+uL2zkIUPYyzF7ugwXz6YAaObr6+rrUFFRQZ24OuraUXjr1nAUFxfjy7RU7IgIxXx/X7iI2UV2RCIRo7a2VmVxwsjIzICdPbuT4pBNkeFh2UNhm0rk5+czfULGj3VCcGAAYnd/iqtXLqOkpARbw8P5PHXt6hzuis6E792/h9XrVjM96rC0skR4ZDj9bzl10R3hrmDO4d7QmfCxpGMwMjFiejQx3GE4CotUn4+56BdhL6kH1q4Jge9UL4x2tIeBmiYhnQmTKH9SjqDlQUxfRwwMDRAesYWed5qiu8JmJiKMHe0C/9mzsHbNanhKPfgcc9FKT2+/KpM3FPeLbuHg/l3wmjiWGZijK2EuyH1X2EswNjHGiVMnhOVMdCZMfpg35/jgVPIhPHqgfEzlgjhxdcw57D3VG4FBgYjcHomiu9+oNKYlH8Y06WvMZCNHOqrUdRbr31vP9B85dkRYpjaKi0uYXiK6dP5M5GZe4uvayC3suhy//8N7CAwMpE5cPXNICxn32jgk/DWBf2UDKBC7Kxz2NkP4GnPzwdgWvhnZGRdRVJDDT6wpfP18+d7NWzYL0yrRWF+L/JwMXL14BiErlqmsbcKvXHA29Shf+/XtrxEWHoZRo10YD44uhTnMLMzwyafboWgj3x9Q/E0+XEeytxnyiDjr9cm4cDq5w7JV43H5Y5gONqU7OPKEpD7akBC3A+7jXJk5CAHTPVFXU0Urn1U/w8rVK5kadXRbmGPyFBkeP3lMJyq9X4gxLiOYGoKJgQhR28izsvILEoY8U46S0hLhxzQaXv6AlUGan4TmzfSm204S5NAVjxQzNZrosTDB0dkRd+/fpRM+enAHLg6aH+fio9ofI7sVba1YvtCPGYdj9jR3NDUoL5AnTqb06JZH6JUwwUHigNt3btOJz6YeYfIcJoYi3Mq5LLDSHJ/FRDJjcNgONcW/Hyi/6KS/H4ehoSFT0xW9FiaQrWLeLeXTzuI3fsvkOXxl49HcWC9QY6O8rAT2tpof82KjImkdfW1rwOa7Q5+ECaNcXdCiaMXL2hoEzPBk8hw3rl8U+jGxZ2cY08cR9sd1tKa4tJjJ9YQ+CxMWBi6ki2lu/AELZk9l8oT1IUsEeoJoU8Bj3CimjxD55w20pKq6CmPHad4AdQetCBN2RStfw7a1NmPT+mDmDea8WT54/vy5Rr4rL4OzeJhKj7WFMQ7F76TjNjU3Y9GSRcy8PUVrwoR3fvcO/4NlfnUGY0ap/i3Jytoa1jbqsIGl5VCV2lk+UpSVFtGxvn/xPbynte+W+oJWhQnT/abjnyXKF3f1tc+xZ2c4vCe9Ckuzrm8fI2wsMGeGFMcP7+e/uEuXL8H1VfWbj96gdWHCINNBWLlqJf718AG/cPIe7POEWAQEBGCypydkXl7wlnnBy9MTwcuX4VTKUfpmhYtr16/Bb5bm+3Fv6RdhDiK+9K2lOHchHXX1DbyMpqiorERSchKm+ExhxtIW/SrcEbsRdpB5y+gfySM+jkDEJxGI2B6ByI8j6RuRSdJJdH8t7NM2P5nwzwW9sK4zMIVv3LjBJHQV6lpQUABrsgsaABBXUUtLC168eDEgIK4i4QZA12PgCVdWViIqKmpAQFxFWVlZzNVMV6GuA+4+nJOTwyR0FepK/hCWm5s7ICCu/wcN6x+C5AufHQAAAABJRU5ErkJggg==",
   norm(n){return String(n||"").replace(/\s+/g,"").replace(/雙/g,"双");},
   person(dir,name){const k=this.norm(name);if(!k)return null;return ((dir&&dir.people)||[]).find(p=>p.active!==false&&this.norm(p.zh)===k)||null;},
   full(dir,name){const p=this.person(dir,name);return p?[p.zh,p.en].filter(Boolean).join(" "):String(name||"").trim();},
   fmtDate(s){const m=String(s||"").match(/(\d{4})-(\d{1,2})-(\d{1,2})/);if(!m)return "";
     const M=["January","February","March","April","May","June","July","August","September","October","November","December"];
     return `${M[+m[2]-1]} ${+m[3]}, ${m[1]}`;},
-  /* 回傳 {html, warns}：warns 是名單裡缺英文名／電話／代理人等需要補的地方 */
-  build(dir,ship){
+  /* 回傳 {html, warns}：warns 是名單裡缺英文名／電話／代理人等需要補的地方。logoSrc 給 Word 用（MHT 內嵌圖的位址） */
+  build(dir,ship,logoSrc){
     const e=s=>String(s??"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
     const c=(dir&&dir.common)||{},warns=[],seen=new Set();
     const chk=(name,role)=>{if(!String(name||"").trim()){warns.push(`未設定${role}`);return;}
       const p=this.person(dir,name),k=this.norm(name)+"|"+role;if(seen.has(k))return;seen.add(k);
-      if(!p){if(/[一-鿿]/.test(name))warns.push(`${name}（${role}）不在公司人員通訊錄`);return;}
+      if(!p){if(/[\u4e00-\u9fff]/.test(name))warns.push(`${name}（${role}）不在公司人員通訊錄`);return;}
       const miss=[!p.en&&"英文名",!p.ext&&!p.mobile&&"分機／手機"].filter(Boolean);
       if(miss.length)warns.push(`${p.zh}（${role}）缺${miss.join("、")}`);};
     const members=[];
     ((dir&&dir.fixed)||[]).forEach(f=>{chk(f.name,f.titleZh||"固定成員");members.push({name:f.name,tz:f.titleZh,te:f.titleEn});});
-    [["deckSup","甲板督導","Superintendent(in Charge)"],["deckSupAlt","甲板代理督導","Superintendent(the alternate)"],
-     ["engineSup","機艙督導","Superintendent(in Charge)"],["engineSupAlt","機艙代理督導","Superintendent(the alternate)"]].forEach(([f,role,te])=>{
-      const n=String(ship[f]||"").trim();chk(n,role);if(n)members.push({name:n,tz:"船東督導",te});});
+    [["deckSup","甲板督導","Superintendent(in Charge)",1],["deckSupAlt","甲板代理督導","Superintendent(the alternate)",0],
+     ["engineSup","機艙督導","Superintendent(in Charge)",1],["engineSupAlt","機艙代理督導","Superintendent(the alternate)",0]].forEach(([f,role,te,main])=>{
+      const n=String(ship[f]||"").trim();chk(n,role);if(n)members.push({name:n,tz:"船東督導",te,main});});
     chk(c.dpa,"DPA");chk(c.mlc,"MLC Representative");chk(ship.cso,"CSO");
     const pair=(a,b)=>[a,b].map(n=>String(n||"").trim()).filter(Boolean).map(n=>this.full(dir,n)).join(" / ");
     const office=`日(Day)：<br>${e(c.officeDay)}<br><br>夜(Night)：<br>${e(c.officeNight)}<br>(24 hours)`;
-    const rows=members.map((m,i)=>{const p=this.person(dir,m.name)||{};
+    const rows=members.map((m,i)=>{const p=this.person(dir,m.name)||{},b=m.main?" mn":"";
       const ext=p.ext?`~ ${e(String(p.ext).replace(/^~\s*/,""))}`:"";
-      return `<tr><td class="nm">${e(p.zh||m.name)}</td><td>${e(m.tz)}</td>${i===0?`<td class="of" rowspan="${members.length*2}">${office}</td>`:""}<td class="ce" rowspan="2">${ext}</td><td class="ce" rowspan="2">${e(p.mobile||"")}</td></tr>
-        <tr><td class="nm en">${e(p.en||"")}</td><td class="en">${e(m.te)}</td></tr>`;}).join("");
+      return `<tr><td class="zh${b}" style="border-bottom:none">${e(p.zh||m.name)}</td><td class="zh${b}" style="border-bottom:none">${e(m.tz)}</td>${i===0?`<td class="of" rowspan="${members.length*2}">${office}</td>`:""}<td class="ce" rowspan="2">${ext}</td><td class="ce" rowspan="2">${e(p.mobile||"")}</td></tr>
+        <tr><td class="en${b}" style="border-top:none">${e(p.en||"")}</td><td class="en${b}" style="border-top:none">${e(m.te)}</td></tr>`;}).join("");
     const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Notification List (${e(ship.name)})</title><style>
-@page{size:A4 portrait;margin:14mm 14mm 12mm}
-body{font-family:"Times New Roman","新細明體",PMingLiU,serif;font-size:11pt;color:#000;margin:0;background:#fff}
-.co{text-align:center;font-weight:bold;font-size:17pt;letter-spacing:6px;margin:0}
-.coen{text-align:center;font-weight:bold;font-size:13pt;margin:2px 0 0}
-.ship{text-align:center;font-weight:bold;font-size:13pt;margin:6px 0 10px}
+@page{size:A4 portrait;margin:10mm 10mm 10mm}
+body{font-family:"Times New Roman","新細明體",PMingLiU,serif;font-size:10.5pt;color:#000;margin:0;background:#fff}
 table{border-collapse:collapse}
-.hd td{font-size:11pt;padding:0}
-.ln{margin:3px 0;font-size:11pt;line-height:1.45}
-.t{width:100%;margin-top:4px}
-.t th,.t td{border:1px solid #000;padding:2px 5px;font-size:10.5pt;vertical-align:middle}
-.t th{font-weight:bold;text-align:center;background:#f2f2f2}
-.t .nm{white-space:nowrap}.t .en{font-size:10pt}.t .ce{text-align:center;white-space:nowrap}.t .of{text-align:center;font-size:10pt;width:23%}
+.frame{width:100%;border:1.5pt solid #000}
+.frame>tbody>tr>td{padding:10pt 14pt 14pt;vertical-align:top}
+.kai{font-family:"標楷體",DFKai-SB,"BiauKai","Times New Roman",serif}
+.sans{font-family:Arial,"Microsoft JhengHei",sans-serif}
+.cozh{font-size:8.5pt;letter-spacing:1px}
+.coen{font-size:10pt;font-weight:bold;letter-spacing:.3px}
+.ship{text-align:center;font-size:17pt;font-weight:bold;margin:2pt 0 6pt}
+.ttl{font-size:14pt;font-weight:bold;text-decoration:underline}
+.eff{text-align:right;font-size:9.5pt;color:#555}
+.sm{margin:1.5pt 0;font-size:10pt;font-weight:bold;line-height:1.35}
+.hot{width:100%;margin-top:8pt;border:1pt solid #000}
+.hot td{padding:3pt 6pt;font-size:13pt;font-weight:bold;border-bottom:1pt solid #000}
+.sub{margin:10pt 0 4pt;font-size:11pt;font-weight:bold;text-decoration:underline}
+.t{width:100%}
+.t th,.t td{border:1pt solid #000;padding:1.5pt 4pt;font-size:9.5pt;vertical-align:middle;text-align:center}
+.t th{font-weight:normal;font-size:9pt}
+.t .zh{padding-top:3pt}.t .en{padding-bottom:3pt}
+.t .mn{font-weight:bold;font-size:11pt}
+.t .ce{white-space:nowrap;font-size:10pt}.t .of{font-size:9.5pt;width:16%}
 </style></head><body>
-<p class="co">${e(c.companyZh)}</p><p class="coen">${e(c.companyEn)}</p>
-<p class="ship">m. v. ${e(ship.name)}</p>
-<table class="hd" style="width:100%"><tr><td style="font-weight:bold;font-size:14pt;text-decoration:underline">NOTIFICATION LIST</td><td style="text-align:right">Effective Date: ${e(this.fmtDate(c.effDate))}</td></tr></table>
-<p class="ln" style="margin-top:8px">DPA : ${e(this.full(dir,c.dpa))}　/　MLC Representative : ${e(this.full(dir,c.mlc))}</p>
-<p class="ln">CSO : ${e(this.full(dir,ship.cso))}</p>
-<p class="ln">Superintendent : ${e(pair(ship.deckSup,ship.engineSup))} (in charge)</p>
-${(ship.deckSupAlt||ship.engineSupAlt)?`<p class="ln">Superintendent : ${e(pair(ship.deckSupAlt,ship.engineSupAlt))} (the alternate)</p>`:""}
-<p class="ln" style="margin-top:10px">緊急專線電話 (Emergency Hot Line) ： ( 24 hours )　<b>${e(c.hotline)}</b></p>
-<p class="ln">台北應急中心　${e(c.center)}</p>
-<p class="ln" style="margin-top:10px;font-weight:bold">緊急應變處理小組成員（Shore Emergency Response Team）</p>
-<table class="t"><thead><tr><th rowspan="2" style="width:22%">姓 名<br>Name</th><th rowspan="2">職 稱<br>Rank</th><th colspan="3">電 話 Tel</th></tr>
-<tr><th>Office No.</th><th style="width:11%">Ext.</th><th style="width:17%">Mobile Phone</th></tr></thead><tbody>${rows}</tbody></table>
+<table class="frame"><tr><td>
+<table style="width:100%"><tr>
+<td style="width:46pt;vertical-align:middle"><img src="${logoSrc||this.LOGO}" width="34" height="43" alt="FPMC"></td>
+<td style="vertical-align:middle"><div class="cozh kai">${e(c.companyZh)}</div><div class="coen sans">${e(c.companyEn)}</div></td>
+</tr></table>
+<p class="ship sans">m. v. ${e(ship.name)}</p>
+<table style="width:100%"><tr><td class="ttl">NOTIFICATION LIST</td><td class="eff">Effective Date: ${e(this.fmtDate(c.effDate))}</td></tr></table>
+<div style="margin-top:4pt">
+<p class="sm">DPA ： ${e(this.full(dir,c.dpa))}　/　MLC Representative ： ${e(this.full(dir,c.mlc))}</p>
+<p class="sm">CSO ： ${e(this.full(dir,ship.cso))}</p>
+<p class="sm">Superintendent ： ${e(pair(ship.deckSup,ship.engineSup))} (in charge)</p>
+${(ship.deckSupAlt||ship.engineSupAlt)?`<p class="sm">Superintendent ： ${e(pair(ship.deckSupAlt,ship.engineSupAlt))} (the alternate)</p>`:""}
+</div>
+<table class="hot kai"><tr><td>緊急專線電話 (Emergency Hot Line) ： ( 24 hours )</td><td style="text-align:right;white-space:nowrap">${e(c.hotline)}</td></tr>
+<tr><td colspan="2" style="border-bottom:none">台北應急中心　${e(c.center)}</td></tr></table>
+<p class="sub kai">緊急應變處理小組成員（Shore Emergency Response Team）</p>
+<table class="t"><thead><tr><th rowspan="2" style="width:20%">姓　名<br>Name</th><th rowspan="2">職　稱<br>Rank</th><th colspan="3">電　　話　Tel</th></tr>
+<tr><th>Office No.</th><th style="width:13%">Ext.</th><th style="width:20%">Mobile Phone</th></tr></thead><tbody>${rows}</tbody></table>
+</td></tr></table>
 </body></html>`;
     return {html,warns};
+  },
+  /* Word：包成 MHT（單一檔案網頁），公司 MARK 圖片內嵌在檔案裡，船上離線開也看得到 */
+  wordBlob(dir,ship){
+    const loc="file:///C:/fpmc_notify_logo.png",bd="----=_NextPart_FPMC_NOTIFY";
+    const html=this.build(dir,ship,loc).html.replace("<html>",'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">');
+    const b64=this.LOGO.split(",")[1].replace(/(.{76})/g,"$1\r\n");
+    const mht=`MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary="${bd}"; type="text/html"\r\n\r\n--${bd}\r\nContent-Type: text/html; charset="utf-8"\r\nContent-Transfer-Encoding: 8bit\r\nContent-Location: file:///C:/fpmc_notify.htm\r\n\r\n${html}\r\n\r\n--${bd}\r\nContent-Type: image/png\r\nContent-Transfer-Encoding: base64\r\nContent-Location: ${loc}\r\n\r\n${b64}\r\n\r\n--${bd}--\r\n`;
+    return new Blob([mht],{type:"application/msword"});
   }
 };
 
@@ -13004,6 +13031,9 @@ const StaffDir={
     ["航運管理處處長","Manager of Marine Department","陳正文"],["安全衛生處處長","Manager of HSSE","林南宏"],
     ["資材組組長","Manager of Material Supply Unit","周瑞廉"],["船舶工程處處長","Manager of New Building & Drydocking Unit","劉煥章"]],
   people(){return (this.data&&this.data.people)||[];},
+  sortKey:"zh",sortAsc:true,
+  COLS:[["zh","中文姓名"],["en","英文姓名"],["titleZh","職稱（中）"],["titleEn","職稱（英）"],["dept","部門"],["ext","分機"],["mobile","手機"],["ships","負責船（依船舶資料）"],["note","備註"],["","操作","70px"]],
+  sort(k){if(this.sortKey===k)this.sortAsc=!this.sortAsc;else{this.sortKey=k;this.sortAsc=true;}this.renderStaff();},
   async load(force){
     if(this.loaded&&!force)return this.data;
     if(this._loading)return this._loading;
@@ -13101,8 +13131,13 @@ const StaffDir={
     const all=this.people();
     const rows=all.filter(p=>(inact||p.active!==false)&&(!q||[p.zh,p.en,p.titleZh,p.titleEn,p.dept,p.ext,p.mobile,p.note].join(" ").toLowerCase().includes(q)))
       .map(p=>({p,miss:used.has(NotifyDoc.norm(p.zh))&&(!p.en||(!p.ext&&!p.mobile))}))
-      .filter(x=>!onlyMiss||x.miss)
-      .sort((a,b)=>String(a.p.dept||"~").localeCompare(String(b.p.dept||"~"),"zh-Hant")||String(a.p.zh).localeCompare(String(b.p.zh),"zh-Hant"));
+      .filter(x=>!onlyMiss||x.miss);
+    // 點欄位標題排序（再點一次反向）；空白一律排最後，同值再依中文姓名
+    const sk=this.sortKey,dir=this.sortAsc?1:-1;
+    const val=p=>sk==="ships"?Object.values(this.shipRoles(p.zh)).flat().sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).join(" "):String(p[sk]||"");
+    rows.sort((a,b)=>{const x=val(a.p),y=val(b.p);if(!x!==!y)return x?-1:1;
+      return (x.localeCompare(y,"zh-Hant",{numeric:true})*dir)||String(a.p.zh).localeCompare(String(b.p.zh),"zh-Hant");});
+    $("#staff-thead").innerHTML=this.COLS.map(([k,t,w])=>k?`<th class="sort" onclick="StaffDir.sort('${k}')"${w?` style="width:${w}"`:""}>${t} ${sk===k?(this.sortAsc?"▲":"▼"):"⇅"}</th>`:`<th${w?` style="width:${w}"`:""}>${t}</th>`).join("");
     $("#staff-stat").textContent=`共 ${rows.length} 位（在職 ${all.filter(p=>p.active!==false).length}／全部 ${all.length}）`;
     const adm=this.canEdit(),warn=`<span style="color:var(--bad)">未填</span>`;
     tb.innerHTML=rows.length?rows.map(({p,miss})=>{
@@ -13187,8 +13222,7 @@ const StaffDir={
   },
   downloadWord(){
     const s=this.curShip();if(!s||!this.data)return;
-    const html=NotifyDoc.build(this.data,s).html.replace("<html>",'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">');
-    dl(new Blob(["﻿"+html],{type:"application/msword"}),`Notification List (${s.name}).doc`);
+    dl(NotifyDoc.wordBlob(this.data,s),`Notification List (${s.name}).doc`);
   },
   printPdf(){const fr=$("#ntf-frame");if(!fr||!fr.contentWindow||!this.curShip())return;fr.contentWindow.focus();fr.contentWindow.print();}
 };
