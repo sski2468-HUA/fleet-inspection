@@ -2564,6 +2564,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <option value="ext">只看外部檢查</option>
           <option value="int">只看內部檢查</option>
         </select>
+        <span class="lbl" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px;margin-left:8px" title="內外部比較、重點管理項目（柏拉圖）、船舶熱區三張圖用哪一層分類">分析層級</span>
+        <select id="d-lvl" onchange="try{localStorage.setItem('vsm_dash_lvl_v1',this.value)}catch(e){};Dash.render()" title="具體名稱＝看得到實際問題（例：設備外部管理－油漆/滲漏/鏽蝕）；大類＝看整體結構">
+          <option value="leaf">具體名稱</option>
+          <option value="main">大類</option>
+        </select>
         <span class="hint" id="d-cmp"></span>
         <span class="spacer" style="flex:1"></span>
         <span class="statline" id="d-stat"></span>
@@ -2598,9 +2603,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       </div>
       <div class="grid2">
         <div class="card"><h3>外部檢查各來源成績表 <span class="hint" style="font-weight:400;margin-left:6px">次數、平均缺失、零缺失率與前期比較</span></h3><div class="tblwrap" style="max-height:360px"><div id="d-src"></div></div></div>
-        <div class="card"><h3>內部檢查有沒有抓到外部會抓的問題？ <span class="hint" style="font-weight:400;margin-left:6px">各大類占外部／內部缺失比例，外部明顯偏高（紅字）＝內部可加強查核</span></h3><div class="chartbox" style="height:380px"><canvas id="ch-dgap"></canvas></div></div>
+        <div class="card"><h3>內部檢查有沒有抓到外部會抓的問題？ <span class="hint" style="font-weight:400;margin-left:6px"><span class="d-lvl-name">各具體名稱</span>占外部／內部缺失比例，外部明顯偏高（紅字）＝內部可加強查核</span></h3><div class="chartbox" style="height:420px"><canvas id="ch-dgap"></canvas></div></div>
       </div>
-      <div class="dash-sec"><b>③ 缺失類別與風險</b><span class="hint">一筆缺失有多個大類時（A‖B）各算一次</span></div>
+      <div class="dash-sec"><b>③ 缺失類別與風險</b><span class="hint">一筆缺失有多個分類時（A‖B）各算一次；上方「分析層級」可切換具體名稱／大類</span></div>
       <div class="grid2">
         <div class="card"><h3>重點管理項目 <span class="tag">柏拉圖 80/20</span></h3><div class="chartbox"><canvas id="ch-pareto"></canvas></div><div class="hint" id="d-pareto-note" style="font-size:11.5px;margin-top:4px"></div></div>
         <div class="card"><h3>每月缺失風險等級 <span class="hint" style="font-weight:400;margin-left:6px">看高風險（3）缺失是否增加</span></h3><div class="chartbox"><canvas id="ch-drisk"></canvas></div></div>
@@ -2609,7 +2614,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="dash-sec"><b>④ 船舶</b><span class="hint">該優先督導哪幾艘</span></div>
       <div class="grid2">
         <div class="card"><h3>各船平均缺失／次（外部檢查） <span class="hint" style="font-weight:400;margin-left:6px">期間內外部檢查 ≥2 次；紅色＝高於船隊平均</span></h3><div class="chartbox" style="height:420px"><canvas id="ch-shipavg"></canvas></div></div>
-        <div class="card"><h3>船舶 × 缺失大類 熱區 <span class="hint" style="font-weight:400;margin-left:6px">缺失最多的 15 艘 × 前 8 大類，顏色越深越多</span></h3><div class="tblwrap" style="max-height:420px"><div id="d-hm"></div></div></div>
+        <div class="card"><h3>船舶 × <span class="d-lvl-short">具體名稱</span> 熱區 <span class="hint" style="font-weight:400;margin-left:6px" id="d-hm-hint">缺失最多的 15 艘 × 前 10 項，顏色越深越多</span></h3><div class="tblwrap" style="max-height:420px"><div id="d-hm"></div></div></div>
       </div>
       <div class="dash-sec"><b>⑤ 根因與船型</b></div>
       <div class="grid2">
@@ -3059,6 +3064,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <label style="grid-column:1/-1">台北應急中心電話<input type="text" id="ntf-center" placeholder="多支用「，」分隔"></label>
               <label style="grid-column:1/-1">公司電話 Office No.（分機由此轉接）<input type="text" id="ntf-officeDay"></label>
               <label>DPA<input type="text" id="ntf-dpa" list="dl-staff-names"></label>
+              <label>Alternate DPA（代理）<input type="text" id="ntf-dpaAlt" list="dl-staff-names" placeholder="沒有可留空"></label>
               <label>MLC Representative<input type="text" id="ntf-mlc" list="dl-staff-names"></label>
             </div>
             <h3 style="margin-top:14px">應變小組固定成員 <span class="hint" style="font-weight:400">（每艘船都一樣；依序列在督導之前）</span></h3>
@@ -12934,7 +12940,7 @@ const NotifyDoc={
     [["deckSup","甲板督導","Superintendent(in Charge)",1],["deckSupAlt","甲板代理督導","Superintendent(the alternate)",0],
      ["engineSup","機艙督導","Superintendent(in Charge)",1],["engineSupAlt","機艙代理督導","Superintendent(the alternate)",0]].forEach(([f,role,te,main])=>{
       const n=String(ship[f]||"").trim();chk(n,role);if(n)members.push({name:n,tz:"船東督導",te,main});});
-    chk(c.dpa,"DPA");chk(c.mlc,"MLC Representative");chk(ship.cso,"CSO");
+    chk(c.dpa,"DPA");if(String(c.dpaAlt||"").trim())chk(c.dpaAlt,"Alternate DPA");chk(c.mlc,"MLC Representative");chk(ship.cso,"CSO");
     const pair=(a,b)=>[a,b].map(n=>String(n||"").trim()).filter(Boolean).map(n=>this.full(dir,n)).join(" / ");
     const office=`公司電話 Office<br><b style="font-size:10.5pt">${e(c.officeDay)}</b>`;
     const rows=members.map((m,i)=>{const p=this.person(dir,m.name)||{},b=m.main?" mn":"";
@@ -12973,7 +12979,8 @@ table{border-collapse:collapse}
 <p class="ship sans">m. v. ${e(ship.name)}</p>
 <table style="width:100%"><tr><td class="ttl">NOTIFICATION LIST</td><td class="eff">Effective Date: ${e(this.fmtDate(c.effDate))}</td></tr></table>
 <div style="margin-top:4pt">
-<p class="sm">DPA ： ${e(this.full(dir,c.dpa))}　/　MLC Representative ： ${e(this.full(dir,c.mlc))}</p>
+<p class="sm">DPA ： ${e(this.full(dir,c.dpa))}${String(c.dpaAlt||"").trim()?`　/　Alternate DPA ： ${e(this.full(dir,c.dpaAlt))}`:""}</p>
+<p class="sm">MLC Representative ： ${e(this.full(dir,c.mlc))}</p>
 <p class="sm">CSO ： ${e(this.full(dir,ship.cso))}</p>
 <p class="sm">Superintendent ： ${e(pair(ship.deckSup,ship.engineSup))} (in charge)</p>
 ${(ship.deckSupAlt||ship.engineSupAlt)?`<p class="sm">Superintendent ： ${e(pair(ship.deckSupAlt,ship.engineSupAlt))} (the alternate)</p>`:""}
@@ -13085,7 +13092,7 @@ const StaffDir={
   },
   usedNames(){
     const set=new Set(),d=this.data||{},c=d.common||{};
-    [c.dpa,c.mlc,...(d.fixed||[]).map(f=>f.name)].forEach(n=>n&&set.add(NotifyDoc.norm(n)));
+    [c.dpa,c.dpaAlt,c.mlc,...(d.fixed||[]).map(f=>f.name)].forEach(n=>n&&set.add(NotifyDoc.norm(n)));
     (typeof SHIPINFO!=="undefined"?SHIPINFO:[]).forEach(s=>["deckSup","engineSup","deckSupAlt","engineSupAlt","cso"].forEach(f=>s[f]&&set.add(NotifyDoc.norm(s[f]))));
     return set;
   },
@@ -13201,7 +13208,7 @@ const StaffDir={
   renderNotify(){
     const d=this.data,adm=this.canEdit(),c=(d&&d.common)||{};
     $("#dl-staff-names").innerHTML=this.people().filter(p=>p.active!==false).map(p=>`<option value="${esc(p.zh)}">${esc([p.en,p.titleZh].filter(Boolean).join("　"))}</option>`).join("");
-    ["companyZh","companyEn","effDate","hotline","center","officeDay","dpa","mlc"].forEach(f=>{const el=$("#ntf-"+f);if(el){el.value=c[f]||"";el.disabled=!adm||!d;}});
+    ["companyZh","companyEn","effDate","hotline","center","officeDay","dpa","dpaAlt","mlc"].forEach(f=>{const el=$("#ntf-"+f);if(el){el.value=c[f]||"";el.disabled=!adm||!d;}});
     $("#ntf-saved").textContent=d?"":"（尚未建立：請先到「👥 公司人員通訊錄」帶入初始資料）";
     if(!this._fixed)this._fixed=((d&&d.fixed)||[]).map(f=>Object.assign({},f));
     this.renderFixed();
@@ -13225,7 +13232,7 @@ const StaffDir={
   delFixed(i){this._fixed.splice(i,1);this.renderFixed();},
   async saveCommon(){
     if(!this.data){toast("⚠ 請先建立通訊錄");return;}
-    const c={};["companyZh","companyEn","effDate","hotline","center","officeDay","dpa","mlc"].forEach(f=>c[f]=$("#ntf-"+f).value.trim());
+    const c={};["companyZh","companyEn","effDate","hotline","center","officeDay","dpa","dpaAlt","mlc"].forEach(f=>c[f]=$("#ntf-"+f).value.trim());
     const fixed=(this._fixed||[]).map(f=>({titleZh:String(f.titleZh||"").trim(),titleEn:String(f.titleEn||"").trim(),name:String(f.name||"").trim()})).filter(f=>f.titleZh||f.name);
     if(await this.save(Object.assign({},this.data,{common:c,fixed}),`共用設定（生效日 ${c.effDate}、固定成員 ${fixed.length} 列）`)){this._fixed=null;this.renderNotify();}
   },
@@ -13708,12 +13715,20 @@ const Dash={
       const ch=!prevRows?"":pv==null?`<span class="dpill n">前期無</span>`:av>pv+0.05?`<span class="dpill r">▲ ${(av-pv).toFixed(2)}</span>`:av<pv-0.05?`<span class="dpill g">▼ ${(pv-av).toFixed(2)}</span>`:`<span class="dpill n">持平</span>`;
       return `<tr><td><b>${esc(k)}</b></td><td style="text-align:right">${x.n}</td><td style="text-align:right">${av.toFixed(2)}</td><td style="text-align:right">${pv==null?"—":pv.toFixed(2)}</td><td>${ch}</td><td style="text-align:right">${Math.round(x.z/x.n*100)}%</td><td style="text-align:right">${x.x||""}</td></tr>`;}).join("")}</tbody></table>`
       :`<div class="hint">此條件下沒有外部檢查紀錄</div>`;
-    // 各大類計數（多標籤拆開各算一次）
-    const share=arr=>{const o={};arr.forEach(d=>{const t=ncTags(d.ncMain);(t.length?t:["(未分類)"]).forEach(k=>o[k]=(o[k]||0)+1);});return o;};
+    // 分析層級（2026-10-29）：預設「具體名稱」才看得出實際問題；可切回「大類」看整體結構。
+    // 影響：② 內外部比較、③ 柏拉圖、④ 船舶熱區。記在本機，下次打開維持上次的選擇。
+    const lvSel=$("#d-lvl");
+    if(lvSel&&!this._lvlInit){this._lvlInit=true;try{const v=localStorage.getItem("vsm_dash_lvl_v1");if(v==="main"||v==="leaf")lvSel.value=v;}catch(e){}}
+    const LV=(lvSel&&lvSel.value)==="main"?"main":"leaf",LF=LV==="leaf"?"ncLeaf":"ncMain",TOPN=LV==="leaf"?15:12;
+    $$(".d-lvl-name").forEach(el=>el.textContent=LV==="leaf"?"各具體名稱":"各大類");
+    $$(".d-lvl-short").forEach(el=>el.textContent=LV==="leaf"?"具體名稱":"大類");
+    if($("#d-hm-hint"))$("#d-hm-hint").textContent=`缺失最多的 15 艘 × 前 ${LV==="leaf"?10:8} ${LV==="leaf"?"項具體名稱":"大類"}，顏色越深越多`;
+    // 各分類計數（多標籤拆開各算一次）
+    const share=arr=>{const o={};arr.forEach(d=>{const t=ncTags(d[LF]);(t.length?t:["(未分類)"]).forEach(k=>o[k]=(o[k]||0)+1);});return o;};
     // ② 內外部落差
     const extD=defs.filter(d=>!isInt(d)),intD=defs.filter(isInt);
     const se=share(extD),si=share(intD);
-    const gm=Object.keys(se).filter(k=>k!=="(未分類)").sort((x,y)=>se[y]-se[x]).slice(0,12);
+    const gm=Object.keys(se).filter(k=>k!=="(未分類)").sort((x,y)=>se[y]-se[x]).slice(0,TOPN);
     const pe=gm.map(k=>+pct(se[k],extD.length).toFixed(1)),pi=gm.map(k=>+pct(si[k]||0,intD.length).toFixed(1));
     mk("ch-dgap",{type:"bar",data:{labels:gm,datasets:[
         {label:`外部檢查（${extD.length} 筆）`,data:pe,backgroundColor:NAVY,borderRadius:3},
@@ -13722,7 +13737,7 @@ const Dash={
         scales:{x:{beginAtZero:true,ticks:{callback:v=>v+"%"}},y:{ticks:{autoSkip:false,font:{size:10.5},color:c=>(pe[c.index]-pi[c.index]>=3)?RED:"#5b6a75",callback:cut(16)}}}}});
     // ③ 柏拉圖（未分類不列入）
     const tg=share(defs);const unc=tg["(未分類)"]||0;
-    const gk=Object.keys(tg).filter(k=>k!=="(未分類)").sort((x,y)=>tg[y]-tg[x]).slice(0,12);
+    const gk=Object.keys(tg).filter(k=>k!=="(未分類)").sort((x,y)=>tg[y]-tg[x]).slice(0,TOPN);
     const gTotal=Object.keys(tg).filter(k=>k!=="(未分類)").reduce((s,k)=>s+tg[k],0)||1;
     let cum=0;const cumPct=gk.map(k=>{cum+=tg[k];return +(cum/gTotal*100).toFixed(1);});
     mk("ch-pareto",{type:"bar",data:{labels:gk,datasets:[
@@ -13730,7 +13745,7 @@ const Dash={
         {type:"line",label:"累積占比%",data:cumPct,borderColor:NAVY,backgroundColor:NAVY,yAxisID:"y1",tension:0,pointRadius:3,order:1}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:leg,tooltip:{callbacks:{title:it=>it.length?String(it[0].label):""}}},
         scales:{x:{ticks:{font:{size:10},maxRotation:60,callback:cut(10)}},y:{beginAtZero:true},y1:{beginAtZero:true,max:100,position:"right",grid:{drawOnChartArea:false},ticks:{callback:v=>v+"%"}}}}});
-    if($("#d-pareto-note"))$("#d-pareto-note").textContent=unc?`另有 ${unc} 筆尚未分類，未列入。`:"";
+    if($("#d-pareto-note"))$("#d-pareto-note").textContent=(LV==="leaf"?`共 ${Object.keys(tg).filter(k=>k!=="(未分類)").length} 個具體名稱，前 ${gk.length} 名占 ${cumPct[cumPct.length-1]||0}%（具體名稱較分散，累積線上升較慢屬正常）。`:"")+(unc?`另有 ${unc} 筆尚未分類，未列入。`:"");
     // ③ 每月風險等級
     const rk=[["3","高 (3)",RED],["2","中 (2)",AMBER],["1","低 (1)",GREEN]];
     const dmonths=P.a?months:[...new Set(defs.map(dym).filter(Boolean))].sort();
@@ -13753,8 +13768,8 @@ const Dash={
     // ④ 船舶 × 大類 熱區
     const sd={};defs.forEach(d=>sd[d.ship]=(sd[d.ship]||0)+1);
     const hs=Object.keys(sd).filter(Boolean).sort((x,y)=>sd[y]-sd[x]).slice(0,15);
-    const hmM=gk.slice(0,8);
-    const cell={};defs.forEach(d=>ncTags(d.ncMain).forEach(t=>{cell[d.ship+"|"+t]=(cell[d.ship+"|"+t]||0)+1;}));
+    const hmM=gk.slice(0,LV==="leaf"?10:8);
+    const cell={};defs.forEach(d=>ncTags(d[LF]).forEach(t=>{cell[d.ship+"|"+t]=(cell[d.ship+"|"+t]||0)+1;}));
     const mx=Math.max(1,...hs.flatMap(s=>hmM.map(m=>cell[s+"|"+m]||0)));
     $("#d-hm").innerHTML=hs.length&&hmM.length?`<table class="tbl dhm"><thead><tr><th style="text-align:left">船舶</th>${hmM.map(m=>`<th title="${esc(m)}">${esc(m.replace(/^\d+\./,"").slice(0,8))}</th>`).join("")}<th>合計</th></tr></thead><tbody>${hs.map(s=>`<tr><td class="sh">${esc(shipFullLabel(s))}</td>${hmM.map(m=>{const v=cell[s+"|"+m]||0;const al=v/mx;return `<td title="${esc(m)}：${v}" style="background:rgba(232,132,44,${(al*0.85).toFixed(2)});color:${al>.55?"#fff":"inherit"}">${v||""}</td>`;}).join("")}<td style="text-align:right"><b>${sd[s]}</b></td></tr>`).join("")}</tbody></table>`
       :`<div class="hint">此條件下沒有資料</div>`;
@@ -29248,9 +29263,49 @@ ${KEYPOINT_RULE}
       if(br==="vt")[["tanker","油輪"],["bulk","散裝"]].forEach(([v,l])=>groups.push([l,base.filter(x=>(x.d.vtype||this.vtOf(x.d.ship))===v)]));
       else if(br==="src")[["外部檢查",x=>!isInternal(x.d.itype)],["內部檢查",x=>isInternal(x.d.itype)]].forEach(([l,f])=>groups.push([l,base.filter(f)]));
       else [...new Set(base.map(x=>x.ym))].filter(Boolean).sort().forEach(m=>groups.push([m,base.filter(x=>x.ym===m)]));
-      html+=groups.filter(g=>g[1].length).map(([l,list])=>`<div class="fda-brow"><span>${esc(l)}</span>${bar(list,false)}<span class="hint" style="text-align:right">${list.length} 筆</span></div>`).join("");
+      const rowsHtml=groups.filter(g=>g[1].length).map(([l,list])=>`<div class="fda-brow"><span>${esc(l)}</span>${bar(list,false)}<span class="hint" style="text-align:right">${list.length} 筆</span></div>`).join("");
+      // 依月份：先看趨勢（趨勢卡＋折線），各月組成長條收在下面
+      html+=br==="month"?this.natureTrendHtml(groups)+`<details style="margin-top:8px"><summary class="hint" style="cursor:pointer">各月組成明細（長條圖）</summary>${rowsHtml}</details>`:rowsHtml;
     }
     $("#fda-nature").innerHTML=html;
+    if(this._ntChart){try{this._ntChart.destroy();}catch(e){}this._ntChart=null;}
+    if(br==="month"&&base.length)this.drawNatureTrend();
+  },
+  /* 問題性質月趨勢（2026-10-29）：比例只用「已分類」的缺失算，未分類不列入——最近幾個月常常還沒分類完，
+     算進去會讓每一類看起來都在下降。未分類超過 3 成的月份用虛線＋三角點標示，僅供參考。
+     趨勢卡：最近 3 個月 vs 再前 3 個月（月份不足 6 個時，各取一半），差距 2 個百分點以內算持平。 */
+  natureTrendHtml(groups){
+    const N=this.NATURE.filter(x=>x[0]!=="none");
+    const months=groups.map(g=>g[0]),by={};
+    groups.forEach(([m,list])=>{const o=by[m]={none:0};N.forEach(([k])=>o[k]=0);list.forEach(x=>{o[x.c.nature]=(o[x.c.nature]||0)+1;});});
+    const cls=m=>N.reduce((s,[k])=>s+by[m][k],0);
+    const half=Math.min(3,Math.floor(months.length/2));
+    this._nt={months,by,cls,N,low:months.filter(m=>by[m].none/((cls(m)+by[m].none)||1)>0.3)};
+    if(half<1)return `<div class="hint" style="margin-top:8px">月份太少，無法比較趨勢。</div><div style="height:300px;margin-top:8px"><canvas id="fda-ntrend"></canvas></div>`;
+    const recent=months.slice(-half),prev=months.slice(-half*2,-half);
+    const share=(k,ms)=>{const a=ms.reduce((s,m)=>s+by[m][k],0),b=ms.reduce((s,m)=>s+cls(m),0);return b?a/b*100:null;};
+    const rng=ms=>ms.length>1?`${ms[0]}～${ms[ms.length-1]}`:ms[0];
+    const cards=N.map(([k,lbl,col])=>{const a=share(k,recent),b=share(k,prev);
+      const df=(a==null||b==null)?null:a-b;
+      const arrow=df==null?`<span class="hint">資料不足</span>`:Math.abs(df)<2?`<b style="color:var(--ink-3)">— 持平</b>`:df>0?`<b style="color:var(--bad)">▲ 上升 ${df.toFixed(1)} 個百分點</b>`:`<b style="color:var(--ok)">▼ 下降 ${Math.abs(df).toFixed(1)} 個百分點</b>`;
+      return `<div style="border:1px solid var(--line);border-left:5px solid ${col};border-radius:8px;padding:8px 12px;background:#fff">
+        <b style="color:${col}">${lbl}</b><div style="font-size:21px;font-weight:800;margin:2px 0">${a==null?"—":a.toFixed(0)+"%"}</div><div>${arrow}</div>
+        <div class="hint" style="font-size:11.5px">近 ${half} 個月（${rng(recent)}）vs 前 ${half} 個月（${rng(prev)}）${b==null?"—":b.toFixed(0)+"%"}</div></div>`;}).join("");
+    const low=this._nt.low;
+    return `<div style="margin-top:12px"><b style="color:var(--navy)">問題性質月趨勢</b> <span class="hint">各性質占「已分類」缺失的比例（未分類不列入，避免最近還沒分類完的月份把比例拉低）</span></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:8px 0">${cards}</div>
+      <div style="height:300px"><canvas id="fda-ntrend"></canvas></div>
+      ${low.length?`<div class="hint" style="background:#fff6e0;border:1px solid #efd9a0;color:#7a5a10;border-radius:6px;padding:5px 10px;margin-top:6px">⚠ ${low.join("、")} 未分類超過 3 成（虛線／三角點），比例僅供參考；補完分類後趨勢會更準。</div>`:""}`;
+  },
+  drawNatureTrend(){
+    const el=$("#fda-ntrend"),t=this._nt;if(!el||!t||typeof Chart==="undefined")return;
+    const {months,by,cls,N,low}=t,isLow=m=>low.includes(m);
+    this._ntChart=new Chart(el,{type:"line",data:{labels:months,datasets:N.map(([k,lbl,col])=>({label:lbl,data:months.map(m=>cls(m)?+(by[m][k]/cls(m)*100).toFixed(1):null),borderColor:col,backgroundColor:col,tension:.3,spanGaps:true,
+        pointRadius:months.map(m=>isLow(m)?5:3),pointStyle:months.map(m=>isLow(m)?"triangle":"circle"),
+        segment:{borderDash:ctx=>isLow(months[ctx.p1DataIndex])?[5,4]:undefined}}))},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}：${c.raw}%`,afterBody:it=>{const m=months[it[0].dataIndex];return `已分類 ${cls(m)} 筆／未分類 ${by[m].none} 筆`;}}}},
+        scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+"%"}},x:{grid:{display:false}}}}});
   },
   /* 目前篩選中：把所有篩選條件（含點選的大類／具體名稱、問題性質、重複次數）列成小標籤，每個都可單獨取消 */
   renderFilterSummary(r){
