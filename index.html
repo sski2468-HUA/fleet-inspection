@@ -2705,6 +2705,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           </select>
           <label class="hint" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap" title="已售出／離開船隊的船預設不列入分析；勾選後包含（例如要比較歷史年度時）"><input type="checkbox" id="fda-sold" onchange="FleetDA.selMain=null;FleetDA.selLeaf=null;FleetDA.render()"> 含已售出船舶</label>
           <button class="btn sm" id="fda-more-btn" onclick="FleetDA.toggleMore()">⚙ 更多篩選</button>
+          <input type="search" id="fda-q" placeholder="🔍 關鍵字（缺失內容／CODE／分類／措施）" title="多個關鍵字用空白隔開＝同時符合；搜尋缺失內容、實際狀況、CODE、分類、根因與改善措施" oninput="clearTimeout(FleetDA._qT);FleetDA._qT=setTimeout(()=>{FleetDA.selMain=null;FleetDA.selLeaf=null;FleetDA.render();},350)" style="width:280px">
           <span style="flex:1"></span>
           <button class="btn sm" onclick="FleetDA.clearAll()">清除篩選</button>
         </div>
@@ -3054,7 +3055,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <label>公司名稱（中）<input type="text" id="ntf-companyZh"></label>
               <label>公司名稱（英）<input type="text" id="ntf-companyEn"></label>
               <label>生效日期 Effective Date<input type="date" id="ntf-effDate"></label>
-              <label>緊急專線（24 hours）<input type="text" id="ntf-hotline"></label>
+              <label>緊急專線（24 hours）<input type="text" id="ntf-hotline" placeholder="多支用「；」分隔，名單上會自動分行"></label>
               <label style="grid-column:1/-1">台北應急中心電話<input type="text" id="ntf-center" placeholder="多支用「，」分隔"></label>
               <label style="grid-column:1/-1">公司電話 Office No.（分機由此轉接）<input type="text" id="ntf-officeDay"></label>
               <label>DPA<input type="text" id="ntf-dpa" list="dl-staff-names"></label>
@@ -12977,7 +12978,7 @@ table{border-collapse:collapse}
 <p class="sm">Superintendent ： ${e(pair(ship.deckSup,ship.engineSup))} (in charge)</p>
 ${(ship.deckSupAlt||ship.engineSupAlt)?`<p class="sm">Superintendent ： ${e(pair(ship.deckSupAlt,ship.engineSupAlt))} (the alternate)</p>`:""}
 </div>
-<table class="hot kai"><tr><td>緊急專線電話 (Emergency Hot Line) ： ( 24 hours )</td><td style="text-align:right;white-space:nowrap">${e(c.hotline)}</td></tr>
+<table class="hot kai"><tr><td>緊急專線電話 (Emergency Hot Line) ： ( 24 hours )</td><td style="text-align:right;white-space:nowrap">${String(c.hotline||"").split(/\s*[；;，,\n]\s*/).filter(Boolean).map(e).join("<br>")}</td></tr>
 <tr><td colspan="2" style="border-bottom:none">台北應急中心　${e(c.center)}</td></tr></table>
 <p class="sub kai">緊急應變處理小組成員（Shore Emergency Response Team）</p>
 <table class="t"><thead><tr><th rowspan="2" style="width:24%">姓　名<br>Name</th><th rowspan="2">職　稱<br>Rank</th><th colspan="2">電　　話　Tel</th></tr>
@@ -28875,7 +28876,7 @@ const FleetDA={
   },
   toggleMore(){const m=$("#fda-more");m.style.display=m.style.display==="none"?"flex":"none";},
   clearAll(){
-    this.period="12";this.src="";this.vt="";this.nature="";this.selMain=null;this.selLeaf=null;this.repDrill=false;if($("#fda-sold"))$("#fda-sold").checked=false;if($("#fda-rep"))$("#fda-rep").value="0";
+    this.period="12";this.src="";this.vt="";this.nature="";this.selMain=null;this.selLeaf=null;this.repDrill=false;if($("#fda-sold"))$("#fda-sold").checked=false;if($("#fda-rep"))$("#fda-rep").value="0";if($("#fda-q"))$("#fda-q").value="";
     Object.values(this.ms).forEach(m=>m.clear());
     if($("#fda-ymfrom"))$("#fda-ymfrom").value="";if($("#fda-ymto"))$("#fda-ymto").value="";
     this.render();
@@ -28945,10 +28946,13 @@ const FleetDA={
     // 根因→三要素：用系統的根因分類表（雲端版優先，還沒載入時用內建預設），名稱統一成「人員因素」這種寫法
     const S=this.makeS();
     const base=[];
+    // 關鍵字：空白隔開的每個字都要出現（不分大小寫），搜缺失內容、實際狀況、CODE、分類、根因與措施
+    const kws=String(($("#fda-q")||{}).value||"").toLowerCase().split(/\s+/).filter(Boolean);this._kws=kws;
     App.defs.forEach(d=>{
       const ym=d.ym||ymOf(d.date);
       if(!this.passCommon(d.ship,d.vtype||this.vtOf(d.ship),d.itype,ym,r))return;
       if(!this.ms.insp.passAny(d.inspector)||!this.ms.risk.pass(String(d.risk||""))||!this.ms.imp.pass(d.ncImp||""))return;
+      if(kws.length){const hay=[d.code,d.detail,d.actual,d.ncMain,d.ncLeaf,d.ncRoot,d.immediateCause,d.rootCause,d.corrective,d.preventive,d.opComment,d.intAuditTopic].map(v=>String(v||"")).join(" ").toLowerCase();if(!kws.every(k=>hay.includes(k)))return;}
       base.push({d,ym,c:this.classify(d,S),ik:`${d.ship}|${normDateSlash(d.date)}|${String(d.itype||"").trim().toLowerCase()}`});
     });
     this._range=r;
@@ -29258,6 +29262,7 @@ ${KEYPOINT_RULE}
     const rep=+(($("#fda-rep")||{}).value||0);
     if(this._inclSold)items.push({label:"已售出船舶",text:"包含（"+soldShipList().map(s=>s.code).join("、")+"）",clear:()=>{$("#fda-sold").checked=false;re();}});
     if(rep>=2)items.push({label:"重複次數",text:`同船 ≥ ${rep} 次`,clear:()=>{$("#fda-rep").value="0";re();}});
+    if((this._kws||[]).length)items.push({label:"關鍵字",text:this._kws.join("＋"),clear:()=>{$("#fda-q").value="";re();}});
     items.push(...FilterSummary.fromMs(this.ms,re));
     if(this.nature)items.push({label:"問題性質",text:(this.NATURE.find(n=>n[0]===this.nature)||[])[1],clear:()=>{this.nature="";re();}});
     if(this.tab!=="cat"&&this.selMain)items.push({label:this.LENS[this.lens][1],text:this.selMain,clear:()=>{this.selMain=null;this.selLeaf=null;this.render();}});
