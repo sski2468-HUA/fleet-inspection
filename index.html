@@ -3030,6 +3030,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div id="staff-init" class="card" style="display:none;margin-bottom:14px"></div>
         <div class="card">
           <div class="toolbar" style="flex-wrap:wrap;margin-bottom:8px">
+            <select id="staff-dept" onchange="StaffDir.renderStaff()" style="width:auto;min-width:150px" title="依部門篩選"><option value="">全部部門</option></select>
             <input type="text" id="staff-q" placeholder="🔍 搜尋姓名／職稱／部門／電話" oninput="StaffDir.renderStaff()" style="width:240px">
             <label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" id="staff-inactive" onchange="StaffDir.renderStaff()">含已停用</label>
             <label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" id="staff-missing" onchange="StaffDir.renderStaff()">只看資料不全（會出現在通報名單但缺英文名／電話）</label>
@@ -12935,7 +12936,7 @@ const NotifyDoc={
       const n=String(ship[f]||"").trim();chk(n,role);if(n)members.push({name:n,tz:"船東督導",te,main});});
     chk(c.dpa,"DPA");chk(c.mlc,"MLC Representative");chk(ship.cso,"CSO");
     const pair=(a,b)=>[a,b].map(n=>String(n||"").trim()).filter(Boolean).map(n=>this.full(dir,n)).join(" / ");
-    const office=`公司電話 Office No.：日(Day) ${e(c.officeDay)}　／　夜(Night) ${e(c.officeNight)} (24 hours)　　※ Ext. 為公司分機`;
+    const office=`公司電話 Office No.：${e(c.officeDay)}`;
     const rows=members.map((m,i)=>{const p=this.person(dir,m.name)||{},b=m.main?" mn":"";
       const ext=p.ext?`~ ${e(String(p.ext).replace(/^~\s*/,""))}`:"";
       return `<tr><td class="zh${b}" style="border-bottom:none">${e(p.zh||m.name)}</td><td class="zh${b}" style="border-bottom:none">${e(m.tz)}</td><td class="ce" rowspan="2">${ext}</td><td class="ce" rowspan="2">${e(p.mobile||"")}</td></tr>
@@ -12980,8 +12981,7 @@ ${(ship.deckSupAlt||ship.engineSupAlt)?`<p class="sm">Superintendent ： ${e(pai
 <table class="hot kai"><tr><td>緊急專線電話 (Emergency Hot Line) ： ( 24 hours )</td><td style="text-align:right;white-space:nowrap">${e(c.hotline)}</td></tr>
 <tr><td colspan="2" style="border-bottom:none">台北應急中心　${e(c.center)}</td></tr></table>
 <p class="sub kai">緊急應變處理小組成員（Shore Emergency Response Team）</p>
-<p class="of">${office}</p>
-<table class="t"><thead><tr><th rowspan="2" style="width:24%">姓　名<br>Name</th><th rowspan="2">職　稱<br>Rank</th><th colspan="2">電　　話　Tel</th></tr>
+<table class="t"><thead><tr><th rowspan="2" style="width:24%">姓　名<br>Name</th><th rowspan="2">職　稱<br>Rank</th><th colspan="2" style="line-height:1.45">電　　話　Tel<br><span style="font-size:8.5pt">${office}</span></th></tr>
 <tr><th style="width:14%">Ext.</th><th style="width:22%">Mobile Phone</th></tr></thead><tbody>${rows}</tbody></table>
 </td></tr></table>
 </body></html>`;
@@ -13131,7 +13131,13 @@ const StaffDir={
     if(!this.data){tb.innerHTML=`<tr><td colspan="10" class="hint" style="text-align:center">${this.canEdit()?"尚未建立通訊錄，請按上方「帶入初始資料」":"尚未建立通訊錄（由 Owner 建立）"}</td></tr>`;$("#staff-stat").textContent="";return;}
     const q=$("#staff-q").value.trim().toLowerCase(),inact=$("#staff-inactive").checked,onlyMiss=$("#staff-missing").checked,used=this.usedNames();
     const all=this.people();
-    const rows=all.filter(p=>(inact||p.active!==false)&&(!q||[p.zh,p.en,p.titleZh,p.titleEn,p.dept,p.ext,p.mobile,p.note].join(" ").toLowerCase().includes(q)))
+    // 部門下拉：依目前資料自動列出（含人數），沒填部門的歸「（未填部門）」
+    const dsel=$("#staff-dept"),dcur=dsel.value,NODEPT="__none__";
+    const dcnt={};all.filter(p=>inact||p.active!==false).forEach(p=>{const k=String(p.dept||"").trim()||NODEPT;dcnt[k]=(dcnt[k]||0)+1;});
+    dsel.innerHTML=`<option value="">全部部門</option>`+Object.keys(dcnt).filter(k=>k!==NODEPT).sort((a,b)=>a.localeCompare(b,"zh-Hant")).map(k=>`<option value="${esc(k)}">${esc(k)}（${dcnt[k]}）</option>`).join("")+(dcnt[NODEPT]?`<option value="${NODEPT}">（未填部門）（${dcnt[NODEPT]}）</option>`:"");
+    if([...dsel.options].some(o=>o.value===dcur))dsel.value=dcur;
+    const dv=dsel.value;
+    const rows=all.filter(p=>(!dv||(dv===NODEPT?!String(p.dept||"").trim():String(p.dept||"").trim()===dv))&&(inact||p.active!==false)&&(!q||[p.zh,p.en,p.titleZh,p.titleEn,p.dept,p.ext,p.mobile,p.note].join(" ").toLowerCase().includes(q)))
       .map(p=>({p,miss:used.has(NotifyDoc.norm(p.zh))&&(!p.en||(!p.ext&&!p.mobile))}))
       .filter(x=>!onlyMiss||x.miss);
     // 點欄位標題排序（再點一次反向）；空白一律排最後，同值再依中文姓名
@@ -13162,9 +13168,18 @@ const StaffDir={
     $("#staff-e-del").style.display=p?"":"none";
     $("#staffEditModal").classList.add("show");
   },
+  /* 手機格式統一：台灣 0912-345-678、大陸 +86-135-1234-5678；認不出來的照原樣保留 */
+  fmtMobile(v){
+    const s=String(v||"").trim();if(!s)return s;
+    let d=s.replace(/[^\d+]/g,"");
+    const tw=d.match(/^\+?886(9\d{8})$/);if(tw)d="0"+tw[1];
+    if(/^09\d{8}$/.test(d))return `${d.slice(0,4)}-${d.slice(4,7)}-${d.slice(7)}`;
+    const cn=d.match(/^\+?86(1\d{10})$/);if(cn)return `+86-${cn[1].slice(0,3)}-${cn[1].slice(3,7)}-${cn[1].slice(7)}`;
+    return s;
+  },
   async savePerson(){
     const g=f=>$("#staff-e-"+f).value.trim();
-    const rec={id:this.editId||("st"+Date.now()),zh:g("zh"),en:g("en"),titleZh:g("titleZh"),titleEn:g("titleEn"),dept:g("dept"),ext:g("ext").replace(/^~\s*/,""),mobile:g("mobile"),note:g("note"),active:$("#staff-e-active").checked};
+    const rec={id:this.editId||("st"+Date.now()),zh:g("zh"),en:g("en"),titleZh:g("titleZh"),titleEn:g("titleEn"),dept:g("dept"),ext:g("ext").replace(/^~\s*/,""),mobile:this.fmtMobile(g("mobile")),note:g("note"),active:$("#staff-e-active").checked};
     if(!rec.zh){toast("⚠ 請填中文姓名");return;}
     if(this.people().some(x=>x.id!==rec.id&&NotifyDoc.norm(x.zh)===NotifyDoc.norm(rec.zh))){toast("⚠ 已經有同名的人員："+rec.zh);return;}
     const list=this.editId?this.people().map(x=>x.id===this.editId?rec:x):[...this.people(),rec];
