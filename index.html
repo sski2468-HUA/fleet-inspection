@@ -3032,7 +3032,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       </div>
       <!-- 👥 公司人員通訊錄：緊急通報名單（Notification List）用的姓名（中/英）、職稱、分機、手機；存在雲端 app_db 的 staffDirectory -->
       <div id="spg-page-staff" class="spg-subpage" style="display:none">
-        <div class="banner">公司人員的<b>中英文姓名、職稱、分機、手機</b>。各船「緊急通報名單」的督導、CSO、應變小組成員都從這裡帶出電話與英文名——<b>改這裡一次，全船隊的名單一起更新</b>。所有人可查看，<b>僅限 Owner 編輯</b>。督導、CSO 的「負責船」依「船舶資料」自動帶出。</div>
+        <div class="banner">公司人員的<b>中英文姓名、職稱、分機、手機</b>。各船「緊急通報名單」的督導、CSO、應變小組成員都從這裡帶出電話與英文名——<b>改這裡一次，全船隊的名單一起更新</b>。所有人可查看，<b>僅限 Owner／管理員編輯</b>。督導、CSO 的「負責船」依「船舶資料」自動帶出。</div>
         <div id="staff-init" class="card" style="display:none;margin-bottom:14px"></div>
         <div class="card">
           <div class="toolbar" style="flex-wrap:wrap;margin-bottom:8px">
@@ -3053,7 +3053,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       </div>
       <!-- 📇 緊急通報名單（Notification List）：共用電話／DPA／固定成員設定＋各船預覽、Word／PDF 輸出 -->
       <div id="spg-page-notify" class="spg-subpage" style="display:none">
-        <div class="banner">各船 Notification List ＝ <b>全公司共用</b>（緊急電話、DPA／MLC、應變小組固定成員、生效日期）＋ <b>該船</b>（CSO、甲板／機艙督導與代理人，依「船舶資料」）。人員的英文名與電話來自「👥 公司人員通訊錄」。設定<b>僅限 Owner</b>。</div>
+        <div class="banner">各船 Notification List ＝ <b>全公司共用</b>（緊急電話、DPA／MLC、應變小組固定成員、生效日期）＋ <b>該船</b>（CSO、甲板／機艙督導與代理人，依「船舶資料」）。人員的英文名與電話來自「👥 公司人員通訊錄」。設定<b>僅限 Owner／管理員</b>。</div>
         <div class="grid2" style="align-items:start">
           <div class="card">
             <h3>⚙ 共用設定 <span class="hint" style="font-weight:400" id="ntf-saved"></span></h3>
@@ -12948,7 +12948,7 @@ const NotifyDoc={
       const ext=p.ext?`~ ${e(String(p.ext).replace(/^~\s*/,""))}`:"";
       return `<tr><td class="zh${b}" style="border-bottom:none">${e(p.zh||m.name)}</td><td class="zh${b}" style="border-bottom:none">${e(m.tz)}</td><td class="ce" rowspan="2">${ext}</td><td class="ce" rowspan="2">${e(p.mobile||"")}</td></tr>
         <tr><td class="en${b}" style="border-top:none">${e(p.en||"")}</td><td class="en${b}" style="border-top:none">${e(m.te)}</td></tr>`;}).join("");
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Notification List (${e(ship.name)})</title><style>
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>NOTIFICATION LIST-${e(ship.name)}</title><style>
 @page{size:A4 portrait;margin:10mm 10mm 10mm}
 body{font-family:"Times New Roman","標楷體",DFKai-SB,"BiauKai",serif;font-size:10.5pt;color:#000;margin:0;background:#fff}
 table{border-collapse:collapse}
@@ -12977,7 +12977,7 @@ table{border-collapse:collapse}
 <td style="width:46pt;vertical-align:middle"><img src="${logoSrc||this.LOGO}" width="34" height="43" alt="FPMC"></td>
 <td style="vertical-align:middle"><div class="cozh kai">${e(c.companyZh)}</div><div class="coen sans">${e(c.companyEn)}</div></td>
 </tr></table>
-<p class="ship sans">m. v. ${e(ship.name)}</p>
+<p class="ship sans">${e(ship.name)}</p>
 <table style="width:100%"><tr><td class="ttl">NOTIFICATION LIST</td><td class="eff">Effective Date: ${e(this.fmtDate(c.effDate))}</td></tr></table>
 <div style="margin-top:4pt">
 <p class="sm">DPA ： ${e(this.full(dir,c.dpa))}${String(c.dpaAlt||"").trim()?`　/　Alternate DPA ： ${e(this.full(dir,c.dpaAlt))}`:""}</p>
@@ -13010,7 +13010,8 @@ ${(ship.deckSupAlt||ship.engineSupAlt)?`<p class="sm">Superintendent ： ${e(pai
    people 用「中文姓名」對到船舶資料的督導／代理督導／CSO 欄位（船舶資料仍然只存姓名，系統其他地方不受影響）。 */
 const StaffDir={
   KEY:"staffDirectory",data:null,updated:null,loaded:false,_loading:null,editId:null,_fixed:null,page:"staff",
-  canEdit(){return typeof Role!=="undefined"&&Role.isOwner&&Role.isOwner();},
+  // 2026-10-29 起 Owner 與管理員都可以編輯（原本只限 Owner）
+  canEdit(){return typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();},
   /* 2026/9/21 船東督導表的職務代理人（括號內），只補目前空白的欄位 */
   ALT_SEED:{SA:["廖麗蓁","陳寰頤"],SE:["廖麗蓁","陳寰頤"],SR:["廖麗蓁","陳寰頤"],SS:["廖麗蓁","陳寰頤"],
     F27:["肖紅林","唐洪新"],F28:["肖紅林","唐洪新"],F29:["黃燕華","唐洪新"],F30:["黃燕華","唐洪新"],F31:["黃燕華","唐洪新"],
@@ -13060,7 +13061,7 @@ const StaffDir={
     return this._loading;
   },
   async save(next,msg){
-    if(!this.canEdit()){toast("⚠ 公司人員通訊錄僅限 Owner 修改");return false;}
+    if(!this.canEdit()){toast("⚠ 公司人員通訊錄僅限 Owner／管理員修改");return false;}
     const now=Date.now();
     try{
       let rows;
@@ -13136,7 +13137,7 @@ const StaffDir={
   renderStaff(){
     this.renderInit();
     const tb=$("#staff-tbody");if(!tb)return;
-    if(!this.data){tb.innerHTML=`<tr><td colspan="10" class="hint" style="text-align:center">${this.canEdit()?"尚未建立通訊錄，請按上方「帶入初始資料」":"尚未建立通訊錄（由 Owner 建立）"}</td></tr>`;$("#staff-stat").textContent="";return;}
+    if(!this.data){tb.innerHTML=`<tr><td colspan="10" class="hint" style="text-align:center">${this.canEdit()?"尚未建立通訊錄，請按上方「帶入初始資料」":"尚未建立通訊錄（由 Owner／管理員建立）"}</td></tr>`;$("#staff-stat").textContent="";return;}
     const q=$("#staff-q").value.trim().toLowerCase(),inact=$("#staff-inactive").checked,onlyMiss=$("#staff-missing").checked,used=this.usedNames();
     const all=this.people();
     // 部門下拉：依目前資料自動列出（含人數），沒填部門的歸「（未填部門）」
@@ -13167,7 +13168,7 @@ const StaffDir={
       :`<tr><td colspan="10" class="hint" style="text-align:center">沒有符合條件的人員</td></tr>`;
   },
   openPerson(id){
-    if(!this.canEdit()){toast("⚠ 僅限 Owner");return;}
+    if(!this.canEdit()){toast("⚠ 僅限 Owner／管理員");return;}
     if(!this.data){toast("⚠ 請先建立通訊錄");return;}
     const p=id?this.people().find(x=>x.id===id):null;this.editId=p?p.id:null;
     $("#staff-e-title").textContent=p?"編輯人員":"新增人員";
@@ -13247,9 +13248,14 @@ const StaffDir={
   },
   downloadWord(){
     const s=this.curShip();if(!s||!this.data)return;
-    dl(NotifyDoc.wordBlob(this.data,s),`Notification List (${s.name}).doc`);
+    dl(NotifyDoc.wordBlob(this.data,s),`NOTIFICATION LIST-${s.name}.doc`);
   },
-  printPdf(){const fr=$("#ntf-frame");if(!fr||!fr.contentWindow||!this.curShip())return;fr.contentWindow.focus();fr.contentWindow.print();}
+  printPdf(){const fr=$("#ntf-frame"),s=this.curShip();if(!fr||!fr.contentWindow||!s)return;
+    // 另存 PDF 的預設檔名取自上層頁面標題：列印期間暫時改成「NOTIFICATION LIST-船名」，印完還原
+    const oldTitle=document.title;document.title=`NOTIFICATION LIST-${s.name||s.code}`;
+    const restore=()=>{document.title=oldTitle;window.removeEventListener("afterprint",restore);};
+    window.addEventListener("afterprint",restore);setTimeout(restore,60000);
+    fr.contentWindow.focus();fr.contentWindow.print();}
 };
 
 /* ════════ 督導經管船：依海技經管／甲板督導／機艙督導／CSO 分組檢視，並支援整批調動 ════════
