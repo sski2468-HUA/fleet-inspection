@@ -3085,6 +3085,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <div style="border:1px solid var(--line);border-radius:6px;background:#fff;overflow:auto;max-height:760px"><iframe id="ntf-frame" style="width:100%;height:740px;border:0" title="緊急通報名單預覽"></iframe></div>
           </div>
         </div>
+        <div class="card" style="margin-top:14px">
+          <h3>📥 各船下載狀態 <span class="hint" style="font-weight:400">依船上在船舶平台按「列印／存成 PDF」的紀錄；名單內容（人員、電話、生效日期…）有任何更動，就要重新下載</span>
+            <span style="margin-left:auto;display:flex;gap:6px;align-items:center"><span class="statline" id="ntf-ps-stat"></span><button class="btn sm" onclick="StaffDir.renderPrintStatus(true)">🔄 重新整理</button></span></h3>
+          <div class="tblwrap" style="max-height:520px"><table class="tbl" style="font-size:13px"><thead><tr><th style="width:90px">代碼</th><th>船名</th><th>狀態</th><th>最後下載</th></tr></thead><tbody id="ntf-ps-tbody"></tbody></table></div>
+        </div>
       </div>
     </section>
     <div class="modal-bg" id="staffEditModal">
@@ -12995,6 +13000,8 @@ ${(ship.deckSupAlt||ship.engineSupAlt)?`<p class="sm">Superintendent ： ${e(pai
 </body></html>`;
     return {html,warns};
   },
+  /* 版本碼：名單內容（含生效日期、人員、電話）任何一個字有變就不同；船上列印時記進操作紀錄，用來判斷「有更新、該輪還沒重新列印」 */
+  sig(dir,ship){const s=this.build(dir,ship).html;let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36);},
   /* Word：包成 MHT（單一檔案網頁），公司 MARK 圖片內嵌在檔案裡，船上離線開也看得到 */
   wordBlob(dir,ship){
     const loc="file:///C:/fpmc_notify_logo.png",bd="----=_NextPart_FPMC_NOTIFY";
@@ -13218,6 +13225,33 @@ const StaffDir={
     sel.innerHTML=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code),undefined,{numeric:true})).map(s=>`<option value="${esc(s.code)}">${esc(s.code)}　${esc(s.zh||"")} ${esc(s.name||"")}</option>`).join("");
     if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;
     this.renderPreview();
+    this.renderPrintStatus();
+  },
+  /* 各船下載狀態：船舶平台列印時會在操作紀錄寫一筆（target＝船舶檢查填報平台－緊急通報名單、摘要帶「[版本 xxx]」），
+     拿每艘船最後一次的版本碼跟目前名單算出來的版本碼比對。版本碼＝NotifyDoc.sig（兩邊同一份程式）。 */
+  _ps:null,_psAt:0,
+  async renderPrintStatus(force){
+    const tb=$("#ntf-ps-tbody");if(!tb)return;
+    if(!this.data){tb.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center">尚未建立通訊錄</td></tr>`;return;}
+    if(force||!this._ps||Date.now()-this._psAt>60000){
+      tb.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center">讀取中…</td></tr>`;
+      try{
+        const rows=await Cloud.api(`audit_log?select=ts,usr,summary&target=eq.${encodeURIComponent("船舶檢查填報平台－緊急通報名單")}&action=eq.${encodeURIComponent("列印")}&order=ts.desc&limit=3000`)||[];
+        const last={};rows.forEach(r=>{const code=String(r.usr||"").replace(/^船舶\s*/,"").trim();if(!code||last[code])return;const m=String(r.summary||"").match(/\[版本 ([0-9a-z]+)\]/);last[code]={ts:r.ts,sig:m?m[1]:""};});
+        this._ps=last;this._psAt=Date.now();
+      }catch(e){tb.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center">⚠ 讀取失敗：${esc(e.message)}</td></tr>`;return;}
+    }
+    const gone=(typeof ShipEvents!=="undefined"&&ShipEvents.loaded)?ShipEvents.goneMap():new Map();
+    const ships=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>!gone.has(s.code)).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code),undefined,{numeric:true}));
+    const fmt=ts=>{const d=new Date(ts);return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
+    let ok=0,old=0,never=0;
+    const html=ships.map(s=>{const cur=NotifyDoc.sig(this.data,s),p=this._ps[s.code];
+      let st;if(!p){never++;st=`<span class="stat" style="background:#eef2f4;color:var(--ink-2)">✕ 從未下載</span>`;}
+      else if(p.sig===cur){ok++;st=`<span class="stat" style="background:#e2f3e8;color:var(--ok)">✅ 已下載最新版</span>`;}
+      else{old++;st=`<span class="stat" style="background:#fde8e6;color:var(--bad)">⚠ 有更新，尚未重新下載</span>`;}
+      return `<tr><td><b>${esc(s.code)}</b></td><td>${esc(s.zh||"")} ${esc(s.name||"")}</td><td>${st}</td><td style="font-family:var(--mono);font-size:12px">${p?fmt(p.ts):"—"}</td></tr>`;}).join("");
+    tb.innerHTML=html||`<tr><td colspan="4" class="hint" style="text-align:center">沒有船舶資料</td></tr>`;
+    $("#ntf-ps-stat").textContent=`最新版 ${ok} 艘　有更新未下載 ${old} 艘　從未下載 ${never} 艘`;
   },
   renderFixed(){
     const tb=$("#ntf-fixed");if(!tb)return;const adm=this.canEdit()&&this.data,F=this._fixed||[];
