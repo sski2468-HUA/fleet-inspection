@@ -688,7 +688,9 @@ const IAAuth={
   SITE_OK_KEY:"vsm_site_gate_ok_v2",HKEY:"vsm_site_pass_h1",DEFAULT:"fpmc2026",TTL:8*3600*1000,
   _res:null,
   siteOk(){try{const s=JSON.parse(localStorage.getItem(this.SITE_OK_KEY));return !!(s&&s.exp>Date.now());}catch(e){return false;}},
-  ident(){try{const s=JSON.parse(localStorage.getItem("vsm_identity_v1"));return s&&s.name&&s.exp>Date.now()?s:null;}catch(e){return null;}},
+  // 本頁給督導／稽核員／海技用：船舶帳號（op2）與訪客不能登入，主系統帶過來的這兩種身份也要重新選人
+  allowed(r){return !!r&&r.tier!=="op2"&&r.dept!==this.GUEST_DEPT;},
+  ident(){try{const s=JSON.parse(localStorage.getItem("vsm_identity_v1"));return s&&s.name&&s.exp>Date.now()&&this.allowed(s)?s:null;}catch(e){return null;}},
   isOwner(){const s=this.ident();return !!(s&&s.tier==="owner");},
   canDelete(){const s=this.ident();return !!(s&&(s.tier==="owner"||s.tier==="admin"));},
   async sha(s){
@@ -734,8 +736,8 @@ const IAAuth={
   },
   async showIdent(){
     await this.loadRoster();
+    this.roster=this.roster.filter(x=>this.allowed(x));
     const depts=[...new Set(this.roster.map(x=>x.dept))];
-    if(!depts.includes(this.GUEST_DEPT))depts.push(this.GUEST_DEPT);
     $("#iaIdDept").innerHTML=depts.map(d=>`<option>${esc(d)}</option>`).join("");
     this.onDept();
     $("#iaIdErr").textContent="";

@@ -2479,11 +2479,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="nav-item" data-tab="defs"><span class="num">3</span>缺失紀錄總表</div>
       <div class="nav-item" data-tab="sirepos"><span class="num">★</span>正面評價/優秀案例</div>
       <div class="nav-item" data-tab="inspctrl"><span class="num">🔔</span>檢查計劃及管控表</div>
-      <div class="nav-item" data-tab="sp"><span class="num">5</span>船舶資料</div>
+      <div class="nav-item" data-tab="sp"><span class="num">5</span>船舶／公司人員資料</div>
     </div>
     <div class="nav-group" data-group="forms">
       <div class="nav-group-label">填單</div>
       <div class="nav-item" data-tab="air"><span class="num">📝</span>填單紀錄</div>
+      <div class="nav-item" data-external="__air_queue__" id="nav-air-queue" style="display:none"><span class="num">☁</span>線上填單審核佇列<span id="nav-cq-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:auto"></span></div>
       <div class="nav-item" data-tab="intaudit"><span class="num">🛠</span>內部檢查缺失登錄審查（海技）<span id="air-ia-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:auto"></span></div>
       <div class="nav-item" data-tab="self"><span class="num">4</span>專案自查清單</div>
 
@@ -2944,6 +2945,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <button class="btn sm spg-tabbtn active" data-p="info" onclick="ShipGroup.setPage('info')">🚢 船舶資料</button>
           <button class="btn sm spg-tabbtn" data-p="super" onclick="ShipGroup.setPage('super')">🧭 海技/督導經管船清單</button>
           <button class="btn sm spg-tabbtn" data-p="events" onclick="ShipGroup.setPage('events')" style="display:none" title="僅 Owner 可見">🕓 船舶異動紀錄</button>
+          <button class="btn sm spg-tabbtn" data-p="staff" onclick="ShipGroup.setPage('staff')">👥 公司人員通訊錄</button>
+          <button class="btn sm spg-tabbtn" data-p="notify" onclick="ShipGroup.setPage('notify')">📇 緊急通報名單</button>
         </div>
       </div>
       <div id="spg-page-info" class="spg-subpage">
@@ -2988,6 +2991,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <button class="btn sm sup-rolebtn active" data-r="mgr" onclick="SupMgmt.setRole('mgr')">海技經管</button>
             <button class="btn sm sup-rolebtn" data-r="deckSup" onclick="SupMgmt.setRole('deckSup')">甲板督導</button>
             <button class="btn sm sup-rolebtn" data-r="engineSup" onclick="SupMgmt.setRole('engineSup')">機艙督導</button>
+            <button class="btn sm sup-rolebtn" data-r="deckSupAlt" onclick="SupMgmt.setRole('deckSupAlt')">甲板代理督導</button>
+            <button class="btn sm sup-rolebtn" data-r="engineSupAlt" onclick="SupMgmt.setRole('engineSupAlt')">機艙代理督導</button>
             <button class="btn sm sup-rolebtn" data-r="cso" onclick="SupMgmt.setRole('cso')">CSO</button>
             <span class="spacer" style="flex:1"></span>
             <span class="lbl">檢視</span>
@@ -3019,7 +3024,80 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <tbody id="sev-tbody"></tbody></table></div>
         </div>
       </div>
+      <!-- 👥 公司人員通訊錄：緊急通報名單（Notification List）用的姓名（中/英）、職稱、分機、手機；存在雲端 app_db 的 staffDirectory -->
+      <div id="spg-page-staff" class="spg-subpage" style="display:none">
+        <div class="banner">公司人員的<b>中英文姓名、職稱、分機、手機</b>。各船「緊急通報名單」的督導、CSO、應變小組成員都從這裡帶出電話與英文名——<b>改這裡一次，全船隊的名單一起更新</b>。所有人可查看，<b>僅限 Owner 編輯</b>。督導、CSO 的「負責船」依「船舶資料」自動帶出。</div>
+        <div id="staff-init" class="card" style="display:none;margin-bottom:14px"></div>
+        <div class="card">
+          <div class="toolbar" style="flex-wrap:wrap;margin-bottom:8px">
+            <input type="text" id="staff-q" placeholder="🔍 搜尋姓名／職稱／部門／電話" oninput="StaffDir.renderStaff()" style="width:240px">
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" id="staff-inactive" onchange="StaffDir.renderStaff()">含已停用</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" id="staff-missing" onchange="StaffDir.renderStaff()">只看資料不全（會出現在通報名單但缺英文名／電話）</label>
+            <span class="spacer" style="flex:1"></span>
+            <span class="statline" id="staff-stat"></span>
+            <button class="btn sm primary staff-adm" onclick="StaffDir.openPerson()">＋ 新增人員</button>
+            <button class="btn sm" onclick="StaffDir.exportXlsx()">⬇ 匯出 Excel</button>
+          </div>
+          <div class="tblwrap" style="max-height:640px"><table class="tbl" style="font-size:13px">
+            <thead><tr><th>中文姓名</th><th>英文姓名</th><th>職稱（中）</th><th>職稱（英）</th><th>部門</th><th>分機</th><th>手機</th><th>負責船（依船舶資料）</th><th>備註</th><th style="width:70px">操作</th></tr></thead>
+            <tbody id="staff-tbody"></tbody></table></div>
+        </div>
+      </div>
+      <!-- 📇 緊急通報名單（Notification List）：共用電話／DPA／固定成員設定＋各船預覽、Word／PDF 輸出 -->
+      <div id="spg-page-notify" class="spg-subpage" style="display:none">
+        <div class="banner">各船 Notification List ＝ <b>全公司共用</b>（緊急電話、DPA／MLC、應變小組固定成員、生效日期）＋ <b>該船</b>（CSO、甲板／機艙督導與代理人，依「船舶資料」）。人員的英文名與電話來自「👥 公司人員通訊錄」。設定<b>僅限 Owner</b>。</div>
+        <div class="grid2" style="align-items:start">
+          <div class="card">
+            <h3>⚙ 共用設定 <span class="hint" style="font-weight:400" id="ntf-saved"></span></h3>
+            <div class="fgrid" style="grid-template-columns:1fr 1fr">
+              <label>公司名稱（中）<input type="text" id="ntf-companyZh"></label>
+              <label>公司名稱（英）<input type="text" id="ntf-companyEn"></label>
+              <label>生效日期 Effective Date<input type="date" id="ntf-effDate"></label>
+              <label>緊急專線（24 hours）<input type="text" id="ntf-hotline"></label>
+              <label style="grid-column:1/-1">台北應急中心電話<input type="text" id="ntf-center" placeholder="多支用「，」分隔"></label>
+              <label>辦公室電話（日 Day）<input type="text" id="ntf-officeDay"></label>
+              <label>辦公室電話（夜 Night，24 hours）<input type="text" id="ntf-officeNight"></label>
+              <label>DPA<input type="text" id="ntf-dpa" list="dl-staff-names"></label>
+              <label>MLC Representative<input type="text" id="ntf-mlc" list="dl-staff-names"></label>
+            </div>
+            <h3 style="margin-top:14px">應變小組固定成員 <span class="hint" style="font-weight:400">（每艘船都一樣；依序列在督導之前）</span></h3>
+            <div class="tblwrap"><table class="tbl" style="font-size:12.5px"><thead><tr><th style="width:34px">#</th><th>職稱（中）</th><th>職稱（英）</th><th>人員</th><th class="staff-adm" style="width:96px"></th></tr></thead><tbody id="ntf-fixed"></tbody></table></div>
+            <div class="toolbar staff-adm" style="margin-top:8px"><button class="btn sm" onclick="StaffDir.addFixed()">＋ 新增一列</button><span class="spacer" style="flex:1"></span><button class="btn sm primary" onclick="StaffDir.saveCommon()">儲存共用設定</button></div>
+            <datalist id="dl-staff-names"></datalist>
+          </div>
+          <div class="card">
+            <h3>👁 各船預覽與輸出</h3>
+            <div class="toolbar" style="flex-wrap:wrap;margin-bottom:8px">
+              <select id="ntf-ship" onchange="StaffDir.renderPreview()" style="width:auto;max-width:260px"></select>
+              <span class="spacer" style="flex:1"></span>
+              <button class="btn sm" onclick="StaffDir.downloadWord()">⬇ 下載 Word</button>
+              <button class="btn sm" onclick="StaffDir.printPdf()">🖨 列印／存成 PDF</button>
+            </div>
+            <div id="ntf-warn" class="hint" style="margin-bottom:6px"></div>
+            <div style="border:1px solid var(--line);border-radius:6px;background:#fff;overflow:auto;max-height:760px"><iframe id="ntf-frame" style="width:100%;height:740px;border:0" title="緊急通報名單預覽"></iframe></div>
+          </div>
+        </div>
+      </div>
     </section>
+    <div class="modal-bg" id="staffEditModal">
+      <div class="modal" style="max-width:640px">
+        <div class="mh"><h3 id="staff-e-title">新增人員</h3><button class="x" onclick="$('#staffEditModal').classList.remove('show')">✕</button></div>
+        <div class="mb">
+          <div class="fgrid" style="grid-template-columns:1fr 1fr">
+            <label>中文姓名 *<input type="text" id="staff-e-zh" placeholder="與船舶資料的督導姓名寫法一致"></label>
+            <label>英文姓名<input type="text" id="staff-e-en" placeholder="例：YIN DE XU"></label>
+            <label>職稱（中）<input type="text" id="staff-e-titleZh" placeholder="例：船東督導"></label>
+            <label>職稱（英）<input type="text" id="staff-e-titleEn" placeholder="例：Superintendent"></label>
+            <label>部門<input type="text" id="staff-e-dept" placeholder="例：航運管理處"></label>
+            <label>分機<input type="text" id="staff-e-ext" placeholder="例：6722（不用打 ~）"></label>
+            <label>手機<input type="text" id="staff-e-mobile" placeholder="例：0972-290-721"></label>
+            <label style="display:flex;flex-direction:row;align-items:center;gap:6px;margin-top:22px"><input type="checkbox" id="staff-e-active" style="width:auto">在職（取消勾選＝停用，不會出現在通報名單）</label>
+            <label style="grid-column:1/-1">備註<input type="text" id="staff-e-note"></label>
+          </div>
+        </div>
+        <div class="mf"><button class="btn danger" id="staff-e-del" onclick="StaffDir.removePerson()">刪除</button><span style="flex:1"></span><button class="btn" onclick="$('#staffEditModal').classList.remove('show')">取消</button><button class="btn primary" onclick="StaffDir.savePerson()">儲存</button></div>
+      </div>
+    </div>
     <div class="modal-bg" id="sevEditModal">
       <div class="modal" style="max-width:560px">
         <div class="mh"><h3 id="sev-edit-title">新增船舶異動</h3><button class="x" onclick="ShipEvents.closeEdit()">✕</button></div>
@@ -6593,6 +6671,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <label>海技經管人<input type="text" id="s-mgr"></label>
         <label>甲板督導<input type="text" id="s-deckSup" list="dl-supervisor-names" placeholder="建議從清單選擇督導人員"></label>
         <label>機艙督導<input type="text" id="s-engineSup" list="dl-supervisor-names" placeholder="建議從清單選擇督導人員"></label>
+        <label>甲板代理督導<input type="text" id="s-deckSupAlt" list="dl-supervisor-names" placeholder="職務代理人（the alternate）"></label>
+        <label>機艙代理督導<input type="text" id="s-engineSupAlt" list="dl-supervisor-names" placeholder="職務代理人（the alternate）"></label>
         <label>CSO<input type="text" id="s-cso" list="dl-supervisor-names" placeholder="Company Security Officer"></label>
         <label>Operator<input type="text" id="s-operator"></label>
         <label>備註<input type="text" id="s-note"></label>
@@ -11474,6 +11554,7 @@ const NavConfig={
     // 套用顯示/隱藏（一般使用者完全看不到；Owner／管理員仍可看到，但會標示「已隱藏」方便維護者自行確認設定）
     const isAdmin=typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();
     document.querySelectorAll("#sidebar .nav-item").forEach(it=>{
+      if(it.id==="nav-air-queue"){it.style.display=isAdmin?"":"none";return;} // 線上填單審核佇列只給 Owner／維護者
       const tab=it.dataset.tab;
       const hidden=this.cfg.hidden&&this.cfg.hidden[tab];
       if(!hidden){it.style.display="";it.classList.remove("nav-item-adminonly");return;}
@@ -11667,13 +11748,21 @@ const NavConfig={
 };
 
 /* ───── 導航 ───── */
-const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶資料","Ship Particulars"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["專案自查","Fleet Self-Check"],fleetda:["船隊缺失分析","Fleet Deficiency Analysis"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["填單紀錄","船上填報 → 維護者審核轉入"],intaudit:["內部檢查缺失登錄","督導立案、發改善單 → 維護者匯入／審核"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"]};
+const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶／公司人員資料","Ship Particulars & Company Staff"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["專案自查","Fleet Self-Check"],fleetda:["船隊缺失分析","Fleet Deficiency Analysis"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["填單紀錄","船上填報 → 維護者審核轉入"],intaudit:["內部檢查缺失登錄","督導立案、發改善單 → 維護者匯入／審核"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["海技參考資料","Nautical Reference Materials"]};
 $$(".nav-item").forEach(n=>n.onclick=()=>{
   // 「操作說明」直接開新分頁的完整操作手冊（system-guide.html），舊的站內說明頁不再使用
   if(n.dataset.tab==="guide"){
     const folderG=officeFolder();
     window.open(folderG+"system-guide.html","_blank");
     if(typeof closeSidebar==="function")closeSidebar();return;
+  }
+  // 「線上填單審核佇列」：切到填單紀錄頁，直接打開審核佇列（不另開視窗）
+  if(n.dataset.external==="__air_queue__"){
+    const airNav=document.querySelector('#sidebar .nav-item[data-tab="air"]');
+    if(airNav)airNav.click();
+    if(typeof AirQueue!=="undefined")AirQueue.open();
+    $$(".nav-item").forEach(x=>x.classList.remove("active"));n.classList.add("active");
+    return;
   }
   if(n.dataset.external){
     if(n.dataset.external==="__air_intake__"){if(typeof Air!=="undefined")Air.openIntakeSite();}
@@ -12354,6 +12443,8 @@ const Sp={
     {k:"mgr",t:"海技經管",sort:true,cell:s=>`<td>${esc(s.mgr)}</td>`},
     {k:"deckSup",t:"甲板督導",sort:true,cell:s=>`<td>${esc(s.deckSup)}</td>`},
     {k:"engineSup",t:"機艙督導",sort:true,cell:s=>`<td>${esc(s.engineSup)}</td>`},
+    {k:"deckSupAlt",t:"甲板代理督導",sort:true,def:false,cell:s=>`<td>${esc(s.deckSupAlt)}</td>`},
+    {k:"engineSupAlt",t:"機艙代理督導",sort:true,def:false,cell:s=>`<td>${esc(s.engineSupAlt)}</td>`},
     {k:"cso",t:"CSO",sort:true,cell:s=>`<td>${esc(s.cso)}</td>`},
     {k:"operator",t:"operator",sort:true,cell:s=>`<td>${esc(s.operator)}</td>`},
     {k:"yard",t:"船廠",sort:true,def:false,cell:s=>`<td style="font-size:11px">${esc(s.yard)}</td>`},
@@ -12494,7 +12585,7 @@ const Sp={
   },
   persist(){try{localStorage.setItem("vsm_ships_v1",JSON.stringify(SHIPINFO));}catch(e){}},
   editCode:null,
-  F:["code","name","zh","vtype","type1","delivery","imo","hull","cs","dwt","grt","loa","breadth","yard","yardLoc","flag","cls","registry","mgr","deckSup","engineSup","cso","operator","note"],
+  F:["code","name","zh","vtype","type1","delivery","imo","hull","cs","dwt","grt","loa","breadth","yard","yardLoc","flag","cls","registry","mgr","deckSup","engineSup","deckSupAlt","engineSupAlt","cso","operator","note"],
   async openEdit(code){
     if(typeof Guard!=="undefined"&&!await Guard.require())return;
     this.editCode=code;
@@ -12539,7 +12630,7 @@ const Sp={
   },
   exportXlsx(){
     if(!hasXLSX())return;
-    const rows=this.filtered().map(s=>({代碼:s.code,"Vessel Name":s.name,船名:s.zh,船型:s.vtype,Type:s.type1,"船齡(年)":this.ageOf(s),交船日:s.delivery,"IMO No.":s.imo,"HULL NO.":s.hull,"C/S":s.cs,DWT:s.dwt,GRT:s.grt,LOA:s.loa,Breadth:s.breadth,船廠:s.yard,船廠地點:s.yardLoc,FLAG:s.flag,Class:s.cls,登記公司:s.registry,海技經管:s.mgr,甲板督導:s.deckSup,機艙督導:s.engineSup,CSO:s.cso,備註:s.note}));
+    const rows=this.filtered().map(s=>({代碼:s.code,"Vessel Name":s.name,船名:s.zh,船型:s.vtype,Type:s.type1,"船齡(年)":this.ageOf(s),交船日:s.delivery,"IMO No.":s.imo,"HULL NO.":s.hull,"C/S":s.cs,DWT:s.dwt,GRT:s.grt,LOA:s.loa,Breadth:s.breadth,船廠:s.yard,船廠地點:s.yardLoc,FLAG:s.flag,Class:s.cls,登記公司:s.registry,海技經管:s.mgr,甲板督導:s.deckSup,機艙督導:s.engineSup,甲板代理督導:s.deckSupAlt||"",機艙代理督導:s.engineSupAlt||"",CSO:s.cso,備註:s.note}));
     const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"Ship Particulars");
     XLSX.writeFile(wb,`Ship_Particulars_${todayStr()}.xlsx`);
@@ -12584,7 +12675,7 @@ const Sp={
   },
   _readImport(file){
     const name=file.name.toLowerCase();
-    const mapHdr=h=>({"代碼":"code","Code":"code","Name":"name","Vessel Name":"name","船名":"zh","船型":"vtype","Type":"type1","IMO":"imo","IMO No.":"imo","HULL NO.":"hull","Hull No.":"hull","H No.":"hull","HULL":"hull","CS":"cs","C/S":"cs","DWT":"dwt","GRT":"grt","LOA":"loa","Breadth":"breadth","船廠":"yard","船廠地點":"yardLoc","FLAG":"flag","Class":"cls","登記公司":"registry","海技經管":"mgr","甲板督導":"deckSup","機艙督導":"engineSup","CSO":"cso","Operator":"operator","備註":"note","交船日":"delivery"}[h]||null);
+    const mapHdr=h=>({"代碼":"code","Code":"code","Name":"name","Vessel Name":"name","船名":"zh","船型":"vtype","Type":"type1","IMO":"imo","IMO No.":"imo","HULL NO.":"hull","Hull No.":"hull","H No.":"hull","HULL":"hull","CS":"cs","C/S":"cs","DWT":"dwt","GRT":"grt","LOA":"loa","Breadth":"breadth","船廠":"yard","船廠地點":"yardLoc","FLAG":"flag","Class":"cls","登記公司":"registry","海技經管":"mgr","甲板督導":"deckSup","機艙督導":"engineSup","甲板代理督導":"deckSupAlt","機艙代理督導":"engineSupAlt","CSO":"cso","Operator":"operator","備註":"note","交船日":"delivery"}[h]||null);
     if(name.endsWith(".json")){
       const r=new FileReader();
       r.onload=()=>{try{
@@ -12649,12 +12740,13 @@ const ShipGroup={
     if(typeof ShipEvents!=="undefined")ShipEvents.refreshTabVisibility();
     this.curPage=p;
     $$(".spg-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.p===p));
-    const map={info:"spg-page-info",super:"spg-page-super",events:"spg-page-events"};
+    const map={info:"spg-page-info",super:"spg-page-super",events:"spg-page-events",staff:"spg-page-staff",notify:"spg-page-notify"};
     Object.entries(map).forEach(([k,id])=>{const el=$("#"+id);if(el)el.style.display=(k===p)?"":"none";});
     if(skipInit)return;
     if(p==="info")Sp.render();
     else if(p==="super"&&typeof SupMgmt!=="undefined")SupMgmt.init();
     else if(p==="events")ShipEvents.show();
+    else if(p==="staff"||p==="notify")StaffDir.show(p);
   }
 };
 
@@ -12813,12 +12905,300 @@ const ShipEvents={
   }
 };
 
+/* ════════ 📇 緊急通報名單（Notification List）文件組裝 ════════
+   全公司共用設定（dir.common／dir.fixed）＋該船的 CSO、甲板／機艙督導與代理人（船舶資料）組成一份 A4 名單，
+   人員的英文名、分機、手機從 dir.people 用中文姓名對出來。輸出成 HTML：預覽、列印存 PDF、存成 Word（.doc）共用同一份。
+   ⚠ 船舶檢查填報平台（上傳GitHub_船上\index.html）有一份相同的 NotifyDoc，改版面時兩邊要一起改。 */
+const NotifyDoc={
+  norm(n){return String(n||"").replace(/\s+/g,"").replace(/雙/g,"双");},
+  person(dir,name){const k=this.norm(name);if(!k)return null;return ((dir&&dir.people)||[]).find(p=>p.active!==false&&this.norm(p.zh)===k)||null;},
+  full(dir,name){const p=this.person(dir,name);return p?[p.zh,p.en].filter(Boolean).join(" "):String(name||"").trim();},
+  fmtDate(s){const m=String(s||"").match(/(\d{4})-(\d{1,2})-(\d{1,2})/);if(!m)return "";
+    const M=["January","February","March","April","May","June","July","August","September","October","November","December"];
+    return `${M[+m[2]-1]} ${+m[3]}, ${m[1]}`;},
+  /* 回傳 {html, warns}：warns 是名單裡缺英文名／電話／代理人等需要補的地方 */
+  build(dir,ship){
+    const e=s=>String(s??"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+    const c=(dir&&dir.common)||{},warns=[],seen=new Set();
+    const chk=(name,role)=>{if(!String(name||"").trim()){warns.push(`未設定${role}`);return;}
+      const p=this.person(dir,name),k=this.norm(name)+"|"+role;if(seen.has(k))return;seen.add(k);
+      if(!p){if(/[一-鿿]/.test(name))warns.push(`${name}（${role}）不在公司人員通訊錄`);return;}
+      const miss=[!p.en&&"英文名",!p.ext&&!p.mobile&&"分機／手機"].filter(Boolean);
+      if(miss.length)warns.push(`${p.zh}（${role}）缺${miss.join("、")}`);};
+    const members=[];
+    ((dir&&dir.fixed)||[]).forEach(f=>{chk(f.name,f.titleZh||"固定成員");members.push({name:f.name,tz:f.titleZh,te:f.titleEn});});
+    [["deckSup","甲板督導","Superintendent(in Charge)"],["deckSupAlt","甲板代理督導","Superintendent(the alternate)"],
+     ["engineSup","機艙督導","Superintendent(in Charge)"],["engineSupAlt","機艙代理督導","Superintendent(the alternate)"]].forEach(([f,role,te])=>{
+      const n=String(ship[f]||"").trim();chk(n,role);if(n)members.push({name:n,tz:"船東督導",te});});
+    chk(c.dpa,"DPA");chk(c.mlc,"MLC Representative");chk(ship.cso,"CSO");
+    const pair=(a,b)=>[a,b].map(n=>String(n||"").trim()).filter(Boolean).map(n=>this.full(dir,n)).join(" / ");
+    const office=`日(Day)：<br>${e(c.officeDay)}<br><br>夜(Night)：<br>${e(c.officeNight)}<br>(24 hours)`;
+    const rows=members.map((m,i)=>{const p=this.person(dir,m.name)||{};
+      const ext=p.ext?`~ ${e(String(p.ext).replace(/^~\s*/,""))}`:"";
+      return `<tr><td class="nm">${e(p.zh||m.name)}</td><td>${e(m.tz)}</td>${i===0?`<td class="of" rowspan="${members.length*2}">${office}</td>`:""}<td class="ce" rowspan="2">${ext}</td><td class="ce" rowspan="2">${e(p.mobile||"")}</td></tr>
+        <tr><td class="nm en">${e(p.en||"")}</td><td class="en">${e(m.te)}</td></tr>`;}).join("");
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Notification List (${e(ship.name)})</title><style>
+@page{size:A4 portrait;margin:14mm 14mm 12mm}
+body{font-family:"Times New Roman","新細明體",PMingLiU,serif;font-size:11pt;color:#000;margin:0;background:#fff}
+.co{text-align:center;font-weight:bold;font-size:17pt;letter-spacing:6px;margin:0}
+.coen{text-align:center;font-weight:bold;font-size:13pt;margin:2px 0 0}
+.ship{text-align:center;font-weight:bold;font-size:13pt;margin:6px 0 10px}
+table{border-collapse:collapse}
+.hd td{font-size:11pt;padding:0}
+.ln{margin:3px 0;font-size:11pt;line-height:1.45}
+.t{width:100%;margin-top:4px}
+.t th,.t td{border:1px solid #000;padding:2px 5px;font-size:10.5pt;vertical-align:middle}
+.t th{font-weight:bold;text-align:center;background:#f2f2f2}
+.t .nm{white-space:nowrap}.t .en{font-size:10pt}.t .ce{text-align:center;white-space:nowrap}.t .of{text-align:center;font-size:10pt;width:23%}
+</style></head><body>
+<p class="co">${e(c.companyZh)}</p><p class="coen">${e(c.companyEn)}</p>
+<p class="ship">m. v. ${e(ship.name)}</p>
+<table class="hd" style="width:100%"><tr><td style="font-weight:bold;font-size:14pt;text-decoration:underline">NOTIFICATION LIST</td><td style="text-align:right">Effective Date: ${e(this.fmtDate(c.effDate))}</td></tr></table>
+<p class="ln" style="margin-top:8px">DPA : ${e(this.full(dir,c.dpa))}　/　MLC Representative : ${e(this.full(dir,c.mlc))}</p>
+<p class="ln">CSO : ${e(this.full(dir,ship.cso))}</p>
+<p class="ln">Superintendent : ${e(pair(ship.deckSup,ship.engineSup))} (in charge)</p>
+${(ship.deckSupAlt||ship.engineSupAlt)?`<p class="ln">Superintendent : ${e(pair(ship.deckSupAlt,ship.engineSupAlt))} (the alternate)</p>`:""}
+<p class="ln" style="margin-top:10px">緊急專線電話 (Emergency Hot Line) ： ( 24 hours )　<b>${e(c.hotline)}</b></p>
+<p class="ln">台北應急中心　${e(c.center)}</p>
+<p class="ln" style="margin-top:10px;font-weight:bold">緊急應變處理小組成員（Shore Emergency Response Team）</p>
+<table class="t"><thead><tr><th rowspan="2" style="width:22%">姓 名<br>Name</th><th rowspan="2">職 稱<br>Rank</th><th colspan="3">電 話 Tel</th></tr>
+<tr><th>Office No.</th><th style="width:11%">Ext.</th><th style="width:17%">Mobile Phone</th></tr></thead><tbody>${rows}</tbody></table>
+</body></html>`;
+    return {html,warns};
+  }
+};
+
+/* ════════ 👥 公司人員通訊錄＋緊急通報名單設定 ════════
+   存在雲端 app_db 的 staffDirectory（{people,common,fixed}），寫入用樂觀鎖（同 ShipEvents）；只有 Owner 能改。
+   people 用「中文姓名」對到船舶資料的督導／代理督導／CSO 欄位（船舶資料仍然只存姓名，系統其他地方不受影響）。 */
+const StaffDir={
+  KEY:"staffDirectory",data:null,updated:null,loaded:false,_loading:null,editId:null,_fixed:null,page:"staff",
+  canEdit(){return typeof Role!=="undefined"&&Role.isOwner&&Role.isOwner();},
+  /* 2026/9/21 船東督導表的職務代理人（括號內），只補目前空白的欄位 */
+  ALT_SEED:{SA:["廖麗蓁","陳寰頤"],SE:["廖麗蓁","陳寰頤"],SR:["廖麗蓁","陳寰頤"],SS:["廖麗蓁","陳寰頤"],
+    F27:["肖紅林","唐洪新"],F28:["肖紅林","唐洪新"],F29:["黃燕華","唐洪新"],F30:["黃燕華","唐洪新"],F31:["黃燕華","唐洪新"],
+    F32:["余双","張志林"],F33:["余双","張志林"],F34:["余双","張志林"],F35:["余双","張志林"],F36:["余双","張志林"],
+    F25:["余双",""],F26:["余双",""],PH:["余双","黃傑治"],PI:["余双","黃傑治"],
+    CI:["顏宏樹","毛剛"],CJ:["顏宏樹","毛剛"],CL:["顏宏樹","毛剛"],CM:["黃燕華","黃傑治"],CN:["黃燕華","黃傑治"],CO:["顏宏樹","林滄龍"],
+    BF:["翁振傑","張和中"],BG:["翁振傑","張和中"],BH:["翁振傑","張和中"],
+    BI:["張雅琪","張和中"],BJ:["張雅琪","張和中"],BK:["張雅琪","張和中"],BL:["張雅琪","張和中"],BM:["張雅琪","張和中"],BN:["張雅琪","張和中"],
+    B105:["陳思慧","李幸龍"],B106:["陳思慧","李幸龍"],B107:["陳思慧","李幸龍"],B108:["陳思慧","李幸龍"],B201:["張雅琪","秦冰"],B202:["張雅琪","秦冰"]},
+  /* FPMC S RUBY Notification List（2026/1/26 版）上的人員資料 */
+  SEED_PEOPLE:[
+    ["呂學修","Lu Hsueh Hsiu","副總經理","Vice President","","6782","0921-122-071"],
+    ["蔡宏仁","Tsai Hung Jen","協理","Ass. Vice President","","6702","0910-927-103"],
+    ["陳正文","James, Chern","航運管理處處長","Manager of Marine Department","航運管理處","8386","0921-250-422"],
+    ["肖紅林","Xiao Hong Lin","航運管理處副處長","Vice Manager of Marine Department","航運管理處","475-6902","+86-135-1150-9867"],
+    ["吳建泰","Wu Chien Tai","航運管理處副處長","Vice Manager of Marine Department","航運管理處","8193","0953-828-068"],
+    ["林南宏","Nelson Lin","安全衛生處處長","Manager of HSSE","安全衛生處","7771","0910-386-792"],
+    ["張家齊","Chang Chia Chi","安全衛生處副處長","Vice Manager of HSSE","安全衛生處","7771","0933-650-347"],
+    ["周瑞廉","CHOU, JUI-LIEN","資材組組長","Manager of Material Supply Unit","資材組","6718","0988-480-439"],
+    ["劉煥章","Liou Huan Jang","船舶工程處處長","Manager of New Building & Drydocking Unit","船舶工程處","8195","0910-385-795"],
+    ["尹德垿","YIN DE XU","船東督導","Superintendent","","6722","0972-290-721"],
+    ["林滄龍","LIN,TSANG-LUNG","船東督導","Superintendent","","6723",""],
+    ["翁振傑","UENG JENN JYE","船東督導","Superintendent","","6724","0910-015-893"],
+    ["陳敘安","CHEN,HSU-AN","船東督導","Superintendent","","6724",""]],
+  SEED_COMMON:{companyZh:"台塑海運股份有限公司",companyEn:"FORMOSA PLASTICS MARINE CORPORATION",effDate:"2026-09-21",
+    hotline:"886-928-126-232",center:"886-2-2716-5061，886-2-2716-5215",officeDay:"886-2-2712-2211",officeNight:"886-928-126-232",dpa:"蔡宏仁",mlc:"吳建泰"},
+  SEED_FIXED:[["副總經理","Vice President","呂學修"],["協理","Ass. Vice President","蔡宏仁"],["岸上指派人員","D.P.A","蔡宏仁"],
+    ["航運管理處處長","Manager of Marine Department","陳正文"],["安全衛生處處長","Manager of HSSE","林南宏"],
+    ["資材組組長","Manager of Material Supply Unit","周瑞廉"],["船舶工程處處長","Manager of New Building & Drydocking Unit","劉煥章"]],
+  people(){return (this.data&&this.data.people)||[];},
+  async load(force){
+    if(this.loaded&&!force)return this.data;
+    if(this._loading)return this._loading;
+    this._loading=(async()=>{
+      try{
+        if(typeof Cloud==="undefined"||!Cloud.enabled())return this.data;
+        const rows=await Cloud.api(`app_db?select=payload,updated&k=eq.${this.KEY}`)||[];
+        this.data=rows[0]&&rows[0].payload&&typeof rows[0].payload==="object"?rows[0].payload:null;
+        this.updated=rows[0]?rows[0].updated:null;this.loaded=true;
+      }catch(e){console.warn("讀取公司人員通訊錄失敗",e);}
+      finally{this._loading=null;}
+      return this.data;
+    })();
+    return this._loading;
+  },
+  async save(next,msg){
+    if(!this.canEdit()){toast("⚠ 公司人員通訊錄僅限 Owner 修改");return false;}
+    const now=Date.now();
+    try{
+      let rows;
+      if(this.updated==null){
+        const ex=await Cloud.api(`app_db?select=updated&k=eq.${this.KEY}`)||[];
+        if(ex.length){toast("⚠ 雲端剛有人建立了通訊錄，已重新載入，請再操作一次",true);await this.load(true);this.render();return false;}
+        rows=await Cloud.api("app_db",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify([{k:this.KEY,payload:next,updated:now,by:(typeof Audit!=="undefined"?Audit.user():"")}])});
+      }else{
+        rows=await Cloud.api(`app_db?k=eq.${this.KEY}&updated=eq.${this.updated}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify({payload:next,updated:now,by:(typeof Audit!=="undefined"?Audit.user():"")})});
+      }
+      if(!rows||!rows.length){toast("⚠ 通訊錄剛被其他人更新過，已重新載入最新內容，請再操作一次",true);await this.load(true);this.render();return false;}
+      this.data=next;this.updated=now;
+      if(typeof Audit!=="undefined")Audit.log("修改","公司人員通訊錄",msg||"");
+      toast("✓ 已儲存");this.render();return true;
+    }catch(e){toast("⚠ 儲存失敗："+e.message,true);return false;}
+  },
+  async show(p){
+    this.page=p||this.page;
+    $$(".staff-adm").forEach(el=>el.style.display=this.canEdit()?"":"none");
+    if(p==="staff")$("#staff-tbody").innerHTML=`<tr><td colspan="10" class="hint" style="text-align:center">讀取中…</td></tr>`;
+    await this.load(true);this._fixed=null;this.render();
+  },
+  render(){if(this.page==="staff")this.renderStaff();else this.renderNotify();},
+  /* 每個人在各船擔任的角色（依船舶資料即時算） */
+  shipRoles(name){
+    const k=NotifyDoc.norm(name),out={};if(!k)return out;
+    const R={deckSup:"甲板",engineSup:"機艙",deckSupAlt:"甲板代理",engineSupAlt:"機艙代理",cso:"CSO"};
+    (typeof SHIPINFO!=="undefined"?SHIPINFO:[]).forEach(s=>Object.keys(R).forEach(f=>{if(NotifyDoc.norm(s[f])===k)(out[R[f]]=out[R[f]]||[]).push(s.code);}));
+    return out;
+  },
+  usedNames(){
+    const set=new Set(),d=this.data||{},c=d.common||{};
+    [c.dpa,c.mlc,...(d.fixed||[]).map(f=>f.name)].forEach(n=>n&&set.add(NotifyDoc.norm(n)));
+    (typeof SHIPINFO!=="undefined"?SHIPINFO:[]).forEach(s=>["deckSup","engineSup","deckSupAlt","engineSupAlt","cso"].forEach(f=>s[f]&&set.add(NotifyDoc.norm(s[f]))));
+    return set;
+  },
+  renderInit(){
+    const box=$("#staff-init");if(!box)return;
+    if(this.data||!this.canEdit()){box.style.display="none";return;}
+    const nAlt=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>this.ALT_SEED[s.code]).length;
+    box.style.display="";
+    box.innerHTML=`<h3>📥 第一次使用：帶入初始資料</h3><p class="hint" style="line-height:1.8">雲端還沒有公司人員通訊錄。按下面按鈕會一次帶入：<br>
+      ・<b>公司人員 ${this.SEED_PEOPLE.length} 位</b>（FPMC S RUBY Notification List 上的姓名、職稱、分機、手機），再加上船舶資料裡其他督導／CSO 的姓名（英文名與電話之後補）<br>
+      ・<b>共用設定</b>：公司名稱、緊急專線、台北應急中心、辦公室電話、DPA 蔡宏仁、MLC 吳建泰、生效日期 2026/9/21<br>
+      ・<b>應變小組固定成員 ${this.SEED_FIXED.length} 列</b>：副總經理、協理、DPA、航運處處長、安全衛生處處長、資材組組長、船舶工程處處長<br>
+      ・<b>${nAlt} 艘船的甲板／機艙代理督導</b>（2026/9/21 船東督導表括號內的職務代理人；只補目前空白的欄位，不覆蓋）</p>
+      <button class="btn primary" onclick="StaffDir.seedInit()">📥 帶入初始資料</button>`;
+  },
+  async seedInit(){
+    if(!this.canEdit())return;
+    if(this.data){toast("通訊錄已經建立過了");return;}
+    if(!confirm("確定帶入初始資料？\n\n・公司人員、共用設定、應變小組固定成員 → 建立雲端通訊錄\n・各船代理督導 → 只補目前空白的欄位，不覆蓋既有內容"))return;
+    const now=Date.now(),people=this.SEED_PEOPLE.map((r,i)=>({id:"st"+(now+i),zh:r[0],en:r[1],titleZh:r[2],titleEn:r[3],dept:r[4],ext:r[5],mobile:r[6],note:"",active:true}));
+    const have=new Set(people.map(p=>NotifyDoc.norm(p.zh)));
+    const extra=new Set();
+    (typeof SHIPINFO!=="undefined"?SHIPINFO:[]).forEach(s=>{const a=this.ALT_SEED[s.code]||[];
+      [s.deckSup,s.engineSup,s.deckSupAlt||a[0],s.engineSupAlt||a[1],s.cso].forEach(n=>{n=String(n||"").trim();if(n&&/[一-鿿]/.test(n)&&!have.has(NotifyDoc.norm(n)))extra.add(n);});});
+    [...extra].sort((a,b)=>a.localeCompare(b,"zh-Hant")).forEach((n,i)=>{have.add(NotifyDoc.norm(n));people.push({id:"st"+(now+100+i),zh:n,en:"",titleZh:"船東督導",titleEn:"Superintendent",dept:"",ext:"",mobile:"",note:"",active:true});});
+    const data={people,common:Object.assign({},this.SEED_COMMON),fixed:this.SEED_FIXED.map(r=>({titleZh:r[0],titleEn:r[1],name:r[2]}))};
+    if(!await this.save(data,`初始化：人員 ${people.length} 位、固定成員 ${data.fixed.length} 列`))return;
+    let n=0;
+    (typeof SHIPINFO!=="undefined"?SHIPINFO:[]).forEach(s=>{const a=this.ALT_SEED[s.code];if(!a)return;
+      if(a[0]&&!String(s.deckSupAlt||"").trim()){s.deckSupAlt=a[0];n++;}
+      if(a[1]&&!String(s.engineSupAlt||"").trim()){s.engineSupAlt=a[1];n++;}});
+    if(n){
+      Sp.persist();
+      if(typeof Cloud!=="undefined"&&Cloud.queueAutoPublish)Cloud.queueAutoPublish("ships");
+      if(typeof Audit!=="undefined")Audit.log("修改","代理督導",`帶入 2026/9/21 船東督導表職務代理人 ${n} 欄`);
+    }
+    toast(`✓ 已建立通訊錄（${people.length} 位），並補上 ${n} 個代理督導欄位`);
+    this.render();
+  },
+  renderStaff(){
+    this.renderInit();
+    const tb=$("#staff-tbody");if(!tb)return;
+    if(!this.data){tb.innerHTML=`<tr><td colspan="10" class="hint" style="text-align:center">${this.canEdit()?"尚未建立通訊錄，請按上方「帶入初始資料」":"尚未建立通訊錄（由 Owner 建立）"}</td></tr>`;$("#staff-stat").textContent="";return;}
+    const q=$("#staff-q").value.trim().toLowerCase(),inact=$("#staff-inactive").checked,onlyMiss=$("#staff-missing").checked,used=this.usedNames();
+    const all=this.people();
+    const rows=all.filter(p=>(inact||p.active!==false)&&(!q||[p.zh,p.en,p.titleZh,p.titleEn,p.dept,p.ext,p.mobile,p.note].join(" ").toLowerCase().includes(q)))
+      .map(p=>({p,miss:used.has(NotifyDoc.norm(p.zh))&&(!p.en||(!p.ext&&!p.mobile))}))
+      .filter(x=>!onlyMiss||x.miss)
+      .sort((a,b)=>String(a.p.dept||"~").localeCompare(String(b.p.dept||"~"),"zh-Hant")||String(a.p.zh).localeCompare(String(b.p.zh),"zh-Hant"));
+    $("#staff-stat").textContent=`共 ${rows.length} 位（在職 ${all.filter(p=>p.active!==false).length}／全部 ${all.length}）`;
+    const adm=this.canEdit(),warn=`<span style="color:var(--bad)">未填</span>`;
+    tb.innerHTML=rows.length?rows.map(({p,miss})=>{
+      const r=this.shipRoles(p.zh);
+      const roles=Object.entries(r).map(([k,v])=>`<span class="hint" style="white-space:nowrap">${esc(k)}</span> ${esc(v.join(" "))}`).join("<br>");
+      return `<tr style="${p.active===false?"opacity:.5":""}"><td><b>${esc(p.zh)}</b>${p.active===false?' <span class="hint">（停用）</span>':""}</td>
+        <td>${p.en?esc(p.en):(miss?warn:"")}</td><td>${esc(p.titleZh||"")}</td><td style="font-size:12px">${esc(p.titleEn||"")}</td><td>${esc(p.dept||"")}</td>
+        <td style="font-family:var(--mono)">${p.ext?esc(p.ext):(miss&&!p.mobile?warn:"")}</td><td style="font-family:var(--mono);white-space:nowrap">${p.mobile?esc(p.mobile):(miss&&!p.ext?warn:"")}</td>
+        <td style="font-size:12px;line-height:1.6">${roles}</td><td style="font-size:12px">${esc(p.note||"")}</td>
+        <td>${adm?`<button class="btn sm" onclick="StaffDir.openPerson('${esc(p.id)}')">✎</button>`:""}</td></tr>`;}).join("")
+      :`<tr><td colspan="10" class="hint" style="text-align:center">沒有符合條件的人員</td></tr>`;
+  },
+  openPerson(id){
+    if(!this.canEdit()){toast("⚠ 僅限 Owner");return;}
+    if(!this.data){toast("⚠ 請先建立通訊錄");return;}
+    const p=id?this.people().find(x=>x.id===id):null;this.editId=p?p.id:null;
+    $("#staff-e-title").textContent=p?"編輯人員":"新增人員";
+    ["zh","en","titleZh","titleEn","dept","ext","mobile","note"].forEach(f=>$("#staff-e-"+f).value=p?(p[f]||""):"");
+    $("#staff-e-active").checked=p?p.active!==false:true;
+    $("#staff-e-del").style.display=p?"":"none";
+    $("#staffEditModal").classList.add("show");
+  },
+  async savePerson(){
+    const g=f=>$("#staff-e-"+f).value.trim();
+    const rec={id:this.editId||("st"+Date.now()),zh:g("zh"),en:g("en"),titleZh:g("titleZh"),titleEn:g("titleEn"),dept:g("dept"),ext:g("ext").replace(/^~\s*/,""),mobile:g("mobile"),note:g("note"),active:$("#staff-e-active").checked};
+    if(!rec.zh){toast("⚠ 請填中文姓名");return;}
+    if(this.people().some(x=>x.id!==rec.id&&NotifyDoc.norm(x.zh)===NotifyDoc.norm(rec.zh))){toast("⚠ 已經有同名的人員："+rec.zh);return;}
+    const list=this.editId?this.people().map(x=>x.id===this.editId?rec:x):[...this.people(),rec];
+    if(await this.save(Object.assign({},this.data,{people:list}),`${this.editId?"修改":"新增"} ${rec.zh}`))$("#staffEditModal").classList.remove("show");
+  },
+  async removePerson(){
+    const p=this.people().find(x=>x.id===this.editId);if(!p)return;
+    const r=this.shipRoles(p.zh),used=this.usedNames().has(NotifyDoc.norm(p.zh));
+    if(!confirm(`確定刪除「${p.zh}」？${used?`\n\n⚠ 這個人目前出現在緊急通報名單（${Object.entries(r).map(([k,v])=>k+" "+v.join(" ")).join("；")||"共用設定／固定成員"}），刪除後名單上只會剩中文姓名、沒有英文名與電話。\n人員離職建議改用「停用」，並到船舶資料改派。`:""}`))return;
+    if(await this.save(Object.assign({},this.data,{people:this.people().filter(x=>x.id!==p.id)}),`刪除 ${p.zh}`))$("#staffEditModal").classList.remove("show");
+  },
+  exportXlsx(){
+    if(!hasXLSX())return;
+    const rows=this.people().map(p=>({中文姓名:p.zh,英文姓名:p.en||"",職稱中:p.titleZh||"",職稱英:p.titleEn||"",部門:p.dept||"",分機:p.ext||"",手機:p.mobile||"",負責船:Object.entries(this.shipRoles(p.zh)).map(([k,v])=>k+" "+v.join(" ")).join("；"),在職:p.active===false?"停用":"在職",備註:p.note||""}));
+    const ws=XLSX.utils.json_to_sheet(rows);ws["!cols"]=[10,20,16,30,12,10,16,40,6,20].map(w=>({wch:w}));
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"公司人員通訊錄");XLSX.writeFile(wb,`公司人員通訊錄_${todayStr()}.xlsx`);
+  },
+  /* ── 緊急通報名單頁 ── */
+  renderNotify(){
+    const d=this.data,adm=this.canEdit(),c=(d&&d.common)||{};
+    $("#dl-staff-names").innerHTML=this.people().filter(p=>p.active!==false).map(p=>`<option value="${esc(p.zh)}">${esc([p.en,p.titleZh].filter(Boolean).join("　"))}</option>`).join("");
+    ["companyZh","companyEn","effDate","hotline","center","officeDay","officeNight","dpa","mlc"].forEach(f=>{const el=$("#ntf-"+f);if(el){el.value=c[f]||"";el.disabled=!adm||!d;}});
+    $("#ntf-saved").textContent=d?"":"（尚未建立：請先到「👥 公司人員通訊錄」帶入初始資料）";
+    if(!this._fixed)this._fixed=((d&&d.fixed)||[]).map(f=>Object.assign({},f));
+    this.renderFixed();
+    const sel=$("#ntf-ship"),cur=sel.value;
+    sel.innerHTML=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code),undefined,{numeric:true})).map(s=>`<option value="${esc(s.code)}">${esc(s.code)}　${esc(s.zh||"")} ${esc(s.name||"")}</option>`).join("");
+    if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;
+    this.renderPreview();
+  },
+  renderFixed(){
+    const tb=$("#ntf-fixed");if(!tb)return;const adm=this.canEdit()&&this.data,F=this._fixed||[];
+    tb.innerHTML=F.length?F.map((f,i)=>adm?`<tr><td>${i+1}</td>
+      <td><input type="text" value="${esc(f.titleZh||"")}" oninput="StaffDir._fixed[${i}].titleZh=this.value" style="width:100%"></td>
+      <td><input type="text" value="${esc(f.titleEn||"")}" oninput="StaffDir._fixed[${i}].titleEn=this.value" style="width:100%"></td>
+      <td><input type="text" value="${esc(f.name||"")}" list="dl-staff-names" oninput="StaffDir._fixed[${i}].name=this.value" style="width:100%"></td>
+      <td style="white-space:nowrap"><button class="btn sm" onclick="StaffDir.moveFixed(${i},-1)" title="上移">↑</button><button class="btn sm" onclick="StaffDir.moveFixed(${i},1)" title="下移">↓</button><button class="btn sm danger" onclick="StaffDir.delFixed(${i})" title="移除這一列">✕</button></td></tr>`
+      :`<tr><td>${i+1}</td><td>${esc(f.titleZh||"")}</td><td style="font-size:12px">${esc(f.titleEn||"")}</td><td>${esc(NotifyDoc.full(this.data,f.name))}</td></tr>`).join("")
+      :`<tr><td colspan="5" class="hint" style="text-align:center">尚無固定成員</td></tr>`;
+  },
+  addFixed(){(this._fixed=this._fixed||[]).push({titleZh:"",titleEn:"",name:""});this.renderFixed();},
+  moveFixed(i,d){const F=this._fixed,j=i+d;if(j<0||j>=F.length)return;[F[i],F[j]]=[F[j],F[i]];this.renderFixed();},
+  delFixed(i){this._fixed.splice(i,1);this.renderFixed();},
+  async saveCommon(){
+    if(!this.data){toast("⚠ 請先建立通訊錄");return;}
+    const c={};["companyZh","companyEn","effDate","hotline","center","officeDay","officeNight","dpa","mlc"].forEach(f=>c[f]=$("#ntf-"+f).value.trim());
+    const fixed=(this._fixed||[]).map(f=>({titleZh:String(f.titleZh||"").trim(),titleEn:String(f.titleEn||"").trim(),name:String(f.name||"").trim()})).filter(f=>f.titleZh||f.name);
+    if(await this.save(Object.assign({},this.data,{common:c,fixed}),`共用設定（生效日 ${c.effDate}、固定成員 ${fixed.length} 列）`)){this._fixed=null;this.renderNotify();}
+  },
+  curShip(){const code=$("#ntf-ship").value;return (typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(s=>s.code===code)||null;},
+  renderPreview(){
+    const s=this.curShip(),fr=$("#ntf-frame"),w=$("#ntf-warn");if(!fr)return;
+    if(!s||!this.data){fr.srcdoc="";w.innerHTML=this.data?"":"尚未建立通訊錄。";return;}
+    const r=NotifyDoc.build(this.data,s);
+    fr.srcdoc=r.html;
+    w.innerHTML=r.warns.length?`<span style="color:var(--bad)">⚠ 這份名單有 ${r.warns.length} 處需要補：</span>${r.warns.map(esc).join("、")}`:`<span style="color:var(--ok)">✓ 資料齊全</span>`;
+  },
+  downloadWord(){
+    const s=this.curShip();if(!s||!this.data)return;
+    const html=NotifyDoc.build(this.data,s).html.replace("<html>",'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">');
+    dl(new Blob(["﻿"+html],{type:"application/msword"}),`Notification List (${s.name}).doc`);
+  },
+  printPdf(){const fr=$("#ntf-frame");if(!fr||!fr.contentWindow||!this.curShip())return;fr.contentWindow.focus();fr.contentWindow.print();}
+};
+
 /* ════════ 督導經管船：依海技經管／甲板督導／機艙督導／CSO 分組檢視，並支援整批調動 ════════
    直接讀寫 SHIPINFO（船舶資料主檔），不另存一份複本，所以調動後系統其他地方
   （檢查管控的甲板/機艙督導欄位、督導間隔警示、船舶資料主表…）都會自動跟著更新。 */
 const SupMgmt={
   role:"mgr",view:"card",
-  ROLE_LABELS:{mgr:"海技經管",deckSup:"甲板督導",engineSup:"機艙督導",cso:"CSO"},
+  ROLE_LABELS:{mgr:"海技經管",deckSup:"甲板督導",engineSup:"機艙督導",deckSupAlt:"甲板代理督導",engineSupAlt:"機艙代理督導",cso:"CSO"},
   VKEY:"vsm_supmgmt_view_v1",
   _reassignShips:[],_reassignRole:"mgr",
   init(){
@@ -27712,10 +28092,30 @@ const AirQueue={
     this.render();
   },
   updateBadge(){
-    const b=$("#air-cq-badge");if(!b)return;
     if(this.view!=="pending")return; // 已拒絕分頁的筆數不代表「待處理」，不要覆蓋徽章數字
-    if(this.rows.length){b.textContent=this.rows.length;b.style.display="";}
-    else b.style.display="none";
+    this.setBadges(this.rows.length);
+  },
+  /* 頁面上方按鈕＋左側選單兩個徽章一起更新 */
+  setBadges(n){
+    ["#air-cq-badge","#nav-cq-badge"].forEach(id=>{const b=$(id);if(!b)return;if(n){b.textContent=n;b.style.display="";}else b.style.display="none";});
+  },
+  /* 左側選單「線上填單審核佇列」：只給 Owner／維護者；開機後查一次待審核筆數，之後每 3 分鐘、切回分頁時再查，
+     船上一送出，不用點進填單紀錄就看得到數字 */
+  _pollT:null,
+  async pollBadge(){
+    const nav=$("#nav-air-queue"),adm=typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();
+    if(nav)nav.style.display=adm?"":"none";
+    if(typeof NavConfig!=="undefined"&&NavConfig.renumber)try{NavConfig.renumber();}catch(e){}
+    if(!adm||typeof Cloud==="undefined"||!Cloud.enabled())return;
+    if(!this._pollT){
+      this._pollT=setInterval(()=>{if(document.visibilityState==="visible")this.pollBadge();},3*60*1000);
+      document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")this.pollBadge();});
+    }
+    try{
+      const r=await fetch(`${Cloud.cfg.url}/rest/v1/${this.TABLE}?select=id&status=eq.pending&limit=1`,{headers:Object.assign(Cloud.hdr(),{"Prefer":"count=exact"})});
+      const m=(r.headers.get("content-range")||"").match(/\/(\d+)$/);
+      if(m)this.setBadges(+m[1]);
+    }catch(e){}
   },
   render(){
     const box=$("#air-cq-list");if(!box)return;
@@ -34192,6 +34592,7 @@ const GateSite={
     if(typeof Air!=="undefined")Air.refreshAdminOnlyVisibility();
     if(typeof Todo!=="undefined")Todo.render();
     setTimeout(()=>{try{IntAuditQueue.pollBadge();}catch(e){}},3000); // 內部檢查缺失登錄：左側選單徽章（僅維護者）
+    setTimeout(()=>{try{AirQueue.pollBadge();}catch(e){}},3500); // 線上填單審核佇列：左側選單徽章（僅維護者）
     // 重新整理頁面後，留在使用者上次瀏覽的分頁（而不是每次都跳回 Dash Board）——
     // 只認內部分頁（有 data-tab 的項目），且該項目此刻要真的存在且沒被權限隱藏才還原，
     // 否則就維持預設的 Dash Board（HTML 原本就是 Dash Board 為 active/show，不用特別處理 fallback）。
