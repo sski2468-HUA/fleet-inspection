@@ -3039,6 +3039,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <select id="staff-dept" onchange="StaffDir.renderStaff()" style="width:auto;min-width:150px" title="依部門篩選"><option value="">全部部門</option></select>
             <input type="text" id="staff-q" placeholder="🔍 搜尋姓名／職稱／部門／電話" oninput="StaffDir.renderStaff()" style="width:240px">
             <label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" id="staff-inactive" onchange="StaffDir.renderStaff()">含已停用</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px" title="DPA／Alternate DPA／MLC、應變小組固定成員，以及任一艘船的督導、代理督導、CSO"><input type="checkbox" id="staff-used" onchange="StaffDir.renderStaff()">只看有出現在通報名單</label>
             <label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" id="staff-missing" onchange="StaffDir.renderStaff()">只看資料不全（會出現在通報名單但缺英文名／電話）</label>
             <span class="spacer" style="flex:1"></span>
             <span class="statline" id="staff-stat"></span>
@@ -13145,8 +13146,8 @@ const StaffDir={
     if([...dsel.options].some(o=>o.value===dcur))dsel.value=dcur;
     const dv=dsel.value;
     const rows=all.filter(p=>(!dv||(dv===NODEPT?!String(p.dept||"").trim():String(p.dept||"").trim()===dv))&&(inact||p.active!==false)&&(!q||[p.zh,p.en,p.titleZh,p.titleEn,p.dept,p.ext,p.mobile,p.note].join(" ").toLowerCase().includes(q)))
-      .map(p=>({p,miss:used.has(NotifyDoc.norm(p.zh))&&(!p.en||(!p.ext&&!p.mobile))}))
-      .filter(x=>!onlyMiss||x.miss);
+      .map(p=>({p,inList:used.has(NotifyDoc.norm(p.zh)),miss:used.has(NotifyDoc.norm(p.zh))&&(!p.en||(!p.ext&&!p.mobile))}))
+      .filter(x=>(!onlyMiss||x.miss)&&(!($("#staff-used")||{}).checked||x.inList));
     // 點欄位標題排序（再點一次反向）；空白一律排最後，同值再依中文姓名
     const sk=this.sortKey,dir=this.sortAsc?1:-1;
     const val=p=>sk==="ships"?Object.values(this.shipRoles(p.zh)).flat().sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).join(" "):String(p[sk]||"");
