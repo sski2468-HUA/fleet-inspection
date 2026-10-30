@@ -12925,7 +12925,7 @@ const ShipEvents={
     if(!hasXLSX())return;
     const rows=[...this.list].sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(e=>({日期:e.date,船舶:e.ship,代碼:e.code,分類:this.cat(e.type)[0],異動類型:e.type,說明:e.note||""}));
     const ws=XLSX.utils.json_to_sheet(rows);ws["!cols"]=[12,22,10,8,16,60].map(w=>({wch:w}));
-    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"船舶異動紀錄");XLSX.writeFile(wb,`船舶異動紀錄_${todayStr()}.xlsx`);
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"船舶異動紀錄");XlsxPretty.writeFile(wb,`船舶異動紀錄_${todayStr()}.xlsx`,{title:"船舶異動紀錄"});
   }
 };
 
@@ -13222,8 +13222,8 @@ const StaffDir={
   exportXlsx(){
     if(!hasXLSX())return;
     const rows=this.people().map(p=>({中文姓名:p.zh,英文姓名:p.en||"",職稱中:p.titleZh||"",職稱英:p.titleEn||"",部門:p.dept||"",分機:p.ext||"",手機:p.mobile||"",負責船:Object.entries(this.shipRoles(p.zh)).map(([k,v])=>k+" "+v.join(" ")).join("；"),在職:p.active===false?"停用":"在職",備註:p.note||""}));
-    const ws=XLSX.utils.json_to_sheet(rows);ws["!cols"]=[10,20,16,30,12,10,16,40,6,20].map(w=>({wch:w}));
-    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"公司人員通訊錄");XLSX.writeFile(wb,`公司人員通訊錄_${todayStr()}.xlsx`);
+    const ws=XLSX.utils.json_to_sheet(rows);ws["!cols"]=[10,20,16,34,18,10,18,44,7,20].map(w=>({wch:w}));
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"公司人員通訊錄");XlsxPretty.writeFile(wb,`公司人員通訊錄_${todayStr()}.xlsx`,{title:"公司人員通訊錄"});
   },
   /* ── 緊急通報名單頁 ── */
   renderNotify(){
@@ -30423,7 +30423,8 @@ const PortalUsage={
         const last=o.logs.length?Math.max(...o.logs.map(l=>+l.ts||0)):0;
         const days=new Set(o.logs.filter(l=>dayOf(+l.ts).startsWith(ym)).map(l=>dayOf(+l.ts))).size;
         const n30=o.logs.filter(l=>+l.ts>=d30).length;
-        const idle=last?Math.floor((Date.now()-last)/86400000):null;
+        // 紀錄時間是船上電腦的時鐘，可能比這台快幾分鐘 → 用日曆天數算，且不小於 0（避免出現「-1 天前」）
+        const idle=last?Math.max(0,Math.round((new Date(dayOf(Date.now())+"T00:00")-new Date(dayOf(last)+"T00:00"))/86400000)):null;
         return {code:s.code,operator:s.operator||"",last,idle,days,n30,lastAir:o.lastAir,lastIa:o.lastIa,lastSc:o.lastSc,logs:o.logs};});
       this.at=Date.now();
       const m=$("#pu-meta");if(m)m.textContent=`資料時間 ${new Date().toLocaleString("zh-TW",{hour12:false})}・近 90 天操作紀錄 ${logs.length} 筆`;
