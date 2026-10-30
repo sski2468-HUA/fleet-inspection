@@ -1012,12 +1012,24 @@ function renderInspBox(openPanel){
     +`<button type="button" class="insp-add" onclick="toggleInspPanel(event)">＋ ${inspSel.length?"再新增檢查人":"新增檢查人"}</button><div class="insp-panel" id="inspPanel" style="display:${openPanel?"":"none"}"></div>`;
   if(openPanel)renderInspPanel("");
 }
+/* ⚠ 搜尋框只建立一次、之後只重畫下方名單：原本每打一個字就整個重畫（含搜尋框），
+   注音／倉頡等輸入法在組字中途被打斷，只會留下「ㄌㄧㄣˊ」這種注音符號、打不出中文。
+   組字中（isComposing）先不篩選，選定字（compositionend）後才篩。 */
 function renderInspPanel(q){
   const panel=$("#inspPanel");if(!panel)return;
+  if(!panel.querySelector(".srch")){
+    panel.innerHTML=`<input type="text" class="srch" placeholder="搜尋姓名…" oninput="if(!event.isComposing)renderInspList(this.value)"><div class="insp-list"></div>`;
+    panel.querySelector(".srch").addEventListener("compositionend",e=>renderInspList(e.target.value)); // compositionend 沒有 inline 屬性可用
+  }
+  const s=panel.querySelector(".srch");if(s.value!==(q||""))s.value=q||"";
+  renderInspList(s.value);
+  setTimeout(()=>{try{s.focus();}catch(e){}},0);
+}
+function renderInspList(q){
+  const list=$("#inspPanel .insp-list");if(!list)return;
   const opts=inspOptions().filter(n=>!q||n.toLowerCase().includes(q.toLowerCase()));
-  panel.innerHTML=`<input type="text" class="srch" placeholder="搜尋姓名…" value="${esc(q)}" oninput="renderInspPanel(this.value);const s=document.querySelector('#inspPanel .srch');s.focus();s.setSelectionRange(s.value.length,s.value.length)">`
-    +(opts.map((n,i)=>`<label class="insp-opt"><input type="checkbox" ${inspSel.includes(n)?"checked":""} onchange="toggleInsp(this.parentNode.dataset.v,this.checked)" ><span>${esc(n)}</span></label>`).join("")||`<div class="hint" style="padding:8px">${SUPERVISORS.length?"找不到符合的姓名":"檢查人名單讀取失敗，請重新整理頁面"}</div>`);
-  panel.querySelectorAll(".insp-opt").forEach((el,i)=>{el.dataset.v=opts[i];});
+  list.innerHTML=opts.map(n=>`<label class="insp-opt"><input type="checkbox" ${inspSel.includes(n)?"checked":""} onchange="toggleInsp(this.parentNode.dataset.v,this.checked)" ><span>${esc(n)}</span></label>`).join("")||`<div class="hint" style="padding:8px">${SUPERVISORS.length?"找不到符合的姓名":"檢查人名單讀取失敗，請重新整理頁面"}</div>`;
+  list.querySelectorAll(".insp-opt").forEach((el,i)=>{el.dataset.v=opts[i];});
 }
 function toggleInspPanel(ev){
   ev.stopPropagation();
