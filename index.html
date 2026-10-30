@@ -18215,7 +18215,7 @@ const SirePos={
         const r=x.payload||{};
         if(r.draft!==false)return; // 只收「已送出海技入系統」的登錄單
         const date=String(r.dateFrom||"").replace(/-/g,"/")+(r.dateTo&&r.dateTo!==r.dateFrom?"～"+String(r.dateTo).replace(/-/g,"/"):"");
-        const itype=(r.types||[]).map(k=>String(k).replace(/^主題檢查::/,"專項檢查：")).join("、");
+        const itype=(r.types||[]).map(k=>k==="ISPS Audit"?"ISPS INTERNAL AUDIT":String(k).replace(/^主題檢查::/,"專項檢查：")).join("、");
         [["good",r.goodCrew],["poor",r.poorCrew]].forEach(([kind,arr])=>(arr||[]).forEach(c=>{
           if(!(c.name||c.brief||c.rank))return;
           out.push({kind,ship:r.ship||"",date,itype,inspector:r.inspector||"",rank:c.rank||"",name:c.name||"",brief:c.brief||"",rid:x.id});
@@ -28523,7 +28523,8 @@ const IntAuditQueue={
   SPECIAL_PREFIX:"主題檢查::", // 專項檢查依 SAR 表單各自新增一筆檢查種類時用的複合 key 前綴，見 intaudit.html renderTypes()
   /* 匯入主系統時實際要用的「檢查來源」：專項檢查的複合 key 直接拆出 SAR 表單名稱本身
      （不是籠統的「專項檢查」字），其餘種類原樣使用。 */
-  effItype(k){return (typeof k==="string"&&k.startsWith(this.SPECIAL_PREFIX))?k.slice(this.SPECIAL_PREFIX.length):k;},
+  // 內部檢查的種類 key「ISPS Audit」→ 主系統檢查來源「ISPS INTERNAL AUDIT」（2026-10-30 改名，區分內外部檢查）
+  effItype(k){if(k==="ISPS Audit")return "ISPS INTERNAL AUDIT";return (typeof k==="string"&&k.startsWith(this.SPECIAL_PREFIX))?k.slice(this.SPECIAL_PREFIX.length):k;},
   tl(k){
     if(typeof k==="string"&&k.startsWith(this.SPECIAL_PREFIX))return "專項檢查："+k.slice(this.SPECIAL_PREFIX.length);
     return this.TYPE_LABEL[k]||k;
@@ -28857,7 +28858,7 @@ const IntAuditQueue={
     let pAdd=0,pUpd=0;
     (r.best||[]).forEach(b=>{
       if(!b.category&&!b.brief&&!b.people)return;
-      const payload=Object.assign({ship:r.ship,date,ym,itype:(r.types||[]).join("、"),code:"",item:b.category||"",comment:b.brief||"",rank:b.rank||"",person:b.people||""},meta);
+      const payload=Object.assign({ship:r.ship,date,ym,itype:(r.types||[]).map(k=>k==="ISPS Audit"?"ISPS INTERNAL AUDIT":k).join("、"),code:"",item:b.category||"",comment:b.brief||"",rank:b.rank||"",person:b.people||""},meta);
       const ex=b.importedPosId!=null?App.sirePos.find(x=>String(x.id)===String(b.importedPosId)):null;
       if(ex){Object.assign(ex,payload);pUpd++;}
       else{const pid=(typeof SirePos!=="undefined")?SirePos.nextId():(App.sirePos.reduce((m,x)=>Math.max(m,+x.id||0),0)+1);
