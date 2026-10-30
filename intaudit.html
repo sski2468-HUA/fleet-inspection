@@ -2054,11 +2054,15 @@ async function issueOrder(id){
   const rUrl=replyUrl(r);
   const shipUrl=rUrl.replace(/\?rid=.*/,"?ship="+encodeURIComponent(r.ship));
   const head=`內部檢查改善單：${shipLabel(r.ship)} ${dateText(r)} ${(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、")}，共 ${n} 項待改善`;
-  const textFull=`${head} 連結:${rUrl}\n\n⭐ 本船歷次改善單清單（固定連結，請加入我的最愛，以後每次的改善單都可以從這裡找到）：${shipUrl}`;
+  // FLOW 缺失不在改善單上回報，但要提醒船上一定要去 FLOW 系統填單
+  const nFlow=(r.defs||[]).filter(d=>d.closeMode==="FLOW").length;
+  const flowTxt=nFlow?`\n\n📋 另有 ${nFlow} 項 FLOW 缺失，請務必至 FLOW 系統（DMP-FM01）填單。`:"";
+  const flowHtml=nFlow?`<br><br>📋 <b style="color:#c0392b">另有 ${nFlow} 項 FLOW 缺失，請務必至 FLOW 系統（DMP-FM01）填單。</b>`:"";
+  const textFull=`${head} 連結:${rUrl}${flowTxt}\n\n⭐ 本船歷次改善單清單（固定連結，請加入我的最愛，以後每次的改善單都可以從這裡找到）：${shipUrl}`;
   // 純文字貼到郵件軟體，連結是否自動變成可點擊的超連結完全看對方軟體的自動辨識，不保證——
   // 另外準備一份帶 <a href> 的 HTML 版本一起複製，貼到 Outlook／Gmail／LINE 等支援富文本貼上的
   // 地方就會直接是可點擊的連結，不用再靠軟體自動判斷。
-  const textHtml=`${esc(head)} 連結：<a href="${esc(rUrl)}">${esc(rUrl)}</a><br><br>⭐ <b>本船歷次改善單清單</b>（固定連結，<b>請加入我的最愛</b>，以後每次的改善單都可以從這裡找到）：<a href="${esc(shipUrl)}">${esc(shipUrl)}</a>`;
+  const textHtml=`${esc(head)} 連結：<a href="${esc(rUrl)}">${esc(rUrl)}</a>${flowHtml}<br><br>⭐ <b>本船歷次改善單清單</b>（固定連結，<b>請加入我的最愛</b>，以後每次的改善單都可以從這裡找到）：<a href="${esc(shipUrl)}">${esc(shipUrl)}</a>`;
   if(r.issuedAt){
     const again=await askReissue(r);
     if(!again)return;
