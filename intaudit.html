@@ -266,6 +266,20 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
 @media(max-width:1000px){.drow{grid-template-columns:1fr}}
 @media(max-width:900px){.fgrid,.fgrid.c4{grid-template-columns:1fr 1fr}.crew-row{grid-template-columns:1fr}}
 @media(max-width:560px){.fgrid,.fgrid.c4{grid-template-columns:1fr}}
+/* ⑤ CAEM-FM06 內部稽查綜合報告 */
+.fm6grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 14px}
+.fm6grid .ro{padding:9px 11px;border:1px dashed var(--line-2);border-radius:7px;background:var(--paper);font-size:15px;min-height:40px}
+.fm6t{width:100%;border-collapse:collapse;margin-top:6px;font-size:14px}
+.fm6t th{background:#eef2f5;color:var(--navy);font-size:13px;padding:6px;border:1px solid var(--line);text-align:left;white-space:nowrap}
+.fm6t td{border:1px solid var(--line);padding:5px;vertical-align:top}
+.fm6t td input,.fm6t td select{font-size:14px;padding:6px 7px}
+.fm6t td.det{font-size:13px;line-height:1.5;min-width:220px}
+.fm6wrap{overflow-x:auto}
+.fm6sig{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
+.fm6sig canvas{border:1px solid var(--line-2);border-radius:7px;background:#fff;touch-action:none;cursor:crosshair;width:420px;max-width:100%;height:130px}
+.fm6prev{border:1px solid var(--line);background:#e9edf0;border-radius:8px;padding:14px;overflow-x:auto}
+.fm6prev iframe{display:block;margin:0 auto;width:820px;max-width:none;border:0;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+@media(max-width:760px){.fm6grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -481,13 +495,36 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
       <div id="defList"></div>
     </div>
 
+    <div class="card sec" data-sec="fm06">
+      <h3><span class="secno" data-k="fm06">⑤</span> CAEM-FM06 內部稽查綜合報告 <span class="hint" style="font-weight:400">Internal Audit Summary Report｜表頭及明細自動帶入，可直接修改；填好評語、簽名後列印／存成 PDF</span><button class="btn sm" type="button" id="fm6HfBtn" style="margin-left:auto" onclick="fm06HfOpen()">⚙ 設定頁首頁尾</button></h3>
+      <div id="fm06Body"></div>
+    </div>
+    <div class="modal" id="fm6HfModal"><div class="box" style="width:min(620px,96vw)">
+      <h3 style="margin:0 0 4px;color:var(--navy)">⚙ CAEM-FM06 頁首頁尾設定</h3>
+      <div class="hint" style="margin-bottom:12px">表單改版時在這裡更新；存檔後所有人列印的 CAEM-FM06 都會套用（已列印過的 PDF 不受影響）。</div>
+      <div class="fgrid" style="grid-template-columns:1fr">
+        <div class="fld" style="font-weight:700;color:var(--navy)">右上角框</div>
+        <label>第 1 行<input type="text" id="fm6Hf-cat"></label>
+        <label>第 2 行（斜體）<input type="text" id="fm6Hf-use"></label>
+        <label>第 3 行<input type="text" id="fm6Hf-rev"></label>
+        <div class="fld" style="font-weight:700;color:var(--navy);margin-top:6px">頁尾</div>
+        <label>中間：表單代號 <span class="hint" style="font-weight:400">後面會自動接「 - 頁次/總頁數」，例：CAEM-FM06 - 1/2</span><input type="text" id="fm6Hf-code"></label>
+        <label>右邊：版次<input type="text" id="fm6Hf-ed"></label>
+      </div>
+      <div class="toolbar" style="justify-content:flex-end;margin-top:16px">
+        <button class="btn sm" type="button" style="margin-right:auto" onclick="fm06HfFill(FM06_HF_DEF)">恢復預設值</button>
+        <button class="btn" type="button" onclick="$('#fm6HfModal').style.display='none'">取消</button>
+        <button class="btn primary" type="button" id="fm6HfSave" onclick="fm06HfSave()">💾 儲存設定</button>
+      </div>
+    </div></div>
+
     <div class="card sec" data-sec="sugg">
-      <h3>⑤ 船舶訴求／建議 Ship's Demand / Suggestion <span class="qnav" id="suggNav"></span><span style="margin-left:auto"><button class="btn primary" style="font-size:15.5px;font-weight:800" onclick="addSugg()">＋ 新增一筆</button></span></h3>
+      <h3><span class="secno" data-k="sugg">⑤</span> 船舶訴求／建議 Ship's Demand / Suggestion <span class="qnav" id="suggNav"></span><span style="margin-left:auto"><button class="btn primary" style="font-size:15.5px;font-weight:800" onclick="addSugg()">＋ 新增一筆</button></span></h3>
       <div id="suggList"></div>
     </div>
 
     <div class="card sec" data-sec="download">
-      <h3>⑥ 下載／發改善單</h3>
+      <h3><span class="secno" data-k="download">⑥</span> 下載／發改善單</h3>
       <div id="downloadTabBody"></div>
     </div>
 
@@ -855,11 +892,14 @@ const icSource=t=>({"onboard visit":"訪船","Cross ship visit":"訪船","ACCOMP
 const PORTS=["Aarhus, Denmark", "Abbot Point, Australia", "Abidjan, Ivory Coast", "Abu Dhabi, UAE", "Adelaide, Australia", "Alexandria, Egypt", "Algeciras, Spain", "Algiers, Algeria", "Aliaga, Turkey", "Altamira, Mexico", "Ambarli, Turkey", "Amsterdam, Netherlands", "Anping, Taiwan", "Antofagasta, Chile", "Antwerp, Belgium", "Aqaba, Jordan", "Arzew, Algeria", "Ashdod, Israel", "Auckland, New Zealand", "Augusta, Italy", "Bahia Blanca, Argentina", "Bahrain, Bahrain", "Balboa, Panama", "Balikpapan, Indonesia", "Baltimore, USA", "Bandar Abbas, Iran", "Bandar Imam Khomeini, Iran", "Bangkok, Thailand", "Banjarmasin, Indonesia", "Barcelona, Spain", "Barranquilla, Colombia", "Basrah, Iraq", "Batangas, Philippines", "Baton Rouge, USA", "Beaumont, USA", "Beihai, China", "Beira, Mozambique", "Beirut, Lebanon", "Belawan, Indonesia", "Bergen, Norway", "Bilbao, Spain", "Bintulu, Malaysia", "Bluff, New Zealand", "Bontang, Indonesia", "Bordeaux, France", "Boston, USA", "Bremen, Germany", "Bremerhaven, Germany", "Brisbane, Australia", "Bristol, UK", "Brunsbuttel, Germany", "Brunswick, USA", "Buenaventura, Colombia", "Buenos Aires, Argentina", "Burgas, Bulgaria", "Busan, South Korea", "Cagayan de Oro, Philippines", "Cai Mep, Vietnam", "Callao, Peru", "Cam Pha, Vietnam", "Caofeidian, China", "Cape Town, South Africa", "Cartagena, Colombia", "Cartagena, Spain", "Casablanca, Morocco", "Cebu, Philippines", "Changshu, China", "Changzhou, China", "Charleston, USA", "Chattogram, Bangladesh", "Chennai, India", "Chiba, Japan", "Chittagong, Bangladesh", "Cigading, Indonesia", "Cilegon, Indonesia", "Coatzacoalcos, Mexico", "Cochin, India", "Colombo, Sri Lanka", "Colon, Panama", "Come By Chance, Canada", "Conakry, Guinea", "Constanta, Romania", "Copenhagen, Denmark", "Corpus Christi, USA", "Cristobal, Panama", "Da Nang, Vietnam", "Daesan, Korea", "Daesan, South Korea", "Dahej, India", "Dakar, Senegal", "Dalian, China", "Dalrymple Bay, Australia", "Damietta, Egypt", "Dammam, Saudi Arabia", "Dampier, Australia", "Dar es Salaam, Tanzania", "Davao, Philippines", "Djeno, Congo", "Djibouti, Djibouti", "Doha, Qatar", "Dong Nai, Vietnam", "Douala, Cameroon", "Dumai, Indonesia", "Dung Quat, Vietnam", "Dunkirk, France", "Duqm, Oman", "Durban, South Africa", "Ennore, India", "Esperance, Australia", "Fangcheng, China", "Fazendinha, Brazil", "Felixstowe, UK", "Ferrol, Spain", "Fos, France", "Freeport, Bahamas", "Freeport, USA", "Freetown, Sierra Leone", "Fremantle, Australia", "Fujairah, UAE", "Fuzhou, China", "Galveston, USA", "Gangavaram, India", "Gdansk, Poland", "Gdynia, Poland", "Genoa, Italy", "Geraldton, Australia", "Ghent, Belgium", "Gijon, Spain", "Gioia Tauro, Italy", "Gladstone, Australia", "Gore Bay, Australia", "Gothenburg, Sweden", "Gove, Australia", "Gresik, Indonesia", "Grimsby, UK", "Guangzhou, China", "Guayaquil, Ecuador", "Guaymas, Mexico", "Gwadar, Pakistan", "Gwangyang, South Korea", "Hai Phong, Vietnam", "Haifa, Israel", "Halifax, Canada", "Halul, Qatar", "Hamburg, Germany", "Hamilton, Canada", "Hamriyah, UAE", "Hay Point, Australia", "Hazira, India", "Helsingborg, Sweden", "Helsinki, Finland", "Ho Chi Minh City, Vietnam", "Hon Gai, Vietnam", "Hong Kong, Hong Kong", "Houston, USA", "Hualien, Taiwan", "Huanghua, China", "Huasco, Chile", "Huelva, Spain", "Hull, UK", "Immingham, UK", "Incheon, South Korea", "Isabel, Philippines", "Iskenderun, Turkey", "Istanbul, Turkey", "Itaguai, Brazil", "Itaqui, Brazil", "Izmir, Turkey", "Jaigarh, India", "Jakarta, Indonesia", "Jebel Ali, UAE", "Jeddah, Saudi Arabia", "Jiangyin, China", "Jiaxing, China", "Jieyang, China", "Jingtang, China", "Jorf Lasfar, Morocco", "Jubail, Saudi Arabia", "Jurong, Singapore", "Kamsar, Guinea", "Kandla, India", "Kaohsiung, Taiwan", "Karachi, Pakistan", "Kashima, Japan", "Kawasaki, Japan", "Keelung, Taiwan", "Kemaman, Malaysia", "Khalifa Port, UAE", "King Abdullah Port, Saudi Arabia", "Kinmen, Taiwan", "Kitakyushu, Japan", "Klaipeda, Lithuania", "Kobe, Japan", "Kolkata, India", "Kotka, Finland", "Krishnapatnam, India", "Kuantan, Malaysia", "Kuwait City, Kuwait", "Kwangyang, Korea", "Kwinana, Australia", "La Plata, Argentina", "Labuan, Malaysia", "Laem Chabang, Thailand", "Lagos (Apapa), Nigeria", "Lagos, Nigeria", "Lake Charles, USA", "Latakia, Syria", "Lazaro Cardenas, Mexico", "Le Havre, France", "Leixoes, Portugal", "Lianyungang, China", "Libreville, Gabon", "Lisbon, Portugal", "Liverpool, UK", "Livorno, Italy", "Lobito, Angola", "London, UK", "Long Beach, USA", "Longview, USA", "Los Angeles, USA", "Luanda, Angola", "Lyttelton, New Zealand", "Macau, China", "Mailiao, Taiwan", "Makassar, Indonesia", "Manaus, Brazil", "Mangalore, India", "Manila, Philippines", "Manzanillo, Mexico", "Map Ta Phut, Thailand", "Maputo, Mozambique", "Marseille, France", "Masan, South Korea", "Matarani, Peru", "Mawan, China", "Mejillones, Chile", "Melbourne, Australia", "Mersin, Turkey", "Mesaieed, Qatar", "Milford Haven, UK", "Mina Al Ahmadi, Kuwait", "Mina Zayed, UAE", "Misurata, Libya", "Mizushima, Japan", "Mobile, USA", "Mombasa, Kenya", "Mongla, Bangladesh", "Monrovia, Liberia", "Montevideo, Uruguay", "Montreal, Canada", "Mormugao, India", "Mumbai, India", "Mundra, India", "Murmansk, Russia", "Muscat, Oman", "Nacala, Mozambique", "Nagoya, Japan", "Nakhodka, Russia", "Nanjing, China", "Nansha, China", "Nantes, France", "Nantong, China", "Napier, New Zealand", "Naples, Italy", "New Orleans, USA", "New York, USA", "Newcastle, Australia", "Nghi Son, Vietnam", "Nhava Sheva, India", "Ningbo, China", "Norco, USA", "Norfolk, USA", "Noumea, New Caledonia", "Novorossiysk, Russia", "Nueva Palmira, Uruguay", "Oakland, USA", "Odessa, Ukraine", "Oita, Japan", "Onne, Nigeria", "Onsan, South Korea", "Osaka, Japan", "Oslo, Norway", "Panama, Panama", "Paradip, India", "Paranagua, Brazil", "Pascagoula, USA", "Pasir Gudang, Malaysia", "Paulsboro, USA", "Penang, Malaysia", "Philadelphia, USA", "Piraeus, Greece", "Pivdennyi, Ukraine", "Pohang, Korea", "Pohang, South Korea", "Pointe-Noire, Congo", "Ponta da Madeira, Brazil", "Port Arthur, USA", "Port Boffa, Guinea", "Port Elizabeth, South Africa", "Port Harcourt, Nigeria", "Port Hedland, Australia", "Port Kamsar, Guinea", "Port Klang, Malaysia", "Port Marsden, New Zealand", "Port Moresby, Papua New Guinea", "Port Qasim, Pakistan", "Port Reading, USA", "Port Said, Egypt", "Port Sudan, Sudan", "Port Walcott, Australia", "Portland, Australia", "Portland, USA", "Primorsk, Russia", "Prince Rupert, Canada", "Puerto Cabello, Venezuela", "Puerto Cortes, Honduras", "Puerto Quetzal, Guatemala", "Pyeongtaek, Korea", "Pyeongtaek, South Korea", "Qingdao, China", "Quanzhou, China", "Quebec, Canada", "Quy Nhon, Vietnam", "Rabigh, Saudi Arabia", "Ras Laffan, Qatar", "Ras Tanura, Saudi Arabia", "Ravenna, Italy", "Rayong, Thailand", "Richards Bay, South Africa", "Riga, Latvia", "Rio Grande, Brazil", "Rio de Janeiro, Brazil", "Rizhao, China", "Rosario, Argentina", "Rotterdam, Netherlands", "Rouen, France", "Ruwais, UAE", "Sakai, Japan", "Sakaide, Japan", "Salalah, Oman", "Saldanha Bay, South Africa", "Samarinda, Indonesia", "San Antonio, Chile", "San Francisco, USA", "San Lorenzo, Argentina", "San Nicolas, Argentina", "San Vicente, Chile", "Santa Marta, Colombia", "Santos, Brazil", "Sao Luis, Brazil", "Sariaya, Philippines", "Savannah, USA", "Seattle, USA", "Semarang, Indonesia", "Sept-Iles, Canada", "Shanghai, China", "Shantou, China", "Sharjah, UAE", "Shekou, China", "Shenzhen, China", "Shuaiba, Kuwait", "Shuwaikh, Kuwait", "Sihanoukville, Cambodia", "Sikka, India", "Sines, Portugal", "Singapore (Anchorage), Singapore", "Singapore, Singapore", "Sitra, Bahrain", "Sohar, Oman", "Sokhna, Egypt", "Son Duong, Vietnam", "Songkhla, Thailand", "Southampton, UK", "Sriracha, Thailand", "St Croix, USA", "St Petersburg, Russia", "St. Croix, USA", "St. Eustatius, Caribbean Netherlands", "Suao, Taiwan", "Suape, Brazil", "Subic Bay, Philippines", "Suez, Egypt", "Surabaya, Indonesia", "Sydney, Australia", "Szczecin, Poland", "Taboneo, Indonesia", "Tacoma, USA", "Taicang, China", "Taichung, Taiwan", "Taipei, Taiwan", "Taizhou, China", "Takoradi, Ghana", "Tallinn, Estonia", "Tampa, USA", "Tampico, Mexico", "Tanga, Tanzania", "Tangier, Morocco", "Tangshan (Jingtang Port), China", "Tanjung Pelepas, Malaysia", "Tanjung Perak, Indonesia", "Tanjung Priok, Indonesia", "Tarahan, Indonesia", "Taranto, Italy", "Tarragona, Spain", "Tauranga, New Zealand", "Teesport, UK", "Tema, Ghana", "Texas City, USA", "Thames, UK", "Thamesport, UK", "Thessaloniki, Greece", "Thilawa, Myanmar", "Thunder Bay, Canada", "Tianjin, China", "Tilbury, UK", "Tokyo, Japan", "Tomakomai, Japan", "Townsville, Australia", "Trieste, Italy", "Tripoli, Libya", "Trois-Rivieres, Canada", "Tubarao, Brazil", "Tunis, Tunisia", "Tuticorin, India", "Ube, Japan", "Ulsan, Korea", "Ulsan, South Korea", "Umm Qasr, Iraq", "Ust-Luga, Russia", "Vadinar, India", "Valencia, Spain", "Valparaiso, Chile", "Vancouver, Canada", "Varna, Bulgaria", "Venice, Italy", "Veracruz, Mexico", "Visakhapatnam, India", "Vitoria, Brazil", "Vladivostok, Russia", "Vostochny, Russia", "Vung Ang, Vietnam", "Vung Tau, Vietnam", "Wakayama, Japan", "Walvis Bay, Namibia", "Wenzhou, China", "Whyalla, Australia", "Wilhelmshaven, Germany", "Xiamen, China", "Yanbu, Saudi Arabia", "Yangon, Myanmar", "Yangpu, China", "Yantai, China", "Yeosu, South Korea", "Yingkou, China", "Yokohama, Japan", "Yuzhny, Ukraine", "Zeebrugge, Belgium", "Zhangjiagang, China", "Zhanjiang, China", "Zhapu, China", "Zhenjiang, China", "Zhoushan, China"];
 
 /* ══════ 雲端清單：船舶／督導名冊（讀不到時提示，不擋填單） ══════ */
-let SHIPS=[],SUPERVISORS=[];
+let SHIPS=[],SUPERVISORS=[],STAFF_EN={};
 function shipLabel(code){const s=SHIPS.find(x=>x.code===code);return s?s.label:(code||"");}
 async function getKey(k){const r=await withTimeout(api(`app_db?select=payload&k=eq.${encodeURIComponent(k)}`),8000);return r&&r[0]?r[0].payload:null;}
 async function loadLists(){
-  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,type1:s.type1||"",operator:s.operator||"",deckSup:s.deckSup||"",engineSup:s.engineSup||"",label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));}catch(e){}
+  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,imo:s.imo||"",type1:s.type1||"",operator:s.operator||"",deckSup:s.deckSup||"",engineSup:s.engineSup||"",label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));}catch(e){}
+  // CAEM-FM06 的稽核員要寫英文名：從主系統「公司人員通訊錄」對照中文名→英文名
+  try{const hf=await getKey(FM06_HF_KEY);if(hf&&typeof hf==="object")FM06_HF=Object.assign({},FM06_HF_DEF,hf);}catch(e){}
+  try{const sd=await getKey("staffDirectory");(sd&&sd.people||[]).forEach(p=>{if(p.zh&&p.en)STAFF_EN[String(p.zh).replace(/\s/g,"")]=p.en;});}catch(e){}
   /* 檢查人 Auditor 名單：優先採用主系統「內部檢查人 Auditor 名單」（可含督導/海技/管理層等
      任一部門，由 Owner 在系統管理頁直接挑人維護）；尚未設定過（陣列為空／讀取失敗）時，
      退回舊規則：自動抓名冊部門＝「督導」或「海技組」的人，向後相容既有安裝。 */
@@ -1020,7 +1060,7 @@ let listView="cards";
 const stSel={ship:new Set(),src:new Set(),insp:new Set()};
 /* ══ 年度檢查一覽：所有船 × 1～12 月，列出主系統檢查紀錄裡的內稽／訪船／隨船（＋可選 ISPS），誰做的、哪天做的。唯讀。 ══ */
 // s：月份格子裡顯示的簡稱（格子窄），h：右側次數欄的欄名；沒設就用 t
-const YR_TYPES=[{k:"ia",t:"內稽",m:/^internal audit$/i,def:true},{k:"ov",t:"訪船",m:/^onboard visit$/i,def:true},{k:"ac",t:"隨船",m:/^accompanying ship$/i,def:true},{k:"cv",t:"交叉訪船",s:"交叉",h:"交",m:/^cross ship visit$/i,def:true},{k:"is",t:"ISPS",h:"ISPS",m:/^isps audit$/i,def:false}];
+const YR_TYPES=[{k:"ia",t:"內稽",m:/^internal audit$/i,def:true},{k:"ov",t:"訪船",m:/^onboard visit$/i,def:true},{k:"ac",t:"隨船",m:/^accompanying ship$/i,def:true},{k:"cv",t:"交叉訪船",s:"交叉",h:"交",m:/^cross ship visit$/i,def:true},{k:"is",t:"ISPS",h:"ISPS",m:/^isps (internal )?audit$/i,def:false}];
 const YR_COLOR={ia:"#5b3290",ov:"#176670",ac:"#9a520c",cv:"#2e6b3a",is:"#34506e"};
 const yrOn=new Set(YR_TYPES.filter(x=>x.def).map(x=>x.k));
 let YR_DATA=null,YR_LOADING=false;
@@ -1409,7 +1449,7 @@ function exportAllXlsx(){
   groups.forEach(({r,ds})=>ds.forEach(d=>{
     const td=typeDef(d.type),rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null,pl=(rp&&rp.payload)||{};
     defRows.push(Object.assign(head(r),{
-      "檢查種類":td?td.label:d.type,"內稽類別/主題":topicText(d)||"","分類 Category":d.category||"","風險":d.risk||"","發現日期":slash(d.reported||""),
+      "檢查種類":td?td.label:d.type,"內稽類別/主題":topicText(d)||"","分類 Category":d.category||"","法規章程來源":d.regRef||"","風險":d.risk||"","發現日期":slash(d.reported||""),
       "待改善描述":d.finding||"","結案方式":d.closeMode||"","目前狀態":effStatus(r,d)||"",
       "船上改善措施":pl.action||"","船上完成日期":pl.corrected||"","船上備註":pl.evidence||"","回報人":pl.by||"","督導審核人":pl.reviewedBy||"","照片數":(d.photos||[]).length
     }));
@@ -2264,11 +2304,258 @@ function duplicateRec(id){
   c.id=null;c.draft=true;
   delete c.issuedAt;delete c.imported;delete c.icJsonDlAt;delete c.icJsonDlBy;delete c.wordDlAt;delete c.wordDlBy;
   delete c.createdAt;delete c.createdBy;delete c.updatedAt;delete c.creator;delete c.creatorAt; // 複製出來的新單，建檔人是複製的人
-  (c.defs||[]).forEach(d=>{d.uid=newUid();delete d.importedDefId;});
+  delete c.fm06; // CAEM-FM06 報告編號／評語／簽名屬於原本那次稽核，不帶到新單
+  (c.defs||[]).forEach(d=>{d.uid=newUid();delete d.importedDefId;delete d.fm06;});
   (c.best||[]).forEach(b=>{delete b.importedPosId;});
   cur=c;curSrv=null;activeTab=(cur.types||[])[0]||null;bestOpen=[];defOpen=[];
   openForm();
   toast("✓ 已複製為新草稿，請確認內容後儲存或送出");
+}
+
+/* ══════ ⑤ CAEM-FM06 內部稽查綜合報告（檢查種類有勾「內稽」才出現）══════
+   版面照範本 CAEM-FM06（Rev.: 2025.01.31）；明細＝④缺失明細「內稽」分頁的缺失。
+   每筆的等級／負責部門／更正期限／結案日期／結案單位存在該筆缺失的 d.fm06，法規章程＝d.regRef（跟④同一欄）；
+   報告編號、日期、評語、簽名存在 cur.fm06。沒動過的欄位不寫入、畫面顯示自動帶入值，按列印時才固定下來。
+   列印：隱藏 iframe，公司 MARK＋Cat. 框每頁重複，頁尾「CAEM-FM06 - 頁/總頁」用 @page 邊框。 */
+const FM06_LOGO="data:image/png;base64,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";
+const FM06_MON=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const IA_KEY="Internal audit";
+/* 頁首右上角框＋頁尾：表單改版時由 Owner／管理員按「⚙ 設定頁首頁尾」修改，存在 app_db（全公司共用） */
+const FM06_HF_KEY="fm06HeaderFooter";
+const FM06_HF_DEF={cat:"Cat.: CAEM-FM06",use:"Office use",rev:"Rev.: 2025.01.31",code:"CAEM-FM06",ed:"Ed.: Jan 2025"};
+let FM06_HF=Object.assign({},FM06_HF_DEF);
+const FM06_HF_F=["cat","use","rev","code","ed"];
+function fm06HfFill(v){FM06_HF_F.forEach(k=>{$("#fm6Hf-"+k).value=v[k]||"";});}
+function fm06HfOpen(){
+  if(!IAAuth.canDelete()){alert("頁首頁尾設定只有 Owner／管理員可以修改。");return;}
+  fm06HfFill(FM06_HF);$("#fm6HfModal").style.display="flex";
+}
+async function fm06HfSave(){
+  if(!IAAuth.canDelete())return;
+  const v={};FM06_HF_F.forEach(k=>{v[k]=$("#fm6Hf-"+k).value.trim();});
+  if(!v.code){alert("頁尾的表單代號不能空白。");return;}
+  const btn=$("#fm6HfSave");btn.disabled=true;
+  try{
+    await api("app_db?on_conflict=k",{method:"POST",headers:H({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify([{k:FM06_HF_KEY,updated:Date.now(),by:(IAAuth.ident()||{}).name||"",payload:v}])});
+    FM06_HF=Object.assign({},FM06_HF_DEF,v);
+    IALog.log("修改","CAEM-FM06 頁首頁尾",FM06_HF_F.map(k=>v[k]).join("｜"));
+    $("#fm6HfModal").style.display="none";toast("✓ 頁首頁尾設定已儲存");fm06Preview();
+  }catch(e){alert("儲存失敗："+e.message);}
+  finally{btn.disabled=false;}
+}
+const cssStr=s=>'"'+String(s||"").replace(/[<>]/g,"").replace(/\\/g,"\\\\").replace(/"/g,'\\"')+'"';
+function hasIA(){return !!cur&&(cur.types||[]).includes(IA_KEY);}
+function fm06Defs(){return cur?cur.defs.map((d,i)=>({d,i})).filter(x=>x.d.type===IA_KEY):[];}
+const fm06Date=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||"");return m?`${m[3]} ${FM06_MON[+m[2]-1]} ${m[1]}`:(iso||"");};
+function fm06AuditDate(r){
+  const a=/^(\d{4})-(\d{2})-(\d{2})$/.exec(r.dateFrom||""),b=/^(\d{4})-(\d{2})-(\d{2})$/.exec(r.dateTo||"");
+  if(!a)return "";
+  if(!b||r.dateTo===r.dateFrom)return fm06Date(r.dateFrom);
+  if(a[1]===b[1]&&a[2]===b[2])return `${a[3]}–${b[3]} ${FM06_MON[+a[2]-1]} ${a[1]}`;
+  return fm06Date(r.dateFrom)+" – "+fm06Date(r.dateTo);
+}
+const enName=zh=>STAFF_EN[String(zh||"").replace(/\s/g,"")]||zh;
+/* 報告編號預設：船名縮寫-IA-檢查日期（例 SS-IA-20261101） */
+function fm06NextNo(){
+  if(!cur.ship)return "";
+  return `${cur.ship}-IA-${String(cur.dateFrom||todayIso()).replace(/-/g,"")}`;
+}
+/* 稽核種類跟著①勾選：內稽＝ISM/MLC/ISO，同時勾 ISPS 再加 /ISPS */
+const fm06AuditTypeDef=()=>"ISM/MLC/ISO"+((cur.types||[]).includes("ISPS Audit")?"/ISPS":"");
+function fm06Def(){return {reportNo:fm06NextNo(),reportDate:todayIso(),auditType:fm06AuditTypeDef(),lead:inspList(cur).map(enName).join(" / "),unit:"QMS & Vetting Unit",comment:"",signDate:todayIso()};}
+function fm06V(k){
+  const f=cur.fm06||{};
+  if(k==="auditType"&&f[k]==="ISM/ISPS/MLC")return fm06Def()[k]; // 舊版預設值，視同沒改過，改跟勾選走
+  if(k==="reportNo"&&cur.ship&&f[k]&&new RegExp("^"+cur.ship+"-SAR\\d{6}$").test(f[k]))return fm06Def()[k]; // 舊版自動編號（船代碼-SAR年份流水號），改用新格式
+  return f[k]!=null?f[k]:fm06Def()[k];
+}
+function fm06RowDef(d){return {lvl:"O",dept:d.topic==="甲板"?"Deck dept":d.topic==="機艙"?"Engine dept":"",limit:"",cleared:"",by:""};}
+function fm06R(d,k){const r=d.fm06||{};return r[k]!=null?r[k]:fm06RowDef(d)[k];}
+let fm06Tm=null;
+function fm06Refresh(){clearTimeout(fm06Tm);fm06Tm=setTimeout(fm06Preview,350);}
+function fm06Set(k,v){cur.fm06=cur.fm06||{};cur.fm06[k]=v;fm06Refresh();}
+function fm06SetRow(i,k,v){const d=cur.defs[i];d.fm06=d.fm06||{};d.fm06[k]=v;fm06Refresh();}
+function fm06SetReg(i,v){cur.defs[i].regRef=v;fm06Refresh();}
+function renderFm06(){
+  const box=$("#fm06Body");if(!box||!cur)return;
+  $("#fm6HfBtn").style.display=IAAuth.canDelete()?"":"none";
+  const s=SHIPS.find(x=>x.code===cur.ship)||{},rows=fm06Defs(),f=cur.fm06||{};
+  const inp=(k,lab,type)=>`<label>${lab}<input type="${type||"text"}" id="fm6-${k}" value="${esc(fm06V(k))}" oninput="fm06Set('${k}',this.value)"></label>`;
+  const cell=(i,d,k,w,list)=>`<input type="text" ${list?`list="${list}"`:""} style="min-width:${w}px" value="${esc(fm06R(d,k))}" oninput="fm06SetRow(${i},'${k}',this.value)">`;
+  const byOpts=[...new Set(inspList(cur).map(enName).concat(["SQM&V Unit"]))];
+  box.innerHTML=`
+    <div class="fm6grid">
+      ${inp("reportNo","報告編號 Report No")}
+      ${inp("reportDate","報告日期 Date of Report","date")}
+      <div class="fld">受稽單位 Name of Unit／IMO No.<div class="ro">${esc(s.en||shipLabel(cur.ship)||"（請先在①選船）")}${s.imo?"　IMO "+esc(s.imo):""}</div></div>
+      ${inp("auditType","稽核種類 Audit Type")}
+      <div class="fld">檢查日期 Date of Audit<span class="hint" style="font-weight:400">（依①檢查日期）</span><div class="ro">${esc(fm06AuditDate(cur)||"—")}</div></div>
+      ${inp("unit","稽核單位 Audit Unit")}
+      <label style="grid-column:1/-1">主導稽核員/稽核員 Lead Auditor / Auditor<input type="text" id="fm6-lead" value="${esc(fm06V("lead"))}" oninput="fm06Set('lead',this.value)"></label>
+    </div>
+    <h4 style="margin:18px 0 4px;color:var(--navy)">稽核發現 Findings <span class="hint" style="font-weight:400">共 ${rows.length} 筆，取自④缺失明細的「內稽」分頁；內容請回④修改，法規章程跟④是同一欄</span></h4>
+    ${rows.length?`<div class="fm6wrap"><table class="fm6t"><thead><tr><th>No</th><th>等級 NC,O</th><th>法規章程 Regulation ref</th><th>內容 Detail</th><th>負責部門 Dept in Charge</th><th>更正期限 Limit Date</th><th>結案日期 Cleared date</th><th>結案單位 Cleared by</th></tr></thead><tbody>
+      ${rows.map(({d,i},n)=>`<tr><td style="text-align:center">${n+1}</td>
+        <td><select onchange="fm06SetRow(${i},'lvl',this.value)">${["O","NC"].map(v=>`<option ${fm06R(d,"lvl")===v?"selected":""}>${v}</option>`).join("")}</select></td>
+        <td><input type="text" style="min-width:150px" value="${esc(d.regRef||"")}" placeholder="選填" oninput="fm06SetReg(${i},this.value)"></td>
+        <td class="det">${d.finding?esc(d.finding):'<span class="hint">（④尚未填寫內容）</span>'}</td>
+        <td>${cell(i,d,"dept",120,"fm6Dept")}</td>
+        <td>${cell(i,d,"limit",150,"fm6Lim")}</td>
+        <td><input type="date" value="${esc(fm06R(d,"cleared"))}" onchange="fm06SetRow(${i},'cleared',this.value)"></td>
+        <td>${cell(i,d,"by",120,"fm6By")}</td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="hint" style="margin-top:4px">更正期限可選「Before departure」或直接打日期（例：05 June 2026）；尚未結案的，結案日期／結案單位留空即可。</div>`
+    :`<div class="hint">④缺失明細的「內稽」分頁目前沒有缺失，報告明細會是空白列。</div>`}
+    <datalist id="fm6Dept"><option>Deck dept</option><option>Engine dept</option><option>Deck &amp; Engine dept</option></datalist>
+    <datalist id="fm6Lim"><option>Before departure</option></datalist>
+    <datalist id="fm6By">${byOpts.map(v=>`<option>${esc(v)}</option>`).join("")}</datalist>
+    <label style="display:block;margin-top:16px">主導稽核員評語 Lead Auditor Comments<textarea id="fm6-comment" style="min-height:120px" placeholder="例：During the audit, safety rounds of the deck and engine room were conducted…" oninput="fm06Set('comment',this.value)">${esc(fm06V("comment"))}</textarea></label>
+    <div class="fld" style="margin-top:12px">主導稽核員簽名 Sign <span class="hint" style="font-weight:400">用滑鼠／觸控筆在框內簽名，或按「📤 上傳簽名檔」；不簽也可以，列印後再手簽</span>
+      <div class="fm6sig"><canvas id="fm6Pad" width="840" height="260"></canvas>
+        <div style="display:flex;flex-direction:column;gap:8px"><label>簽名日期<input type="date" value="${esc(fm06V("signDate"))}" oninput="fm06Set('signDate',this.value)"></label><button class="btn sm" type="button" onclick="$('#fm6SigFile').click()">📤 上傳簽名檔</button><input type="file" id="fm6SigFile" accept="image/*" style="display:none" onchange="fm06UploadSig(this)"><button class="btn sm" type="button" onclick="fm06ClearSig()">清除簽名</button></div></div></div>
+    <div class="toolbar" style="margin:16px 0 10px;align-items:center"><button class="btn primary lg" type="button" onclick="fm06Print()">🖨 列印／下載 PDF</button><span class="hint" id="fm6Dl">${fm06DlText()}</span></div>
+    <div class="fm6prev"><iframe id="fm6Frame" title="CAEM-FM06 預覽"></iframe></div>`;
+  fm06InitPad();fm06Preview();
+}
+function fm06DlText(){const f=cur&&cur.fm06||{};return f.dlAt?`✓ 已於 ${new Date(f.dlAt).toLocaleString("zh-TW",{hour12:false})} 由 ${esc(f.dlBy||"")} 列印／下載；之後再按「下一步」填船舶訴求／建議`:"列印視窗的「目的地」選「另存為 PDF」即可下載存檔";}
+function fm06InitPad(){
+  const c=$("#fm6Pad");if(!c)return;
+  const g=c.getContext("2d");
+  g.lineWidth=4.5;g.lineCap="round";g.lineJoin="round";g.strokeStyle=g.fillStyle="#1b2f80";
+  const sig=cur.fm06&&cur.fm06.sign;
+  if(sig){const im=new Image();im.onload=()=>{const sc=Math.min(c.width/im.width,c.height/im.height,1);g.drawImage(im,(c.width-im.width*sc)/2,(c.height-im.height*sc)/2,im.width*sc,im.height*sc);};im.src=sig;}
+  let drawing=false,last=null;
+  const pt=e=>{const r=c.getBoundingClientRect();return [(e.clientX-r.left)*c.width/r.width,(e.clientY-r.top)*c.height/r.height];};
+  c.onpointerdown=e=>{drawing=true;last=pt(e);try{c.setPointerCapture(e.pointerId);}catch(_){}g.beginPath();g.arc(last[0],last[1],2.2,0,7);g.fill();};
+  c.onpointermove=e=>{if(!drawing)return;const p=pt(e);g.beginPath();g.moveTo(last[0],last[1]);g.lineTo(p[0],p[1]);g.stroke();last=p;};
+  c.onpointerup=c.onpointercancel=()=>{if(!drawing)return;drawing=false;fm06Set("sign",fm06Trim(c));};
+}
+/* 只留有筆跡的範圍，存檔小、列印時也好排 */
+function fm06Trim(c){
+  const g=c.getContext("2d"),w=c.width,h=c.height,a=g.getImageData(0,0,w,h).data;
+  let x0=w,y0=h,x1=-1,y1=-1;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(a[(y*w+x)*4+3]>10){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}
+  if(x1<0)return "";
+  x0=Math.max(0,x0-6);y0=Math.max(0,y0-6);x1=Math.min(w-1,x1+6);y1=Math.min(h-1,y1+6);
+  const o=document.createElement("canvas");o.width=x1-x0+1;o.height=y1-y0+1;
+  o.getContext("2d").drawImage(c,x0,y0,o.width,o.height,0,0,o.width,o.height);
+  return o.toDataURL("image/png");
+}
+/* 上傳簽名檔（照片／掃描檔皆可）：縮放進簽名框，接近白色的底色轉成透明，印在報告上才不會蓋到框線 */
+function fm06UploadSig(inp){
+  const file=inp.files&&inp.files[0];inp.value="";if(!file)return;
+  if(!/^image\//.test(file.type)){toast("⚠ 請選擇圖片檔（PNG、JPG）",true);return;}
+  const url=URL.createObjectURL(file),im=new Image();
+  im.onload=()=>{
+    URL.revokeObjectURL(url);
+    const c=$("#fm6Pad");if(!c)return;
+    const g=c.getContext("2d"),sc=Math.min((c.width-20)/im.width,(c.height-20)/im.height,1);
+    const w=Math.round(im.width*sc),h=Math.round(im.height*sc),x=Math.round((c.width-w)/2),y=Math.round((c.height-h)/2);
+    g.clearRect(0,0,c.width,c.height);g.drawImage(im,x,y,w,h);
+    const id=g.getImageData(x,y,w,h),a=id.data;
+    for(let k=0;k<a.length;k+=4){const m=Math.min(a[k],a[k+1],a[k+2]);if(m>225)a[k+3]=0;else if(m>180)a[k+3]=Math.round(a[k+3]*(225-m)/45);}
+    g.putImageData(id,x,y);
+    fm06Set("sign",fm06Trim(c));
+    toast("✓ 已帶入簽名檔");
+  };
+  im.onerror=()=>{URL.revokeObjectURL(url);toast("⚠ 這個圖片檔讀不到，請換 PNG 或 JPG",true);};
+  im.src=url;
+}
+function fm06ClearSig(){const c=$("#fm6Pad");if(c)c.getContext("2d").clearRect(0,0,c.width,c.height);fm06Set("sign","");}
+function fm06Preview(){
+  const fr=$("#fm6Frame");if(!fr||!cur||secTab!=="fm06")return;
+  const fit=()=>{try{fr.style.height=fr.contentDocument.documentElement.scrollHeight+"px";}catch(e){}};
+  fr.onload=()=>{fit();setTimeout(fit,200);};
+  fr.srcdoc=fm06Html(true);
+}
+function fm06Html(screen,title){
+  const s=SHIPS.find(x=>x.code===cur.ship)||{},rows=fm06Defs(),V=fm06V;
+  const e=x=>esc(x==null?"":String(x)).replace(/\n/g,"<br>");
+  const z=t=>`<span class="zh">${t}</span>`;
+  const sign=V("sign")||"",HF=FM06_HF;
+  const hd=`<div class="hd"><div class="logo"><img src="${FM06_LOGO}" alt=""><div><div class="coz">台塑海運股份有限公司</div><div class="coe">FORMOSA PLASTICS MARINE CORPORATION</div></div></div><div class="cat">${[esc(HF.cat),HF.use?`<i>${esc(HF.use)}</i>`:"",esc(HF.rev)].filter(Boolean).join("<br>")}</div></div>`;
+  const rowHtml=rows.length?rows.map(({d},n)=>`<tr><td>${n+1}</td><td>${e(fm06R(d,"lvl"))}</td><td>${e(d.regRef||"")}</td><td class="det">${e(d.finding||"")}</td><td>${e(fm06R(d,"dept"))}</td><td>${e(fm06R(d,"limit"))}</td><td>${e(fm06Date(fm06R(d,"cleared")))}</td><td>${e(fm06R(d,"by"))}</td></tr>`).join("")
+    :`<tr class="empty"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+  const body=`
+<div class="ttl"><div class="zh">內部稽查綜合報告</div><div>Internal Audit Summary Report</div></div>
+<table class="info"><colgroup><col style="width:29.5%"><col style="width:22.6%"><col style="width:16.7%"><col style="width:31.2%"></colgroup>
+<tr><td>${z("報告編號")}<br>Report No</td><td class="v">${e(V("reportNo"))}</td><td>${z("報告日期")}<br>Date of Report</td><td class="v">${e(fm06Date(V("reportDate")))}</td></tr>
+<tr><td>${z("受稽單位")}<br>Name of Unit</td><td class="v">${e(s.en||shipLabel(cur.ship))}</td><td>${z("IMO 號碼")}<br>IMO No.</td><td class="v">${e(s.imo||"")}</td></tr>
+<tr><td colspan="4" class="desc">${z("稽核內容")}&nbsp; Audit Description</td></tr>
+<tr><td>${z("稽核種類")}<br>Audit Type</td><td class="v">${e(V("auditType"))}</td><td>${z("檢查日期")}<br>Date of Audit</td><td class="v">${e(fm06AuditDate(cur))}</td></tr>
+<tr><td>${z("主導稽核員/稽核員")}<br>Lead Auditor / Auditor</td><td class="v">${e(V("lead"))}</td><td>${z("稽核單位")}<br>Audit Unit</td><td class="v">${e(V("unit"))}</td></tr>
+<tr><td colspan="4" class="defn">${z("觀察指的是安全管理稽核時，因客觀證據證實需觀察注意的聲明")}<br>(O)Observation means a statement of fact made during a safety managemnt audit and substantiated by objective evidence.<br>${z("不符合指的是觀察情況時，有客觀證據顯示出不符合指定的規定")}<br>(NC)Non-conformity means an observed situation where objective evidence indicates the non-fulfilment of a specified requirement.</td></tr>
+</table>
+<table class="f"><colgroup><col style="width:5.4%"><col style="width:7.4%"><col style="width:13.9%"><col style="width:30.2%"><col style="width:9.7%"><col style="width:12.1%"><col style="width:9.7%"><col style="width:11.6%"></colgroup>
+<tr class="fh"><th>${z("編<br>號")}<br>No</th><th>${z("等級")}<br>NC,O</th><th>${z("法規<br>章程")}<br>Regulation ref</th><th>${z("內&emsp;&emsp;容")}<br>Detail</th><th>${z("負責<br>部門")}<br>Dept in Charge</th><th>${z("更正<br>期限")}<br>Limit Date</th><th>${z("結案<br>日期")}<br>Cleared date</th><th>${z("結案<br>單位")}<br>Cleared by</th></tr>
+${rowHtml}
+</table>
+<div class="box lead"><div>${z("主導稽核員評語/簽名")}&nbsp; Lead Auditor Comments/Sign:</div><div class="cm">${e(V("comment"))}</div><div class="sg">${sign?`<img src="${sign}" alt=""><span>${e(fm06Date(V("signDate")))}</span>`:""}</div></div>
+<div class="box dpa"><div>${z("岸上指定人員評語/簽名")}&nbsp; DPA Comments/Sign:</div></div>
+<div class="note">${z("所有不符合/觀察項目必須在更正期限內更正，相關案件結案後，由海技組負責將結案日期填寫完整。")}<br>All raised Non-Conformities/Observations will be cleared out before limit date, SQM&amp;V Unit track and fill the close-out date after case closed.</div>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title||"CAEM-FM06")}</title><style>
+@page{size:A4;margin:10mm 13mm 15mm;
+  @bottom-center{content:${cssStr(HF.code+" - ")} counter(page) "/" counter(pages);font-family:"Times New Roman",serif;font-size:11pt}
+  @bottom-right{content:${cssStr(HF.ed)};font-family:"Times New Roman",serif;font-size:11pt}}
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:#000}
+body{font-family:"Times New Roman",Times,"DFKai-SB","標楷體","BiauKai",serif;font-size:12pt;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.zh{font-family:"DFKai-SB","標楷體","BiauKai","Kaiti TC",serif}
+table{border-collapse:collapse;width:100%}
+.outer>thead>tr>td,.outer>tbody>tr>td{padding:0;border:0}
+.hd{display:flex;justify-content:space-between;align-items:flex-end;padding:0 1mm 5mm}
+.logo{display:flex;align-items:flex-end;gap:2.5mm}.logo img{height:14mm;display:block}
+.coz{font-family:"DFKai-SB","標楷體","BiauKai",serif;font-size:16.5pt;font-weight:bold;letter-spacing:.3em;line-height:1.15}
+.coe{font-size:9.6pt;font-weight:bold;letter-spacing:-.01em;line-height:1.1}
+.cat{border:3px double #000;padding:1.2mm 8mm 1.2mm 3mm;font-size:10.5pt;line-height:1.3}
+.ttl{text-align:center;font-size:16pt;line-height:1.4;margin:0 0 3mm}
+.info,.f{table-layout:fixed}
+.info td{border:1px solid #000;padding:1mm 2mm;vertical-align:top;font-size:12.5pt}
+.info td.v{text-align:center;vertical-align:middle}
+.info td.desc{background:#e6e6e6;font-weight:bold}
+.info td.defn{font-size:10.5pt;line-height:1.25;text-align:justify}
+.f th{border:1px solid #000;border-top:0;font-size:10.5pt;font-weight:bold;padding:.8mm .5mm;line-height:1.2;text-align:center;vertical-align:middle}
+.f td{border:1px solid #000;padding:1mm 1.2mm;vertical-align:top;text-align:center;font-size:12pt;overflow-wrap:anywhere}
+.f tr.empty td{height:9mm}
+.box{border:3px double #000;padding:1.5mm 2.5mm;font-size:12pt}
+.lead{margin-top:-1px}
+.lead .cm{text-align:justify;font-size:12.5pt;line-height:1.35;min-height:20mm;margin-top:1mm}
+.lead .sg{display:flex;justify-content:flex-end;align-items:flex-end;gap:4mm;min-height:12mm;font-size:13pt}
+.lead .sg img{max-height:16mm;max-width:62mm;display:block}
+.dpa{border-top:0;min-height:48mm;break-inside:avoid}
+.lead{break-inside:avoid}
+.note{font-size:10.5pt;margin-top:1.5mm;line-height:1.3}
+.scrft{display:none}
+@media screen{body{padding:11mm 13mm 8mm}.scrft{display:flex;justify-content:space-between;font-size:11pt;margin-top:10mm}}
+</style></head><body>
+<table class="outer"><thead><tr><td>${hd}</td></tr></thead><tbody><tr><td>${body}</td></tr></tbody></table>
+${screen?`<div class="scrft"><span></span><span>${esc(HF.code)} - 1/1</span><span>${esc(HF.ed)}</span></div>`:""}
+</body></html>`;
+}
+function fm06Print(){
+  if(!cur)return;
+  collect();
+  // 列印的這一刻把「會隨日期變動」的自動值固定下來（報告編號／報告日期／簽名日期），之後換天重印不會跟著變；
+  // 稽核種類、稽核員、負責部門等仍跟著①②④的內容自動帶入，除非使用者自己改過
+  const def=fm06Def();cur.fm06=cur.fm06||{};
+  ["reportNo","reportDate","signDate"].forEach(k=>{if(cur.fm06[k]==null)cur.fm06[k]=def[k];});
+  // 檔名：CAEM-FM06內部稽查綜合報告-船名-檢查日期（例：CAEM-FM06內部稽查綜合報告-FPMC S SAPPHIRE-20261101）
+  const sh=SHIPS.find(x=>x.code===cur.ship)||{},ymd=s=>String(s||"").replace(/-/g,"");
+  const dt=ymd(cur.dateFrom)+(cur.dateTo&&cur.dateTo!==cur.dateFrom?"~"+ymd(cur.dateTo):"");
+  const fname=`CAEM-FM06內部稽查綜合報告-${sh.en||shipLabel(cur.ship)}-${dt}`.replace(/[\\/:*?"<>|]/g,"_");
+  const old=$("#fm6PrintFrame");if(old)old.remove();
+  const fr=document.createElement("iframe");fr.id="fm6PrintFrame";fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+  document.body.appendChild(fr);
+  // 「另存為 PDF」的預設檔名取自上層頁面標題：列印視窗開著的期間都維持這個標題，印完（afterprint）才還原
+  const oldTitle=document.title;
+  const restore=()=>{document.title=oldTitle;window.removeEventListener("afterprint",restore);};
+  fr.onload=()=>{document.title=fname;window.addEventListener("afterprint",restore);try{fr.contentWindow.addEventListener("afterprint",restore);}catch(e){}setTimeout(restore,120000);
+    setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){restore();alert("無法開啟列印視窗："+e.message);}},200);};
+  fr.srcdoc=fm06Html(false,fname);
+  cur.fm06.dlAt=Date.now();cur.fm06.dlBy=(IAAuth.ident()||{}).name||"";
+  try{IALog.log("列印","CAEM-FM06",`${recLabel(cur)}｜${cur.fm06.reportNo||""}`);}catch(e){}
+  const t=$("#fm6Dl");if(t)t.innerHTML=fm06DlText();
+  renderSecTabs();
 }
 
 /* ══════ 表單 ══════ */
@@ -2282,8 +2569,11 @@ function newForm(){cur=blank();activeTab=null;curSrv=null;bestOpen=[];defOpen=[]
 function editRec(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;cur=JSON.parse(JSON.stringify(r));curSrv=Store.srvOf[id]!=null?Store.srvOf[id]:null;activeTab=(cur.types||[])[0]||null;bestOpen=[];defOpen=[];openForm();}
 /* ②～⑤ 分頁：一次只開一個區塊來編輯 */
 let secTab="basic";
-const SECS=[["basic","① 基本資料"],["overall","② 總體評價"],["best","③ 優良案例"],["defs","④ 缺失明細"],["sugg","⑤ 船舶訴求／建議"],["download","⑥ 下載／發改善單"]];
-function secCount(k){return !cur?"":k==="best"?cur.best.length:k==="defs"?cur.defs.length:k==="sugg"?cur.sugg.length:"";}
+/* 勾選「內稽」時，在④缺失明細後插入「⑤ CAEM-FM06 內部稽查綜合報告」，後面的分頁編號順延 */
+const SEC_DEFS=[["basic","基本資料"],["overall","總體評價"],["best","優良案例"],["defs","缺失明細"],["fm06","CAEM-FM06 內部稽查綜合報告"],["sugg","船舶訴求／建議"],["download","下載／發改善單"]];
+const SEC_NO="①②③④⑤⑥⑦";
+function secList(){const ia=hasIA();return SEC_DEFS.filter(([k])=>k!=="fm06"||ia).map(([k,l],i)=>[k,SEC_NO[i]+" "+l]);}
+function secCount(k){return !cur?"":k==="best"?cur.best.length:k==="defs"?cur.defs.length:k==="sugg"?cur.sugg.length:k==="fm06"?fm06Defs().length:"";}
 /* 幫年長同仁一眼看出「這一步算填好了嗎」：①基本資料看必填欄位是否都填了（跟 validate() 同一套
    條件）；②③④⑤本來就是可以留空的選填區塊，沒有「必填」概念，改成「有沒有內容」當作已填；
    ⑥下載/發改善單則是看整張單是否已經送出（草稿狀態就還不算完成）。 */
@@ -2294,24 +2584,29 @@ function secComplete(k){
   if(k==="best")return cur.best.length>0;
   if(k==="defs")return cur.defs.length>0&&cur.defs.every(d=>d.category&&d.risk&&d.reported&&d.finding&&d.closeMode);
   if(k==="sugg")return cur.sugg.length>0;
+  if(k==="fm06")return !!(cur.fm06&&cur.fm06.dlAt);
   if(k==="download")return cur.draft===false;
   return false;
 }
 function renderSecTabs(){
-  $("#secTabs").innerHTML=SECS.map(([k,l])=>{
+  const secs=secList();
+  if(!secs.some(([k])=>k===secTab))secTab="basic";
+  $("#secTabs").innerHTML=secs.map(([k,l])=>{
     const n=secCount(k),done=secComplete(k);
     return `<button type="button" class="${k===secTab?"on":""}${done?" done":""}" onclick="setSec('${k}')">${done?"✓ ":""}${l}${n!==""?`<span class="n">${n}</span>`:""}</button>`;
   }).join("");
+  document.querySelectorAll(".secno").forEach(el=>{const s=secs.find(([k])=>k===el.dataset.k);if(s)el.textContent=s[1].charAt(0);});
   document.querySelectorAll(".sec").forEach(el=>{el.style.display=el.dataset.sec===secTab?"":"none";});
   updatePrimaryBtns();
 }
-function setSec(k){if(cur)collect();secTab=k;renderSecTabs();if(k==="download")renderDownloadTab();}
+function setSec(k){if(cur)collect();secTab=k;renderSecTabs();if(k==="download")renderDownloadTab();if(k==="fm06")renderFm06();}
 /* ⚠ 原本①~⑤每個分頁都看得到「送出海技入系統」，容易在資料都還沒填完（例如⑥下載/發改善單
    都還沒跑過）就提早按下去；改成①~⑤顯示「下一步」依序引導，只有切到⑥下載/發改善單那頁
    才會顯示真正的「送出海技入系統」按鈕。儲存草稿、取消在任何一頁都維持可以按。 */
 async function nextSec(){
   if(!cur)return;
   collect();
+  const SECS=secList();
   const idx=SECS.findIndex(([k])=>k===secTab);
   if(idx<0||idx>=SECS.length-1)return;
   // ⚠ 這裡原本不管三七二十一都用 persist(true,...) 存檔，draft 參數寫死 true——對一張「已經
@@ -2323,6 +2618,7 @@ async function nextSec(){
     secTab=SECS[idx+1][0];
     renderSecTabs();
     if(secTab==="download")renderDownloadTab();
+    if(secTab==="fm06")renderFm06();
     window.scrollTo({top:0,behavior:"smooth"});
     return;
   }
@@ -2343,6 +2639,7 @@ async function nextSec(){
   secTab=SECS[idx+1][0];
   renderSecTabs();
   if(secTab==="download")renderDownloadTab();
+  if(secTab==="fm06")renderFm06();
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function handlePrimaryAction(){
@@ -2384,7 +2681,7 @@ function openForm(sec){
   $("#fDateFrom").value=cur.dateFrom||"";$("#fDateTo").value=cur.dateTo||"";$("#fPsn").value=cur.psn||"";
   $("#fMaster").value=cur.master||"";$("#fCo").value=cur.co||"";$("#fCe").value=cur.ce||"";$("#f2e").value=cur.e2||"";
   $("#fOverall").value=cur.overall||"";$("#fTop4Cap").value=cur.top4.cap||"";
-  renderTypes();renderTop4();renderCrew("good");renderCrew("poor");renderBest();renderDefs();renderSugg();renderDownloadTab();updateCounts();
+  renderTypes();renderTop4();renderCrew("good");renderCrew("poor");renderBest();renderDefs();renderSugg();renderDownloadTab();updateCounts();if(secTab==="fm06")renderFm06();
   window.scrollTo({top:0});startAutoSave();
 }
 /* ══════ 離開編輯頁面前的保護：避免填完資料卻忘記按「送出海技入系統」，海技一直看不到。══════
@@ -2471,7 +2768,7 @@ function onDateChange(){const f=$("#fDateFrom").value,t=$("#fDateTo");if(t.value
    （督導端與船上端共用），這裡不重複宣告。 */
 function renderTypes(){
   const baseHtml=TYPE_DEFS.filter(t=>t.k!==SPECIAL_TYPE_K).map(t=>
-    `<label><input type="checkbox" ${cur.types.includes(t.k)?"checked":""} onchange="toggleType('${t.k}',this.checked)"> ${esc(t.label)} <span class="hint" style="font-weight:400">${esc(t.en)}</span></label>`
+    `<label><input type="checkbox" ${cur.types.includes(t.k)?"checked":""} onchange="toggleType('${t.k}',this.checked)"> ${esc(t.label)} <span class="hint" style="font-weight:400">${esc(t.en)}${t.note?`<small style="display:block;font-size:11.5px;line-height:1.2">（${esc(t.note)}）</small>`:""}</span></label>`
   ).join("");
   const specialKeys=cur.types.filter(k=>typeof k==="string"&&k.startsWith(SPECIAL_PREFIX));
   const chips=specialKeys.map(k=>{
@@ -2784,6 +3081,7 @@ function defCardHtml(i,td,allIdxs,isLast){
           ${typeCtl}
           ${topicCtl}
           <label>分類 Category <span class="req">*</span><input type="text" data-f="category" value="${esc(d.category)}" placeholder="例：防火門、IMO標誌" oninput="setD(${i},'category',this.value)"></label>
+          <label>法規章程來源（選填）<input type="text" data-f="regRef" value="${esc(d.regRef||"")}" placeholder="例：SWO-100, 6.4.13 &amp; RISQ 13.6" oninput="setD(${i},'regRef',this.value)"></label>
           <label>風險等級 Risk Level <span class="req">*</span><select data-f="risk" onchange="setD(${i},'risk',this.value)"><option value="">— 請選擇 —</option>${RISKS.map(s=>`<option ${d.risk===s?"selected":""}>${s}</option>`).join("")}</select></label>
           <label>Reported @（發現日期）<span class="req">*</span><input type="date" data-f="reported" value="${esc(d.reported)}" onchange="setD(${i},'reported',this.value)"></label>
         </div>
@@ -2986,7 +3284,7 @@ function exportReviewXlsx(){
   const rows=items.map(({r,d,rp})=>{
     const p=rp.payload||{},td=typeDef(d.type);
     return {"船舶":shipLabel(r.ship),"檢查日期":dateText(r),"檢查人":r.inspector||"","地點":r.psn||"",
-      "檢查種類":td?td.label:(d.type||""),"內稽類別/主題":topicText(d)||"","分類 Category":d.category||"","風險":d.risk||"","結案方式":d.closeMode||"",
+      "檢查種類":td?td.label:(d.type||""),"內稽類別/主題":topicText(d)||"","分類 Category":d.category||"","法規章程來源":d.regRef||"","風險":d.risk||"","結案方式":d.closeMode||"",
       "缺失內容":d.finding||"","缺失照片":"","審核狀態":SL[rp.status]||rp.status,
       "船上改善措施":p.action||"","船上完成日期":p.corrected||"","船上備註":p.evidence||"","改善後照片":"",
       "回報人":p.by||"","回報人職稱":p.title||"","回報時間":fmtTs(p.at),

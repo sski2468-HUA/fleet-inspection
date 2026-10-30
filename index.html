@@ -4472,7 +4472,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <button class="btn sm ap-typebtn" data-t="audit" onclick="AnnualPlan.setType('audit')">📘 內稽</button>
           <button class="btn sm ap-typebtn" data-t="visit" onclick="AnnualPlan.setType('visit')">🚢 訪船</button>
           <button class="btn sm ap-typebtn" data-t="accompany" onclick="AnnualPlan.setType('accompany')">🧑‍✈️ 隨船</button>
-          <button class="btn sm ap-typebtn" data-t="isps" onclick="AnnualPlan.setType('isps')">🛡 ISPS AUDIT</button>
+          <button class="btn sm ap-typebtn" data-t="isps" onclick="AnnualPlan.setType('isps')">🛡 ISPS INTERNAL AUDIT</button>
         </div>
         <div class="toolbar" style="margin-bottom:4px;border-top:1px solid var(--line);padding-top:8px">
           <span class="hint" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">篩選</span>
@@ -4576,7 +4576,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div class="card" style="margin-bottom:14px">
           <div class="toolbar" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
             <h3 style="margin:0">📊 執行情形一覽表</h3>
-            <span class="hint">所有船 × 1～12 月，依「檢查紀錄」列出內稽／訪船／隨船／ISPS AUDIT 的檢查日期與檢查人（唯讀）</span>
+            <span class="hint">所有船 × 1～12 月，依「檢查紀錄」列出內稽／訪船／隨船／ISPS INTERNAL AUDIT 的檢查日期與檢查人（唯讀）</span>
           </div>
           <div class="toolbar" style="margin-bottom:0;flex-wrap:wrap;gap:8px;align-items:center">
             <select id="eo-year" onchange="ExecOverview.render()" style="padding:5px 8px"></select>
@@ -9852,7 +9852,7 @@ const Classify={
   DEFAULT_ICAT:[
     {icat:"PSC",match:["psc"]},
     {icat:"第三方檢查",match:["cdi","sire","rightship","terminal","租家檢查","flag","the mcc group","p&i","其他-第三方檢查"]},
-    {icat:"公司",match:["內稽","internal audit","訪船","onboard visit","交叉訪船","cross ship visit","isps內稽","isps audit","隨船","accompanying ship","accompanying shiop","accompanying visit"]},
+    {icat:"公司",match:["內稽","internal audit","訪船","onboard visit","交叉訪船","cross ship visit","isps內稽","isps audit","isps internal audit","隨船","accompanying ship","accompanying shiop","accompanying visit"]},
     {icat:"業界案例",match:["業界案例"]},
     {icat:"專項檢查",match:["sar-fm","專項檢查","其他："]},
   ],
@@ -19052,13 +19052,13 @@ const XlsxPretty=(()=>{
 })();
 
 /* ════════ 執行情形一覽表（唯讀）════════
-   所有船 × 1～12 月，把「檢查紀錄」裡的內稽／訪船／隨船／ISPS AUDIT 依月份排出來，每格寫日期與檢查人。
+   所有船 × 1～12 月，把「檢查紀錄」裡的內稽／訪船／隨船／ISPS INTERNAL AUDIT 依月份排出來，每格寫日期與檢查人。
    跟「年度計畫暨執行情形」不同：這裡不排程、不能編輯，只看實際做了什麼，四種類型可以同時看。 */
 const ExecOverview={
   TYPES:[{k:"audit",t:"內稽",it:"INTERNALAUDIT"},{k:"visit",t:"訪船",it:"ONBOARDVISIT"},{k:"cross",t:"交叉訪船",it:"CROSSSHIPVISIT"},{k:"accompany",t:"隨船",it:"ACCOMPANYINGSHIP"},{k:"isps",t:"ISPS",it:"ISPSAUDIT"}], // 交叉訪船獨立一類（屬內部檢查，但不算一次訪船）
   on:new Set(["audit","visit","cross","accompany","isps"]),
   ev(){
-    const map={};this.TYPES.forEach(t=>map[t.it]=t.k);
+    const map={ISPSINTERNALAUDIT:"isps"};this.TYPES.forEach(t=>map[t.it]=t.k); // 檢查來源改名 ISPS INTERNAL AUDIT 前後兩種寫法都算
     return (App.insp||[]).map(r=>{const k=map[normItype(r.itype)]||(/交叉訪船/.test(r.itype||"")?"cross":undefined);const d=parseDate(r.date);if(!k||!d)return null;
       return {ship:r.ship,k,y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate(),iso:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,insp:r.inspector||"",loc:r.loc||""};}).filter(Boolean);
   },
@@ -19173,7 +19173,7 @@ const ExecOverview={
       <h3>② 內稽動態</h3>
       <p>比照公司紙本《內稽動態表》格式，彙整每艘船的內部稽核排程與執行進度：上次稽核日期、實際檢查日抓「檢查紀錄」、計畫檢查日抓「檢查管控」的預排日期、CSO 抓「船舶資料」、稽核員由清單指派。建議每兩週點一次「🔄 更新進度」重新整理資料。若該船在「檢查管控」勾選了「加強稽核」，此表會以底色／星號特別標示。</p>
       <h3>③ 年度計畫暨執行情形</h3>
-      <p>分為 內稽／訪船／隨船／ISPS AUDIT 四個獨立子頁籤，各自可依「檢查紀錄」歷史資料自動建議下一年度排程月份，並在實際發生後自動核對完成狀態；同時會帶入「檢查管控」目前設定的預排檢查日對照顯示。ISPS AUDIT 主要用於追蹤執行情形（供督導參考排程），不強制排程週期。本頁僅開放一位指定人員可編輯，其餘唯讀，指定人員於「資料管理→維護者」設定。</p>
+      <p>分為 內稽／訪船／隨船／ISPS INTERNAL AUDIT 四個獨立子頁籤，各自可依「檢查紀錄」歷史資料自動建議下一年度排程月份，並在實際發生後自動核對完成狀態；同時會帶入「檢查管控」目前設定的預排檢查日對照顯示。ISPS INTERNAL AUDIT 主要用於追蹤執行情形（供督導參考排程），不強制排程週期。本頁僅開放一位指定人員可編輯，其餘唯讀，指定人員於「資料管理→維護者」設定。</p>
       <p class="hint">如有任何規則需要調整（例如效期、提醒門檻、加強稽核判定），請至「資料管理→維護者」或各頁面右上角的設定按鈕調整。</p>`;
     const w=window.open("","_blank","width=780,height=820,scrollbars=yes");
     if(!w){toast("⚠ 瀏覽器封鎖了新視窗，請允許彈出視窗後再試");return;}
@@ -21404,7 +21404,7 @@ const AnnualPlan={
     visit:{label:"訪船",short:"V",itypes:["ONBOARD VISIT","onboard visit"],interval:6,ruleHint:"每半年訪船一次，至多超期1個月；甲板督導／機艙督導各自連續實施的間隔建議不超過14個月（請於「檢查管控」核對督導類別分布）。",
       extraRows:[{key:"__TOPMGMT__",label:"公司高層訪船 / Top Management Vessel Visit"}]},
     accompany:{label:"隨船",short:"A",itypes:["ACCOMPANYING SHIP"],interval:12,ruleHint:"隨船檢查週期請依公司程序調整（預設每年一次，可自行排程）。",extraRows:[]},
-    isps:{label:"ISPS AUDIT",short:"P",itypes:["ISPS AUDIT"],interval:12,ruleHint:"主要用於追蹤實際執行情形，供督導排程參考；通常與甲板督導訪船一起進行，但非每次訪船皆會執行，不強制固定週期。",extraRows:[]}
+    isps:{label:"ISPS INTERNAL AUDIT",short:"P",itypes:["ISPS AUDIT","ISPS INTERNAL AUDIT"],interval:12,ruleHint:"主要用於追蹤實際執行情形，供督導排程參考；通常與甲板督導訪船一起進行，但非每次訪船皆會執行，不強制固定週期。",extraRows:[]}
   },
   MONTHS_ZH:["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"],
   curType:"audit",
@@ -24014,7 +24014,7 @@ const Air={
     namedRange("lst_rank",RANK_OPTIONS);
     const shipCodes=[...SHIPINFO].sort((a,b)=>a.code.localeCompare(b.code)).map(s=>s.code);
     const vtypeList=[...new Set(SHIPINFO.map(s=>s.vtype))].filter(Boolean).sort();
-    const itypeList=(typeof InspCtrl!=="undefined"?InspCtrl.itypeOptions():["PSC","SIRE","CDI","RightShip","ASI","FLAG","TERMINAL","ISPS AUDIT","Internal audit","onboard visit","LRIT","SMC","ISSC","MLC","IHM"]);
+    const itypeList=(typeof InspCtrl!=="undefined"?InspCtrl.itypeOptions():["PSC","SIRE","CDI","RightShip","ASI","FLAG","TERMINAL","ISPS INTERNAL AUDIT","Internal audit","onboard visit","LRIT","SMC","ISSC","MLC","IHM"]);
     namedRange("lst_ship",shipCodes);
     namedRange("lst_vtype",vtypeList);
     namedRange("lst_itype",itypeList);
@@ -34052,7 +34052,7 @@ const Pdfx={
     date=date.replace(/[.\-]/g,"/");
     // 檢查類型
     let itype="";
-    const tmap=[[/PORT STATE|PSC/,"PSC"],[/\bSIRE\b/,"SIRE"],[/\bCDI\b/,"CDI"],[/RIGHT\s?SHIP|RIGHTSHIP/,"RIGHTSHIP"],[/TERMINAL/,"TERMINAL"],[/FLAG STATE|FLAG INSPECTION/,"FLAG"],[/INTERNAL AUDIT/,"Internal audit"],[/ISPS/,"ISPS audit"],[/ONBOARD VISIT/,"onboard visit"]];
+    const tmap=[[/PORT STATE|PSC/,"PSC"],[/\bSIRE\b/,"SIRE"],[/\bCDI\b/,"CDI"],[/RIGHT\s?SHIP|RIGHTSHIP/,"RIGHTSHIP"],[/TERMINAL/,"TERMINAL"],[/FLAG STATE|FLAG INSPECTION/,"FLAG"],[/ISPS/,"ISPS audit"],[/INTERNAL AUDIT/,"Internal audit"],[/ONBOARD VISIT/,"onboard visit"]];
     for(const [re,t] of tmap)if(re.test(U)){itype=t;break;}
     // 地點:標籤式 → 既有地點清單比對
     let place=grab(/(?:Port of inspection|Place of inspection|\bPort\s*[:：]|地點|檢查地點)[\s:：]*([A-Za-z][A-Za-z ,.\-]{2,38})/i);
