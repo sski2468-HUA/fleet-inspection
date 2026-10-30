@@ -13002,6 +13002,8 @@ ${(ship.deckSupAlt||ship.engineSupAlt)?`<p class="sm">Superintendent ： ${e(pai
   },
   /* 版本碼：名單內容（含生效日期、人員、電話）任何一個字有變就不同；船上列印時記進操作紀錄，用來判斷「有更新、該輪還沒重新列印」 */
   sig(dir,ship){const s=this.build(dir,ship).html;let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36);},
+  /* 列印用：在名單右下角加一行很小的版本碼（Ver. xxx），督導上船可對照紙本是否最新版；版本碼本身仍以不含這行的 build() 計算 */
+  printHtml(dir,ship){const h=this.build(dir,ship).html;return h.replace("</body></html>",`<div style="text-align:right;font-size:6pt;color:#999;margin-top:2pt">Ver. ${this.sig(dir,ship)}</div></body></html>`);},
   /* Word：包成 MHT（單一檔案網頁），公司 MARK 圖片內嵌在檔案裡，船上離線開也看得到 */
   wordBlob(dir,ship){
     const loc="file:///C:/fpmc_notify_logo.png",bd="----=_NextPart_FPMC_NOTIFY";
@@ -13279,7 +13281,7 @@ const StaffDir={
     const s=this.curShip(),fr=$("#ntf-frame"),w=$("#ntf-warn");if(!fr)return;
     if(!s||!this.data){fr.srcdoc="";w.innerHTML=this.data?"":"尚未建立通訊錄。";return;}
     const r=NotifyDoc.build(this.data,s);
-    fr.srcdoc=r.html;
+    fr.srcdoc=NotifyDoc.printHtml(this.data,s);
     w.innerHTML=r.warns.length?`<span style="color:var(--bad)">⚠ 這份名單有 ${r.warns.length} 處需要補：</span>${r.warns.map(esc).join("、")}`:`<span style="color:var(--ok)">✓ 資料齊全</span>`;
   },
   downloadWord(){
