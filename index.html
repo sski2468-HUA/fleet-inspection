@@ -13249,7 +13249,7 @@ const StaffDir={
     try{localStorage.setItem("vsm_ntf_sub_v1",k);}catch(e){}
     if(k==="status")this.renderPrintStatus();else this.renderPreview();
   },
-  _ps:null,_psAt:0,
+  _ps:null,_psChg:null,_psAt:0,
   async renderPrintStatus(force){
     const tb=$("#ntf-ps-tbody");if(!tb)return;
     if(!this.data){tb.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center">尚未建立通訊錄</td></tr>`;return;}
@@ -13259,8 +13259,12 @@ const StaffDir={
         const rows=await Cloud.api(`audit_log?select=ts,usr,summary&target=eq.${encodeURIComponent("船舶檢查填報平台－緊急通報名單")}&action=eq.${encodeURIComponent("列印")}&order=ts.desc&limit=3000`)||[];
         // 每艘船：最後一次列印時間＋歷次列印過的所有版本碼。比對時只要「印過目前這一版」就算最新——
         // 避免船上用舊版（瀏覽器快取、沒帶版本碼）的頁面再印一次，就被誤判成「有更新」。
-        const last={};rows.forEach(r=>{const code=String(r.usr||"").replace(/^船舶\s*/,"").trim();if(!code)return;const m=String(r.summary||"").match(/\[版本 ([0-9a-z]+)\]/);const o=last[code]=last[code]||{ts:r.ts,sig:"",sigs:new Set()};if(m){o.sigs.add(m[1]);if(!o.sig)o.sig=m[1];}});
-        this._ps=last;this._psAt=Date.now();
+        const last={};rows.forEach(r=>{const code=String(r.usr||"").replace(/^船舶\s*/,"").trim();if(!code)return;const m=String(r.summary||"").match(/\[版本 ([0-9a-z]+)\]/);const o=last[code]=last[code]||{ts:r.ts,sig:"",sigs:new Set(),noSigTs:0};if(m){o.sigs.add(m[1]);if(!o.sig)o.sig=m[1];}else if(!o.noSigTs)o.noSigTs=r.ts;});
+        // 沒帶版本碼的列印（舊版快取頁面印的）：只要是在名單最後一次異動（通訊錄／該船資料）之後印的，內容一定就是目前這一版
+        let dirAt=0;const shipAt={};
+        try{const a=await Cloud.api("app_db?select=updated&k=eq.staffDirectory");dirAt=+((a&&a[0]&&a[0].updated)||0);}catch(e){}
+        try{(await Cloud.api("sync_ships?select=id,updated")||[]).forEach(x=>{shipAt[x.id]=+x.updated||0;});}catch(e){}
+        this._ps=last;this._psChg={dirAt,shipAt};this._psAt=Date.now();
       }catch(e){tb.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center">⚠ 讀取失敗：${esc(e.message)}</td></tr>`;return;}
     }
     const gone=(typeof ShipEvents!=="undefined"&&ShipEvents.loaded)?ShipEvents.goneMap():new Map();
@@ -13269,7 +13273,7 @@ const StaffDir={
     let ok=0,old=0,never=0;
     const html=ships.map(s=>{const cur=NotifyDoc.sig(this.data,s),p=this._ps[s.code];
       let st;if(!p){never++;st=`<span class="stat" style="background:#eef2f4;color:var(--ink-2)">✕ 從未下載</span>`;}
-      else if(p.sigs.has(cur)){ok++;st=`<span class="stat" style="background:#e2f3e8;color:var(--ok)">✅ 已下載最新版</span>`;}
+      else if(p.sigs.has(cur)||(p.noSigTs&&this._psChg&&this._psChg.dirAt&&p.noSigTs>Math.max(this._psChg.dirAt,this._psChg.shipAt[s.code]||0))){ok++;st=`<span class="stat" style="background:#e2f3e8;color:var(--ok)">✅ 已下載最新版</span>`;}
       else{old++;st=`<span class="stat" style="background:#fde8e6;color:var(--bad)">⚠ 有更新，尚未重新下載</span>`;}
       return `<tr><td><b>${esc(s.code)}</b></td><td>${esc(s.zh||"")} ${esc(s.name||"")}</td><td>${st}</td><td style="font-family:var(--mono);font-size:12px">${p?fmt(p.ts):"—"}</td></tr>`;}).join("");
     tb.innerHTML=html||`<tr><td colspan="4" class="hint" style="text-align:center">沒有船舶資料</td></tr>`;
