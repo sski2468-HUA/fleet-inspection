@@ -13237,7 +13237,9 @@ const StaffDir={
       tb.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center">讀取中…</td></tr>`;
       try{
         const rows=await Cloud.api(`audit_log?select=ts,usr,summary&target=eq.${encodeURIComponent("船舶檢查填報平台－緊急通報名單")}&action=eq.${encodeURIComponent("列印")}&order=ts.desc&limit=3000`)||[];
-        const last={};rows.forEach(r=>{const code=String(r.usr||"").replace(/^船舶\s*/,"").trim();if(!code||last[code])return;const m=String(r.summary||"").match(/\[版本 ([0-9a-z]+)\]/);last[code]={ts:r.ts,sig:m?m[1]:""};});
+        // 每艘船：最後一次列印時間＋歷次列印過的所有版本碼。比對時只要「印過目前這一版」就算最新——
+        // 避免船上用舊版（瀏覽器快取、沒帶版本碼）的頁面再印一次，就被誤判成「有更新」。
+        const last={};rows.forEach(r=>{const code=String(r.usr||"").replace(/^船舶\s*/,"").trim();if(!code)return;const m=String(r.summary||"").match(/\[版本 ([0-9a-z]+)\]/);const o=last[code]=last[code]||{ts:r.ts,sig:"",sigs:new Set()};if(m){o.sigs.add(m[1]);if(!o.sig)o.sig=m[1];}});
         this._ps=last;this._psAt=Date.now();
       }catch(e){tb.innerHTML=`<tr><td colspan="4" class="hint" style="text-align:center">⚠ 讀取失敗：${esc(e.message)}</td></tr>`;return;}
     }
@@ -13247,7 +13249,7 @@ const StaffDir={
     let ok=0,old=0,never=0;
     const html=ships.map(s=>{const cur=NotifyDoc.sig(this.data,s),p=this._ps[s.code];
       let st;if(!p){never++;st=`<span class="stat" style="background:#eef2f4;color:var(--ink-2)">✕ 從未下載</span>`;}
-      else if(p.sig===cur){ok++;st=`<span class="stat" style="background:#e2f3e8;color:var(--ok)">✅ 已下載最新版</span>`;}
+      else if(p.sigs.has(cur)){ok++;st=`<span class="stat" style="background:#e2f3e8;color:var(--ok)">✅ 已下載最新版</span>`;}
       else{old++;st=`<span class="stat" style="background:#fde8e6;color:var(--bad)">⚠ 有更新，尚未重新下載</span>`;}
       return `<tr><td><b>${esc(s.code)}</b></td><td>${esc(s.zh||"")} ${esc(s.name||"")}</td><td>${st}</td><td style="font-family:var(--mono);font-size:12px">${p?fmt(p.ts):"—"}</td></tr>`;}).join("");
     tb.innerHTML=html||`<tr><td colspan="4" class="hint" style="text-align:center">沒有船舶資料</td></tr>`;
