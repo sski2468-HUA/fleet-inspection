@@ -496,7 +496,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
     </div>
 
     <div class="card sec" data-sec="fm06">
-      <h3><span class="secno" data-k="fm06">⑤</span> CAEM-FM06 內部稽查綜合報告 <span class="hint" style="font-weight:400">Internal Audit Summary Report｜表頭及明細自動帶入，可直接修改；填好評語、簽名後列印／存成 PDF</span><button class="btn sm" type="button" id="fm6HfBtn" style="margin-left:auto" onclick="fm06HfOpen()">⚙ 設定頁首頁尾</button></h3>
+      <h3><span class="secno" data-k="fm06">⑤</span> CAEM-FM06 內部稽查綜合報告 <span class="hint" style="font-weight:400">Internal Audit Summary Report｜表頭及明細自動帶入，可直接修改；填好評語、簽名後列印／存成 PDF</span><a class="btn sm" href="intaudit-fm06-guide.html" target="_blank" style="margin-left:auto;text-decoration:none">📘 簡易說明</a><button class="btn sm" type="button" id="fm6HfBtn" onclick="fm06HfOpen()">⚙ 設定頁首頁尾</button></h3>
       <div id="fm06Body"></div>
     </div>
     <div class="modal" id="fm6HfModal"><div class="box" style="width:min(620px,96vw)">
@@ -689,7 +689,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
   </div>
   <div style="overflow:auto;border:1px solid var(--line);border-radius:8px;max-height:64vh">
     <table class="bt"><thead><tr>
-      <th style="width:40px">#</th><th style="width:210px" id="bThTopic">主題</th><th style="width:150px">分類 Category *</th><th style="width:100px">風險 *</th><th style="width:150px">發現日期 *</th><th>待改善描述 Finding Brief *</th><th style="width:170px">結案方式 *</th><th style="width:176px">照片（選填，最多 3 張）</th><th style="width:46px"></th>
+      <th style="width:40px">#</th><th style="width:210px" id="bThTopic">主題</th><th style="width:150px">分類 Category *</th><th style="width:170px">法規章程來源（選填）</th><th style="width:100px">風險 *</th><th style="width:150px">發現日期 *</th><th>待改善描述 Finding Brief *</th><th style="width:170px">結案方式 *</th><th style="width:176px">照片（選填，最多 3 張）</th><th style="width:46px"></th>
     </tr></thead><tbody id="batchBody"></tbody></table>
   </div>
   <div class="toolbar" style="justify-content:flex-end;margin:14px 0 0">
@@ -2375,6 +2375,26 @@ let fm06Tm=null;
 function fm06Refresh(){clearTimeout(fm06Tm);fm06Tm=setTimeout(fm06Preview,350);}
 function fm06Set(k,v){cur.fm06=cur.fm06||{};cur.fm06[k]=v;fm06Refresh();}
 function fm06SetRow(i,k,v){const d=cur.defs[i];d.fm06=d.fm06||{};d.fm06[k]=v;fm06Refresh();}
+/* 更正期限：日期／Before departure／其他（手寫）三選一；手寫內容記在這台電腦的瀏覽器（localStorage），下次可從清單點選 */
+const FM06_BD="Before departure",FM06_LIM_HIST="fm06_limit_hist_v1";
+const fm06IsoOf=v=>{const m=/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/.exec(String(v||"").trim());return m?`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`:"";};
+function fm06LimMode(d){const r=d.fm06||{};if(r.limitMode)return r.limitMode;const v=fm06R(d,"limit");if(!v||fm06IsoOf(v))return "date";if(v===FM06_BD)return "bd";return "other";}
+function fm06LimText(d){const m=fm06LimMode(d),v=fm06R(d,"limit");return m==="date"?fm06Date(fm06IsoOf(v)||v):v;}
+function fm06LimHist(){try{const a=JSON.parse(localStorage.getItem(FM06_LIM_HIST)||"[]");return Array.isArray(a)?a:[];}catch(e){return [];}}
+function fm06LimRemember(v){v=String(v||"").trim();if(!v||v===FM06_BD)return;try{const a=fm06LimHist().filter(x=>x!==v);a.unshift(v);localStorage.setItem(FM06_LIM_HIST,JSON.stringify(a.slice(0,20)));}catch(e){}
+  const dl=$("#fm6LimHist");if(dl)dl.innerHTML=fm06LimHist().map(x=>`<option>${esc(x)}</option>`).join("");}
+function fm06SetLimMode(i,m){
+  const d=cur.defs[i],old=fm06R(d,"limit"),oldMode=fm06LimMode(d);d.fm06=d.fm06||{};d.fm06.limitMode=m;
+  d.fm06.limit=m==="bd"?FM06_BD:m==="date"?(fm06IsoOf(old)||""):(oldMode==="other"?old:"");
+  renderFm06();
+}
+function fm06LimCell(i,d){
+  const m=fm06LimMode(d),v=fm06R(d,"limit");
+  const sel=`<select style="min-width:150px" onchange="fm06SetLimMode(${i},this.value)">${[["date","日期"],["bd",FM06_BD],["other","其他（手寫）"]].map(([k,l])=>`<option value="${k}" ${m===k?"selected":""}>${l}</option>`).join("")}</select>`;
+  const inp=m==="date"?`<input type="date" style="margin-top:4px" value="${esc(fm06IsoOf(v))}" onchange="fm06SetRow(${i},'limit',this.value)">`
+    :m==="other"?`<input type="text" list="fm6LimHist" style="margin-top:4px;min-width:150px" value="${esc(v)}" placeholder="例：Next dry dock" oninput="fm06SetRow(${i},'limit',this.value)" onchange="fm06LimRemember(this.value)">`:"";
+  return sel+inp;
+}
 function fm06SetReg(i,v){cur.defs[i].regRef=v;fm06Refresh();}
 function renderFm06(){
   const box=$("#fm06Body");if(!box||!cur)return;
@@ -2400,14 +2420,14 @@ function renderFm06(){
         <td><input type="text" style="min-width:150px" value="${esc(d.regRef||"")}" placeholder="選填" oninput="fm06SetReg(${i},this.value)"></td>
         <td class="det">${d.finding?esc(d.finding):'<span class="hint">（④尚未填寫內容）</span>'}</td>
         <td>${cell(i,d,"dept",120,"fm6Dept")}</td>
-        <td>${cell(i,d,"limit",150,"fm6Lim")}</td>
+        <td>${fm06LimCell(i,d)}</td>
         <td><input type="date" value="${esc(fm06R(d,"cleared"))}" onchange="fm06SetRow(${i},'cleared',this.value)"></td>
         <td>${cell(i,d,"by",120,"fm6By")}</td></tr>`).join("")}
     </tbody></table></div>
-    <div class="hint" style="margin-top:4px">更正期限可選「Before departure」或直接打日期（例：05 June 2026）；尚未結案的，結案日期／結案單位留空即可。</div>`
+    <div class="hint" style="margin-top:4px">更正期限先選類型：「日期」用日曆挑、「Before departure」直接帶入、「其他（手寫）」自由輸入（會記住這台電腦寫過的內容，下次可直接點選）；尚未結案的，結案日期／結案單位留空即可。</div>`
     :`<div class="hint">④缺失明細的「內稽」分頁目前沒有缺失，報告明細會是空白列。</div>`}
     <datalist id="fm6Dept"><option>Deck dept</option><option>Engine dept</option><option>Deck &amp; Engine dept</option></datalist>
-    <datalist id="fm6Lim"><option>Before departure</option></datalist>
+    <datalist id="fm6LimHist">${fm06LimHist().map(v=>`<option>${esc(v)}</option>`).join("")}</datalist>
     <datalist id="fm6By">${byOpts.map(v=>`<option>${esc(v)}</option>`).join("")}</datalist>
     <label style="display:block;margin-top:16px">主導稽核員評語 Lead Auditor Comments<textarea id="fm6-comment" style="min-height:120px" placeholder="例：During the audit, safety rounds of the deck and engine room were conducted…" oninput="fm06Set('comment',this.value)">${esc(fm06V("comment"))}</textarea></label>
     <div class="fld" style="margin-top:12px">主導稽核員簽名 Sign <span class="hint" style="font-weight:400">用滑鼠／觸控筆在框內簽名，或按「📤 上傳簽名檔」；不簽也可以，列印後再手簽</span>
@@ -2474,7 +2494,7 @@ function fm06Html(screen,title){
   const z=t=>`<span class="zh">${t}</span>`;
   const sign=V("sign")||"",HF=FM06_HF;
   const hd=`<div class="hd"><div class="logo"><img src="${FM06_LOGO}" alt=""><div><div class="coz">台塑海運股份有限公司</div><div class="coe">FORMOSA PLASTICS MARINE CORPORATION</div></div></div><div class="cat">${[esc(HF.cat),HF.use?`<i>${esc(HF.use)}</i>`:"",esc(HF.rev)].filter(Boolean).join("<br>")}</div></div>`;
-  const rowHtml=rows.length?rows.map(({d},n)=>`<tr><td>${n+1}</td><td>${e(fm06R(d,"lvl"))}</td><td>${e(d.regRef||"")}</td><td class="det">${e(d.finding||"")}</td><td>${e(fm06R(d,"dept"))}</td><td>${e(fm06R(d,"limit"))}</td><td>${e(fm06Date(fm06R(d,"cleared")))}</td><td>${e(fm06R(d,"by"))}</td></tr>`).join("")
+  const rowHtml=rows.length?rows.map(({d},n)=>`<tr><td>${n+1}</td><td>${e(fm06R(d,"lvl"))}</td><td>${e(d.regRef||"")}</td><td class="det">${e(d.finding||"")}</td><td>${e(fm06R(d,"dept"))}</td><td>${e(fm06LimText(d))}</td><td>${e(fm06Date(fm06R(d,"cleared")))}</td><td>${e(fm06R(d,"by"))}</td></tr>`).join("")
     :`<tr class="empty"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
   const body=`
 <div class="ttl"><div class="zh">內部稽查綜合報告</div><div>Internal Audit Summary Report</div></div>
@@ -3101,7 +3121,7 @@ function defCardHtml(i,td,allIdxs,isLast){
 }
 /* ══════ 批量新增缺失：大表格一列一筆，填完一次加入目前分頁的檢查種類 ══════ */
 let batch=null;
-const blankBatchRow=()=>({topic:"",topicOther:"",category:"",risk:"",reported:batch.date,finding:"",closeMode:"",photos:[]});
+const blankBatchRow=()=>({topic:"",topicOther:"",category:"",regRef:"",risk:"",reported:batch.date,finding:"",closeMode:"",photos:[]});
 function openBatch(){
   if(!activeTab){toast("⚠ 請先在「① 檢查基本資料」勾選檢查種類",true);return;}
   collect();
@@ -3149,6 +3169,7 @@ function renderBatch(){
     <td>${td&&td.topics?`<select onchange="setBTopic(${i},this.value)"><option value="">（不特別標註）</option>${td.topics.map(t=>`<option ${r.topic===t?"selected":""}>${esc(t)}</option>`).join("")}</select>${r.topic==="其他"?`<input type="text" style="margin-top:6px" value="${esc(r.topicOther)}" placeholder="請說明是哪一類" oninput="setBR(${i},'topicOther',this.value)">`:""}`
       :`<input type="text" value="${esc(r.topic)}" placeholder="例：靜態航行評估" oninput="setBR(${i},'topic',this.value)">`}</td>
     <td><input type="text" value="${esc(r.category)}" placeholder="例：防火門" oninput="setBR(${i},'category',this.value)"></td>
+    <td><input type="text" value="${esc(r.regRef||"")}" placeholder="例：SWO-100, 6.4.13" oninput="setBR(${i},'regRef',this.value)"></td>
     <td><select onchange="setBR(${i},'risk',this.value)"><option value="">—</option>${RISKS.map(s=>`<option ${r.risk===s?"selected":""}>${s}</option>`).join("")}</select></td>
     <td><input type="date" value="${esc(r.reported)}" onchange="setBR(${i},'reported',this.value)"></td>
     <td><textarea placeholder="待改善描述（中英文皆可）" oninput="setBR(${i},'finding',this.value)">${esc(r.finding)}</textarea></td>
@@ -3165,7 +3186,7 @@ function confirmBatch(){
   try{
     rows.forEach(r=>{
       if(!r.category||!r.risk||!r.reported||!r.finding||!r.closeMode)missing++;
-      const d=blankDef(type);d.topic=r.topic||"";d.topicOther=r.topicOther||"";d.photos=r.photos||[];d.category=String(r.category||"").trim();d.risk=r.risk||"";d.reported=r.reported||"";d.finding=String(r.finding||"").trim();d.closeMode=r.closeMode||"";
+      const d=blankDef(type);d.topic=r.topic||"";d.topicOther=r.topicOther||"";d.photos=r.photos||[];d.category=String(r.category||"").trim();d.regRef=String(r.regRef||"").trim();d.risk=r.risk||"";d.reported=r.reported||"";d.finding=String(r.finding||"").trim();d.closeMode=r.closeMode||"";
       if(r.closeMode==="內控")d.icLevel=r.risk||"";
       cur.defs.push(d);
     });
