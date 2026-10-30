@@ -4599,6 +4599,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <input type="text" id="eo-q" placeholder="🔍 搜尋船名／代碼" oninput="ExecOverview.render()" style="padding:5px 8px;width:160px">
             <span class="spacer" style="flex:1"></span>
             <button class="btn sm" onclick="ExecOverview.clear()">清除篩選</button>
+            <button class="btn sm" onclick="ExecOverview.printPdf()" title="A3 橫向列印目前畫面的表（含篩選），可存成 PDF">🖨 列印／存 PDF</button>
             <button class="btn sm dark" onclick="ExecOverview.exportXlsx()">⬇ 匯出 Excel</button>
           </div>
           <div id="eo-summary" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed #dde4e8"></div>
@@ -19171,6 +19172,52 @@ const ExecOverview={
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`${y}年度`);
     const fn=`執行情形一覽表_${y}.xlsx`;
     if(typeof XlsxPretty!=="undefined")XlsxPretty.writeFile(wb,fn);else XLSX.writeFile(wb,fn);
+  },
+  /* 列印／存 PDF：直接印目前畫面上的表（同樣的篩選與小卡），A3 橫向，表頭每頁重複 */
+  printPdf(){
+    this.render();
+    const tb=$("#eo-table");if(!tb)return;
+    const y=$("#eo-year").value||new Date().getFullYear();
+    const cond=[["#eo-op",""],["#eo-vtype",""],["#eo-deck",""],["#eo-engine",""],["#eo-insp",""]].map(([s])=>{const el=$(s);return el&&el.value&&el.selectedOptions[0]?el.selectedOptions[0].textContent:"";}).filter(Boolean);
+    const q=($("#eo-q").value||"").trim();if(q)cond.push("搜尋："+q);
+    const types=this.TYPES.filter(t=>this.on.has(t.k)).map(t=>t.t).join("、");
+    const sum=[...$("#eo-summary").querySelectorAll(".chip")].map(c=>c.textContent.trim()).join("　｜　");
+    const css=`@page{size:A3 landscape;margin:10mm 8mm 12mm}
+      @page{@bottom-right{content:"第 " counter(page) " / " counter(pages) " 頁";font-size:8pt;color:#8195a0}}
+      *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
+      body{font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;color:#15262f;margin:0}
+      h1{font-size:16pt;margin:0 0 3px}.sub{font-size:9pt;color:#52656f;margin-bottom:3px}.sum{font-size:9pt;color:#15262f;margin-bottom:6px}
+      .eot{border-collapse:collapse;width:100%;font-size:8.5pt;table-layout:auto}
+      .eot thead{display:table-header-group}.eot tr{break-inside:avoid;page-break-inside:avoid}
+      .eot th{background:#1c3a5e;color:#fff;font-weight:700;padding:4px 3px;text-align:center;white-space:nowrap;border:1px solid #1c3a5e}
+      .eot th.cur{background:#e8842c}.eot th.sh{text-align:left}
+      .eot td{border:1px solid #c9d3d9;padding:2px 3px;vertical-align:top}
+      .eot td.sh{white-space:nowrap;font-weight:700}.eot td.sh .en{color:#8195a0;font-weight:400;font-size:7.5pt;margin-left:3px}
+      .eot tr:nth-child(even) td{background:#fafcfd}.eot td.cur{background:#fff8ef!important}
+      .eot td.n{text-align:center;font-family:Consolas,monospace}
+      .eot tr.noia td.sh{border-left:4px solid #c0392b}.eot tr.noov td.sh{border-left:4px solid #e8862a}
+      .eoe{display:block;border-radius:4px;padding:1px 4px;margin:1px 0;font-size:7.5pt;line-height:1.3;white-space:nowrap}
+      .eoe b{margin-right:2px}
+      .eoe.audit{background:#efe6f7;color:#5b3290}.eoe.visit{background:#e4f1f2;color:#176670}.eoe.accompany{background:#fdeed9;color:#9a520c}.eoe.isps{background:#e8edf3;color:#34506e}.eoe.cross{background:#e3f3e8;color:#1f6f43}`;
+    const stamp=new Date().toLocaleString("zh-TW",{hour12:false});
+    const html=`<!doctype html><html><head><meta charset="utf-8"><title>執行情形一覽表_${y}</title><style>${css}</style></head><body>
+      <h1>執行情形一覽表　${esc(y)} 年度</h1>
+      <div class="sub">類型：${esc(types||"—")}${cond.length?"　｜　篩選："+esc(cond.join("、")):""}　｜　資料來源：檢查紀錄　｜　列印時間：${esc(stamp)}</div>
+      <div class="sum">${esc(sum)}</div>
+      <table class="eot">${tb.innerHTML}</table></body></html>`;
+    let fr=$("#eo-print-frame");
+    if(!fr){fr=document.createElement("iframe");fr.id="eo-print-frame";fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";document.body.appendChild(fr);}
+    fr.onload=()=>{
+      // 存 PDF 的預設檔名取自上層頁面標題：列印期間暫時改掉，印完還原
+      const old=document.title;document.title=`執行情形一覽表_${y}`;
+      const restore=()=>{document.title=old;window.removeEventListener("afterprint",restore);};
+      window.addEventListener("afterprint",restore);setTimeout(restore,120000);
+      try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){toast("⚠ 無法開啟列印："+e.message,true);}
+      fr.onload=null;
+    };
+    fr.srcdoc=html;
+    if(typeof Audit!=="undefined")Audit.log("列印","執行情形一覽表",`${y} 年度（${rowsCount(tb)} 艘）`);
+    function rowsCount(t){return t.querySelectorAll("tbody tr").length;}
   }
 };const InspGroup={
   curPage:"plan",
