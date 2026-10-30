@@ -1574,7 +1574,7 @@ function renderList(){
             <button class="btn sm dark" onclick="openExport(${r.id})" title="Word／JSON／內控 Excel／內控 JSON">⬇ 匯出</button>
           </span>
           <span style="display:flex;flex-direction:column;gap:4px">
-            <button class="btn sm" ${(!(r.defs||[]).some(d=>d.closeMode!=="FLOW"))?"disabled":""} onclick="issueOrder(${r.id})" title="${r.draft?"這張還是草稿，點了會告訴你還缺什麼":"把「內控／系統內結案」的缺失做成改善單，給船上填改善回報"}">📨 發改善單${r.issuedAt?"（已發）":""}</button>
+            <button class="btn sm" ${!(r.defs||[]).length?"disabled":""} onclick="issueOrder(${r.id})" title="${r.draft?"這張還是草稿，點了會告訴你還缺什麼":(r.defs||[]).some(d=>d.closeMode!=="FLOW")?"把「內控／系統內結案」的缺失做成改善單，給船上填改善回報（FLOW 缺失會附提醒）":"全部是 FLOW：發 FLOW 缺失提醒給船上，請船上至 FLOW 系統填單"}">📨 ${(r.defs||[]).length&&!(r.defs||[]).some(d=>d.closeMode!=="FLOW")?"發 FLOW 提醒":"發改善單"}${r.issuedAt?"（已發）":""}</button>
             ${r.issuedAt?`<a class="btn sm" href="${replyUrl(r)}" target="_blank" title="直接開啟船上填寫的改善單頁面（跟複製給船上的連結是同一個）">🔗 開啟船上頁</a>`:""}
           </span>
           <span style="display:flex;flex-direction:column;gap:4px">
@@ -2049,20 +2049,23 @@ async function issueOrder(id){
     return;
   }
   const n=(r.defs||[]).filter(d=>d.closeMode!=="FLOW").length;
-  if(!n){toast("⚠ 這張登錄單沒有需要船上改善的缺失（都是 FLOW）",true);return;}
+  const nFlow=(r.defs||[]).filter(d=>d.closeMode==="FLOW").length;
+  if(!n&&!nFlow){toast("⚠ 這張登錄單沒有缺失，不需要發改善單",true);return;}
   if(Store.mode!=="cloud"){alert("⚠ 目前連不上雲端資料表，改善單連結暫時無法給船上使用。\n\n"+(Store._loadErr?"錯誤訊息："+Store._loadErr+"\n\n":"")+"請按「🔄 重新整理」後再試；若一直失敗，才需要請維護者確認 Supabase 是否已執行過 intaudit_setup.sql。");return;}
   const rUrl=replyUrl(r);
   const shipUrl=rUrl.replace(/\?rid=.*/,"?ship="+encodeURIComponent(r.ship));
-  const head=`內部檢查改善單：${shipLabel(r.ship)} ${dateText(r)} ${(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、")}，共 ${n} 項待改善`;
+  const tyTxt=(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、");
+  // 全部是 FLOW：沒有要在改善單回報的項目，改發「FLOW 缺失提醒」（連結仍可看 FLOW 缺失清單核對）
+  const head=n?`內部檢查改善單：${shipLabel(r.ship)} ${dateText(r)} ${tyTxt}，共 ${n} 項待改善`
+    :`內部檢查 FLOW 缺失提醒：${shipLabel(r.ship)} ${dateText(r)} ${tyTxt}，共 ${nFlow} 項 FLOW 缺失（本次無需在改善單回報）`;
   // FLOW 缺失不在改善單上回報，但要提醒船上一定要去 FLOW 系統填單
-  const nFlow=(r.defs||[]).filter(d=>d.closeMode==="FLOW").length;
-  const flowTxt=nFlow?`\n\n📋 另有 ${nFlow} 項 FLOW 缺失，請務必至 FLOW 系統（DMP-FM01）填單。`:"";
-  const flowHtml=nFlow?`<br><br>📋 <b style="color:#c0392b">另有 ${nFlow} 項 FLOW 缺失，請務必至 FLOW 系統（DMP-FM01）填單。</b>`:"";
-  const textFull=`${head} 連結:${rUrl}${flowTxt}\n\n⭐ 本船歷次改善單清單（固定連結，請加入我的最愛，以後每次的改善單都可以從這裡找到）：${shipUrl}`;
+  const flowTxt=!n?`\n\n📋 請務必至 FLOW 系統（DMP-FM01）填單。`:nFlow?`\n\n📋 另有 ${nFlow} 項 FLOW 缺失，請務必至 FLOW 系統（DMP-FM01）填單。`:"";
+  const flowHtml=!n?`<br><br>📋 <b style="color:#c0392b">請務必至 FLOW 系統（DMP-FM01）填單。</b>`:nFlow?`<br><br>📋 <b style="color:#c0392b">另有 ${nFlow} 項 FLOW 缺失，請務必至 FLOW 系統（DMP-FM01）填單。</b>`:"";
+  const textFull=`${head} ${n?"連結":"缺失清單"}:${rUrl}${flowTxt}\n\n⭐ 本船歷次改善單清單（固定連結，請加入我的最愛，以後每次的改善單都可以從這裡找到）：${shipUrl}`;
   // 純文字貼到郵件軟體，連結是否自動變成可點擊的超連結完全看對方軟體的自動辨識，不保證——
   // 另外準備一份帶 <a href> 的 HTML 版本一起複製，貼到 Outlook／Gmail／LINE 等支援富文本貼上的
   // 地方就會直接是可點擊的連結，不用再靠軟體自動判斷。
-  const textHtml=`${esc(head)} 連結：<a href="${esc(rUrl)}">${esc(rUrl)}</a>${flowHtml}<br><br>⭐ <b>本船歷次改善單清單</b>（固定連結，<b>請加入我的最愛</b>，以後每次的改善單都可以從這裡找到）：<a href="${esc(shipUrl)}">${esc(shipUrl)}</a>`;
+  const textHtml=`${esc(head)} ${n?"連結":"缺失清單"}：<a href="${esc(rUrl)}">${esc(rUrl)}</a>${flowHtml}<br><br>⭐ <b>本船歷次改善單清單</b>（固定連結，<b>請加入我的最愛</b>，以後每次的改善單都可以從這裡找到）：<a href="${esc(shipUrl)}">${esc(shipUrl)}</a>`;
   if(r.issuedAt){
     const again=await askReissue(r);
     if(!again)return;
@@ -2072,7 +2075,7 @@ async function issueOrder(id){
   r.issuedAt=Date.now();
   const res=await Store.save(r,Store.srvOf[id]);
   if(res.conflict){toast("⚠ 這張登錄單剛被其他人更新過，請按「🔄 重新整理」後再重新發改善單",true);return;}
-  IALog.log("發改善單","登錄單",`${recLabel(r)}（${n} 項待改善）`);
+  IALog.log("發改善單","登錄單",`${recLabel(r)}（${n?n+" 項待改善":"全部 FLOW，發 FLOW 提醒"}${n&&nFlow?"；另 "+nFlow+" 項 FLOW":""}）`);
   renderList();
   openIssueModal(textFull,textHtml);
 }
@@ -2207,8 +2210,7 @@ async function dlWordInTab(){
   renderDownloadTab();
 }
 async function issueOrderInTab(){
-  const nIssue=(cur.defs||[]).filter(d=>d.closeMode!=="FLOW").length;
-  if(!nIssue){toast("⚠ 這張登錄單沒有需要船上改善的缺失（都是 FLOW）",true);return;}
+  if(!(cur.defs||[]).length){toast("⚠ 這張登錄單沒有缺失，不需要發改善單",true);return;}
   if(!(await ensureSavedForTabAction()))return;
   await issueOrder(cur.id);
   const fresh=Store.rows.find(x=>x.id===cur.id);
@@ -2257,7 +2259,7 @@ function togglePreview(){previewOpen=!previewOpen;renderDownloadTab();}
 function renderDownloadTab(){
   const box=$("#downloadTabBody");if(!box||!cur)return;
   const nIc=(cur.defs||[]).filter(d=>d.closeMode==="內控").length;
-  const nIssue=(cur.defs||[]).filter(d=>d.closeMode!=="FLOW").length;
+  const nIssue=(cur.defs||[]).filter(d=>d.closeMode!=="FLOW").length,nFlowT=(cur.defs||[]).length-nIssue;
   const fmtT=t=>t?new Date(t).toLocaleString("zh-TW",{hour12:false}):"";
   box.innerHTML=`
     <div class="toolbar" style="margin:0 0 10px">
@@ -2275,8 +2277,8 @@ function renderDownloadTab(){
       </div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:12px;border-top:1px dashed var(--line-2)">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${cur.draft===false?"var(--navy)":"#c3ced5"};color:#fff;font-weight:700;font-size:13px;flex:none">2</span>
-        <button class="btn ${cur.draft===false?"":"soft-disabled"}" style="min-width:220px" ${nIssue?"":"disabled"} onclick="issueOrderInTab()">📨 發改善單給船</button>
-        <span class="hint">${cur.draft!==false?'<b style="color:var(--bad)">請先完成上一步「送出海技入系統」，才能發改善單給船上</b><br>':""}${nIssue?`共 ${nIssue} 項待改善；會複製好內容供貼到郵件，船上打開連結後也能在那頁完整下載這次的檢查報告 WORD`:"這張單沒有需要船上改善的缺失"}${cur.issuedAt?`<br><b style="color:var(--ok)">✓ 已於 ${fmtT(cur.issuedAt)} 發送</b>`:""}</span>
+        <button class="btn ${cur.draft===false?"":"soft-disabled"}" style="min-width:220px" ${(nIssue||nFlowT)?"":"disabled"} onclick="issueOrderInTab()">📨 ${nIssue||!nFlowT?"發改善單給船":"發 FLOW 提醒給船"}</button>
+        <span class="hint">${cur.draft!==false?'<b style="color:var(--bad)">請先完成上一步「送出海技入系統」，才能發改善單給船上</b><br>':""}${nIssue?`共 ${nIssue} 項待改善${nFlowT?`（另 ${nFlowT} 項 FLOW 會附提醒）`:""}；會複製好內容供貼到郵件，船上打開連結後也能在那頁完整下載這次的檢查報告 WORD`:nFlowT?`全部 ${nFlowT} 項都是 FLOW：會複製一則「FLOW 缺失提醒」，請船上務必至 FLOW 系統（DMP-FM01）填單`:"這張單沒有缺失"}${cur.issuedAt?`<br><b style="color:var(--ok)">✓ 已於 ${fmtT(cur.issuedAt)} 發送</b>`:""}</span>
       </div>
       <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:12px 14px;border:2px solid var(--signal);border-radius:10px;background:#fff7ee">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--signal);color:#fff;font-weight:700;font-size:13px;flex:none">3</span>
