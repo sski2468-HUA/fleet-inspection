@@ -5206,7 +5206,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <button class="btn sm" id="air-ia-tab-all" onclick="IntAuditQueue.setView('all')">登錄清單</button>
             <button class="btn sm" id="air-ia-tab-replies" onclick="IntAuditQueue.setView('replies')">船上回報待審</button>
             <button class="btn sm" onclick="IntAuditQueue.refresh()">🔄 重新整理</button>
-            <button class="btn lg primary" onclick="IntAuditQueue.openForm()" title="開啟督導填寫的登錄網頁（新增或編輯登錄單）">＋ 前往登錄頁</button>
+            <button class="btn lg primary" onclick="IntAuditQueue.openForm()" title="開啟督導／稽核員填寫的登錄網頁（新增或編輯登錄單）">＋ 前往登錄頁</button>
           </span>
         </h3>
         <div class="toolbar" id="ia-filterbar" style="margin:0 0 10px">
@@ -28642,7 +28642,7 @@ const IntAuditQueue={
       <th style="width:44px">No.</th><th style="width:170px">檢查類別／分類</th><th>待改善描述</th><th style="width:60px">風險</th><th style="width:130px">結案方式</th><th style="width:100px">狀態</th></tr></thead><tbody>`+
       list.map(r=>{
         const open=filtering||this.openSet.has(r.id),ds=r.defs||[];
-        const issue=r.draft?pill("草稿・督導尚未送出","#fff3cd","#7a5a10"):!needIssue(r)?pill("皆 FLOW，無需發改善單","#eceff1","#52656f"):r.issuedAt?pill("📨 已發改善單給船上 "+new Date(r.issuedAt).toLocaleDateString("zh-TW"),"#e2f3e8","#2e8b57"):pill("⚠ 尚未發改善單給船上","#fde8e6","#c0392b");
+        const issue=r.draft?pill("草稿・督導／稽核員尚未送出","#fff3cd","#7a5a10"):!needIssue(r)?pill("皆 FLOW，無需發改善單","#eceff1","#52656f"):r.issuedAt?pill("📨 已發改善單給船上 "+new Date(r.issuedAt).toLocaleDateString("zh-TW"),"#e2f3e8","#2e8b57"):pill("⚠ 尚未發改善單給船上","#fde8e6","#c0392b");
         const imp=r.draft?"":r.imported?pill("✓ 已匯入主系統 "+new Date(r.imported.at).toLocaleDateString("zh-TW"),"#e3ecf1","#1c3a5e"):pill("待匯入主系統","#fff3cd","#7a5a10");
         const btn=(!adm||r.draft)?"":`<button class="btn sm dark" onclick="IntAuditQueue.importRow(${r.id})">${r.imported?"🔁 重新匯入（更新）":"✓ 匯入主系統"}</button>`;
         const head=`<tr><td colspan="6" style="background:#eef3f6;padding:9px 10px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -30344,7 +30344,7 @@ const PortalNotice={
       toast("✓ 已儲存，船上重新整理平台後就會看到");this.render();return true;
     }catch(e){toast("⚠ 儲存失敗："+e.message,true);return false;}
   },
-  statusOf(n){const t=todayStr();if(n.from&&n.from>t)return ["未開始","#8195a0"];if(n.to&&n.to<t)return ["已過期","#b0b8bf"];return ["顯示中","#2e8b57"];},
+  statusOf(n){const t=todayStr();if(n.paused)return ["⏸ 已暫停","#c47f00"];if(n.from&&n.from>t)return ["未開始","#8195a0"];if(n.to&&n.to<t)return ["已過期","#b0b8bf"];return ["顯示中","#2e8b57"];},
   toggleShips(){
     const pick=(document.querySelector('input[name="pn-to"]:checked')||{}).value==="pick";
     const box=$("#pn-ships");if(!box)return;box.style.display=pick?"flex":"none";
@@ -30356,8 +30356,8 @@ const PortalNotice={
     if(!this.loaded){box.innerHTML=`<div class="hint">讀取中…</div>`;await this.load();}
     if($("#pn-from")&&!$("#pn-from").value)$("#pn-from").value=todayStr();
     const items=(this.data.items||[]).slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    box.innerHTML=(this.canEdit()?"":`<div class="hint" style="margin-bottom:6px">僅 Owner／管理員可新增／刪除，這裡只能查看。</div>`)+(items.length?`<table class="tbl"><thead><tr><th style="width:70px">狀態</th><th>訊息</th><th style="width:170px">對象</th><th style="width:170px">期間</th><th style="width:60px"></th></tr></thead><tbody>${items.map(n=>{const [st,col]=this.statusOf(n);
-      return `<tr><td><b style="color:${col}">${st}</b></td><td>${esc(n.text)}<div class="hint" style="font-size:11px">${esc(n.createdBy||"")}・${n.createdAt?new Date(n.createdAt).toLocaleString("zh-TW",{hour12:false}):""}</div></td><td>${(n.ships||[]).length?esc(n.ships.join("、")):"全船隊"}</td><td>${esc(n.from||"")} ～ ${esc(n.to||"不限")}</td><td>${this.canEdit()?`<button class="btn sm danger" onclick="PortalNotice.remove('${esc(n.id)}')">刪除</button>`:""}</td></tr>`;}).join("")}</tbody></table>`:`<div class="hint">目前沒有訊息；船上跑馬燈只會顯示各船自己的待辦項目。</div>`);
+    box.innerHTML=(this.canEdit()?"":`<div class="hint" style="margin-bottom:6px">僅 Owner／管理員可新增／刪除，這裡只能查看。</div>`)+(items.length?`<table class="tbl"><thead><tr><th style="width:70px">狀態</th><th>訊息</th><th style="width:170px">對象</th><th style="width:170px">期間</th><th style="width:140px"></th></tr></thead><tbody>${items.map(n=>{const [st,col]=this.statusOf(n);
+      return `<tr><td><b style="color:${col}">${st}</b></td><td>${esc(n.text)}<div class="hint" style="font-size:11px">${esc(n.createdBy||"")}・${n.createdAt?new Date(n.createdAt).toLocaleString("zh-TW",{hour12:false}):""}</div></td><td>${(n.ships||[]).length?esc(n.ships.join("、")):"全船隊"}</td><td>${esc(n.from||"")} ～ ${esc(n.to||"不限")}</td><td style="white-space:nowrap">${this.canEdit()?`<button class="btn sm" onclick="PortalNotice.togglePause('${esc(n.id)}')" title="${n.paused?"恢復後船上會再看到這則訊息":"暫停後船上看不到，訊息保留，可隨時恢復"}">${n.paused?"▶ 恢復":"⏸ 暫停"}</button> <button class="btn sm danger" onclick="PortalNotice.remove('${esc(n.id)}')">刪除</button>`:""}</td></tr>`;}).join("")}</tbody></table>`:`<div class="hint">目前沒有訊息；船上跑馬燈只會顯示各船自己的待辦項目。</div>`);
   },
   async add(){
     if(!this.canEdit()){toast("⚠ 跑馬燈訊息僅限 Owner／管理員新增");return;}
@@ -30372,6 +30372,14 @@ const PortalNotice={
     if(await this.save({items:[...(this.data.items||[]),n]},`新增：${text}（${ships.length?ships.join("、"):"全船隊"}，${from}～${to||"不限"}）`)){
       $("#pn-text").value="";$("#pn-to-date").value="";
     }
+  },
+  /* 暫停／恢復：訊息保留，暫停期間船上跑馬燈不顯示 */
+  async togglePause(id){
+    if(!this.canEdit()){toast("⚠ 跑馬燈訊息僅限 Owner／管理員修改");return;}
+    await this.load(true);
+    const n=(this.data.items||[]).find(x=>x.id===id);if(!n){toast("⚠ 這則訊息已不存在，已重新載入");this.render();return;}
+    const p=!n.paused;
+    await this.save({items:(this.data.items||[]).map(x=>x.id===id?Object.assign({},x,{paused:p}):x)},`${p?"暫停":"恢復"}：${n.text}`);
   },
   async remove(id){
     const n=(this.data.items||[]).find(x=>x.id===id);if(!n)return;
