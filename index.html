@@ -745,6 +745,7 @@ table.tbl tbody tr.sel:hover>td{background:#fbe8d4}
 .dr-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .dp-vtypebtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .spg-tabbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
+.ntf-subbtn.active{background:var(--teal,#1e7f8c);border-color:var(--teal,#1e7f8c);color:#fff}
 .sup-rolebtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .sup-viewbtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
 .fv-pagebtn.active{background:var(--navy-3);border-color:var(--navy-3);color:#fff}
@@ -3054,6 +3055,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <!-- 📇 緊急通報名單（Notification List）：共用電話／DPA／固定成員設定＋各船預覽、Word／PDF 輸出 -->
       <div id="spg-page-notify" class="spg-subpage" style="display:none">
         <div class="banner">各船 Notification List ＝ <b>全公司共用</b>（緊急電話、DPA／MLC、應變小組固定成員、生效日期）＋ <b>該船</b>（CSO、甲板／機艙督導與代理人，依「船舶資料」）。人員的英文名與電話來自「👥 公司人員通訊錄」。設定<b>僅限 Owner／管理員</b>。</div>
+        <div class="toolbar" style="margin:0 0 12px;gap:6px">
+          <button class="btn sm ntf-subbtn active" data-k="setup" onclick="StaffDir.setNtfSub('setup')">⚙ 設定與預覽</button>
+          <button class="btn sm ntf-subbtn" data-k="status" onclick="StaffDir.setNtfSub('status')">📥 各船下載狀態</button>
+        </div>
+        <div id="ntf-sub-setup">
         <div class="grid2" style="align-items:start">
           <div class="card">
             <h3>⚙ 共用設定 <span class="hint" style="font-weight:400" id="ntf-saved"></span></h3>
@@ -3085,10 +3091,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <div style="border:1px solid var(--line);border-radius:6px;background:#fff;overflow:auto;max-height:760px"><iframe id="ntf-frame" style="width:100%;height:740px;border:0" title="緊急通報名單預覽"></iframe></div>
           </div>
         </div>
-        <div class="card" style="margin-top:14px">
+        </div>
+        <div id="ntf-sub-status" style="display:none">
+        <div class="card">
           <h3>📥 各船下載狀態 <span class="hint" style="font-weight:400">依船上在船舶平台按「列印／存成 PDF」的紀錄；名單內容（人員、電話、生效日期…）有任何更動，就要重新下載</span>
             <span style="margin-left:auto;display:flex;gap:6px;align-items:center"><span class="statline" id="ntf-ps-stat"></span><button class="btn sm" onclick="StaffDir.renderPrintStatus(true)">🔄 重新整理</button></span></h3>
           <div class="tblwrap" style="max-height:520px"><table class="tbl" style="font-size:13px"><thead><tr><th style="width:90px">代碼</th><th>船名</th><th>狀態</th><th>最後下載</th></tr></thead><tbody id="ntf-ps-tbody"></tbody></table></div>
+        </div>
         </div>
       </div>
     </section>
@@ -12761,6 +12770,7 @@ const ShipGroup={
     else if(p==="super"&&typeof SupMgmt!=="undefined")SupMgmt.init();
     else if(p==="events")ShipEvents.show();
     else if(p==="staff"||p==="notify")StaffDir.show(p);
+    if(p==="notify"){let k="setup";try{k=localStorage.getItem("vsm_ntf_sub_v1")||"setup";}catch(e){}StaffDir.setNtfSub(k);}
   }
 };
 
@@ -13231,6 +13241,14 @@ const StaffDir={
   },
   /* 各船下載狀態：船舶平台列印時會在操作紀錄寫一筆（target＝船舶檢查填報平台－緊急通報名單、摘要帶「[版本 xxx]」），
      拿每艘船最後一次的版本碼跟目前名單算出來的版本碼比對。版本碼＝NotifyDoc.sig（兩邊同一份程式）。 */
+  /* 緊急通報名單頁的兩個子標籤：⚙ 設定與預覽／📥 各船下載狀態（記在本機，下次打開維持上次的選擇） */
+  setNtfSub(k){
+    if(k!=="status")k="setup";
+    $$(".ntf-subbtn").forEach(b=>b.classList.toggle("active",b.dataset.k===k));
+    const a=$("#ntf-sub-setup"),b=$("#ntf-sub-status");if(a)a.style.display=k==="setup"?"":"none";if(b)b.style.display=k==="status"?"":"none";
+    try{localStorage.setItem("vsm_ntf_sub_v1",k);}catch(e){}
+    if(k==="status")this.renderPrintStatus();else this.renderPreview();
+  },
   _ps:null,_psAt:0,
   async renderPrintStatus(force){
     const tb=$("#ntf-ps-tbody");if(!tb)return;
