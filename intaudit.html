@@ -827,8 +827,8 @@ function creatorHtml(r){
   if(r.creator)return `<b style="color:var(--ink)">${esc(r.creator)}</b>${r.creatorAt?`（${fmt(r.creatorAt)}）`:""}`;
   if(CREATOR_LOG===null){loadCreatorLog();return "…";}
   const lbl=recLabel(r),hit=CREATOR_LOG.find(x=>x.ts>=r.id-60000&&String(x.summary||"").startsWith(lbl));
-  if(hit)return `<b style="color:var(--ink)">${esc(String(hit.usr||"").replace(/（.*$/,""))}</b>（${fmt(hit.ts)}，依操作紀錄）`;
-  return `<span title="10/20 以前建立的登錄單沒有記錄建檔人">未記錄（舊資料）</span>`;
+  if(hit)return `<b style="color:var(--ink)">${esc(String(hit.usr||"").replace(/（.*$/,""))}</b>（${fmt(hit.ts)}）`;
+  return `<span title="10/20 以前建立的登錄單沒有記錄建檔人">未記錄</span>`;
 }
 /* 刪除權限：只限 Owner／管理員（與主系統 Guard.requireDelete 相同；以主系統登入身份判斷、8 小時內有效） */
 function ownerOnly(what){
@@ -1517,14 +1517,15 @@ function renderList(){
     const types=(r.types||[]).map(k=>{const t=typeDef(k)||{label:k};return t.label+(t.sarForm?"："+t.sarForm:"");}).join("、");
     const hasIC=(r.defs||[]).some(d=>d.closeMode==="內控");
     const filtering=!!(fm||fst||q||fsrc),open=filtering||expanded.has(r.id);
-    html+=`<tr class="rec"><td colspan="8"><div style="display:flex;align-items:flex-start;gap:14px">
-      <div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    html+=`<tr class="rec"><td colspan="8"><div style="display:flex;align-items:stretch;gap:14px">
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         ${filtering?"":`<button class="btn sm" onclick="toggleRec(${r.id})" title="展開／收合這張登錄單的缺失明細">${open?"▾ 收合":"▸ 展開"}（${(r.defs||[]).length}）</button>`}
         <span style="font-size:14px">${esc(shipLabel(r.ship))}</span><span>${esc(dateText(r))}</span><span class="hint">${esc(types)}${r.draft?` ・<b style='color:#b5610f'>草稿</b>${(()=>{const n=draftIssues(r).length;return n?` <span style="color:#c0392b;font-weight:700">（還有 ${n} 項未填完，按「✎編輯」查看）</span>`:` <span style="color:var(--ok);font-weight:700">（已填妥，按「✎編輯」送出即可發改善單）</span>`;})()}`:""}</span>
         <span class="hint">檢查人：${esc(r.inspector)}　地點：${esc(r.psn)}</span>
-        <span class="hint" title="建立這張登錄單的人（登入身分）">建檔：${creatorHtml(r)}</span>
         <span class="hint" style="flex-basis:100%;font-weight:400">${esc(summaryText(r))}</span>
         ${r.draft?"":closureHtml(r)}
+        </div>
+        <span class="hint" style="margin-top:auto;font-size:12px" title="建立這張登錄單的人（登入身分）">👤 建檔：${creatorHtml(r)}</span>
       </div>
       <div style="flex:0 0 260px;display:flex;flex-direction:column;align-items:flex-end;gap:6px">
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
