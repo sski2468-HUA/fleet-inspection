@@ -689,7 +689,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
   </div>
   <div style="overflow:auto;border:1px solid var(--line);border-radius:8px;max-height:64vh">
     <table class="bt"><thead><tr>
-      <th style="width:40px">#</th><th style="width:210px" id="bThTopic">主題</th><th style="width:150px">分類 Category *</th><th style="width:170px">法規章程來源（選填）</th><th style="width:100px">風險 *</th><th style="width:150px">發現日期 *</th><th>待改善描述 Finding Brief *</th><th style="width:170px">結案方式 *</th><th style="width:176px">照片（選填，最多 3 張）</th><th style="width:46px"></th>
+      <th style="width:40px">#</th><th style="width:210px" id="bThTopic">主題</th><th style="width:150px">分類 Category *</th><th style="width:170px" id="bThReg">法規章程來源（選填）</th><th style="width:100px">風險 *</th><th style="width:150px">發現日期 *</th><th>待改善描述 Finding Brief *</th><th style="width:170px">結案方式 *</th><th style="width:176px">照片（選填，最多 3 張）</th><th style="width:46px"></th>
     </tr></thead><tbody id="batchBody"></tbody></table>
   </div>
   <div class="toolbar" style="justify-content:flex-end;margin:14px 0 0">
@@ -2021,6 +2021,7 @@ function draftIssues(r){
     const missing=[];
     [["category","分類"],["risk","風險等級"],["reported","發現日期"],["finding","待改善描述"]].forEach(([f,l])=>{if(!String(d[f]||"").trim())missing.push(l);});
     if(!d.closeMode)missing.push("結案方式");
+    if(fm06Inc(d)&&!String(d.regRef||"").trim())missing.push("法規章程來源");
     if(missing.length)errs.push(`第 ${i+1} 筆缺失：${missing.join("、")}`);
   });
   return errs;
@@ -2344,8 +2345,11 @@ async function fm06HfSave(){
   finally{btn.disabled=false;}
 }
 const cssStr=s=>'"'+String(s||"").replace(/[<>]/g,"").replace(/\\/g,"\\\\").replace(/"/g,'\\"')+'"';
-function hasIA(){return !!cur&&(cur.types||[]).includes(IA_KEY);}
-function fm06Defs(){return cur?cur.defs.map((d,i)=>({d,i})).filter(x=>x.d.type===IA_KEY):[];}
+/* 進 CAEM-FM06 的缺失：內稽全部＋ISPS Internal Audit 中結案方式為 FLOW（要入 FLOW 系統）的缺失；這些缺失的法規章程來源必填 */
+const ISPS_KEY="ISPS Audit";
+const fm06Inc=d=>!!d&&(d.type===IA_KEY||(d.type===ISPS_KEY&&d.closeMode==="FLOW"));
+function hasIA(){return !!cur&&((cur.types||[]).includes(IA_KEY)||(cur.defs||[]).some(fm06Inc));}
+function fm06Defs(){return cur?cur.defs.map((d,i)=>({d,i})).filter(x=>fm06Inc(x.d)):[];}
 const fm06Date=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||"");return m?`${m[3]} ${FM06_MON[+m[2]-1]} ${m[1]}`:(iso||"");};
 function fm06AuditDate(r){
   const a=/^(\d{4})-(\d{2})-(\d{2})$/.exec(r.dateFrom||""),b=/^(\d{4})-(\d{2})-(\d{2})$/.exec(r.dateTo||"");
@@ -2360,8 +2364,8 @@ function fm06NextNo(){
   if(!cur.ship)return "";
   return `${cur.ship}-IA-${String(cur.dateFrom||todayIso()).replace(/-/g,"")}`;
 }
-/* 稽核種類跟著①勾選：內稽＝ISM/MLC/ISO，同時勾 ISPS 再加 /ISPS */
-const fm06AuditTypeDef=()=>"ISM/MLC/ISO"+((cur.types||[]).includes("ISPS Audit")?"/ISPS":"");
+/* 稽核種類跟著①勾選：內稽＝ISM/MLC/ISO，同時勾 ISPS 再加 /ISPS；只有 ISPS（有入 FLOW 的缺失）＝ISPS */
+const fm06AuditTypeDef=()=>{const ty=cur.types||[],ia=ty.includes(IA_KEY),is=ty.includes(ISPS_KEY);return ia?"ISM/MLC/ISO"+(is?"/ISPS":""):"ISPS";};
 function fm06Def(){return {reportNo:fm06NextNo(),reportDate:todayIso(),auditType:fm06AuditTypeDef(),lead:inspList(cur).map(enName).join(" / "),unit:"QMS & Vetting Unit",comment:"",signDate:todayIso()};}
 function fm06V(k){
   const f=cur.fm06||{};
@@ -2413,19 +2417,19 @@ function renderFm06(){
       ${inp("unit","稽核單位 Audit Unit")}
       <label style="grid-column:1/-1">主導稽核員/稽核員 Lead Auditor / Auditor<input type="text" id="fm6-lead" value="${esc(fm06V("lead"))}" oninput="fm06Set('lead',this.value)"></label>
     </div>
-    <h4 style="margin:18px 0 4px;color:var(--navy)">稽核發現 Findings <span class="hint" style="font-weight:400">共 ${rows.length} 筆，取自④缺失明細的「內稽」分頁；內容請回④修改，法規章程跟④是同一欄</span></h4>
+    <h4 style="margin:18px 0 4px;color:var(--navy)">稽核發現 Findings <span class="hint" style="font-weight:400">共 ${rows.length} 筆，取自④缺失明細：內稽全部＋ISPS 結案方式為 FLOW 的缺失；內容請回④修改，法規章程（必填）跟④是同一欄</span></h4>
     ${rows.length?`<div class="fm6wrap"><table class="fm6t"><thead><tr><th>No</th><th>等級 NC,O</th><th>法規章程 Regulation ref</th><th>內容 Detail</th><th>負責部門 Dept in Charge</th><th>更正期限 Limit Date</th><th>結案日期 Cleared date</th><th>結案單位 Cleared by</th></tr></thead><tbody>
       ${rows.map(({d,i},n)=>`<tr><td style="text-align:center">${n+1}</td>
         <td><select onchange="fm06SetRow(${i},'lvl',this.value)">${["O","NC"].map(v=>`<option ${fm06R(d,"lvl")===v?"selected":""}>${v}</option>`).join("")}</select></td>
-        <td><input type="text" style="min-width:150px" value="${esc(d.regRef||"")}" placeholder="選填" oninput="fm06SetReg(${i},this.value)"></td>
-        <td class="det">${d.finding?esc(d.finding):'<span class="hint">（④尚未填寫內容）</span>'}</td>
+        <td><input type="text" style="min-width:150px" value="${esc(d.regRef||"")}" placeholder="必填" oninput="fm06SetReg(${i},this.value)"></td>
+        <td class="det">${d.type===ISPS_KEY?`<span style="display:inline-block;background:#e8edf3;color:#34506e;border-radius:4px;padding:0 6px;font-size:11.5px;font-weight:700;margin-bottom:2px">ISPS・FLOW</span><br>`:""}${d.finding?esc(d.finding):'<span class="hint">（④尚未填寫內容）</span>'}</td>
         <td>${cell(i,d,"dept",120,"fm6Dept")}</td>
         <td>${fm06LimCell(i,d)}</td>
         <td><input type="date" value="${esc(fm06R(d,"cleared"))}" onchange="fm06SetRow(${i},'cleared',this.value)"></td>
         <td>${cell(i,d,"by",120,"fm6By")}</td></tr>`).join("")}
     </tbody></table></div>
     <div class="hint" style="margin-top:4px">更正期限先選類型：「日期」用日曆挑、「Before departure」直接帶入、「其他（手寫）」自由輸入（會記住這台電腦寫過的內容，下次可直接點選）；尚未結案的，結案日期／結案單位留空即可。</div>`
-    :`<div class="hint">④缺失明細的「內稽」分頁目前沒有缺失，報告明細會是空白列。</div>`}
+    :`<div class="hint">④缺失明細目前沒有內稽缺失（或 ISPS 入 FLOW 的缺失），報告明細會是空白列。</div>`}
     <datalist id="fm6Dept"><option>Deck dept</option><option>Engine dept</option><option>Deck &amp; Engine dept</option></datalist>
     <datalist id="fm6LimHist">${fm06LimHist().map(v=>`<option>${esc(v)}</option>`).join("")}</datalist>
     <datalist id="fm6By">${byOpts.map(v=>`<option>${esc(v)}</option>`).join("")}</datalist>
@@ -2602,7 +2606,7 @@ function secComplete(k){
   if(k==="basic")return !!(cur.ship&&cur.dateFrom&&cur.inspector&&cur.psn&&cur.types.length);
   if(k==="overall")return !!(cur.overall||"").trim();
   if(k==="best")return cur.best.length>0;
-  if(k==="defs")return cur.defs.length>0&&cur.defs.every(d=>d.category&&d.risk&&d.reported&&d.finding&&d.closeMode);
+  if(k==="defs")return cur.defs.length>0&&cur.defs.every(d=>d.category&&d.risk&&d.reported&&d.finding&&d.closeMode&&(!fm06Inc(d)||String(d.regRef||"").trim()));
   if(k==="sugg")return cur.sugg.length>0;
   if(k==="fm06")return !!(cur.fm06&&cur.fm06.dlAt);
   if(k==="download")return cur.draft===false;
@@ -3024,9 +3028,11 @@ const CLOSE_MODE_NOTE={
 };
 const cmNoteHtml=k=>k?`<div class="cmnote">${CLOSE_MODE_NOTE[k]}</div>`
   :`<div class="cmnote hint">尚未選擇：${Object.entries(CLOSE_MODE_NOTE).map(([k,v])=>`<div style="margin-top:4px">${v}</div>`).join("")}</div>`;
+function regReqHtml(d){return fm06Inc(d)?` <span class="req">*</span>`:d.type===ISPS_KEY?`<span class="hint" style="font-weight:400">（選 FLOW 時必填）</span>`:"（選填）";}
 function setMode(i,k){
   setTimeout(renderDefNav,0);
   cur.defs[i].closeMode=k;
+  {const rq=document.querySelector(`#def-${i} .regreq`);if(rq)rq.innerHTML=regReqHtml(cur.defs[i]);if(cur.defs[i].type===ISPS_KEY)setTimeout(updateCounts,0);}
   if(k==="內控"&&!cur.defs[i].icLevel)cur.defs[i].icLevel=cur.defs[i].risk||""; // 關注程度預設帶入風險等級，供之後匯入內控系統用；欄位本身不在這裡顯示
   const el=$("#def-"+i);
   if(el){el.classList.remove("m-flow","m-ic","m-sys");const m=modeOf(k);if(m)el.classList.add("m-"+m.cls);const rw=el.querySelector('[data-f="closeMode"]');if(rw)rw.classList.remove("bad");
@@ -3101,7 +3107,7 @@ function defCardHtml(i,td,allIdxs,isLast){
           ${typeCtl}
           ${topicCtl}
           <label>分類 Category <span class="req">*</span><input type="text" data-f="category" value="${esc(d.category)}" placeholder="例：防火門、IMO標誌" oninput="setD(${i},'category',this.value)"></label>
-          <label>法規章程來源（選填）<input type="text" data-f="regRef" value="${esc(d.regRef||"")}" placeholder="例：SWO-100, 6.4.13 &amp; RISQ 13.6" oninput="setD(${i},'regRef',this.value)"></label>
+          <label>法規章程來源<span class="regreq">${regReqHtml(d)}</span><input type="text" data-f="regRef" value="${esc(d.regRef||"")}" placeholder="例：SWO-100, 6.4.13 &amp; RISQ 13.6" oninput="setD(${i},'regRef',this.value)"></label>
           <label>風險等級 Risk Level <span class="req">*</span><select data-f="risk" onchange="setD(${i},'risk',this.value)"><option value="">— 請選擇 —</option>${RISKS.map(s=>`<option ${d.risk===s?"selected":""}>${s}</option>`).join("")}</select></label>
           <label>Reported @（發現日期）<span class="req">*</span><input type="date" data-f="reported" value="${esc(d.reported)}" onchange="setD(${i},'reported',this.value)"></label>
         </div>
@@ -3130,6 +3136,7 @@ function openBatch(){
   for(let i=0;i<5;i++)batch.rows.push(blankBatchRow());
   $("#batchTitle").textContent=`批量新增${td.label}缺失`;
   $("#bThTopic").textContent=td.topicLabel||"主題（選填）";
+  $("#bThReg").textContent=activeTab===IA_KEY?"法規章程來源 *":activeTab===ISPS_KEY?"法規章程來源（FLOW 必填）":"法規章程來源（選填）";
   $("#bDefRisk").innerHTML='<option value="">風險等級…</option>'+RISKS.map(s=>`<option>${s}</option>`).join("");
   $("#bDefMode").innerHTML='<option value="">結案方式…</option>'+MODES.map(m=>`<option value="${m.k}">${esc(m.label)}</option>`).join("");
   // 主題有固定選項的種類（內稽／專項檢查）用下拉套用；沒有固定選項的（訪船／隨船／交叉訪船）主題是自由輸入，改用文字＋按鈕套用
@@ -3185,7 +3192,7 @@ function confirmBatch(){
   const type=batch.type;let missing=0;
   try{
     rows.forEach(r=>{
-      if(!r.category||!r.risk||!r.reported||!r.finding||!r.closeMode)missing++;
+      if(!r.category||!r.risk||!r.reported||!r.finding||!r.closeMode||(fm06Inc({type,closeMode:r.closeMode})&&!String(r.regRef||"").trim()))missing++;
       const d=blankDef(type);d.topic=r.topic||"";d.topicOther=r.topicOther||"";d.photos=r.photos||[];d.category=String(r.category||"").trim();d.regRef=String(r.regRef||"").trim();d.risk=r.risk||"";d.reported=r.reported||"";d.finding=String(r.finding||"").trim();d.closeMode=r.closeMode||"";
       if(r.closeMode==="內控")d.icLevel=r.risk||"";
       cur.defs.push(d);
@@ -3507,6 +3514,7 @@ function validate(){
     ds.forEach((i,seq)=>{
       const d=cur.defs[i],n=`【${(typeDef(k)||{label:k}).label}】第 ${seq+1} 筆缺失`,q=f=>`#def-${i} [data-f="${f}"]`;
       [["category","分類 Category"],["risk","風險等級"],["reported","Reported @（發現日期）"],["finding","待改善描述"]].forEach(([f,l])=>{if(!String(d[f]||"").trim())errs.push({msg:`${n}：「${l}」未填`,sel:q(f),tab:k});});
+      if(fm06Inc(d)&&!String(d.regRef||"").trim())errs.push({msg:`${n}：「法規章程來源」未填（${k===IA_KEY?"內稽缺失":"ISPS 入 FLOW 的缺失"}必填，會帶到 CAEM-FM06 報告）`,sel:q("regRef"),tab:k});
       if(!d.closeMode)errs.push({msg:`${n}：「結案方式」未選擇（FLOW／內控／系統內結案，須擇一）`,sel:q("closeMode"),tab:k});
       // 內控異常登錄資料（關注程度／事件分類／涉及部門）不在這裡強制要求：
       // 這邊只需要把「內控」缺失標記出來、匯出內控缺失清單即可，詳細分類等缺失實際匯入
