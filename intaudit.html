@@ -814,6 +814,22 @@ const IALog={
 };
 /* 登錄單的簡短描述，給操作紀錄用 */
 function recLabel(r){return r?`${shipLabel(r.ship)} ${dateText(r)}`:"";}
+/* 建檔人：新單存檔時記在 creator；10/30 以前建的單沒有這個欄位，改從操作紀錄找這張單最早一筆「儲存草稿／送出」的人
+   （操作紀錄 10/20 才開始記，更早的單只能顯示「未記錄」）。 */
+let CREATOR_LOG=null;
+async function loadCreatorLog(){
+  if(CREATOR_LOG)return;CREATOR_LOG=[];
+  try{CREATOR_LOG=await api(`audit_log?select=ts,usr,summary&target=eq.${encodeURIComponent("內部檢查－登錄單")}&action=in.(${encodeURIComponent("儲存草稿")},${encodeURIComponent("送出")})&order=ts.asc&limit=5000`)||[];}catch(e){CREATOR_LOG=[];}
+  try{renderList();}catch(e){}
+}
+function creatorHtml(r){
+  const fmt=ts=>{const d=new Date(ts);return `${d.getMonth()+1}/${d.getDate()}`;};
+  if(r.creator)return `<b style="color:var(--ink)">${esc(r.creator)}</b>${r.creatorAt?`（${fmt(r.creatorAt)}）`:""}`;
+  if(CREATOR_LOG===null){loadCreatorLog();return "…";}
+  const lbl=recLabel(r),hit=CREATOR_LOG.find(x=>x.ts>=r.id-60000&&String(x.summary||"").startsWith(lbl));
+  if(hit)return `<b style="color:var(--ink)">${esc(String(hit.usr||"").replace(/（.*$/,""))}</b>（${fmt(hit.ts)}，依操作紀錄）`;
+  return `<span title="10/20 以前建立的登錄單沒有記錄建檔人">未記錄（舊資料）</span>`;
+}
 /* 刪除權限：只限 Owner／管理員（與主系統 Guard.requireDelete 相同；以主系統登入身份判斷、8 小時內有效） */
 function ownerOnly(what){
   if(IAAuth.canDelete())return true;
@@ -1506,6 +1522,7 @@ function renderList(){
         ${filtering?"":`<button class="btn sm" onclick="toggleRec(${r.id})" title="展開／收合這張登錄單的缺失明細">${open?"▾ 收合":"▸ 展開"}（${(r.defs||[]).length}）</button>`}
         <span style="font-size:14px">${esc(shipLabel(r.ship))}</span><span>${esc(dateText(r))}</span><span class="hint">${esc(types)}${r.draft?` ・<b style='color:#b5610f'>草稿</b>${(()=>{const n=draftIssues(r).length;return n?` <span style="color:#c0392b;font-weight:700">（還有 ${n} 項未填完，按「✎編輯」查看）</span>`:` <span style="color:var(--ok);font-weight:700">（已填妥，按「✎編輯」送出即可發改善單）</span>`;})()}`:""}</span>
         <span class="hint">檢查人：${esc(r.inspector)}　地點：${esc(r.psn)}</span>
+        <span class="hint" title="建立這張登錄單的人（登入身分）">建檔：${creatorHtml(r)}</span>
         <span class="hint" style="flex-basis:100%;font-weight:400">${esc(summaryText(r))}</span>
         ${r.draft?"":closureHtml(r)}
       </div>
@@ -2245,7 +2262,7 @@ function duplicateRec(id){
   const c=JSON.parse(JSON.stringify(r));
   c.id=null;c.draft=true;
   delete c.issuedAt;delete c.imported;delete c.icJsonDlAt;delete c.icJsonDlBy;delete c.wordDlAt;delete c.wordDlBy;
-  delete c.createdAt;delete c.createdBy;delete c.updatedAt;
+  delete c.createdAt;delete c.createdBy;delete c.updatedAt;delete c.creator;delete c.creatorAt; // 複製出來的新單，建檔人是複製的人
   (c.defs||[]).forEach(d=>{d.uid=newUid();delete d.importedDefId;});
   (c.best||[]).forEach(b=>{delete b.importedPosId;});
   cur=c;curSrv=null;activeTab=(cur.types||[])[0]||null;bestOpen=[];defOpen=[];
@@ -3207,6 +3224,8 @@ async function persist(draft,opts){
   });
   if(!c.id)c.id=Date.now();
   c.createdBy=c.createdBy||c.inspector||"";c.createdAt=c.createdAt||todayIso().replace(/-/g,"/");c.updatedAt=Date.now();
+  // 建檔人＝第一次存檔時的登入身分（createdBy 歷來填的是檢查人，不是實際建單的人，所以另存 creator）
+  if(!c.creator){const me=IAAuth.ident();c.creator=me?me.name:"";c.creatorAt=Date.now();}
   const res=await Store.save(c,curSrv,opts.force);
   if(res.conflict){
     if(opts.silent)return {ok:false,conflict:true,serverAt:res.serverAt};
