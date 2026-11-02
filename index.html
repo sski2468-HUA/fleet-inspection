@@ -13988,9 +13988,11 @@ const Todo={
   forReplyPend(){
     if(typeof Air==="undefined"||!(Role.isAdmin&&Role.isAdmin()))return [];
     if(!Air._replyPend){Air._loadExtReplyIds();return [];}
-    const me=Role.personName?Role.personName():"";
+    // 2026-11-02 改成提醒該船的「海技負責人」（船舶資料 mgr）；船舶資料沒填海技負責人的，才退回 Owner／匯入者，避免沒人處理
+    const me=String(Role.personName?Role.personName()||"":"").trim();
+    const mgrOf=code=>{const s=(typeof SHIPINFO!=="undefined")?SHIPINFO.find(x=>x.code===code):null;return s?String(s.mgr||"").trim():"";};
     const recs=[...Air._replyPend.keys()].map(id=>App.air.find(x=>String(x.id)===id)).filter(Boolean)
-      .filter(d=>Role.isOwner()||(me&&String(d.createdBy||"").includes(me)));
+      .filter(d=>{const m=mgrOf(d.ship);return m?(!!me&&m===me):(Role.isOwner()||(!!me&&String(d.createdBy||"").includes(me)));});
     if(!recs.length)return [];
     const n=recs.reduce((s,d)=>s+Air.replyPendCount(d),0);
     return [{icon:"📥",tab:"air",text:`對外回覆未轉入缺失紀錄總表：${recs.length} 筆填單、共 ${n} 條（${recs.slice(0,3).map(d=>`${d.ship} ${d.date}`).join("、")}${recs.length>3?"…":""}）`,
