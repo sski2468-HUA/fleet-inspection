@@ -4163,6 +4163,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="card" style="margin-bottom:14px">
         <div class="toolbar" style="margin-bottom:0">
           <button class="btn sm ig-tabbtn active" data-p="plan" onclick="InspGroup.setPage('plan')">🔔 檢查管控</button>
+          <button class="btn sm ig-tabbtn" data-p="plan2" onclick="InspGroup.setPage('plan2')" title="新版版面試用中（船×項目矩陣、排程、排程月曆、海技管理證書）；舊版「檢查管控」照常可用">🧪 檢查管控2（試用）</button>
           <button class="btn sm ig-tabbtn" data-p="audit" onclick="InspGroup.setPage('audit')">📋 內稽動態</button>
           <button class="btn sm ig-tabbtn" data-p="annual" onclick="InspGroup.setPage('annual')">📅 年度計畫暨執行情形</button>
           <button class="btn sm ig-tabbtn" data-p="enhlog" onclick="InspGroup.setPage('enhlog')">📜 加強管理歷史</button>
@@ -4332,6 +4333,136 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div id="ic-timelineview" style="display:none"></div>
       </div>
       </div>
+
+      <!-- ════ 檢查管控2（新版試用）：船×項目矩陣／清單／排程月曆＋海技管理證書；舊版「檢查管控」保留 ════ -->
+      <div id="ig-page-plan2" class="ig-subpage" style="display:none">
+        <style>
+          #ig-page-plan2 .ic2-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+          #ig-page-plan2 .ic2-kpi{font:inherit;font-size:13px;display:inline-flex;align-items:baseline;gap:7px;padding:6px 12px;border-radius:5px;border:1px solid transparent;cursor:pointer}
+          #ig-page-plan2 .ic2-kpi b{font-family:var(--mono);font-size:17px}
+          #ig-page-plan2 .ic2-kpi.on{outline:2px solid var(--navy);outline-offset:1px}
+          #ig-page-plan2 .ic2-alert{font:inherit;font-size:13px;font-weight:700;padding:7px 14px;border-radius:5px;border:0;background:var(--signal);color:#fff;cursor:pointer}
+          #ig-page-plan2 .ic2-alert.on{outline:2px solid var(--navy);outline-offset:1px}
+          #ig-page-plan2 .ic2-sep{width:1px;height:26px;background:var(--line);margin:0 4px}
+          #ig-page-plan2 .ic2-lbl{font-size:12px;color:var(--ink-3)}
+          #ig-page-plan2 .ic2-seg{display:inline-flex;border:1px solid var(--line-2);border-radius:5px;overflow:hidden}
+          #ig-page-plan2 .ic2-seg button{font:inherit;font-size:13px;border:0;background:#fff;color:var(--ink-2);padding:5px 12px;cursor:pointer;border-left:1px solid var(--line)}
+          #ig-page-plan2 .ic2-seg button:first-child{border-left:0}
+          #ig-page-plan2 .ic2-seg button.on{background:var(--navy);color:#fff}
+          #ig-page-plan2 .btn.on{background:#e6ecf7;border-color:var(--navy)}
+          #ig-page-plan2 select{font:inherit;font-size:13px;padding:4px 8px}
+          #ig-page-plan2 .ic2-active{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+          #ig-page-plan2 .ic2-chip{display:inline-flex;align-items:center;gap:4px;background:#e6ecf7;color:var(--navy);border-radius:12px;padding:2px 4px 2px 10px;font-weight:600}
+          #ig-page-plan2 .ic2-chip button{border:0;background:none;color:var(--navy);cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
+          #ig-page-plan2 .ic2-scroll{overflow:auto;max-height:72vh}
+          #ig-page-plan2 table.ic2-mx{border-collapse:separate;border-spacing:0;width:100%}
+          #ig-page-plan2 .ic2-mx th,#ig-page-plan2 .ic2-mx td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:center;font-size:12px}
+          #ig-page-plan2 .ic2-mx thead th{background:#e6ecf7;color:var(--navy);padding:6px 3px;font-weight:700;line-height:1.2;min-width:62px;position:sticky;top:0;z-index:2}
+          #ig-page-plan2 .ic2-mx thead th small{display:block;font-weight:400;color:var(--ink-3);font-size:10px}
+          #ig-page-plan2 .ic2-mx thead th.cert{background:repeating-linear-gradient(135deg,#e6ecf7 0 6px,#fff 6px 9px)}
+          #ig-page-plan2 .ic2-mx thead th.corner{left:0;z-index:3;text-align:left;padding-left:8px}
+          #ig-page-plan2 .ic2-mx tbody th{background:#fff;text-align:left;padding:5px 8px;white-space:nowrap;position:sticky;left:0;z-index:1;cursor:pointer;min-width:160px}
+          #ig-page-plan2 .ic2-mx tbody th b{font-size:13px}
+          #ig-page-plan2 .ic2-mx tbody th small{color:var(--ink-3);font-weight:400;margin-left:5px;font-size:11px}
+          #ig-page-plan2 .ic2-tag{display:inline-block;font-size:10.5px;font-weight:700;padding:0 5px;border-radius:3px;margin-left:4px;color:#fff}
+          #ig-page-plan2 .ic2-tag.enh{background:var(--bad)} #ig-page-plan2 .ic2-tag.dev{background:var(--signal)}
+          #ig-page-plan2 td.c{cursor:pointer;padding:6px 3px;font-family:var(--mono);font-size:11.5px;white-space:nowrap;position:relative}
+          #ig-page-plan2 td.c:hover{filter:brightness(.94)}
+          #ig-page-plan2 td.c[data-sched]::after{content:"";position:absolute;right:0;top:0;border-style:solid;border-width:0 7px 7px 0;border-color:transparent var(--navy) transparent transparent}
+          #ig-page-plan2 td.c .stg{font-family:var(--sans);font-size:9.5px;font-weight:700;margin-left:2px}
+          #ig-page-plan2 .s0{background:#9b1f19;color:#fff;font-weight:700} #ig-page-plan2 .s1{background:#fde4e1;color:#b3261e;font-weight:700}
+          #ig-page-plan2 .s2{background:#fff0d0;color:#9a5c00;font-weight:600} #ig-page-plan2 .s3{background:#e5f3ea;color:#2e7d4f}
+          #ig-page-plan2 .s4{background:#eef1f4;color:#6b7783} #ig-page-plan2 .s5{color:var(--ink-3);font-size:10.5px}
+          #ig-page-plan2 .sx{color:#c9d1d9;cursor:default!important} #ig-page-plan2 .sadd{color:var(--navy-3);font-size:14px}
+          #ig-page-plan2 .dim{opacity:.18}
+          #ig-page-plan2 .ic2-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--ink-2);margin-top:8px}
+          #ig-page-plan2 .ic2-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:4px}
+          #ig-page-plan2 .ic2-pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;white-space:nowrap}
+          #ig-page-plan2 table.ic2-list{width:100%;border-collapse:collapse}
+          #ig-page-plan2 .ic2-list td,#ig-page-plan2 .ic2-list th{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;font-size:13px;vertical-align:top}
+          #ig-page-plan2 .ic2-list thead th{color:var(--ink-3);font-weight:500;font-size:12px;position:sticky;top:0;background:#fff;cursor:pointer}
+          #ig-page-plan2 .ic2-list tbody tr{cursor:pointer} #ig-page-plan2 .ic2-list tbody tr:hover{background:#f2f6fb}
+          #ig-page-plan2 .ic2-cal{display:grid;grid-template-columns:repeat(7,minmax(170px,1fr));gap:8px;overflow-x:auto;padding-bottom:6px;align-items:start}
+          #ig-page-plan2 .ic2-col{background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px;max-height:70vh;overflow-y:auto}
+          #ig-page-plan2 .ic2-col.late{border-color:var(--bad)}
+          #ig-page-plan2 .ic2-colh{display:flex;flex-direction:column;gap:1px;padding-bottom:6px;border-bottom:1px solid var(--line);position:sticky;top:-8px;background:#fff}
+          #ig-page-plan2 .ic2-colh b{color:var(--navy);font-size:14px}
+          #ig-page-plan2 .ic2-it{border-radius:4px;padding:5px 8px;font-size:12px;cursor:pointer;line-height:1.35;border:1px solid transparent}
+          #ig-page-plan2 .ic2-it div{font-size:11px;opacity:.85;font-weight:400}
+          #ig-page-plan2 .ic2-it.due,#ig-page-plan2 .ic2-it.over{background:#fff!important;border:1.5px dashed currentColor}
+          #ig-page-plan2 .ic2-it.past{border:1.5px solid var(--bad)} #ig-page-plan2 .ic2-it.sched{border-left:4px solid var(--navy)}
+          #ig-page-plan2 .ic2-note{font-size:12.5px;color:var(--ink-2);background:#e6ecf7;border-radius:5px;padding:8px 12px}
+          #ig-page-plan2 .ic2-pop{position:absolute;z-index:1200;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:12px 14px;max-width:min(580px,92vw)}
+          #ig-page-plan2 .ic2-chk{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:4px 10px;font-size:13px}
+          #ig-page-plan2 .ic2-chk label{display:flex;gap:6px;align-items:center;cursor:pointer;white-space:nowrap}
+          .ic2-drawer{position:fixed;top:0;right:0;bottom:0;width:min(470px,100%);background:#fff;border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.18);z-index:1100;overflow-y:auto;padding:18px 18px 30px;font-size:13px}
+          .ic2-drawer h2{margin:0;font-size:18px;color:var(--navy)}
+          .ic2-drawer h3{margin:14px 0 6px;font-size:14px;color:var(--navy)}
+          .ic2-drawer .kv{display:grid;grid-template-columns:118px 1fr;gap:7px 10px;margin:12px 0}
+          .ic2-drawer .kv dt{color:var(--ink-3)} .ic2-drawer .kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+          .ic2-drawer .form{display:grid;grid-template-columns:96px 1fr;gap:9px 10px;align-items:center;margin:12px 0}
+          .ic2-drawer .form label{color:var(--ink-3)}
+          .ic2-drawer .form input,.ic2-drawer .form select{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line-2);border-radius:4px;width:100%;min-width:0}
+          .ic2-drawer .sg{border:1px solid var(--ok);background:#e5f3ea;border-radius:5px;padding:8px 12px}
+          .ic2-drawer .warnbox{color:var(--bad);font-size:12.5px;font-weight:600}
+          .ic2-drawer .note{font-size:12.5px;color:var(--ink-2);background:#e6ecf7;border-radius:5px;padding:8px 12px}
+          .ic2-drawer .auto{font-size:11px;color:#2e7d4f;background:#e5f3ea;padding:0 5px;border-radius:3px;margin-left:4px}
+          .ic2-drawer .lbl{font-size:12px;color:var(--ink-3)}
+          .ic2-drawer .ic2-pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;white-space:nowrap}
+          .ic2-drawer .s0{background:#9b1f19;color:#fff} .ic2-drawer .s1{background:#fde4e1;color:#b3261e} .ic2-drawer .s2{background:#fff0d0;color:#9a5c00}
+          .ic2-drawer .s3{background:#e5f3ea;color:#2e7d4f} .ic2-drawer .s4{background:#eef1f4;color:#6b7783} .ic2-drawer .s5{background:#f4f6f8;color:var(--ink-3)}
+          .ic2-drawer table{width:100%;border-collapse:collapse} .ic2-drawer td,.ic2-drawer th{border-bottom:1px solid var(--line);padding:6px;text-align:left;font-size:12.5px}
+          .ic2-drawer tbody tr{cursor:pointer} .ic2-drawer tbody tr:hover{background:#f2f6fb}
+          .ic2-drawer .btnrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+        </style>
+        <div class="card" style="margin-bottom:12px"><div class="ic2-row" id="ic2-kpis"></div></div>
+        <div class="card" style="margin-bottom:12px">
+          <div class="ic2-row">
+            <span class="ic2-lbl">管控範圍</span>
+            <div class="ic2-seg" id="ic2-scope"><button data-v="insp" class="on">檢查項目</button><button data-v="cert">海技管理證書</button><button data-v="all">全部</button></div>
+            <span class="ic2-sep"></span>
+            <span class="ic2-lbl">檢視</span>
+            <div class="ic2-seg" id="ic2-view"><button data-v="mx" class="on">船 × 項目</button><button data-v="list">清單</button><button data-v="cal">排程月曆</button></div>
+            <span style="flex:1"></span>
+            <button class="btn primary" onclick="InspCtrl2.closeDrawer();InspCtrl.openEdit(null)">＋ 新增管控紀錄</button>
+            <button class="btn" onclick="InspCtrl.openImportModal()">⬆ 匯入</button>
+            <button class="btn" onclick="InspCtrl.openDownloadModal()">⬇ 匯出</button>
+          </div>
+          <div class="ic2-row" style="margin-top:10px">
+            <span class="ic2-lbl">篩選</span>
+            <select id="ic2-f-type" aria-label="船型"><option value="">全部船型</option><option value="tanker">油輪</option><option value="bulk">散裝</option></select>
+            <button class="btn" id="ic2-f-items">檢查項目／證書 ▾</button>
+            <select id="ic2-f-sup" aria-label="督導"></select>
+            <select id="ic2-f-owner" aria-label="檢查安排人"></select>
+            <button class="btn" id="ic2-mine-sup">只看我督導的船</button>
+            <button class="btn" id="ic2-mine-own">只看我負責的</button>
+            <button class="btn" id="ic2-unsched">只看未排程</button>
+            <span class="ic2-sep"></span>
+            <span class="ic2-lbl">船排序</span>
+            <select id="ic2-f-sort" aria-label="船排序"><option value="worst">最急迫的船在上</option><option value="code">依船名代碼</option></select>
+          </div>
+          <div class="ic2-active" id="ic2-active"></div>
+        </div>
+        <div class="card" id="ic2-certinfo" style="display:none;margin-bottom:12px"></div>
+        <div id="ic2-v-mx">
+          <div class="card ic2-scroll" style="padding:0"><table class="ic2-mx" id="ic2-mx"></table></div>
+          <div class="ic2-legend">
+            <span><i class="s0"></i>逾期（顯示逾期天數）</span><span><i class="s1"></i><span class="ic2-th-red">30</span> 天內</span><span><i class="s2"></i><span class="ic2-th-yel">90</span> 天內</span>
+            <span><i class="s3"></i>正常（顯示到期年/月）</span><span><i class="s4"></i>無到期日</span>
+            <span><i style="background:linear-gradient(225deg,var(--navy) 0 30%,#fff 30%);border:1px solid var(--line)"></i>已預排</span>
+            <span><b style="font-size:11px">中</b>＝中間檢查階段</span>
+            <span><span class="ic2-tag enh" style="margin:0">加強</span> 加強管理船</span><span><span class="ic2-tag dev" style="margin:0">督導</span> 督導訪船間隔超過 14 個月</span>
+            <span>點船名看整船清單、點格子看明細／排程</span>
+          </div>
+        </div>
+        <div id="ic2-v-list" class="card ic2-scroll" style="display:none;padding:0"><table class="ic2-list" id="ic2-list"></table></div>
+        <div id="ic2-v-cal" style="display:none">
+          <div class="ic2-note" style="margin-bottom:8px">實線＝已排程（放在排程月份）；虛線＝<b>還沒排程</b>（放在到期月份），虛線越多的月份越需要先安排。每月標題下方是各安排人的排程數。</div>
+          <div class="ic2-cal" id="ic2-cal"></div>
+        </div>
+        <div class="ic2-pop" id="ic2-pop" style="display:none"></div>
+      </div>
+      <div class="ic2-drawer" id="ic2-drawer" style="display:none" aria-label="檢查管控2 明細"></div>
 
       <div id="ig-page-audit" class="ig-subpage" style="display:none">
         <div class="toolbar" style="margin-bottom:10px">
@@ -5265,7 +5396,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <label style="grid-column:1/-1">連結網址（選填，外部文件或網頁，例如 IMO PDF）<input type="text" inputmode="url" id="sf-url" placeholder="https://..." style="width:100%"></label>
             <label style="grid-column:1/-1">官方頁面網址（選填，給船上備用、海技查新版用）<input type="text" inputmode="url" id="sf-page" placeholder="https://..." style="width:100%"></label>
             <label>定期更新日（選填）<input type="text" id="sf-sched" placeholder="例：4/30、7/31、10/31" style="width:100%"></label>
-            <label style="display:flex;gap:6px;align-items:center;margin-top:18px"><input type="checkbox" id="sf-track" checked> 追蹤各船是否下載／閱讀</label>
+            <div style="display:flex;flex-direction:column;gap:4px;margin-top:14px">
+              <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="sf-track" checked> 追蹤各船是否下載／閱讀</label>
+              <label style="display:flex;gap:6px;align-items:center" title="不勾：船上只看到紅點／紅色數字，跑馬燈不輪播（例：LISCR 彙整）"><input type="checkbox" id="sf-marquee" checked> 📢 顯示在跑馬燈</label>
+            </div>
             <div style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
               <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="sf-to" value="all" checked onchange="RefDl.toggleShips()"> 全船隊</label>
               <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="sf-to" value="pick" onchange="RefDl.toggleShips()"> 指定船舶</label>
@@ -19311,10 +19445,12 @@ const ExecOverview={
   setPage(p,skipInit){
     this.curPage=p;
     $$(".ig-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.p===p));
-    const map={plan:"ig-page-plan",audit:"ig-page-audit",annual:"ig-page-annual",enhlog:"ig-page-enhlog",execov:"ig-page-execov"};
+    const map={plan:"ig-page-plan",plan2:"ig-page-plan2",audit:"ig-page-audit",annual:"ig-page-annual",enhlog:"ig-page-enhlog",execov:"ig-page-execov"};
     Object.entries(map).forEach(([k,id])=>{const el=$("#"+id);if(el)el.style.display=(k===p)?"":"none";});
+    if(p!=="plan2"&&typeof InspCtrl2!=="undefined")InspCtrl2.closeDrawer();
     if(skipInit)return; // 首次載入：InspGroup.init() 已呼叫過 InspCtrl.init()，這裡不必重複
     if(p==="plan")InspCtrl.render();
+    else if(p==="plan2"&&typeof InspCtrl2!=="undefined")InspCtrl2.render();
     else if(p==="audit"&&typeof AuditDash!=="undefined")AuditDash.init();
     else if(p==="annual"&&typeof AnnualPlan!=="undefined")AnnualPlan.init();
     else if(p==="enhlog"&&typeof EnhAuditLog!=="undefined")EnhAuditLog.init();
@@ -19338,6 +19474,450 @@ const ExecOverview={
       <style>body{font-family:"Microsoft JhengHei",sans-serif;line-height:1.8;padding:24px;max-width:720px;margin:0 auto;color:#222}h2{color:#1c3a5e}h3{color:#1c3a5e;margin-top:22px}p{margin:6px 0}.hint{color:#8a97a0;font-size:12.5px}</style>
       </head><body>${html}</body></html>`);
     w.document.close();
+  }
+};
+/* ════ 檢查管控2（新版試用，2026-11-03）════
+   同一份資料 App.inspCtrl、同一套到期日算法 InspCtrl.computeRow，只換版面：
+   船×項目矩陣／清單／排程月曆、側邊明細與排程表單、海技管理證書（cat:"cert" 的列，舊版不顯示）。
+   督導訪船間隔改成「看甲板／機艙類別，不看人名」，輪替人員（例：康華）也算得到。 */
+const InspCtrl2={
+  F:{st:null,scope:"insp",view:"mx",type:"",sup:"",owner:"",mineSup:false,mineOwn:false,unsched:false,sort:"worst",items:new Set()},
+  LSORT:"days",_bound:false,cur:null,
+  INSP_COLS:[["ONBOARDVISIT","訪船","onboard visit"],["CROSSSHIPVISIT","交叉訪船","Cross ship"],["INTERNALAUDIT","內稽","Internal audit"],["SIRE","SIRE","OCIMF"],["CDI","CDI",""],["RIGHTSHIP","RightShip",""],["ASI","ASI","船旗國"],["SMC","SMC","5年證書"],["ISSC","ISSC","5年證書"],["MLC","MLC","5年證書"],["LRIT","LRIT","年度"],["IHM","IHM",""]],
+  /* 海技管理證書（依海技組證書管控表 01～08 欄）：[key, 顯示名, 副標, 存檔用 itype] */
+  CERT_COLS:[["PCR","國籍證書","01 PCR","PCR"],["RSL","無線電台","02 RSL","RSL"],["MSMC","最低安全配額","03 MSMC","MSMC"],["BLUECARDS","藍卡","04 BCLC/CLC/WRC","Blue Cards"],
+    ["CSR","CSR","05 版次","CSR"],["FFEA","FFEA","06 散裝 5Y","FFEA"],["CACOFR","CA COFR","07 2Y","CA COFR"],["USCOFR","US COFR","07 3Y","US COFR"],["RRDA","RRDA","08 1Y","RRDA"]],
+  CERT60:["SMC","ISSC","MLC"],
+  CERT_DESC:{
+    SMC:["Safety Management Certificate","ISM Code／船旗國或 RO","5 年；第 2～3 週年間中間稽核","證明船上安全管理系統符合 ISM"],
+    ISSC:["International Ship Security Certificate","ISPS Code／船旗國或 RO","5 年；第 2～3 週年間中間稽核","船舶保全證書（SSP 保全計畫為機密，不上傳）"],
+    MLC:["Maritime Labour Certificate","MLC 2006／船旗國或 RO","5 年；第 2～3 週年間中間檢查","與 DMLC Part I／II 一起備查"],
+    PCR:["Permanent Certificate of Registry","船旗國","無效期；船東、船名、船籍變更時換發","國籍證書（記錄登記日）"],
+    RSL:["Ship Radio Station License","船旗國","ROC 5 年／LISCR 4 年，依到期日換證","無線電台執照"],
+    MSMC:["Minimum Safe Manning Certificate","船旗國","ROC 5 年／LISCR 無效期（記錄簽發日）","最低安全配額證書"],
+    BLUECARDS:["Blue Cards：BCLC／CLC／WRC","船旗國（依 P&I 保險）","三張效期相同，每年 2/20 隨 P&I 保單年度換發","燃油污染、油污、殘骸移除民事責任證書；散裝船沒有 CLC"],
+    CSR:["Continuous Synopsis Record","SOLAS XI-1/5／船旗國","無效期；資料變更即發新版（追蹤版次 No.）","連續概要紀錄，舊版須全部保留在船上"],
+    FFEA:["FFEA","（待補）","5 年；僅散裝船","說明待補"],
+    CACOFR:["California Certificate of Financial Responsibility","加州 OSPR","2 年","進加州水域須備；不跑該航線的船為 NIL"],
+    USCOFR:["Certificate of Financial Responsibility（USCG）","美國海岸防衛隊 NPFC（OPA 90）","3 年","進美國水域須備；不跑該航線的船為 NIL"],
+    RRDA:["RRDA","（待補）","1 年；ABS 船級不用更新（CR&ABS 國輪亦同）","說明待補"]
+  },
+  /* 督導人員名單補充：船舶資料沒登記的輪替人員（2026-11-03 使用者確認） */
+  SUP_EXTRA:{"張議榮":"deck","林建宏":"engine"},
+  FILE_ROOT:"\\\\ftcfilestore01.tw.fpg.com\\FPMC$\\E\\05海技組\\04.Ship's Certificates\\1. 船隊證書 fleet cert\\",
+  NK(s){return String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");},
+  me(){return (typeof Role!=="undefined"&&Role.cur&&Role.cur.name)?Role.cur.name:"";},
+  isAdmin(){return typeof Role==="undefined"||Role.isAdmin();},
+  daysTo(s){return Math.round((new Date(s+"T00:00:00")-new Date(todayStr()+"T00:00:00"))/864e5);},
+  fmt(s){return s?String(s).replace(/-/g,"/"):"—";},
+  addM(s,n){const d=new Date(s+"T00:00:00");d.setMonth(d.getMonth()+n);return InspCtrl.toLocalISO(d);},
+  allCols(){return [...this.INSP_COLS,...this.CERT_COLS];},
+  colOf(k){return this.allCols().find(c=>c[0]===k)||this.extraCols().find(c=>c[0]===k)||[k,k,""];},
+  isCertKey(k){return this.CERT_COLS.some(c=>c[0]===k);},
+  /* 資料裡有、但不在固定欄位的檢查項目（例如 PSC）也列出來，避免看不到 */
+  extraCols(){
+    const known=new Set(this.allCols().map(c=>c[0]));const out=[];
+    App.inspCtrl.forEach(d=>{if(d.cat==="cert")return;const k=this.NK(d.itype);if(k&&!known.has(k)){known.add(k);out.push([k,d.itype,""]);}});
+    return out;
+  },
+  sup(){
+    const d=new Set(),e=new Set();
+    (typeof SHIPINFO!=="undefined"?SHIPINFO:[]).forEach(s=>{[s.deckSup,s.deckSupAlt].forEach(n=>n&&d.add(n));[s.engineSup,s.engineSupAlt].forEach(n=>n&&e.add(n));});
+    Object.entries(this.SUP_EXTRA).forEach(([n,c])=>(c==="deck"?d:e).add(n));
+    const so=a=>[...a].sort((x,y)=>x.localeCompare(y,"zh-Hant"));
+    return {deck:so(d),engine:so([...e].filter(n=>!d.has(n)))};
+  },
+  /* 甲板／機艙督導各自最近一次訪船：看類別不看人名 */
+  devs(code,S){
+    const s=SHIPINFO.find(x=>x.code===code)||{};
+    const visits=App.insp.filter(r=>r.ship===code&&this.NK(r.itype)==="ONBOARDVISIT").map(r=>({date:InspCtrl.normDate(r.date),who:String(r.inspector||"")})).filter(r=>r.date).sort((a,b)=>a.date<b.date?-1:1);
+    const mk=(cat,assigned)=>{const names=S[cat];const hits=visits.filter(v=>names.some(n=>v.who.includes(n)));const h=hits.pop();
+      if(!h&&!assigned)return null;const days=h?-this.daysTo(h.date):null;
+      return {name:h?names.find(n=>h.who.includes(n)):assigned,assigned,date:h?h.date:null,days,warn:days!=null&&days>14*30.44};};
+    return {deck:mk("deck",s.deckSup),engine:mk("engine",s.engineSup)};
+  },
+  /* 把一筆 inspCtrl 轉成畫面用的列 */
+  row(d){
+    const c=InspCtrl.computeRow(d);
+    const due=(c.dueDateCalc&&c.dueDateCalc!=="-")?c.dueDateCalc:"";
+    const ST={"逾期":0,"即將到期(紅)":1,"即將到期(黃)":2,"正常":3,"無到期日":4};
+    let st=ST[c.status]??4;const k=this.NK(d.itype);
+    let txt="";
+    if(d.cat==="cert"){
+      if(d.na)st=5,txt=d.na;
+      else if(!due)txt=k==="CSR"&&d.certVer?"No."+d.certVer:"無效期";
+    }
+    return {src:d,id:d.id,ship:d.ship,itype:d.itype,k,cert:d.cat==="cert",due,days:due?c.daysLeft:null,st,txt,
+      last:c.lastDateCalc,lastBy:c.lastInspector,auto:!!c.autoLast,stage:c.activeStage,ms:c.midStartCalc,me:c.midEndCalc,midDone:c.midDone,
+      enh:c.isEnhancedAudit,ovr:c.dueDateOverrideActive,lrit:c.isLritFixed,sched:InspCtrl.normDate(d.schedDate||""),owner:d.owner||"",note:d.note||""};
+  },
+  build(){
+    this.S=this.sup();
+    this.ROWS=App.inspCtrl.filter(d=>d.ship&&d.itype).map(d=>this.row(d));
+    this.byKey={};this.ROWS.forEach(r=>{const key=r.ship+"|"+r.k;if(!this.byKey[key])this.byKey[key]=r;});
+    const codes=new Set(this.ROWS.filter(r=>!r.cert).map(r=>r.ship));
+    this.SHIPS=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>codes.has(s.code)).map(s=>({...s,dv:this.devs(s.code,this.S),enh:this.ROWS.some(r=>r.ship===s.code&&r.enh)}));
+  },
+  cell(ship,k){return this.byKey[ship+"|"+k]||null;},
+  cols(){
+    const F=this.F,base=[...this.INSP_COLS,...this.extraCols()];
+    if(F.items.size)return [...base,...this.CERT_COLS].filter(c=>F.items.has(c[0]));
+    return F.scope==="insp"?base:F.scope==="cert"?[...this.INSP_COLS.filter(c=>this.CERT60.includes(c[0])),...this.CERT_COLS]:[...base,...this.CERT_COLS];
+  },
+  shipPass(s){const F=this.F,me=this.me();
+    if(F.type&&s.vtype!==F.type)return false;
+    if(F.sup&&![s.deckSup,s.engineSup,s.deckSupAlt,s.engineSupAlt].includes(F.sup))return false;
+    if(F.mineSup&&s.deckSup!==me&&s.engineSup!==me)return false;
+    if(F.st==="dev"&&!(s.dv.deck?.warn||s.dv.engine?.warn))return false;
+    if(F.st==="enh"&&!s.enh)return false;
+    return true;},
+  ownerPass(r){const F=this.F;return (!F.owner||r.owner===F.owner)&&(!F.mineOwn||r.owner===this.me());},
+  rowPass(r){const F=this.F;
+    if(!r||!this.ownerPass(r))return false;
+    if(F.unsched&&r.sched)return false;
+    if(F.st==="nosched")return !!r.due&&r.days<=InspCtrl.thresh().yellow&&!r.sched;
+    if(F.st==="attn")return r.st<=2;
+    if(F.st==="enh"||F.st==="dev")return true; // 這兩個是篩船，船上的格子照常顯示
+    if(typeof F.st==="number")return r.st===F.st;
+    return true;},
+  cellTxt(r){if(!r.due)return r.txt||"—";if(r.days<0)return "逾"+(-r.days);if(r.days<=InspCtrl.thresh().yellow)return r.days+"天";return r.due.slice(2,7).replace("-","/");},
+  stLabel(r){return !r.due?(r.st===5?"不適用（"+r.txt+"）":r.txt||"無到期日"):r.days<0?"逾期 "+(-r.days)+" 天":"剩 "+r.days+" 天";},
+  visible(){const out=[];for(const s of this.SHIPS){if(!this.shipPass(s))continue;for(const c of this.cols()){const r=this.cell(s.code,c[0]);if(r)out.push({s,c,r});}}return out;},
+  /* ── 畫面 ── */
+  render(){
+    if(!$("#ic2-kpis"))return;
+    this.bind();this.build();this.fillSelects();
+    const t=InspCtrl.thresh();$$("#ig-page-plan2 .ic2-th-red").forEach(e=>e.textContent=t.red);$$("#ig-page-plan2 .ic2-th-yel").forEach(e=>e.textContent=t.yellow);
+    this.kpis();this.activeBar();this.certInfo();
+    const v=this.F.view;
+    $("#ic2-v-mx").style.display=v==="mx"?"":"none";$("#ic2-v-list").style.display=v==="list"?"":"none";$("#ic2-v-cal").style.display=v==="cal"?"":"none";
+    if(v==="mx")this.matrix();else if(v==="list")this.list();else this.calendar();
+    $$("#ic2-scope button").forEach(b=>b.classList.toggle("on",b.dataset.v===this.F.scope));
+    $$("#ic2-view button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+    $("#ic2-mine-sup").classList.toggle("on",this.F.mineSup);$("#ic2-mine-own").classList.toggle("on",this.F.mineOwn);$("#ic2-unsched").classList.toggle("on",this.F.unsched);
+    const fi=$("#ic2-f-items");fi.textContent=this.F.items.size?`檢查項目／證書（${this.F.items.size}）▾`:"檢查項目／證書 ▾";fi.classList.toggle("on",this.F.items.size>0);
+    if(this.cur&&$("#ic2-drawer").style.display!=="none"){const[a,b,c]=this.cur;if(a==="cell")this.openCell(b,c);else if(a==="ship")this.openShip(b);}
+  },
+  fillSelects(){
+    const keep=(sel,html)=>{const el=$(sel),v=el.value;el.innerHTML=html;el.value=[...el.options].some(o=>o.value===v)?v:"";};
+    const sups=[...new Set(this.SHIPS.flatMap(s=>[s.deckSup,s.engineSup]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+    keep("#ic2-f-sup",`<option value="">全部督導</option>`+sups.map(n=>`<option>${esc(n)}</option>`).join(""));
+    const owners=[...new Set(this.ROWS.map(r=>r.owner).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+    keep("#ic2-f-owner",`<option value="">全部檢查安排人</option>`+owners.map(n=>`<option>${esc(n)}</option>`).join(""));
+  },
+  kpis(){
+    const t=InspCtrl.thresh(),F=this.F;
+    const base=[];for(const s of this.SHIPS){if(F.type&&s.vtype!==F.type)continue;if(F.sup&&![s.deckSup,s.engineSup,s.deckSupAlt,s.engineSupAlt].includes(F.sup))continue;if(F.mineSup&&s.deckSup!==this.me()&&s.engineSup!==this.me())continue;
+      for(const c of this.cols()){const r=this.cell(s.code,c[0]);if(r&&this.ownerPass(r))base.push(r);}}
+    const n=i=>base.filter(r=>r.st===i).length;
+    const ns=base.filter(r=>r.due&&r.days<=t.yellow&&!r.sched).length;
+    const devN=this.SHIPS.filter(s=>s.dv.deck?.warn||s.dv.engine?.warn).length,enhN=this.SHIPS.filter(s=>s.enh).length;
+    const chip=(v,label,cls,cnt)=>`<button class="ic2-kpi ${cls} ${F.st===v?"on":""}" data-st="${v}">${label}<b>${cnt}</b></button>`;
+    $("#ic2-kpis").innerHTML=
+      `<button class="ic2-kpi ${ns?"s0":"s3"} ${F.st==="nosched"?"on":""}" data-st="nosched" title="${t.yellow} 天內到期（含已逾期）但還沒有預排日期的項目；目標是 0">⏳ ${t.yellow} 天內未排程<b>${ns}</b><span style="font-size:11px;opacity:.85">目標 0</span></button><span class="ic2-sep"></span>`+
+      chip("attn","🔔 需關注","s2",base.filter(r=>r.st<=2).length)+chip(0,"逾期","s0",n(0))+chip(1,`${t.red} 天內`,"s1",n(1))+chip(2,`${t.yellow} 天內`,"s2",n(2))+
+      chip(3,"正常","s3",n(3))+chip(4,"無到期日","s4",n(4))+chip("all","全部","s4",base.length)+
+      `<span style="flex:1"></span><button class="ic2-alert ${F.st==="dev"?"on":""}" data-st="dev">⚠ 督導間隔警示（${devN}）</button><button class="ic2-alert ${F.st==="enh"?"on":""}" style="background:var(--bad)" data-st="enh">🔺 加強管理船舶（${enhN}）</button>`;
+  },
+  /* 目前套用了哪些篩選，一眼看出來；每個都可以單獨取消 */
+  activeBar(){
+    const F=this.F,t=InspCtrl.thresh(),chips=[];
+    const stName={nosched:`${t.yellow} 天內未排程`,attn:"需關注",0:"逾期",1:`${t.red} 天內`,2:`${t.yellow} 天內`,3:"正常",4:"無到期日",dev:"督導間隔警示",enh:"加強管理船舶"};
+    if(F.st!=null)chips.push(["st",`狀態：${stName[F.st]}`]);
+    if(F.items.size)chips.push(["items",`項目：${[...F.items].map(k=>this.colOf(k)[1]).join("、")}`]);
+    else if(F.scope!=="insp")chips.push(["scope",`範圍：${F.scope==="cert"?"海技管理證書":"檢查項目＋證書"}`]);
+    if(F.type)chips.push(["type",`船型：${F.type==="tanker"?"油輪":"散裝"}`]);
+    if(F.sup)chips.push(["sup",`督導：${F.sup}`]);
+    if(F.owner)chips.push(["owner",`檢查安排人：${F.owner}`]);
+    if(F.mineSup)chips.push(["mineSup",`我督導的船（${this.me()}）`]);
+    if(F.mineOwn)chips.push(["mineOwn",`我負責的（${this.me()}）`]);
+    if(F.unsched)chips.push(["unsched","只看未排程"]);
+    const ships=new Set(),cnt=this.visible().filter(x=>this.rowPass(x.r)).map(x=>(ships.add(x.s.code),1)).length;
+    $("#ic2-active").innerHTML=`<span class="ic2-lbl">目前顯示</span>`+
+      (chips.length?chips.map(([k,l])=>`<span class="ic2-chip">${esc(l)}<button data-unf="${k}" title="取消這個篩選">×</button></span>`).join("")+`<button class="btn sm" data-unf="__all">清除全部篩選</button>`:`<span class="ic2-lbl" style="color:var(--ink-2)">全部（未篩選）</span>`)+
+      `<span style="flex:1"></span><b style="color:var(--navy)">${ships.size} 艘船・${cnt} 項</b>`;
+  },
+  unfilter(k){const F=this.F;
+    if(k==="__all")Object.assign(F,{st:null,scope:"insp",type:"",sup:"",owner:"",mineSup:false,mineOwn:false,unsched:false,items:new Set()});
+    else if(k==="items")F.items=new Set();else if(k==="scope")F.scope="insp";else if(k==="st")F.st=null;
+    else if(["type","sup","owner"].includes(k))F[k]="";else F[k]=false;
+    $("#ic2-f-type").value=F.type;$("#ic2-f-sup").value=F.sup;$("#ic2-f-owner").value=F.owner;this.render();},
+  certInfo(){
+    const F=this.F,el=$("#ic2-certinfo");
+    const show=F.scope!=="insp"||[...F.items].some(k=>this.isCertKey(k));
+    el.style.display=show?"":"none";if(!show||el.dataset.done)return;el.dataset.done=1;
+    const rows=(kd,t,keys)=>`<tr><td colspan="5" style="background:#e6ecf7;color:var(--navy);font-weight:700">${t}</td></tr>`+keys.map(k=>{const d=this.CERT_DESC[k],c=this.colOf(k);return `<tr><td><b>${esc(c[1])}</b><div class="ic2-lbl">${esc(c[2])}</div></td><td>${esc(d[0])}</td><td>${esc(d[1])}</td><td>${esc(d[2])}</td><td>${esc(d[3])}</td></tr>`;}).join("");
+    el.innerHTML=`<details><summary style="cursor:pointer"><b style="color:var(--navy)">📜 海技管理證書</b>　<span class="ic2-lbl">由海技組負責申請、換證與追蹤的船舶證書，共 ${3+this.CERT_COLS.length} 種（點開看說明）</span></summary>
+      <div style="overflow-x:auto;margin-top:8px"><table class="ic2-list" style="min-width:820px"><thead><tr><th>證書</th><th>英文名稱</th><th>依據／發證</th><th>效期</th><th>說明</th></tr></thead><tbody>
+      ${rows("inspect","① 需安排檢查員：中期檢驗＋換證",this.CERT60)}${rows("validity","② 掌控效期・安排換證",this.CERT_COLS.map(c=>c[0]))}</tbody></table></div>
+      <p class="ic2-lbl" style="margin:8px 0 0">管理單位：海技組｜檔案放公司檔案伺服器「1. 船隊證書 fleet cert」，系統只存日期與路徑，不上傳檔案。證書格子顯示「＋」代表還沒建立資料，管理員點一下即可新增。</p></details>`;
+  },
+  shipWorst(s){let w=1e9;for(const c of this.cols()){const r=this.cell(s.code,c[0]);if(r&&r.st<=2)w=Math.min(w,r.st*10000+(r.days??0));}return w;},
+  matrix(){
+    const C=this.cols(),F=this.F,admin=this.isAdmin();
+    let ships=this.SHIPS.filter(s=>this.shipPass(s));
+    if(F.mineOwn||F.owner)ships=ships.filter(s=>C.some(c=>{const r=this.cell(s.code,c[0]);return r&&this.ownerPass(r);}));
+    ships.sort(F.sort==="worst"?(a,b)=>this.shipWorst(a)-this.shipWorst(b)||a.code.localeCompare(b.code,undefined,{numeric:true}):(a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true}));
+    let h=`<thead><tr><th class="corner">船舶（${ships.length}）</th>${C.map(c=>{const d=this.CERT_DESC[c[0]];return `<th class="${this.isCertKey(c[0])?"cert":""}" ${d?`title="${esc(d[0]+"\n"+d[1]+"\n"+d[2])}"`:""}>${esc(c[1])}<small>${esc(c[2])||"&nbsp;"}</small></th>`;}).join("")}</tr></thead><tbody>`;
+    for(const s of ships){
+      const dv=s.dv.deck?.warn||s.dv.engine?.warn;
+      h+=`<tr><th tabindex="0" data-ship="${esc(s.code)}" title="${esc(s.zh||s.name)}・甲板督導 ${esc(s.deckSup||"-")}／機艙督導 ${esc(s.engineSup||"-")}"><b>${esc(s.code)}</b><small>${s.vtype==="tanker"?"油":"散"}・${esc(s.deckSup||"")}／${esc(s.engineSup||"")}</small>${s.enh?'<span class="ic2-tag enh">加強</span>':""}${dv?'<span class="ic2-tag dev">督導</span>':""}</th>`;
+      for(const c of C){const r=this.cell(s.code,c[0]);
+        if(!r){h+=this.isCertKey(c[0])&&admin?`<td class="c sadd" data-add="${esc(s.code)}|${c[0]}" title="建立 ${esc(s.code)} ${esc(c[1])} 證書資料">＋</td>`:`<td class="c sx">·</td>`;continue;}
+        const dim=!this.rowPass(r);
+        h+=`<td tabindex="0" class="c s${r.st} ${dim?"dim":""}" data-ship="${esc(s.code)}" data-k="${c[0]}" ${r.sched?"data-sched":""} title="${esc(s.code)} ${esc(c[1])}：${esc(this.stLabel(r))}${r.due?"，到期 "+this.fmt(r.due):""}${r.sched?"，預排 "+this.fmt(r.sched):""}${r.owner?"，"+esc(r.owner):""}">${esc(this.cellTxt(r))}${r.stage==="intermediate"?'<span class="stg">中</span>':""}</td>`;}
+      h+="</tr>";
+    }
+    $("#ic2-mx").innerHTML=h+"</tbody>";
+  },
+  list(){
+    const L=this.LSORT;
+    const rows=this.visible().filter(x=>this.rowPass(x.r)).sort((a,b)=>L==="days"?((a.r.days??1e9)-(b.r.days??1e9)):L==="ship"?a.s.code.localeCompare(b.s.code,undefined,{numeric:true}):String(a.r[L]||"").localeCompare(String(b.r[L]||""),"zh-Hant"));
+    $("#ic2-list").innerHTML=`<thead><tr><th data-sort="ship">船</th><th>項目</th><th data-sort="days">狀態 ▾</th><th>最近一次</th><th data-sort="due">到期日</th><th data-sort="sched">預排日</th><th data-sort="owner">檢查安排人</th><th>備註</th></tr></thead><tbody>`+
+      rows.map(({s,c,r})=>`<tr data-ship="${esc(s.code)}" data-k="${c[0]}"><td><b>${esc(s.code)}</b>${s.enh?'<span class="ic2-tag enh">加強</span>':""}</td><td>${esc(c[1])}${r.stage?` <span class="ic2-pill ${r.stage==="intermediate"?"s2":"s4"}" style="font-size:11px">${r.stage==="intermediate"?"中檢":"換證"}</span>`:""}</td>
+      <td><span class="ic2-pill s${r.st}">${esc(this.stLabel(r))}</span></td><td style="font-family:var(--mono)">${this.fmt(r.last)}</td><td style="font-family:var(--mono)">${this.fmt(r.due)}</td>
+      <td style="font-family:var(--mono)">${r.sched?this.fmt(r.sched)+(r.src.schedPort?`<div class="ic2-lbl">${esc(r.src.schedPort)}</div>`:""):(r.st===5?"—":`<button class="btn sm" data-sched-open="${esc(s.code)}|${c[0]}">📅 排程</button>`)}</td>
+      <td>${esc(r.owner)}</td><td style="max-width:280px;color:var(--ink-2);font-size:12px">${esc(r.note)}</td></tr>`).join("")+
+      (rows.length?"":`<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--ink-3)">沒有符合篩選的項目</td></tr>`)+"</tbody>";
+  },
+  calendar(){
+    const months=[],today=todayStr(),d0=new Date(today.slice(0,7)+"-01T00:00:00");
+    for(let i=0;i<6;i++){const d=new Date(d0);d.setMonth(d.getMonth()+i);months.push(InspCtrl.toLocalISO(d).slice(0,7));}
+    const bucket={late:[]};months.forEach(m=>bucket[m]=[]);
+    for(const x of this.visible()){const r=x.r;if(!this.rowPass(r)||r.st===5)continue;
+      if(r.sched){const m=r.sched.slice(0,7);if(bucket[m])bucket[m].push({...x,kind:"sched"});else if(r.sched<today)bucket.late.push({...x,kind:"past"});continue;}
+      if(!r.due)continue;
+      if(r.due<today){bucket.late.push({...x,kind:"over"});continue;}
+      const m=r.due.slice(0,7);if(bucket[m])bucket[m].push({...x,kind:"due"});}
+    const card=x=>{const r=x.r;
+      const sub=x.kind==="sched"?`📅 ${r.sched.slice(5).replace("-","/")}${r.src.schedPort?" "+esc(r.src.schedPort):""}・${esc(r.owner)}`:x.kind==="past"?`排程 ${this.fmt(r.sched)} 已過未完成`:x.kind==="over"?`逾期 ${-r.days} 天・未排程`:`到期 ${r.due.slice(5).replace("-","/")}・未排程`;
+      return `<div class="ic2-it ${x.kind} s${r.st}" data-ship="${esc(x.s.code)}" data-k="${r.k}" tabindex="0"><b>${esc(x.s.code)}</b> ${esc(x.c[1])}${r.stage==="intermediate"?"（中檢）":""}<div>${sub}</div></div>`;};
+    const sorter=(a,b)=>(a.r.sched||a.r.due||"").localeCompare(b.r.sched||b.r.due||"")||a.s.code.localeCompare(b.s.code);
+    const load=list=>{const c={};list.filter(x=>x.kind==="sched").forEach(x=>{const o=x.r.owner||"未指定";c[o]=(c[o]||0)+1;});return Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([o,n])=>`${esc(o)} ${n}`).join("・");};
+    const col=(title,list,cls="")=>{const sch=list.filter(x=>x.kind==="sched").length,un=list.length-sch;
+      return `<div class="ic2-col ${cls}"><div class="ic2-colh"><b>${title}</b><span class="ic2-lbl">已排 ${sch}・<span style="color:${un?"var(--bad)":"inherit"}">未排 ${un}</span></span>${load(list)?`<div class="ic2-lbl" style="font-size:11px">${load(list)}</div>`:""}</div>${list.sort(sorter).map(card).join("")||'<div class="ic2-lbl" style="padding:8px">—</div>'}</div>`;};
+    $("#ic2-cal").innerHTML=col("⚠ 逾期／排程已過",bucket.late,"late")+months.map((m,i)=>col(`${+m.slice(5)} 月${i===0?"（本月）":""}<span class="ic2-lbl" style="font-weight:400"> ${m.slice(0,4)}</span>`,bucket[m])).join("");
+  },
+  /* ── 側邊明細 ── */
+  closeDrawer(){const d=$("#ic2-drawer");if(d)d.style.display="none";this.cur=null;},
+  showDrawer(html,cur){const d=$("#ic2-drawer");d.innerHTML=html;d.style.display="";this.cur=cur;},
+  head(ship,title,sub){const s=SHIPINFO.find(x=>x.code===ship)||{};return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="lbl">${esc(ship)}・${esc(s.zh||s.name||"")}${sub?"・"+sub:""}</div><h2>${title}</h2></div><button class="btn" data-close>關閉</button></div>`;},
+  openCell(ship,k){
+    const r=this.cell(ship,k);if(!r)return;const c=this.colOf(k),s=this.SHIPS.find(x=>x.code===ship)||{dv:{}},d=r.src;
+    const cd=this.CERT_DESC[k];
+    const certPart=(r.cert||this.CERT60.includes(k))?`<h3>海技管理證書</h3><div class="note">${esc(cd[0])}<br>${esc(cd[3])}<div class="lbl" style="margin-top:4px">${esc(cd[1])}｜${esc(cd[2])}</div></div>
+      <dl class="kv"><dt>管控方式</dt><dd>${this.CERT60.includes(k)?"① 需安排檢查員（中期檢驗＋換證）":"② 掌控效期・安排換證"}</dd>
+      ${d.certNo?`<dt>證號</dt><dd>${esc(d.certNo)}</dd>`:""}${d.issueDate?`<dt>${k==="PCR"?"登記日":"簽發日"}</dt><dd>${this.fmt(d.issueDate)}</dd>`:""}
+      ${d.certVer?`<dt>版次</dt><dd>No.${esc(d.certVer)}</dd>`:""}${d.na?`<dt>狀態</dt><dd>${d.na==="CR&ABS"?"CR&ABS 雙船級（國輪），不用更新":d.na==="ABS"?"ABS 船級，不用更新":"不適用（NIL）"}</dd>`:""}
+      ${this.CERT60.includes(k)?`<dt>檢查員</dt><dd>${d.certInspector?esc(d.certInspector):'<span class="lbl">未安排</span>'}</dd>`:""}</dl>
+      <div style="display:flex;gap:8px;align-items:center;border:1px dashed var(--line-2);border-radius:5px;padding:8px;font-size:12px"><span>📁</span><span style="flex:1;overflow-wrap:anywhere">${esc(this.FILE_ROOT+ship+"\\")}</span><button class="btn sm" data-copy="${esc(this.FILE_ROOT+ship+"\\")}">複製路徑</button></div>`:"";
+    const ov=k==="ONBOARDVISIT"?`<h3>督導訪船間隔（看類別）</h3><dl class="kv">${["deck","engine"].map(t=>{const v=s.dv[t];return v?`<dt>${t==="deck"?"甲板督導":"機艙督導"}</dt><dd>${v.date?esc(v.name)+"："+this.fmt(v.date)+"（"+v.days+" 天前）":"查無訪船紀錄"} ${v.warn?'<span class="ic2-pill s1">超過 14 個月</span>':""}</dd>`:""}).join("")}</dl>`:"";
+    const canEdit=InspCtrl.canEditRow(d);
+    this.showDrawer(`${this.head(ship,`${esc(c[1])} <span style="font-family:var(--mono);font-size:12px;color:var(--ink-3)">${esc(r.itype)}</span>`)}
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"><span class="ic2-pill s${r.st}">${esc(this.stLabel(r))}</span>${r.stage?`<span class="ic2-pill ${r.stage==="intermediate"?"s2":"s4"}">${r.stage==="intermediate"?"中間檢查階段":"換證階段"}</span>`:""}${r.enh?'<span class="ic2-pill s1">加強稽核（效期 6 個月）</span>':""}</div>
+      <dl class="kv">
+        ${r.cert?"":`<dt>最近一次檢查</dt><dd>${this.fmt(r.last)}${r.auto?'<span class="auto">自動抓檢查紀錄</span>':""}${r.lastBy?`<div class="lbl">${esc(r.lastBy)}</div>`:""}</dd>
+        <dt>效期</dt><dd>${d.validityMonths?esc(d.validityMonths)+" 個月":"—"}${r.lrit?"（每年固定 "+esc(d.fixedAnnualDate)+"）":""}</dd>`}
+        <dt>到期日</dt><dd>${this.fmt(r.due)}${r.ovr?' <span class="lbl">（依證書實際日期覆寫）</span>':""}</dd>
+        ${r.ms?`<dt>中間檢查窗口</dt><dd>${this.fmt(r.ms)} ～ ${this.fmt(r.me)}${r.midDone?`<div class="lbl">已完成 ${this.fmt(InspCtrl.normDate(d.midDate))}</div>`:""}</dd>`:""}
+        <dt>預排日</dt><dd>${r.sched?this.fmt(r.sched)+(d.schedPort?"・"+esc(d.schedPort):"")+(d.schedNote?`<div class="lbl">${esc(d.schedNote)}</div>`:""):'<span class="ic2-pill s2">未排程</span>'}</dd>
+        <dt>檢查安排人</dt><dd>${esc(r.owner||"—")}</dd>
+        ${k==="ONBOARDVISIT"||k==="CROSSSHIPVISIT"?`<dt>訪船人</dt><dd>${d.visitor?esc(d.visitor)+`<span class="lbl">（${this.S.deck.includes(d.visitor)?"甲板":"機艙"}督導）</span>`:'<span class="lbl">未指派</span>'}</dd>`:""}
+        ${k==="INTERNALAUDIT"?`<dt>稽核員</dt><dd>${d.auditor?esc(d.auditor):'<span class="lbl">未指派</span>'}</dd>`:""}
+        ${r.note?`<dt>備註</dt><dd>${esc(r.note)}</dd>`:""}
+      </dl>${ov}${certPart}
+      <div class="btnrow">${r.st===5?"":`<button class="btn primary" data-sched-open="${esc(ship)}|${k}" ${canEdit?"":"disabled title='僅該筆檢查安排人本人或管理員可修改'"}>${r.cert?"🔁 "+(r.sched?"修改換證安排":"安排換證"):"📅 "+(r.sched?"修改排程":"排程")}</button>`}
+        ${r.cert?(this.isAdmin()?`<button class="btn" data-cert-edit="${esc(ship)}|${k}">✎ 編輯證書資料</button>`:""):`<button class="btn" data-full-edit="${r.id}">✎ 完整編輯</button>`}
+        <button class="btn" data-ship-open="${esc(ship)}">看 ${esc(ship)} 全部項目</button></div>`,["cell",ship,k]);
+  },
+  openShip(ship){
+    const s=this.SHIPS.find(x=>x.code===ship);if(!s)return;
+    const items=[...this.INSP_COLS,...this.extraCols(),...this.CERT_COLS].map(c=>({c,r:this.cell(ship,c[0])})).filter(x=>x.r).sort((a,b)=>(a.r.days??1e9)-(b.r.days??1e9));
+    const dvl=["deck","engine"].map(t=>{const v=s.dv[t];return v?`${t==="deck"?"甲板":"機艙"}督導（登記：${esc(v.assigned||"-")}）最近訪船：${v.date?esc(v.name)+" "+this.fmt(v.date):"查無"}${v.warn?' <span class="ic2-pill s1">超過 14 個月</span>':""}`:""}).filter(Boolean).join("<br>");
+    this.showDrawer(`${this.head(ship,`${esc(ship)}　${esc(s.zh||"")}`,`${s.vtype==="tanker"?"油輪":"散裝"}・${esc(s.flag||"")}・${esc(s.cls||"")}`)}
+      <div class="note" style="margin-top:10px">${dvl||"未設定督導"}</div>
+      <table style="margin-top:10px"><thead><tr><th>項目</th><th>狀態</th><th>到期</th><th>預排</th></tr></thead><tbody>
+      ${items.map(({c,r})=>`<tr data-ship="${esc(ship)}" data-k="${c[0]}"><td>${esc(c[1])}</td><td><span class="ic2-pill s${r.st}">${esc(this.cellTxt(r))}</span></td><td>${this.fmt(r.due)}</td><td>${r.sched?this.fmt(r.sched):"—"}</td></tr>`).join("")}</tbody></table>`,["ship",ship]);
+  },
+  suggest(r){
+    if(!r.due)return null;const today=todayStr();let g;
+    if(r.stage==="intermediate")g={a:r.ms,b:r.me,why:"中間檢查窗口（到期日前 3 年～前 2 年）"};
+    else if(r.days<0)g={a:today,b:this.addM(today,1),why:"已逾期，建議 1 個月內完成"};
+    else if(this.CERT60.includes(r.k))g={a:this.addM(r.due,-3),b:r.due,why:"換證窗口（到期前 3 個月內）"};
+    else if(r.k==="ONBOARDVISIT")g={a:this.addM(r.due,-1),b:r.due,why:"每半年訪船一次"};
+    else if(r.cert)g={a:this.addM(r.due,-3),b:r.due,why:"到期前 3 個月內辦理換證"};
+    else g={a:this.addM(r.due,-2),b:r.due,why:"到期前 2 個月內"};
+    if(g.a<today&&g.b>=today)g.a=today;return g;
+  },
+  openSched(ship,k){
+    const r=this.cell(ship,k);if(!r)return;const d=r.src,c=this.colOf(k),s=this.SHIPS.find(x=>x.code===ship)||{dv:{}},sg=this.suggest(r);
+    if(!InspCtrl.canEditRow(d)){toast("⚠ 僅該筆「檢查安排人」本人或管理員可修改排程");return;}
+    const owners=[...new Set(this.ROWS.map(x=>x.owner).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+    const others=this.cols().map(cc=>this.cell(ship,cc[0])).filter(x=>x&&x!==r&&!x.sched&&x.due&&x.days<=120&&InspCtrl.canEditRow(x.src));
+    const isVisit=k==="ONBOARDVISIT"||k==="CROSSSHIPVISIT";let visDefault=d.visitor||"",dvHint="";
+    if(k==="ONBOARDVISIT"){const a=s.dv.deck,b=s.dv.engine;if(a&&b){const pick=(a.days??1e9)>=(b.days??1e9)?["甲板督導",a]:["機艙督導",b];if(!visDefault)visDefault=pick[1].assigned||pick[1].name;
+      dvHint=`<div class="note" style="margin-top:8px">建議這次由 <b>${pick[0]}</b> 前往（${pick[1].date?"已 "+pick[1].days+" 天未訪":"查無訪船紀錄"}）。</div>`;}}
+    const auditors=(typeof AuditDash!=="undefined"&&AuditDash.AUDITORS)||[];
+    this.showDrawer(`${this.head(ship,`${r.cert?"🔁 安排換證":"📅 排程"}：${esc(c[1])}`)}
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><span class="ic2-pill s${r.st}">${esc(this.stLabel(r))}</span><span class="lbl">到期 ${this.fmt(r.due)}</span></div>
+      ${sg?`<div class="sg" style="margin-top:10px">建議期間 <b>${this.fmt(sg.a)} ～ ${this.fmt(sg.b)}</b><div class="lbl">${sg.why}</div><button class="btn sm" id="ic2-sc-use" data-d="${sg.a}" style="margin-top:4px">帶入建議日期</button></div>`:""}
+      ${dvHint}
+      <div class="form">
+        <label for="ic2-sc-date">預排日期</label><input type="date" id="ic2-sc-date" value="${r.sched||""}">
+        <span></span><div class="warnbox" id="ic2-sc-warn"></div>
+        <label for="ic2-sc-owner">檢查安排人</label><select id="ic2-sc-owner" ${this.isAdmin()?"":"disabled title='僅 Owner／管理員可改檢查安排人'"}>${(r.owner&&!owners.includes(r.owner)?[r.owner,...owners]:owners).map(o=>`<option ${o===r.owner?"selected":""}>${esc(o)}</option>`).join("")}${r.owner?"":'<option value="" selected>（未指定）</option>'}</select>
+        ${isVisit?`<label for="ic2-sc-vis">訪船人</label><select id="ic2-sc-vis"><option value="">（未指派）</option>
+          <optgroup label="甲板督導">${this.S.deck.map(n=>`<option ${n===visDefault?"selected":""}>${esc(n)}</option>`).join("")}</optgroup>
+          <optgroup label="機艙督導">${this.S.engine.map(n=>`<option ${n===visDefault?"selected":""}>${esc(n)}</option>`).join("")}</optgroup></select>
+          <span></span><div id="ic2-sc-visinfo" style="font-size:12.5px"></div>`:""}
+        ${this.CERT60.includes(k)?`<label for="ic2-sc-insp">檢查員</label><input id="ic2-sc-insp" placeholder="RO／船旗國檢查員" value="${esc(d.certInspector||"")}">`:""}
+        ${k==="INTERNALAUDIT"?`<label for="ic2-sc-aud">稽核員</label><select id="ic2-sc-aud"><option value="">（未指派）</option>${auditors.map(a=>`<option ${a===d.auditor?"selected":""}>${esc(a)}</option>`).join("")}</select>
+          <span></span><div class="warnbox" id="ic2-sc-audwarn"></div>`:""}
+        <label for="ic2-sc-port">預計港口</label><input id="ic2-sc-port" placeholder="例：寧波" value="${esc(d.schedPort||"")}">
+        <label for="ic2-sc-note">排程備註</label><input id="ic2-sc-note" placeholder="例：配合靠港卸貨" value="${esc(d.schedNote||"")}">
+      </div>
+      ${others.length?`<h3>同一次靠港一起排（120 天內到期、尚未排程）</h3>${others.map(o=>`<label style="display:flex;gap:6px;align-items:center;margin:3px 0"><input type="checkbox" data-also="${o.k}"> ${esc(this.colOf(o.k)[1])} <span class="ic2-pill s${o.st}">${esc(this.cellTxt(o))}</span></label>`).join("")}`:""}
+      <div class="note" style="margin-top:12px">完成檢查後，系統抓到新的檢查日，到期日自動往後推。排程日過了還沒完成，會出現在排程月曆最左欄「逾期／排程已過」。</div>
+      <div class="btnrow"><button class="btn primary" id="ic2-sc-save" data-ship="${esc(ship)}" data-sk="${k}">儲存排程</button>${r.sched?`<button class="btn" id="ic2-sc-clear" data-ship="${esc(ship)}" data-sk="${k}">取消排程</button>`:""}<button class="btn" data-back="${esc(ship)}|${k}">返回明細</button></div>`,["sched",ship,k]);
+    const chk=()=>{const v=$("#ic2-sc-date").value,w=$("#ic2-sc-warn"),today=todayStr();w.textContent=!v?"":v<today?"⚠ 這個日期已經過了":r.due&&v>r.due?`⚠ 晚於到期日 ${this.fmt(r.due)}，排到那天已經逾期`:sg&&r.stage==="intermediate"&&v<sg.a?"⚠ 早於中間檢查窗口，該次檢查不算數":"";};
+    $("#ic2-sc-date").oninput=chk;chk();
+    const vis=$("#ic2-sc-vis");
+    if(vis){const cv=()=>{const v=vis.value,box=$("#ic2-sc-visinfo");if(!v){box.innerHTML="";return;}
+      const cat=this.S.deck.includes(v)?"甲板":"機艙",own=[s.deckSup,s.deckSupAlt].includes(v)?"本船甲板督導":[s.engineSup,s.engineSupAlt].includes(v)?"本船機艙督導":"";
+      box.innerHTML=k==="ONBOARDVISIT"?`<span class="ic2-pill ${cat==="甲板"?"s3":"s4"}">計入${cat}督導訪船</span> <span class="lbl">${own||"非本船督導（輪替／代理），依類別計入"}</span>`
+        :own?`<span class="warnbox">⚠ ${esc(v)} 是${own}，交叉訪船應由其他船的督導前往</span>`:`<span class="ic2-pill s3">交叉訪船・${cat}</span> <span class="lbl">不計入本船 onboard visit 次數</span>`;};
+      vis.onchange=cv;cv();}
+    const aud=$("#ic2-sc-aud");
+    if(aud){const ca=()=>{const v=aud.value;$("#ic2-sc-audwarn").textContent=v&&(v===s.deckSup||v===s.engineSup)?`⚠ ${v} 是本船${v===s.deckSup?"甲板":"機艙"}督導，依 ISM 不可稽核自己督導的船`:"";};aud.onchange=ca;ca();}
+  },
+  saveSched(ship,k,clear){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("inspctrl"))return;
+    const r=this.cell(ship,k);if(!r)return;
+    const v=$("#ic2-sc-date").value;
+    if(!clear&&!v){$("#ic2-sc-warn").textContent="請先選預排日期";return;}
+    const targets=[r,...[...document.querySelectorAll("#ic2-drawer [data-also]:checked")].map(x=>this.cell(ship,x.dataset.also))].filter(Boolean);
+    const ownerSel=$("#ic2-sc-owner"),port=$("#ic2-sc-port").value.trim(),note=$("#ic2-sc-note").value.trim();
+    const logs=[];
+    for(const x of targets){const d=x.src;if(!InspCtrl.canEditRow(d))continue;
+      const old=d.schedDate||"";
+      if(clear){d.schedDate="";d.schedPort="";d.schedNote="";}
+      else{
+        d.schedDate=v;d.schedPort=port;d.schedNote=note;
+        if(this.isAdmin()&&ownerSel&&!ownerSel.disabled&&ownerSel.value&&x===r)d.owner=ownerSel.value;
+        if(x===r&&$("#ic2-sc-vis"))d.visitor=$("#ic2-sc-vis").value;
+        if(x===r&&$("#ic2-sc-aud"))d.auditor=$("#ic2-sc-aud").value;
+        if(x===r&&$("#ic2-sc-insp"))d.certInspector=$("#ic2-sc-insp").value.trim();
+      }
+      logs.push(`#${d.id} ${d.ship} ${d.itype} 預排：${old||"(未排程)"} → ${d.schedDate||"(清除)"}${d.schedPort?"（"+d.schedPort+"）":""}`);
+    }
+    if(!logs.length){toast("⚠ 沒有可修改的項目");return;}
+    App.saveAll();
+    if(typeof Audit!=="undefined")Audit.log("編輯","檢查管控",`（檢查管控2）${logs.join("；")}`);
+    if(typeof Cloud!=="undefined")Cloud.queueAutoPublish("inspctrl");
+    toast(clear?"已取消排程":`✓ 已排程 ${logs.length} 項：${this.fmt(v)}`);
+    this.cur=["cell",ship,k];InspCtrl.render(); // InspCtrl.render 會連帶重繪本頁與明細
+    if(InspGroup.curPage!=="plan2")this.render();
+  },
+  /* 證書資料：建立／編輯（僅 Owner／管理員） */
+  openCertForm(ship,k){
+    if(!this.isAdmin()){toast("⚠ 僅 Owner／管理員可建立或修改證書資料");return;}
+    const c=this.colOf(k),r=this.cell(ship,k),d=r?r.src:{},s=SHIPINFO.find(x=>x.code===ship)||{},cd=this.CERT_DESC[k];
+    let naDefault=d.na||"";
+    if(!r){ if(k==="RRDA"&&/ABS/.test(s.cls||""))naDefault=/CR/.test(s.cls||"")?"CR&ABS":"ABS";
+            else if(k==="FFEA"&&s.vtype!=="bulk")naDefault="NIL";
+            else if((k==="CACOFR"||k==="USCOFR")&&s.vtype==="bulk")naDefault="NIL"; }
+    const noDue=k==="PCR"||k==="CSR"||(k==="MSMC"&&s.flag!=="ROC");
+    this.showDrawer(`${this.head(ship,`${r?"✎ 編輯":"＋ 建立"}證書：${esc(c[1])}`)}
+      <div class="note" style="margin-top:10px">${esc(cd[0])}<div class="lbl">${esc(cd[2])}</div>${k==="BLUECARDS"?`<div class="lbl">${s.vtype==="bulk"?"散裝船：BCLC、WRC（沒有 CLC）":"BCLC、CLC、WRC 三張同效期"}</div>`:""}</div>
+      <div class="form">
+        <label for="ic2-ce-na">適用</label><select id="ic2-ce-na">${[["","適用（需管控）"],["NIL","不適用（NIL）"],["ABS","ABS（不用更新）"],["CR&ABS","CR&ABS（不用更新）"]].map(([v,l])=>`<option value="${v}" ${v===naDefault?"selected":""}>${l}</option>`).join("")}</select>
+        <label for="ic2-ce-due">到期日</label><input type="date" id="ic2-ce-due" value="${esc(InspCtrl.normDate(d.dueDate||""))}" ${noDue?"placeholder='無效期'":""}>
+        <label for="ic2-ce-issue">${k==="PCR"?"登記日":"簽發日"}</label><input type="date" id="ic2-ce-issue" value="${esc(d.issueDate||"")}">
+        ${k==="CSR"?`<label for="ic2-ce-ver">版次 No.</label><input id="ic2-ce-ver" value="${esc(d.certVer||"")}" placeholder="例：3">`:""}
+        <label for="ic2-ce-no">證號</label><input id="ic2-ce-no" value="${esc(d.certNo||"")}">
+        <label for="ic2-ce-owner">承辦人</label><input id="ic2-ce-owner" value="${esc(d.owner||this.me())}">
+        <label for="ic2-ce-note">備註</label><input id="ic2-ce-note" value="${esc(d.note||"")}">
+      </div>
+      ${noDue?'<p class="lbl">此證書無效期，到期日可留空。</p>':""}
+      <div class="btnrow"><button class="btn primary" id="ic2-ce-save" data-ship="${esc(ship)}" data-sk="${k}">儲存</button>${r?`<button class="btn danger" id="ic2-ce-del" data-ship="${esc(ship)}" data-sk="${k}">刪除這筆</button>`:""}<button class="btn" data-close>取消</button></div>`,["cert",ship,k]);
+  },
+  saveCert(ship,k,del){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("inspctrl"))return;
+    if(!this.isAdmin())return;
+    const r=this.cell(ship,k),c=this.colOf(k);
+    if(del){
+      if(!r)return;
+      const btn=$("#ic2-ce-del");if(btn.dataset.armed!=="1"){btn.dataset.armed="1";btn.textContent="再按一次確認刪除";return;}
+      const i=App.inspCtrl.indexOf(r.src);if(i<0)return;
+      if(typeof RecycleBin!=="undefined")RecycleBin.add("inspCtrl",r.src,`${ship} ${r.itype}`);
+      App.inspCtrl.splice(i,1);
+      App.saveAll();if(typeof Audit!=="undefined")Audit.log("刪除","檢查管控",`（海技管理證書）${ship} ${r.itype}`);
+      if(typeof Cloud!=="undefined")Cloud.queueAutoPublish("inspctrl");
+      toast("已刪除（可在回收桶還原）");this.closeDrawer();InspCtrl.render();return;
+    }
+    const g=id=>{const e=$(id);return e?e.value.trim():"";};
+    const rec={ship,itype:c[3],cat:"cert",na:g("#ic2-ce-na"),dueDate:g("#ic2-ce-due"),issueDate:g("#ic2-ce-issue"),certVer:g("#ic2-ce-ver"),certNo:g("#ic2-ce-no"),owner:g("#ic2-ce-owner"),note:g("#ic2-ce-note"),validityMonths:""};
+    if(r){Object.assign(r.src,rec);if(typeof Audit!=="undefined")Audit.log("編輯","檢查管控",`（海技管理證書）${ship} ${rec.itype} 到期 ${rec.dueDate||"-"}${rec.na?"／"+rec.na:""}`);}
+    else{rec.id=Date.now();App.inspCtrl.push(rec);if(typeof Audit!=="undefined")Audit.log("新增","檢查管控",`（海技管理證書）${ship} ${rec.itype} 到期 ${rec.dueDate||"-"}${rec.na?"／"+rec.na:""}`);}
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.queueAutoPublish("inspctrl");
+    toast("✓ 已儲存證書資料");this.cur=["cell",ship,k];InspCtrl.render();
+    if(InspGroup.curPage!=="plan2")this.render();
+  },
+  itemPop(){
+    const p=$("#ic2-pop"),btn=$("#ic2-f-items"),F=this.F;
+    const grp=(t,arr)=>`<div class="ic2-lbl" style="margin:8px 0 4px">${t}</div><div class="ic2-chk">${arr.map(c=>`<label><input type="checkbox" data-item="${c[0]}" ${F.items.has(c[0])?"checked":""}>${esc(c[1])}</label>`).join("")}</div>`;
+    p.innerHTML=`<b style="color:var(--navy)">選擇要看的項目（可複選）</b>`+grp("檢查項目",[...this.INSP_COLS,...this.extraCols()])+grp("海技管理證書（SMC／ISSC／MLC 在上面）",this.CERT_COLS)+
+      `<div class="ic2-row" style="margin-top:12px"><button class="btn sm" data-items="insp">全選檢查</button><button class="btn sm" data-items="cert">全選證書</button><button class="btn sm" data-items="5y">只看 SMC／ISSC／MLC</button><button class="btn sm" data-items="none">清除</button><span style="flex:1"></span><button class="btn sm primary" data-items="close">完成</button></div>`;
+    p.style.display="";
+    const host=$("#ig-page-plan2").getBoundingClientRect(),r=btn.getBoundingClientRect();
+    p.style.top=(r.bottom-host.top+4)+"px";p.style.left=Math.max(0,Math.min(r.left-host.left,host.width-p.offsetWidth))+"px";
+  },
+  bind(){
+    if(this._bound)return;this._bound=true;
+    const page=$("#ig-page-plan2");page.style.position="relative";
+    const F=this.F;
+    $("#ic2-f-type").onchange=e=>{F.type=e.target.value;this.render();};
+    $("#ic2-f-sup").onchange=e=>{F.sup=e.target.value;this.render();};
+    $("#ic2-f-owner").onchange=e=>{F.owner=e.target.value;this.render();};
+    $("#ic2-f-sort").onchange=e=>{F.sort=e.target.value;this.render();};
+    try{const v=localStorage.getItem("vsm_ic2_view");if(v)F.view=v;}catch(e){}
+    const onClick=e=>{
+      const t=e.target;
+      if(t.id==="ic2-f-items"){const p=$("#ic2-pop");if(p.style.display==="none")this.itemPop();else p.style.display="none";return;}
+      const it=t.closest("[data-items]");
+      if(it){const v=it.dataset.items;if(v==="close"){$("#ic2-pop").style.display="none";return;}
+        F.items=new Set(v==="insp"?[...this.INSP_COLS,...this.extraCols()].map(c=>c[0]):v==="cert"?this.CERT_COLS.map(c=>c[0]):v==="5y"?this.CERT60:[]);this.itemPop();this.render();return;}
+      if(t.matches("input[data-item]")){F.items[t.checked?"add":"delete"](t.dataset.item);this.render();return;}
+      if(!t.closest("#ic2-pop"))$("#ic2-pop").style.display="none";else return;
+      const seg=t.closest(".ic2-seg button");if(seg){const g=seg.parentElement.id.replace("ic2-","");F[g]=seg.dataset.v;if(g==="view"){try{localStorage.setItem("vsm_ic2_view",F.view);}catch(e){}}this.render();return;}
+      const k=t.closest("[data-st]");if(k){const v=k.dataset.st;const nv=v==="all"?null:/^\d$/.test(v)?+v:v;F.st=F.st===nv?null:nv;this.render();return;}
+      const uf=t.closest("[data-unf]");if(uf){this.unfilter(uf.dataset.unf);return;}
+      if(t.id==="ic2-mine-sup"){if(!this.me()){toast("⚠ 目前登入身份沒有對應姓名");return;}F.mineSup=!F.mineSup;this.render();return;}
+      if(t.id==="ic2-mine-own"){if(!this.me()){toast("⚠ 目前登入身份沒有對應姓名");return;}F.mineOwn=!F.mineOwn;this.render();return;}
+      if(t.id==="ic2-unsched"){F.unsched=!F.unsched;this.render();return;}
+      const srt=t.closest("th[data-sort]");if(srt){this.LSORT=srt.dataset.sort;this.list();return;}
+      const add=t.closest("[data-add]");if(add){const[a,b]=add.dataset.add.split("|");this.openCertForm(a,b);return;}
+      this.drawerClick(e);
+    };
+    page.addEventListener("click",onClick);
+    $("#ic2-drawer").addEventListener("click",e=>this.drawerClick(e));
+    page.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches("[tabindex]"))e.target.click();});
+    document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#ic2-drawer").style.display!=="none")this.closeDrawer();});
+  },
+  drawerClick(e){
+    const t=e.target;
+    if(t.closest("[data-close]")){this.closeDrawer();return;}
+    const so=t.closest("[data-sched-open]");if(so){e.stopPropagation();const[a,b]=so.dataset.schedOpen.split("|");this.openSched(a,b);return;}
+    const sh=t.closest("[data-ship-open]");if(sh){this.openShip(sh.dataset.shipOpen);return;}
+    const fe=t.closest("[data-full-edit]");if(fe){this.closeDrawer();InspCtrl.openEdit(+fe.dataset.fullEdit);return;}
+    const ce=t.closest("[data-cert-edit]");if(ce){const[a,b]=ce.dataset.certEdit.split("|");this.openCertForm(a,b);return;}
+    if(t.id==="ic2-sc-use"){$("#ic2-sc-date").value=t.dataset.d;$("#ic2-sc-date").oninput();return;}
+    const bk=t.closest("[data-back]");if(bk){const[a,b]=bk.dataset.back.split("|");this.openCell(a,b);return;}
+    if(t.id==="ic2-sc-save"||t.id==="ic2-sc-clear"){this.saveSched(t.dataset.ship,t.dataset.sk,t.id==="ic2-sc-clear");return;}
+    if(t.id==="ic2-ce-save"||t.id==="ic2-ce-del"){this.saveCert(t.dataset.ship,t.dataset.sk,t.id==="ic2-ce-del");return;}
+    const cp=t.closest("[data-copy]");if(cp){const txt=cp.dataset.copy;(navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast("✓ 已複製路徑，貼到檔案總管開啟"),()=>toast("無法自動複製，請手動選取路徑"));return;}
+    const cell=t.closest("[data-k]");if(cell&&cell.dataset.ship){this.openCell(cell.dataset.ship,cell.dataset.k);return;}
+    const shp=t.closest("th[data-ship]");if(shp){this.openShip(shp.dataset.ship);return;}
   }
 };
 const InspCtrl={
@@ -19661,7 +20241,7 @@ const InspCtrl={
   },
   statusClass(s){return (s==="逾期"||s==="即將到期(紅)")?"bad":s==="即將到期(黃)"?"warn":s==="正常"?"ok":"mute";},
   filtered(){
-    let rows=App.inspCtrl.map(d=>this.computeRow(d)).filter(r=>{
+    let rows=App.inspCtrl.filter(d=>d.cat!=="cert").map(d=>this.computeRow(d)).filter(r=>{ // 海技管理證書（cat:"cert"）只在「檢查管控2」顯示
       if(this.ms.ship&&!this.ms.ship.pass(r.ship))return false;
       if(this.ms.item&&!this.ms.item.pass(r.itype))return false;
       if(this.ms.owner&&!this.ms.owner.pass(r.owner))return false;
@@ -20292,6 +20872,8 @@ const InspCtrl={
     }).join("");
   },
   render(){
+    // 新版「檢查管控2」開著時一起重繪（資料變動、雲端同步後都會呼叫這裡）
+    if(typeof InspCtrl2!=="undefined"&&typeof InspGroup!=="undefined"&&InspGroup.curPage==="plan2")InspCtrl2.render();
     this._devsCache={}; // 資料可能有變動，每次重繪都重新計算甲板/機艙訪船間隔快取
     this.renderItypeQuickTabs();
     const devsBtn=$("#ic-devs-toggle");
@@ -20309,7 +20891,7 @@ const InspCtrl={
     }
     if($("#ic-enh-card")&&$("#ic-enh-card").style.display!=="none")this.renderEnhPanel();
     // 統計一律以「船舶/檢查項目」篩選後、尚未套用 quickStatus 的全集計算，讓使用者看得到各狀態總數
-    const allRows=App.inspCtrl.map(d=>this.computeRow(d)).filter(r=>(!this.ms.ship||this.ms.ship.pass(r.ship))&&(!this.ms.item||this.ms.item.pass(r.itype)));
+    const allRows=App.inspCtrl.filter(d=>d.cat!=="cert").map(d=>this.computeRow(d)).filter(r=>(!this.ms.ship||this.ms.ship.pass(r.ship))&&(!this.ms.item||this.ms.item.pass(r.itype)));
     const rows=this.filtered();
     ["ship","itype","lastDateCalc","daysLeft"].forEach(k=>{
       const el=$("#ich-"+k);if(!el)return;
@@ -30750,7 +31332,7 @@ const RefDl={
           <td>${d.pinned?`<span title="置頂" style="color:#c0392b">📌</span> `:""}<b>${esc(d.title)}</b> <span class="stat" style="background:#eef3f8;color:#1f5f8b">${esc(d.cat||"未分類")}</span>
           ${d.note?this.noteHtml(d.note):""}
           <div style="font-size:12.5px;margin-top:2px">${files}${d.url?`<a href="${esc(d.url)}" target="_blank" rel="noopener" style="margin-right:8px">🔗 連結</a>`:""}${d.page?`<a href="${esc(d.page)}" target="_blank" rel="noopener">官方頁面 ↗</a>`:""}</div>
-          <div class="hint" style="font-size:11.5px">${(d.ships||[]).length?"對象："+esc(d.ships.join("、")):"全船隊"}${d.sched?`・定期更新日 ${esc(d.sched)}（到期提醒分享人）`:""}</div>
+          <div class="hint" style="font-size:11.5px">${(d.ships||[]).length?"對象："+esc(d.ships.join("、")):"全船隊"}${d.sched?`・定期更新日 ${esc(d.sched)}（到期提醒分享人）`:""}${d.marquee===false?"・不上跑馬燈（只顯示紅點）":""}</div>
           <div class="hint" style="font-size:11.5px">👤 分享人：<b>${esc(this.sharerOf(d)||"—")}</b> ${d.createdAt?fmt(d.createdAt):""}${d.updatedAt&&d.updatedAt!==d.createdAt?`・最後修改：${esc(this.who(d.updatedBy)||"—")} ${fmt(d.updatedAt)}`:""}</div>
           ${due?`<div style="color:var(--bad);font-size:12px;font-weight:700">🔔 已過定期更新日 ${esc(due)}，請到官方頁面確認是否有新版</div>`:""}</td>
           <td>${esc(d.verDate||"—")}${d.ver?`<div class="hint" style="font-size:11.5px">${esc(d.ver)}</div>`:""}</td>
@@ -30762,7 +31344,7 @@ const RefDl={
     const v=id=>($("#sf-"+id).value||"").trim();
     const pick=(document.querySelector('input[name="sf-to"]:checked')||{}).value==="pick";
     return {title:v("title"),cat:v("cat"),verDate:v("verDate"),ver:v("ver"),sharer:v("sharer")||this.me(),note:v("note"),files:this._files.slice(),url:v("url"),page:v("page"),sched:v("sched"),
-      track:$("#sf-track").checked,ships:pick?[...document.querySelectorAll("#sf-ships .sf-shipcb:checked")].map(x=>x.value):[],pick};
+      track:$("#sf-track").checked,marquee:$("#sf-marquee").checked,ships:pick?[...document.querySelectorAll("#sf-ships .sf-shipcb:checked")].map(x=>x.value):[],pick};
   },
   async submit(){
     if(!this.canEdit()){toast("⚠ 分享船隊目前僅限 Owner／管理員維護");return;}
@@ -30800,6 +31382,7 @@ const RefDl={
     $("#sf-sharer").value=this.sharerOf(d);
     this._files=(d.files||[]).map(x=>Object.assign({},x));this.renderFiles();
     $("#sf-track").checked=d.track!==false;
+    $("#sf-marquee").checked=d.marquee!==false;
     const pick=(d.ships||[]).length>0;
     document.querySelectorAll('input[name="sf-to"]').forEach(r=>r.checked=(r.value==="pick")===pick);
     this.toggleShips(d.ships||[]);
@@ -30813,6 +31396,7 @@ const RefDl={
     ["title","cat","ver","verDate","url","page","note","sched"].forEach(k=>{const el=$("#sf-"+k);if(el)el.value="";});
     const sh=$("#sf-sharer");if(sh)sh.value=this.me();
     const t=$("#sf-track");if(t)t.checked=true;
+    const mq=$("#sf-marquee");if(mq)mq.checked=true;
     document.querySelectorAll('input[name="sf-to"]').forEach(r=>r.checked=r.value==="all");this.toggleShips();
     const ft=$("#sf-formtitle");if(ft)ft.textContent="＋ 新增分享給船隊的文件／訊息";
     const s=$("#sf-save");if(s)s.textContent="＋ 分享給船隊";const c=$("#sf-cancel");if(c)c.style.display="none";
