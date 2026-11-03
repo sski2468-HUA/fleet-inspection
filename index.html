@@ -5499,6 +5499,31 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             </div>
             <div id="pn-list" style="margin-top:10px"></div>
           </div>
+          <div class="card" id="rd-card">
+            <h3>📥 船舶平台參考文件下載（Owner／管理員）</h3>
+            <p class="hint" style="margin-bottom:10px;line-height:1.7">放在船舶檢查填報平台「📥 參考文件下載」頁籤，給船上下載<b>會定期更新的外部文件</b>（例如 IMO SOPEP 聯絡清單）。改了<b>版本或下載網址</b>就算發布新版，船上會看到「有新版，請下載」，下方可看各船是否已下載最新版（只列 FPMC 自管船）。有填「定期更新日」的，過了更新日版本還沒換，待辦事項會提醒去官方網站確認。</p>
+            <div id="rd-form" style="display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))">
+              <label>文件名稱 <input type="text" id="rd-title" placeholder="例：IMO SOPEP 聯絡清單（MSC-MEPC.6/Circ.24 Annex）" style="width:100%"></label>
+              <label>分類 <input type="text" id="rd-cat" list="dl-rd-cat" placeholder="例：IMO／法規" style="width:100%"></label>
+              <label>版本說明 <input type="text" id="rd-ver" placeholder="例：as at 30 October 2026" style="width:100%"></label>
+              <label>版本日期 <input type="date" id="rd-verDate" style="width:100%"></label>
+              <label style="grid-column:1/-1">下載網址（PDF 等檔案）<input type="url" id="rd-url" placeholder="https://..." style="width:100%"></label>
+              <label style="grid-column:1/-1">官方頁面網址（選填，給船上備用、海技查新版用）<input type="url" id="rd-page" placeholder="https://..." style="width:100%"></label>
+              <label style="grid-column:1/-1">給船上的說明（選填）<textarea id="rd-note" rows="2" maxlength="300" placeholder="例：請下載後列印，更換 SOPEP 附錄內的 IMO 聯絡清單" style="width:100%"></textarea></label>
+              <label>定期更新日（選填）<input type="text" id="rd-sched" placeholder="例：4/30、7/31、10/31" style="width:100%"></label>
+              <label style="display:flex;gap:6px;align-items:center;margin-top:18px"><input type="checkbox" id="rd-track" checked> 追蹤各船是否下載最新版</label>
+              <div style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="rd-to" value="all" checked onchange="RefDl.toggleShips()"> 全船隊</label>
+                <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="rd-to" value="pick" onchange="RefDl.toggleShips()"> 指定船舶</label>
+                <span style="flex:1"></span>
+                <button class="btn" id="rd-cancel" style="display:none" onclick="RefDl.cancelEdit()">取消編輯</button>
+                <button class="btn primary" id="rd-save" onclick="RefDl.submit()">＋ 新增文件</button>
+              </div>
+              <div id="rd-ships" style="grid-column:1/-1;display:none;flex-wrap:wrap;gap:2px 12px;max-height:120px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px"></div>
+            </div>
+            <datalist id="dl-rd-cat"></datalist>
+            <div id="rd-list" style="margin-top:10px"></div>
+          </div>
           <div class="card">
             <h3>🛠 內部檢查／稽核「檢查人 Auditor」名單（Owner）</h3>
             <p class="hint" style="margin-bottom:10px;line-height:1.7">內部檢查缺失登錄（intaudit.html）新增檢查記錄時，①基本資料「檢查人 Auditor」下拉選單即依此名單產生，可從人員名冊任一部門挑選（含督導、海技、管理層等），督導人選異動時自行增減即可，不受名冊部門欄位文字限制。未設定（名單為空）時，intaudit.html 會沿用舊規則：自動抓名冊部門＝「督導」或「海技組」的人。此設定為全公司統一設定，儲存後同步給所有人。</p>
@@ -13977,6 +14002,7 @@ const Todo={
     else return [];
     items=items.concat(this.forAirAssigned());
     items=items.concat(this.forReplyPend());
+    items=items.concat(this.forRefDl());
     /* 對應頁面已被隱藏的待辦不再提示 —— 功能都看不到了還一直催人去做，
        只會讓人困惑（船上看不到「航次報表收件」，卻被提醒有表單未上傳）。 */
     if(typeof NavConfig!=="undefined")
@@ -13997,6 +14023,14 @@ const Todo={
     const n=recs.reduce((s,d)=>s+Air.replyPendCount(d),0);
     return [{icon:"📥",tab:"air",text:`對外回覆未轉入缺失紀錄總表：${recs.length} 筆填單、共 ${n} 條（${recs.slice(0,3).map(d=>`${d.ship} ${d.date}`).join("、")}${recs.length>3?"…":""}）`,
       action:()=>goToTab("air",()=>{try{Air.showList();}catch(e){}if(Air.ms&&Air.ms.status){Air.ms.status.set([Air.PEND_LABEL]);}Air.page=1;Air.renderList();})}];
+  },
+  /* 船舶平台參考文件：過了定期更新日（例 IMO 4/30、7/31、10/31）版本還沒換，提醒 Owner／管理員去官方網站確認新版（2026-11-03） */
+  forRefDl(){
+    if(typeof RefDl==="undefined"||!(Role.isAdmin&&Role.isAdmin()))return [];
+    if(!RefDl.loaded){if(!RefDl._todoLoading){RefDl._todoLoading=true;RefDl.load().then(()=>{if(RefDl.loaded)this.refreshBadge();}).finally(()=>{RefDl._todoLoading=false;});}return [];}
+    return (RefDl.data.items||[]).filter(d=>RefDl.overdue(d)).map(d=>({icon:"📥",tab:"data",
+      text:`參考文件已過定期更新日（${RefDl.overdue(d)}）：${d.title}，目前 ${d.ver||d.verDate}，請到官方頁面確認是否有新版並更新`,
+      action:()=>goToTab("data",()=>{try{DM.switchTab("maint");}catch(e){}setTimeout(()=>{const c=$("#rd-card");if(c)c.scrollIntoView({behavior:"smooth",block:"start"});},300);})}));
   },
   /* 對外回覆的「通知」與「Follow Up」指定給我的待辦，任何身份都可能被指定，故獨立於分身分計算之外 */
   forAirAssigned(){
@@ -30438,6 +30472,171 @@ const PortalNotice={
     await this.save({items:(this.data.items||[]).filter(x=>x.id!==id)},`刪除：${n.text}`);
   }
 };
+/* ════════ 📥 船舶平台參考文件下載（2026-11-03）════════
+   app_db ref_downloads：{items:[{id,title,cat,ver,verDate,vid,url,page,note,sched,track,ships,paused,createdAt,createdBy,updatedAt,updatedBy}]}。
+   vid＝版本識別碼：網址／版本說明／版本日期有改就換新的，船上就會看到「有新版」。
+   船上按下載會在 audit_log 記一筆（target＝船舶檢查填報平台－參考文件下載、action＝下載、摘要帶 [文件 id] [版本 vid]）。
+   ⚠ 船舶平台（上傳GitHub_船上\index.html）的 loadRef／renderRef 讀同一份資料，欄位改名要兩邊一起改。 */
+const RefDl={
+  KEY:"ref_downloads",TARGET:"船舶檢查填報平台－參考文件下載",data:{items:[]},updated:null,loaded:false,editId:null,open:null,_dl:null,_dlAt:0,
+  canEdit(){return typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();},
+  async load(force){
+    if(this.loaded&&!force)return;
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api(`app_db?select=payload,updated&k=eq.${this.KEY}`)||[];
+      const p=rows[0]&&rows[0].payload;
+      this.data={items:Array.isArray(p&&p.items)?p.items:[]};this.updated=rows[0]?rows[0].updated:null;this.loaded=true;
+    }catch(e){console.warn("讀取參考文件清單失敗",e);}
+  },
+  async save(next,msg){
+    if(!this.canEdit()){toast("⚠ 參考文件僅限 Owner／管理員維護");return false;}
+    const now=Date.now();
+    try{
+      let rows;
+      if(this.updated==null){
+        const ex=await Cloud.api(`app_db?select=updated&k=eq.${this.KEY}`)||[];
+        if(ex.length){toast("⚠ 雲端剛有人建立了參考文件清單，已重新載入，請再操作一次",true);await this.load(true);this.render();return false;}
+        rows=await Cloud.api("app_db",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify([{k:this.KEY,payload:next,updated:now}])});
+      }else{
+        rows=await Cloud.api(`app_db?k=eq.${this.KEY}&updated=eq.${this.updated}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify({payload:next,updated:now})});
+      }
+      if(!rows||!rows.length){toast("⚠ 參考文件清單剛被其他人更新過，已重新載入，請再操作一次",true);await this.load(true);this.render();return false;}
+      this.data=next;this.updated=now;
+      if(typeof Audit!=="undefined")Audit.log("修改","船舶平台參考文件下載",msg||"");
+      toast("✓ 已儲存，船上重新整理平台後就會看到");this.render();
+      if(typeof Todo!=="undefined"&&Todo.refreshBadge)Todo.refreshBadge();
+      return true;
+    }catch(e){toast("⚠ 儲存失敗："+e.message,true);return false;}
+  },
+  toggleShips(sel){
+    const pick=(document.querySelector('input[name="rd-to"]:checked')||{}).value==="pick";
+    const box=$("#rd-ships");if(!box)return;box.style.display=pick?"flex":"none";
+    if(pick&&!box.childElementCount)box.innerHTML=SHIPINFO.filter(s=>!(typeof isSoldShip==="function"&&isSoldShip(s.code))).map(s=>`<label style="display:flex;gap:4px;align-items:center;font-size:12.5px"><input type="checkbox" value="${esc(s.code)}"> ${esc(s.code)}</label>`).join("");
+    if(Array.isArray(sel))box.querySelectorAll("input").forEach(x=>x.checked=sel.includes(x.value));
+  },
+  /* 定期更新日（例：4/30、7/31、10/31）→ 今天以前最近的一個更新日（yyyy-mm-dd），沒設定回傳 "" */
+  lastDue(d){
+    const md=String(d.sched||"").split(/[、,，;；\s]+/).map(s=>s.match(/^(\d{1,2})[\/\-.](\d{1,2})$/)).filter(Boolean).map(m=>[+m[1],+m[2]]).filter(([m,dd])=>m>=1&&m<=12&&dd>=1&&dd<=31);
+    if(!md.length)return "";
+    const t=todayStr(),y=+t.slice(0,4),p=n=>String(n).padStart(2,"0");
+    const all=[y-1,y].flatMap(yy=>md.map(([m,dd])=>`${yy}-${p(m)}-${p(dd)}`)).filter(s=>s<=t).sort();
+    return all[all.length-1]||"";
+  },
+  /* 過了定期更新日、版本日期還早於該更新日 15 天以上 → 該去官方網站看有沒有新版（IMO 常在更新日前一兩天發布） */
+  overdue(d){
+    if(d.paused)return "";const due=this.lastDue(d);if(!due)return "";
+    const lim=new Date(due+"T00:00");lim.setDate(lim.getDate()-15);
+    const limS=`${lim.getFullYear()}-${String(lim.getMonth()+1).padStart(2,"0")}-${String(lim.getDate()).padStart(2,"0")}`;
+    return (!d.verDate||d.verDate<limS)?due:"";
+  },
+  ships(d){
+    const gone=(typeof ShipEvents!=="undefined"&&ShipEvents.loaded)?ShipEvents.goneMap():new Map();
+    // 只追蹤 FPMC 自管船：管理公司船舶（F25／F26、PH、PI 等）不使用船舶平台
+    return (typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>!gone.has(s.code)&&s.operator==="FPMC"&&(!(d.ships||[]).length||d.ships.includes(s.code)))
+      .slice().sort((a,b)=>String(a.code).localeCompare(String(b.code),undefined,{numeric:true}));
+  },
+  async loadDl(force){
+    if(!force&&this._dl&&Date.now()-this._dlAt<60000)return;
+    const rows=await Cloud.api(`audit_log?select=ts,usr,summary&target=eq.${encodeURIComponent(this.TARGET)}&action=eq.${encodeURIComponent("下載")}&order=ts.desc&limit=5000`)||[];
+    const m={};rows.forEach(r=>{const code=String(r.usr||"").replace(/^船舶\s*/,"").trim(),s=String(r.summary||"");
+      const id=(s.match(/\[文件 ([^\]]+)\]/)||[])[1],v=(s.match(/\[版本 ([^\]]+)\]/)||[])[1];if(!code||!id)return;
+      const o=(m[id]=m[id]||{})[code]=m[id][code]||{vids:new Set(),ts:r.ts,vts:{}};if(v){o.vids.add(v);if(!o.vts[v])o.vts[v]=r.ts;}});
+    this._dl=m;this._dlAt=Date.now();
+  },
+  stat(d){
+    const ships=this.ships(d),m=(this._dl&&this._dl[d.id])||{};
+    const rows=ships.map(s=>{const o=m[s.code];return {s,o,st:!o?"never":o.vids.has(d.vid)?"ok":"old"};});
+    return {rows,ok:rows.filter(r=>r.st==="ok").length,total:rows.length};
+  },
+  async render(force){
+    const box=$("#rd-list");if(!box)return;
+    const form=$("#rd-form");if(form)form.style.display=this.canEdit()?"grid":"none";
+    if(!this.loaded||force){box.innerHTML=`<div class="hint">讀取中…</div>`;await this.load(true);}
+    try{await this.loadDl(force);}catch(e){console.warn("讀取參考文件下載紀錄失敗",e);}
+    const dl=$("#dl-rd-cat");if(dl)dl.innerHTML=[...new Set((this.data.items||[]).map(x=>x.cat).filter(Boolean))].map(c=>`<option value="${esc(c)}">`).join("");
+    const fmt=ts=>{const d=new Date(ts);return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
+    const items=(this.data.items||[]).slice().sort((a,b)=>String(a.cat||"").localeCompare(String(b.cat||""))||(b.createdAt||0)-(a.createdAt||0));
+    const adm=this.canEdit();
+    box.innerHTML=(adm?"":`<div class="hint" style="margin-bottom:6px">僅 Owner／管理員可新增／修改，這裡只能查看。</div>`)+(items.length?`<div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="btn sm" onclick="RefDl.render(true)">🔄 重新整理下載情形</button></div>
+      <table class="tbl"><thead><tr><th style="width:74px">狀態</th><th>文件</th><th style="width:210px">目前版本</th><th style="width:150px">各船下載</th><th style="width:200px"></th></tr></thead><tbody>${items.map(d=>{
+        const st=this.stat(d),due=this.overdue(d),open=this.open===d.id;
+        const stTxt=d.paused?`<b style="color:#c47f00">⏸ 已暫停</b>`:`<b style="color:#2e8b57">顯示中</b>`;
+        const dlTxt=d.track===false?`<span class="hint">不追蹤</span>`:`<a href="#" onclick="event.preventDefault();RefDl.open=RefDl.open==='${esc(d.id)}'?null:'${esc(d.id)}';RefDl.render()" style="font-weight:700;color:${st.ok===st.total?"var(--ok)":"var(--bad)"}">${st.ok} / ${st.total} 艘已下載最新版 ${open?"▲":"▼"}</a>`;
+        const detail=open&&d.track!==false?`<tr><td></td><td colspan="4"><table class="tbl" style="margin:4px 0 8px"><thead><tr><th style="width:70px">船</th><th>船名</th><th style="width:190px">狀態</th><th style="width:150px">最後下載</th></tr></thead><tbody>${st.rows.map(r=>`<tr><td><b>${esc(r.s.code)}</b></td><td>${esc(r.s.zh||"")} ${esc(r.s.name||"")}</td><td>${r.st==="ok"?`<span class="stat" style="background:#e2f3e8;color:var(--ok)">✅ 已下載最新版</span>`:r.st==="old"?`<span class="stat" style="background:#fde8e6;color:var(--bad)">⚠ 有新版，尚未下載</span>`:`<span class="stat" style="background:#eef2f4;color:var(--ink-2)">✕ 從未下載</span>`}</td><td style="font-family:var(--mono);font-size:12px">${r.o?fmt(r.o.ts):"—"}</td></tr>`).join("")||`<tr><td colspan="4" class="hint" style="text-align:center">沒有對象船舶</td></tr>`}</tbody></table></td></tr>`:"";
+        return `<tr><td>${stTxt}</td><td><b>${esc(d.title)}</b>${d.cat?` <span class="hint">［${esc(d.cat)}］</span>`:""}
+          <div class="hint" style="font-size:11.5px">${(d.ships||[]).length?"對象："+esc(d.ships.join("、")):"全船隊"}${d.sched?`・定期更新日 ${esc(d.sched)}`:""}・<a href="${esc(d.url)}" target="_blank" rel="noopener">下載網址 ↗</a>${d.page?`・<a href="${esc(d.page)}" target="_blank" rel="noopener">官方頁面 ↗</a>`:""}</div>
+          ${due?`<div style="color:var(--bad);font-size:12px;font-weight:700">🔔 已過定期更新日 ${esc(due)}，請到官方頁面確認是否有新版</div>`:""}</td>
+          <td>${esc(d.ver||"—")}<div class="hint" style="font-size:11.5px">${esc(d.verDate||"")}${d.updatedAt?`・${esc(d.updatedBy||"")} ${fmt(d.updatedAt)} 更新`:""}</div></td>
+          <td>${dlTxt}</td>
+          <td style="white-space:nowrap">${adm?`<button class="btn sm" onclick="RefDl.edit('${esc(d.id)}')">✏ 編輯／更新版本</button> <button class="btn sm" onclick="RefDl.togglePause('${esc(d.id)}')">${d.paused?"▶ 恢復":"⏸ 暫停"}</button> <button class="btn sm danger" onclick="RefDl.remove('${esc(d.id)}')">刪除</button>`:""}</td></tr>${detail}`;}).join("")}</tbody></table>`
+      :`<div class="hint">目前沒有參考文件。</div>`);
+  },
+  vals(){
+    const v=id=>($("#rd-"+id).value||"").trim();
+    const pick=(document.querySelector('input[name="rd-to"]:checked')||{}).value==="pick";
+    return {title:v("title"),cat:v("cat"),ver:v("ver"),verDate:v("verDate"),url:v("url"),page:v("page"),note:v("note"),sched:v("sched"),
+      track:$("#rd-track").checked,ships:pick?[...document.querySelectorAll("#rd-ships input:checked")].map(x=>x.value):[],pick};
+  },
+  async submit(){
+    if(!this.canEdit()){toast("⚠ 參考文件僅限 Owner／管理員維護");return;}
+    const f=this.vals();
+    if(!f.title){toast("⚠ 請輸入文件名稱");return;}
+    if(!/^https?:\/\//i.test(f.url)){toast("⚠ 下載網址請以 https:// 開頭");return;}
+    if(f.page&&!/^https?:\/\//i.test(f.page)){toast("⚠ 官方頁面網址請以 https:// 開頭");return;}
+    if(!f.ver&&!f.verDate){toast("⚠ 請填版本說明或版本日期，船上才知道是哪一版");return;}
+    if(f.pick&&!f.ships.length){toast("⚠ 請勾選要給哪些船");return;}
+    delete f.pick;
+    await this.load(true);
+    const who=(typeof Audit!=="undefined"?Audit.user():""),now=Date.now();
+    if(this.editId){
+      const old=(this.data.items||[]).find(x=>x.id===this.editId);
+      if(!old){toast("⚠ 這份文件已被刪除，已重新載入",true);this.cancelEdit();this.render();return;}
+      const newVer=old.url!==f.url||(old.ver||"")!==f.ver||(old.verDate||"")!==f.verDate;
+      const n=Object.assign({},old,f,{vid:newVer?"v"+now:old.vid,updatedAt:now,updatedBy:who});
+      if(await this.save({items:this.data.items.map(x=>x.id===old.id?n:x)},`${newVer?"發布新版":"修改"}：${f.title}（${f.ver||f.verDate}）`)){
+        if(newVer)toast("✓ 已發布新版，船上會看到「有新版，請下載」");
+        this.cancelEdit();
+      }
+    }else{
+      const n=Object.assign({id:"rd"+now,vid:"v"+now},f,{createdAt:now,createdBy:who,updatedAt:now,updatedBy:who});
+      if(await this.save({items:[...(this.data.items||[]),n]},`新增：${f.title}（${f.ver||f.verDate}，${f.ships.length?f.ships.join("、"):"全船隊"}）`))this.cancelEdit();
+    }
+  },
+  edit(id){
+    const d=(this.data.items||[]).find(x=>x.id===id);if(!d)return;
+    this.editId=id;
+    ["title","cat","ver","verDate","url","page","note","sched"].forEach(k=>{$("#rd-"+k).value=d[k]||"";});
+    $("#rd-track").checked=d.track!==false;
+    const pick=(d.ships||[]).length>0;
+    document.querySelectorAll('input[name="rd-to"]').forEach(r=>r.checked=(r.value==="pick")===pick);
+    this.toggleShips(d.ships||[]);
+    $("#rd-save").textContent="💾 儲存修改";$("#rd-cancel").style.display="";
+    toast("改了版本說明、版本日期或下載網址，儲存後就算發布新版");
+    $("#rd-card").scrollIntoView({behavior:"smooth",block:"start"});
+  },
+  cancelEdit(){
+    this.editId=null;
+    ["title","cat","ver","verDate","url","page","note","sched"].forEach(k=>{const el=$("#rd-"+k);if(el)el.value="";});
+    const t=$("#rd-track");if(t)t.checked=true;
+    document.querySelectorAll('input[name="rd-to"]').forEach(r=>r.checked=r.value==="all");this.toggleShips();
+    const s=$("#rd-save");if(s)s.textContent="＋ 新增文件";const c=$("#rd-cancel");if(c)c.style.display="none";
+  },
+  async togglePause(id){
+    if(!this.canEdit()){toast("⚠ 參考文件僅限 Owner／管理員維護");return;}
+    await this.load(true);
+    const d=(this.data.items||[]).find(x=>x.id===id);if(!d){toast("⚠ 這份文件已不存在，已重新載入");this.render();return;}
+    const p=!d.paused;
+    await this.save({items:this.data.items.map(x=>x.id===id?Object.assign({},x,{paused:p}):x)},`${p?"暫停":"恢復"}：${d.title}`);
+  },
+  async remove(id){
+    const d=(this.data.items||[]).find(x=>x.id===id);if(!d)return;
+    if(!confirm(`確定刪除這份參考文件？船上將看不到它（下載紀錄仍保留在操作紀錄）。\n\n${d.title}`))return;
+    await this.load(true);
+    await this.save({items:(this.data.items||[]).filter(x=>x.id!==id)},`刪除：${d.title}`);
+    if(this.editId===id)this.cancelEdit();
+  }
+};
 /* ════════ 🚢 船舶平台使用情形（2026-10-22）════════
    一艘船一列：最後開啟、本月開啟天數、近 30 天操作數、最近送出外部檢查線上填單／內部檢查改善單／分享自查。
    資料：audit_log（usr 以「船舶 」開頭，近 90 天；船上平台每船每天記一次「開啟平台」＋各功能點擊）、
@@ -33980,6 +34179,7 @@ const DM={
       if(typeof DataHub!=="undefined")DataHub.build();
       if(typeof Perms!=="undefined")Perms.renderEditor();TagLists.render();if(typeof Classify!=="undefined")Classify.render();if(typeof Snap!=="undefined")Snap.render();
       if(typeof PortalNotice!=="undefined")PortalNotice.render();
+      if(typeof RefDl!=="undefined")RefDl.render();
       if(typeof PortalUsage!=="undefined")PortalUsage.load();
       if(typeof PortalPreview!=="undefined")PortalPreview.fill();}
     $("#dm-tab-oper-btn").className="btn"+(which==="oper"?" primary":"");
