@@ -5246,7 +5246,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       </div>
       <div id="sf-sub-ship" style="display:none">
         <!-- 左右兩欄：左＝新增／編輯表單、右＝已分享清單；螢幕窄時上下排 -->
-        <style>.sf-2col{display:grid;grid-template-columns:minmax(400px,5fr) 7fr;gap:14px;align-items:start}.sf-2col>.card{min-width:0;margin:0}@media(max-width:1250px){.sf-2col{grid-template-columns:1fr}}</style>
+        <style>.sf-2col{display:grid;grid-template-columns:minmax(400px,5fr) 7fr;gap:14px;align-items:start}.sf-2col>.card{min-width:0;margin:0}@media(max-width:1250px){.sf-2col{grid-template-columns:1fr}}
+.sf-note{font-size:12.5px;white-space:pre-line;margin-top:2px}.sf-clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.sf-clamp.open{display:block;-webkit-line-clamp:unset}.sf-more{font-size:12px;font-weight:700}</style>
         <div class="sf-2col">
         <div class="card" id="sf-card">
           <h3 id="sf-formtitle">＋ 新增分享給船隊的文件／訊息</h3>
@@ -30538,6 +30539,11 @@ const RefDl={
   /* 分享人（2026-11-03）：預設登入者，可改選其他人；舊資料沒有 sharer 欄位的，用建立者 */
   sharerOf(d){return String((d&&d.sharer)||"").trim()||this.who(d&&d.createdBy);},
   me(){return typeof Role!=="undefined"&&Role.personName?String(Role.personName()||"").trim():"";},
+  /* 說明太長時只顯示前 3 行，按「詳全文」展開（2026-11-03）；船舶平台 renderRef 同樣做法 */
+  noteHtml(n){
+    const s=String(n||""),long=s.length>150||(s.match(/\n/g)||[]).length>2;
+    return `<div class="sf-note${long?" sf-clamp":""}">${esc(s)}</div>`+(long?`<a href="#" class="sf-more" onclick="event.preventDefault();const o=this.previousElementSibling.classList.toggle('open');this.textContent=o?'收合 ▲':'詳全文 ▼'">詳全文 ▼</a>`:"");
+  },
   fillSharers(){
     const dl=$("#dl-sf-sharer");if(dl&&!dl.childElementCount){
       let names=[];try{names=(GateIdentity.loadRoster()||[]).filter(r=>r&&r.name&&r.tier!=="op2").map(r=>r.name);}catch(e){}
@@ -30742,7 +30748,7 @@ const RefDl={
         const detail=open&&d.track!==false?`<tr><td></td><td colspan="4"><table class="tbl" style="margin:4px 0 8px"><thead><tr><th style="width:70px">船</th><th>船名</th><th style="width:200px">狀態</th><th style="width:150px">最後一次</th></tr></thead><tbody>${st.rows.map(r=>`<tr><td><b>${esc(r.s.code)}</b></td><td>${esc(r.s.zh||"")} ${esc(r.s.name||"")}</td><td>${r.st==="ok"?`<span class="stat" style="background:#e2f3e8;color:var(--ok)">✅ 已下載／閱讀最新版</span>`:r.st==="old"?`<span class="stat" style="background:#fde8e6;color:var(--bad)">⚠ 有新版，尚未下載</span>`:`<span class="stat" style="background:#eef2f4;color:var(--ink-2)">✕ 尚未下載／閱讀</span>`}</td><td style="font-family:var(--mono);font-size:12px">${r.o?fmt(r.o.ts):"—"}</td></tr>`).join("")||`<tr><td colspan="4" class="hint" style="text-align:center">沒有對象船舶</td></tr>`}</tbody></table></td></tr>`:"";
         return `<tr><td>${d.paused?`<b style="color:#c47f00">⏸ 已暫停</b>`:`<b style="color:#2e8b57">分享中</b>`}</td>
           <td>${d.pinned?`<span title="置頂" style="color:#c0392b">📌</span> `:""}<b>${esc(d.title)}</b> <span class="stat" style="background:#eef3f8;color:#1f5f8b">${esc(d.cat||"未分類")}</span>
-          ${d.note?`<div style="font-size:12.5px;white-space:pre-line;margin-top:2px">${esc(d.note)}</div>`:""}
+          ${d.note?this.noteHtml(d.note):""}
           <div style="font-size:12.5px;margin-top:2px">${files}${d.url?`<a href="${esc(d.url)}" target="_blank" rel="noopener" style="margin-right:8px">🔗 連結</a>`:""}${d.page?`<a href="${esc(d.page)}" target="_blank" rel="noopener">官方頁面 ↗</a>`:""}</div>
           <div class="hint" style="font-size:11.5px">${(d.ships||[]).length?"對象："+esc(d.ships.join("、")):"全船隊"}${d.sched?`・定期更新日 ${esc(d.sched)}（到期提醒分享人）`:""}</div>
           <div class="hint" style="font-size:11.5px">👤 分享人：<b>${esc(this.sharerOf(d)||"—")}</b> ${d.createdAt?fmt(d.createdAt):""}${d.updatedAt&&d.updatedAt!==d.createdAt?`・最後修改：${esc(this.who(d.updatedBy)||"—")} ${fmt(d.updatedAt)}`:""}</div>
