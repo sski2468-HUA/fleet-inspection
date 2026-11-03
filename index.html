@@ -3331,52 +3331,77 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="modal">
         <div class="mh"><h3 id="ic-title">編輯檢查管控紀錄</h3><button class="x" onclick="InspCtrl.closeEdit()">✕</button></div>
         <div class="mb">
+          <style>
+            #icEditModal .ice-sec{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--navy);margin:10px 0 -2px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+            #icEditModal .ice-sec:first-child{margin-top:0}
+            #icEditModal .ice-tip{display:block;font-size:11px;font-weight:400;color:var(--ink-3);margin-top:3px;line-height:1.4}
+            #icEditModal .ice-box{border-radius:6px;padding:8px 10px}
+          </style>
           <div class="fgrid">
+            <div class="ice-sec">① 基本資料</div>
             <label>船名<select id="ic-e-ship" onchange="InspCtrl.refreshOwnerShipHint()"></select></label>
             <label>檢查項目
               <select id="ic-e-itype-sel" onchange="$('#ic-e-itype-other').style.display=this.value==='__other'?'':'none';InspCtrl.refreshEnhanceUI();InspCtrl.applyOwnerCat();"></select>
               <input type="text" id="ic-e-itype-other" placeholder="自訂檢查項目名稱" style="display:none;margin-top:6px" oninput="InspCtrl.refreshEnhanceUI()">
             </label>
-            <label>效期(月)<input type="text" id="ic-e-valid" placeholder="例：12，無則填 -"></label>
-            <label>最近一次檢查日（手動，自動項目會被覆蓋顯示）
+            <label>效期（月）<input type="text" id="ic-e-valid" placeholder="例：12；沒有填 -"></label>
+
+            <div class="ice-sec">② 日期</div>
+            <label>最近一次檢查日
               <input type="date" id="ic-e-last">
-              <span style="display:flex;align-items:center;gap:5px;margin-top:4px;font-weight:400" id="ic-e-createinsp-wrap">
-                <input type="checkbox" id="ic-e-createinsp" style="width:14px;height:14px">
-                <span class="hint" style="font-size:11px">同時在「檢查紀錄」建立一筆對應紀錄（船名／檢查來源／日期／檢查員會自動帶入，缺失數填0，之後可自行去補實際內容）</span>
-              </span>
+              <span class="ice-tip">自動項目會改抓「檢查紀錄」最新一筆</span>
             </label>
-            <label>到期日<input type="date" id="ic-e-due"></label>
-            <label class="fw" id="ic-e-lritfixed-wrap" style="display:none;background:#eef4ff;border:1px solid #cfe0f9;border-radius:6px;padding:8px 10px">
-              <span style="display:flex;align-items:center;gap:6px;font-weight:700;color:#1f52c4">
-                <input type="checkbox" id="ic-e-lritfixed" onchange="InspCtrl.onLritFixedToggle()" style="width:16px;height:16px"> 固定週期（每年固定月/日到期，例如LRIT每年5/1）
-              </span>
-              <span class="hint" style="font-size:10.5px;display:block;margin:4px 0">勾選後，到期日改由下方「固定月/日」自動推算，不受「最近一次檢查日」效期加總影響；等實際完成當年度申報、更新最近一次檢查日後，才會自動推進到下一年。</span>
-              <input type="text" id="ic-e-lritfixed-mmdd" placeholder="MM-DD，例如 05-01" style="width:140px;margin-top:4px" oninput="InspCtrl.onLritFixedToggle()">
+            <label>到期日
+              <input type="date" id="ic-e-due">
+              <span class="ice-tip">一般由系統算出；改了就以證書實際日期為準</span>
+            </label>
+            <label>預排檢查日
+              <input type="date" id="ic-e-sched">
+              <span class="ice-tip">留空＝未排程</span>
+            </label>
+            <label>中間檢驗完成日
+              <input type="date" id="ic-e-midactual">
+              <span class="ice-tip">只有 SMC／ISSC／MLC 要填；窗口系統會自動算</span>
             </label>
             <label class="fw" id="ic-e-duereset-wrap" style="display:none">
-              <button type="button" class="btn sm" onclick="InspCtrl.resetDueToDefault()">↺ 恢復預設到期日（清除手動覆寫，改回自動算出）</button>
-              <span class="hint" id="ic-e-duereset-hint" style="font-size:10.5px;display:block;margin-top:4px"></span>
+              <button type="button" class="btn sm" onclick="InspCtrl.resetDueToDefault()">↺ 恢復系統算出的到期日</button>
+              <span class="ice-tip" id="ic-e-duereset-hint"></span>
             </label>
-            <label>預排檢查日（選填，留空＝未排程）<input type="date" id="ic-e-sched"></label>
-            <label>中間檢驗實際完成日（僅SMC/ISSC/MLC適用；視窗為到期日往前3年~2年，系統自動算出，不必手動填視窗日期；未完成則留空）<input type="date" id="ic-e-midactual"></label>
-            <label>檢查安排人（新增時自動帶入目前登入操作者，可修改；未來onboard visit可改派甲板／機艙督導）
+            <label class="fw" id="ic-e-createinsp-wrap" style="display:flex;flex-direction:row;align-items:center;gap:6px;font-weight:400">
+              <input type="checkbox" id="ic-e-createinsp" style="width:14px;height:14px;flex:none">
+              <span style="font-size:12px">同時在「檢查紀錄」建立一筆（缺失數先填 0，之後再補內容）</span>
+            </label>
+            <label class="fw ice-box" id="ic-e-lritfixed-wrap" style="display:none;background:#eef4ff;border:1px solid #cfe0f9">
+              <span style="display:flex;align-items:center;gap:6px;font-weight:700;color:#1f52c4">
+                <input type="checkbox" id="ic-e-lritfixed" onchange="InspCtrl.onLritFixedToggle()" style="width:16px;height:16px"> 固定週期（每年固定月/日到期，例：LRIT 每年 5/1）
+              </span>
+              <input type="text" id="ic-e-lritfixed-mmdd" placeholder="MM-DD，例：05-01" style="width:140px;margin-top:6px" oninput="InspCtrl.onLritFixedToggle()">
+              <span class="ice-tip">勾選後到期日依固定月/日推算；更新最近一次檢查日後才會推到下一年。</span>
+            </label>
+
+            <div class="ice-sec">③ 負責人</div>
+            <label class="fw">檢查安排人
               <span style="display:flex;gap:6px;align-items:center">
                 <select id="ic-e-owner-cat" onchange="InspCtrl.switchOwnerCat('ic-e-owner',this.value);InspCtrl.applyOwnerCat();" style="max-width:90px"><option value="haiji">海技</option><option value="deck">甲板</option><option value="engine">機艙</option></select>
                 <input type="text" id="ic-e-owner" list="dl-owner-haiji" style="flex:1">
               </span>
-              <span class="hint" id="ic-e-owner-shiphint" style="font-size:10.5px;display:block;margin-top:2px"></span></label>
-            <label class="fw" id="ic-e-enhance-wrap" style="display:none;background:#fff8f0;border:1px solid #f0d9b5;border-radius:6px;padding:8px 10px">
+              <span class="ice-tip" id="ic-e-owner-shiphint"></span></label>
+
+            <label class="fw ice-box" id="ic-e-enhance-wrap" style="display:none;background:#fff8f0;border:1px solid #f0d9b5;margin-top:6px">
               <span style="display:flex;align-items:center;gap:6px;font-weight:700;color:#9a5a1a">
-                <input type="checkbox" id="ic-e-enhance" onchange="InspCtrl.onEnhanceToggle()" style="width:16px;height:16px"> 加強稽核（原因需填寫；勾選後效期自動改為6個月一次，且建議至少維持一年）
+                <input type="checkbox" id="ic-e-enhance" onchange="InspCtrl.onEnhanceToggle()" style="width:16px;height:16px"> 加強稽核（效期改為 6 個月，建議至少維持一年）
               </span>
-              <input type="text" id="ic-e-enhance-reason" placeholder="加強稽核原因（例：PSC滯留／缺失偏多，需提高頻率觀察）" style="margin-top:6px">
-              <span style="display:flex;align-items:center;gap:6px;margin-top:6px">
-                <span style="font-size:12px;color:#9a5a1a;white-space:nowrap">起算日</span>
-                <input type="text" id="ic-e-enhance-since" placeholder="2026/7/10" style="flex:1" oninput="InspCtrl.onEnhanceSinceInput()">
+              <span style="display:grid;grid-template-columns:60px 1fr;gap:6px 8px;align-items:center;margin-top:8px">
+                <span style="font-size:12px;color:#9a5a1a">原因</span>
+                <input type="text" id="ic-e-enhance-reason" placeholder="例：PSC 滯留／缺失偏多">
+                <span style="font-size:12px;color:#9a5a1a">起算日</span>
+                <input type="text" id="ic-e-enhance-since" placeholder="2026/7/10" oninput="InspCtrl.onEnhanceSinceInput()">
               </span>
-              <span class="hint" id="ic-e-enhance-hint" style="font-size:10.5px;display:block;margin-top:4px"></span>
+              <span class="ice-tip" id="ic-e-enhance-hint"></span>
             </label>
-            <label class="fw">備註<textarea id="ic-e-note"></textarea></label>
+
+            <div class="ice-sec">④ 備註</div>
+            <label class="fw"><textarea id="ic-e-note" placeholder="例：配合靠港安排、加強稽核追蹤事項" style="min-height:70px"></textarea></label>
           </div>
         </div>
         <div class="mf">
@@ -19664,6 +19689,20 @@ const InspCtrl2={
     if(typeof F.st==="number")return r.st===F.st;
     return true;},
   cellTxt(r){if(!r.due)return r.txt||"—";if(r.days<0)return "逾"+(-r.days);if(r.days<=InspCtrl.thresh().yellow)return r.days+"天";return r.due.slice(2,7).replace("-","/");},
+  /* 最近一次是誰去的：自動抓到的檢查員；沒有的話用同船同項目同日期的檢查紀錄補 */
+  lastWho(r){
+    if(r.lastBy)return r.lastBy;
+    if(!r.last)return "";
+    const same=x=>x.ship===r.ship&&this.NK(x.itype)===r.k&&InspCtrl.normDate(x.date)===r.last&&String(x.inspector||"").trim();
+    const hit=App.insp.find(same)||App.defs.find(same);
+    return hit?String(hit.inspector||"").trim():"";
+  },
+  lastWhoHtml(r){
+    const who=this.lastWho(r);if(!who)return "";
+    let cat="";
+    if(r.k==="ONBOARDVISIT"||r.k==="CROSSSHIPVISIT"){const S=this.S||this.sup();cat=S.deck.some(n=>who.includes(n))?"甲板":S.engine.some(n=>who.includes(n))?"機艙":"";}
+    return `<div style="font-family:var(--sans);font-size:12px;color:var(--ink-2)">${esc(who)}${cat?`<span class="ic2-pill ${cat==="甲板"?"s3":"s4"}" style="font-size:10.5px;margin-left:4px;padding:0 6px">${cat}</span>`:""}</div>`;
+  },
   /* 矩陣格子：一律顯示完整 年/月/日；逾期與快到期的另外標天數 */
   cellHtml(r){
     if(!r.due){
@@ -19770,7 +19809,7 @@ const InspCtrl2={
     const rows=this.visible().filter(x=>this.rowPass(x.r)).sort((a,b)=>L==="days"?((a.r.days??1e9)-(b.r.days??1e9)):L==="ship"?a.s.code.localeCompare(b.s.code,undefined,{numeric:true}):String(a.r[L]||"").localeCompare(String(b.r[L]||""),"zh-Hant"));
     $("#ic2-list").innerHTML=`<thead><tr><th data-sort="ship">船</th><th>項目</th><th data-sort="days">狀態 ▾</th><th>最近一次</th><th data-sort="due">到期日</th><th data-sort="sched">預排日</th><th data-sort="owner">檢查安排人</th><th>備註</th></tr></thead><tbody>`+
       rows.map(({s,c,r})=>`<tr data-ship="${esc(s.code)}" data-k="${c[0]}"><td><b>${esc(s.code)}</b>${s.enh?'<span class="ic2-tag enh">加強</span>':""}</td><td>${esc(c[1])}${r.stage?` <span class="ic2-pill ${r.stage==="intermediate"?"s2":"s4"}" style="font-size:11px">${r.stage==="intermediate"?"中檢":"換證"}</span>`:""}</td>
-      <td><span class="ic2-pill s${r.st}">${esc(this.stLabel(r))}</span></td><td style="font-family:var(--mono)">${this.fmt(r.last)}</td><td style="font-family:var(--mono)">${this.fmt(r.due)}</td>
+      <td><span class="ic2-pill s${r.st}">${esc(this.stLabel(r))}</span></td><td style="font-family:var(--mono)">${this.fmt(r.last)}${this.lastWhoHtml(r)}</td><td style="font-family:var(--mono)">${this.fmt(r.due)}</td>
       <td style="font-family:var(--mono)">${r.sched?this.fmt(r.sched)+(r.src.schedPort?`<div class="ic2-lbl">${esc(r.src.schedPort)}</div>`:""):(r.st===5?"—":`<button class="btn sm" data-sched-open="${esc(s.code)}|${c[0]}">📅 排程</button>`)}</td>
       <td>${esc(r.owner)}</td><td style="max-width:280px;color:var(--ink-2);font-size:12px">${esc(r.note)}</td></tr>`).join("")+
       (rows.length?"":`<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--ink-3)">沒有符合篩選的項目</td></tr>`)+"</tbody>";
@@ -19864,7 +19903,7 @@ const InspCtrl2={
     this.showDrawer(`${this.head(ship,`${esc(c[1])} <span style="font-family:var(--mono);font-size:12px;color:var(--ink-3)">${esc(r.itype)}</span>`)}
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"><span class="ic2-pill s${r.st}">${esc(this.stLabel(r))}</span>${r.stage?`<span class="ic2-pill ${r.stage==="intermediate"?"s2":"s4"}">${r.stage==="intermediate"?"中間檢查階段":"換證階段"}</span>`:""}${r.enh?'<span class="ic2-pill s1">加強稽核（效期 6 個月）</span>':""}</div>
       <dl class="kv">
-        ${r.cert?"":`<dt>最近一次檢查</dt><dd>${this.fmt(r.last)}${r.auto?'<span class="auto">自動抓檢查紀錄</span>':""}${r.lastBy?`<div class="lbl">${esc(r.lastBy)}</div>`:""}</dd>
+        ${r.cert?"":`<dt>最近一次檢查</dt><dd>${this.fmt(r.last)}${r.auto?'<span class="auto">自動抓檢查紀錄</span>':""}${this.lastWhoHtml(r)}</dd>
         <dt>效期</dt><dd>${d.validityMonths?esc(d.validityMonths)+" 個月":"—"}${r.lrit?"（每年固定 "+esc(d.fixedAnnualDate)+"）":""}</dd>`}
         <dt>到期日</dt><dd>${this.fmt(r.due)}${r.ovr?' <span class="lbl">（依證書實際日期覆寫）</span>':""}</dd>
         ${r.ms?`<dt>中間檢查窗口</dt><dd>${this.fmt(r.ms)} ～ ${this.fmt(r.me)}${r.midDone?`<div class="lbl">已完成 ${this.fmt(InspCtrl.normDate(d.midDate))}</div>`:""}</dd>`:""}
