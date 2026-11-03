@@ -4470,7 +4470,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <span class="ic2-lbl">檢視</span>
             <div class="ic2-seg" id="ic2-view"><button data-v="mx" class="on">船 × 項目</button><button data-v="list">清單</button><button data-v="cal">排程月曆</button><button data-v="tl">時間軸</button></div>
             <span style="flex:1"></span>
-            <button class="btn primary" onclick="InspCtrl2.closeDrawer();InspCtrl.openEdit(null)">＋ 新增管控紀錄</button>
+            <button class="btn primary" id="ic2-addbtn">＋ 新增 ▾</button>
             <button class="btn" onclick="InspCtrl.openImportModal()">⬆ 匯入</button>
             <button class="btn" onclick="InspCtrl.openDownloadModal()">⬇ 匯出</button>
           </div>
@@ -20052,6 +20052,27 @@ const InspCtrl2={
     toast("✓ 已儲存證書資料");this.cur=["cell",ship,k];InspCtrl.render();
     if(InspGroup.curPage!=="plan2")this.render();
   },
+  /* 「＋ 新增」選單：檢查項目沿用舊版新增視窗；證書可單艘新增或整欄一次填 */
+  addMenu(){
+    const p=$("#ic2-pop"),btn=$("#ic2-addbtn"),admin=this.isAdmin();
+    const ships=[...this.SHIPS].sort((a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true}));
+    const certOpts=this.CERT_COLS.map(c=>`<option value="${c[0]}">${esc(c[1])}（${esc(c[2])}）</option>`).join("");
+    p.innerHTML=`<div style="display:flex;flex-direction:column;gap:12px;min-width:320px">
+      <div><b style="color:var(--navy)">📋 檢查項目</b><div class="ic2-lbl">訪船、內稽、SIRE、SMC…（沿用原本的新增視窗）</div>
+        <button class="btn sm" data-addm="insp" style="margin-top:6px">新增檢查項目</button></div>
+      ${admin?`<div style="border-top:1px solid var(--line);padding-top:10px"><b style="color:var(--navy)">📜 海技管理證書・單一艘船</b>
+        <div class="ic2-row" style="margin-top:6px"><select id="ic2-add-ship">${ships.map(s=>`<option value="${esc(s.code)}">${esc(s.code)} ${esc(s.zh||"")}</option>`).join("")}</select>
+        <select id="ic2-add-cert">${certOpts}</select><button class="btn sm" data-addm="cert">新增</button></div>
+        <div class="ic2-lbl" style="margin-top:4px">SMC／ISSC／MLC 請用「新增檢查項目」（它們同時是檢查項目）。</div></div>
+      <div style="border-top:1px solid var(--line);padding-top:10px"><b style="color:var(--navy)">📜 海技管理證書・整欄一次填（全部船）</b>
+        <div class="ic2-row" style="margin-top:6px"><select id="ic2-add-col">${certOpts}</select><button class="btn sm" data-addm="batch">開始填寫</button></div>
+        <div class="ic2-lbl" style="margin-top:4px">也可以在「海技管理證書」範圍直接點欄名。</div></div>`
+      :`<div class="ic2-lbl" style="border-top:1px solid var(--line);padding-top:10px">海技管理證書僅 Owner／管理員可新增。</div>`}
+    </div>`;
+    p.style.display="";
+    const host=$("#ig-page-plan2").getBoundingClientRect(),r=btn.getBoundingClientRect();
+    p.style.top=(r.bottom-host.top+4)+"px";p.style.left=Math.max(0,Math.min(r.right-host.left-p.offsetWidth,host.width-p.offsetWidth))+"px";
+  },
   itemPop(){
     const p=$("#ic2-pop"),btn=$("#ic2-f-items"),F=this.F;
     const grp=(t,arr)=>`<div class="ic2-lbl" style="margin:8px 0 4px">${t}</div><div class="ic2-chk">${arr.map(c=>`<label><input type="checkbox" data-item="${c[0]}" ${F.items.has(c[0])?"checked":""}>${esc(c[1])}</label>`).join("")}</div>`;
@@ -20072,7 +20093,14 @@ const InspCtrl2={
     try{const v=localStorage.getItem("vsm_ic2_view");if(v)F.view=v;}catch(e){}
     const onClick=e=>{
       const t=e.target;
-      if(t.id==="ic2-f-items"){const p=$("#ic2-pop");if(p.style.display==="none")this.itemPop();else p.style.display="none";return;}
+      if(t.id==="ic2-f-items"){const p=$("#ic2-pop");if(p.style.display==="none"||p.dataset.kind!=="items"){this.itemPop();p.dataset.kind="items";}else p.style.display="none";return;}
+      if(t.id==="ic2-addbtn"){const p=$("#ic2-pop");if(p.style.display==="none"||p.dataset.kind!=="add"){this.addMenu();p.dataset.kind="add";}else p.style.display="none";return;}
+      const am=t.closest("[data-addm]");
+      if(am){const v=am.dataset.addm;$("#ic2-pop").style.display="none";
+        if(v==="insp"){this.closeDrawer();InspCtrl.openEdit(null);}
+        else if(v==="cert"){const s=$("#ic2-add-ship").value,k=$("#ic2-add-cert").value;this.openCertForm(s,k);}
+        else if(v==="batch")this.openCertBatch($("#ic2-add-col").value);
+        return;}
       const it=t.closest("[data-items]");
       if(it){const v=it.dataset.items;if(v==="close"){$("#ic2-pop").style.display="none";return;}
         F.items=new Set(v==="insp"?[...this.INSP_COLS,...this.extraCols()].map(c=>c[0]):v==="cert"?this.CERT_COLS.map(c=>c[0]):v==="5y"?this.CERT60:[]);this.itemPop();this.render();return;}
