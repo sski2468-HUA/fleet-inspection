@@ -5229,6 +5229,20 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="toolbar" style="margin-bottom:12px">
         <button class="btn rd-subbtn" data-k="int" onclick="RefDl.setSub('int')">📖 海技參考資料（內部）</button>
         <button class="btn rd-subbtn" data-k="ship" onclick="RefDl.setSub('ship')">📤 分享船隊（船舶平台）<span id="rd-subbadge"></span></button>
+        <button class="btn rd-subbtn" data-k="pv" onclick="RefDl.setSub('pv')">👁 船上畫面預覽</button>
+      </div>
+      <!-- 船上畫面預覽：直接在這裡看某艘船在船舶平台「📚 參考文件」的畫面（同資料管理的船舶平台預覽，不記錄成船上操作） -->
+      <div id="rd-sub-pv" style="display:none">
+        <div class="card">
+          <h3>👁 船上畫面預覽 <span class="hint" style="font-weight:400">以該輪身分檢視船舶檢查填報平台；不會記錄成船上操作，也不會清掉船上的「有新版」提示</span></h3>
+          <div class="toolbar" style="margin-bottom:10px">
+            <select id="rd-pv-ship" style="min-width:240px" onchange="RefDl.pvLoad()"></select>
+            <button class="btn" onclick="RefDl.pvLoad(true)">🔄 重新載入</button>
+            <button class="btn" onclick="RefDl.pvOpen()">↗ 另開新視窗</button>
+            <span class="hint" id="rd-pv-hint"></span>
+          </div>
+          <iframe id="rd-pv-frame" title="船舶平台預覽" style="width:100%;height:820px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
+        </div>
       </div>
       <div id="rd-sub-ship" style="display:none">
         <div class="card" style="margin-bottom:14px" id="rd-card">
@@ -5242,8 +5256,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <label style="grid-column:1/-1">說明／重點（選填，船上看得到）<textarea id="rd-note" rows="3" maxlength="1500" placeholder="例：請下載後列印，更換 SOPEP 附錄內的 IMO 聯絡清單。／本期重點：…" style="width:100%"></textarea></label>
             <div style="grid-column:1/-1">附件（PDF、Word、Excel、圖片，每個 20MB 內，選檔後直接上傳）
               <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px"><label class="btn sm" style="cursor:pointer">📎 選擇檔案<input type="file" id="rd-file" multiple style="display:none" onchange="RefDl.addFiles(this)"></label><span id="rd-files" style="display:flex;gap:6px;flex-wrap:wrap"></span></div></div>
-            <label style="grid-column:1/-1">連結網址（選填，外部文件或網頁，例如 IMO PDF）<input type="url" id="rd-url" placeholder="https://..." style="width:100%"></label>
-            <label style="grid-column:1/-1">官方頁面網址（選填，給船上備用、海技查新版用）<input type="url" id="rd-page" placeholder="https://..." style="width:100%"></label>
+            <label style="grid-column:1/-1">連結網址（選填，外部文件或網頁，例如 IMO PDF）<input type="text" inputmode="url" id="rd-url" placeholder="https://..." style="width:100%"></label>
+            <label style="grid-column:1/-1">官方頁面網址（選填，給船上備用、海技查新版用）<input type="text" inputmode="url" id="rd-page" placeholder="https://..." style="width:100%"></label>
             <label>定期更新日（選填）<input type="text" id="rd-sched" placeholder="例：4/30、7/31、10/31" style="width:100%"></label>
             <label style="display:flex;gap:6px;align-items:center;margin-top:18px"><input type="checkbox" id="rd-track" checked> 追蹤各船是否下載／閱讀</label>
             <div style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -30509,12 +30523,30 @@ const RefDl={
   /* 子頁籤：int＝原本的海技參考資料（內部連結）／ship＝分享船隊；記在本機，下次打開維持上次的選擇 */
   setSub(k){
     if(k===undefined){try{k=localStorage.getItem("vsm_rd_sub_v1")||"int";}catch(e){k="int";}}
-    if(k!=="ship")k="int";
+    if(k!=="ship"&&k!=="pv")k="int";
     $$(".rd-subbtn").forEach(b=>b.classList.toggle("primary",b.dataset.k===k));
-    const a=$("#rd-sub-int"),b=$("#rd-sub-ship");if(a)a.style.display=k==="int"?"":"none";if(b)b.style.display=k==="ship"?"":"none";
+    [["int","#rd-sub-int"],["ship","#rd-sub-ship"],["pv","#rd-sub-pv"]].forEach(([x,s])=>{const el=$(s);if(el)el.style.display=k===x?"":"none";});
     try{localStorage.setItem("vsm_rd_sub_v1",k);}catch(e){}
     if(k==="ship")this.render();else this.load().then(()=>this.subBadge());
+    if(k==="pv")this.pvLoad(true); // 每次切進來都重新載入，剛在「分享船隊」改的內容馬上看得到
   },
+  /* ── 船上畫面預覽：iframe 開船舶平台 ?preview=船代碼&tab=ref（平台靠同網域的登入身分確認是 Owner／管理員） ── */
+  pvUrl(){const c=($("#rd-pv-ship")||{}).value;return c?`${PortalPreview.URL}?preview=${encodeURIComponent(c)}&tab=ref`:"";},
+  pvLoad(force){
+    const sel=$("#rd-pv-ship"),fr=$("#rd-pv-frame"),hint=$("#rd-pv-hint");if(!sel||!fr)return;
+    if(!this.canEdit()){if(hint)hint.textContent="⚠ 船上畫面預覽僅限 Owner／管理員";fr.removeAttribute("src");return;}
+    if(!sel.options.length){
+      sel.innerHTML=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>s&&s.code&&s.operator==="FPMC"&&!(typeof isSoldShip==="function"&&isSoldShip(s.code)))
+        .sort((a,b)=>String(a.code).localeCompare(String(b.code),undefined,{numeric:true}))
+        .map(s=>`<option value="${esc(s.code)}">${esc(shipFullLabel(s.code))}</option>`).join("");
+      try{const v=localStorage.getItem("vsm_rd_pv_ship_v1");if(v&&[...sel.options].some(o=>o.value===v))sel.value=v;}catch(e){}
+    }
+    try{localStorage.setItem("vsm_rd_pv_ship_v1",sel.value);}catch(e){}
+    if(hint)hint.textContent=location.protocol==="file:"?"⚠ 本機檔案開啟的主系統無法讓平台確認身分，請改用網站版（github.io）":"";
+    const u=this.pvUrl();if(!u)return;
+    if(force||fr.dataset.u!==u){fr.dataset.u=u;fr.src=u+(force?"&r="+Date.now():"");}
+  },
+  pvOpen(){const u=this.pvUrl();if(u)window.open(u,"_blank","noopener");},
   subBadge(){const el=$("#rd-subbadge");if(!el)return;const n=(this.data.items||[]).filter(d=>this.overdue(d)).length;
     el.innerHTML=n?` <span style="background:#c0392b;color:#fff;font-size:10.5px;border-radius:9px;padding:0 6px">${n}</span>`:"";},
   async load(force){

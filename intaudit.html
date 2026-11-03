@@ -408,6 +408,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
         <span class="msel" id="msShip2"></span><span class="msel" id="msSrc2"></span><span class="msel" id="msInsp2"></span>
         <select id="fMode" onchange="renderList()" style="width:auto"><option value="">全部結案方式</option><option value="FLOW">FLOW 系統（DMP-FM01）</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
         <select id="fStatus" onchange="renderList()" style="width:auto"><option value="">全部狀態</option><option>FLOW 結案</option><option>待船上改善</option><option>船上已回報</option><option>已結案</option></select>
+        <select id="fRec" onchange="renderList()" style="width:auto" title="登錄單本身的狀態：督導還沒送出的草稿／已送出等海技匯入／海技已匯入主系統"><option value="">全部登錄單</option><option value="draft">草稿</option><option value="pending">已送出・待海技匯入</option><option value="imported">海技已匯入</option></select>
         <input type="text" class="fq" id="fQ" placeholder="🔍 搜尋船名／檢查人／分類／缺失描述…" oninput="$('#stQ').value=this.value;renderList()">
         <span class="fsp"></span>
         <button class="btn sm" onclick="clearFilters()">清除篩選</button>
@@ -1302,7 +1303,7 @@ function msAll(key,host,label,on){
   stSel[key].clear();if(on)m[key]().forEach(v=>stSel[key].add(v));renderList();
 }
 document.addEventListener("click",e=>{if(!e.target.closest(".msel"))document.querySelectorAll(".msel .mp.open").forEach(p=>p.classList.remove("open"));});
-function clearStFilters(){stSel.ship.clear();stSel.src.clear();stSel.insp.clear();$("#stClose").value="";$("#stQ").value="";$("#fQ").value="";$("#fMode").value="";$("#fStatus").value="";$("#stFrom").value="";$("#stTo").value="";renderList();}
+function clearStFilters(){stSel.ship.clear();stSel.src.clear();stSel.insp.clear();$("#stClose").value="";$("#stQ").value="";$("#fQ").value="";$("#fMode").value="";$("#fStatus").value="";if($("#fRec"))$("#fRec").value="";$("#stFrom").value="";$("#stTo").value="";renderList();}
 function statFiltered(){
   const all=statRows(),q=$("#stQ").value.trim().toLowerCase(),cl=$("#stClose").value,f=$("#stFrom").value,t=$("#stTo").value;
   return all.filter(x=>{
@@ -1372,6 +1373,7 @@ function renderFilterSum(){
   if(v==="cards"){
     if(val("fMode"))add("結案方式",selText("fMode"),"$('#fMode').value=''");
     if(val("fStatus"))add("狀態",selText("fStatus"),"$('#fStatus').value=''");
+    if(val("fRec"))add("登錄單",selText("fRec"),"$('#fRec').value=''");
     if(val("fQ"))add("搜尋",val("fQ"),"$('#fQ').value='';$('#stQ').value=''");
   }else if(v==="table"){
     if(val("stClose"))add("結案情形",selText("stClose"),"$('#stClose').value=''");
@@ -1409,6 +1411,9 @@ function recPass(r){
   return true;
 }
 const srcPass=d=>!stSel.src.size||stSel.src.has(d.type||"");
+/* 卡片檢視「登錄單狀態」篩選（2026-11-03）：草稿／已送出・待海技匯入／海技已匯入 */
+const recState=r=>r.draft?"draft":r.imported?"imported":"pending";
+const recStatePass=r=>{const v=$("#fRec")?$("#fRec").value:"";return !v||recState(r)===v;};
 /* 匯出全部 Excel：套用目前畫面上的篩選條件（船舶／檢查人／結案方式／狀態／關鍵字），
    跟畫面上看到的登錄單、缺失完全一致——篩選清空的話就是匯出全部。兩個分頁：
    「登錄紀錄」一張單一列，「缺失明細」每筆缺失一列，方便督導自己留底或交接查核用。 */
@@ -1416,7 +1421,7 @@ function filteredForExport(){
   const fm=$("#fMode").value,fst=$("#fStatus").value,q=$("#fQ").value.trim().toLowerCase(),fsrc=stSel.src.size>0;
   const out=[];
   Store.rows.forEach(r=>{
-    if(!recPass(r))return;
+    if(!recPass(r)||!recStatePass(r))return;
     const ds=(r.defs||[]).filter(d=>srcPass(d)&&(!fm||d.closeMode===fm)&&(!fst||effStatus(r,d)===fst)&&
       (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,topicText(d)].join(" ").toLowerCase().includes(q)));
     if(!ds.length&&(fm||fst||q||fsrc))return;
@@ -1560,7 +1565,7 @@ function renderList(){
   let html="",n=0;
   const filteredDefs=[];let matchedRecs=0;
   rows.forEach(r=>{
-    if(!recPass(r))return;
+    if(!recPass(r)||!recStatePass(r))return;
     const ds=(r.defs||[]).filter(d=>srcPass(d)&&(!fm||d.closeMode===fm)&&(!fst||effStatus(r,d)===fst)&&
       (!q||[r.ship,r.inspector,r.psn,d.category,d.finding,topicText(d)].join(" ").toLowerCase().includes(q)));
     if(!ds.length&&(fm||fst||q||fsrc))return;
