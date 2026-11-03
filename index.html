@@ -12912,7 +12912,7 @@ const Sp={
     const rows=this.filtered().map(s=>({代碼:s.code,"Vessel Name":s.name,船名:s.zh,船型:s.vtype,Type:s.type1,"船齡(年)":this.ageOf(s),交船日:s.delivery,"IMO No.":s.imo,"HULL NO.":s.hull,"C/S":s.cs,DWT:s.dwt,GRT:s.grt,LOA:s.loa,Breadth:s.breadth,船廠:s.yard,船廠地點:s.yardLoc,FLAG:s.flag,Class:s.cls,登記公司:s.registry,海技經管:s.mgr,甲板督導:s.deckSup,機艙督導:s.engineSup,甲板代理督導:s.deckSupAlt||"",機艙代理督導:s.engineSupAlt||"",CSO:s.cso,備註:s.note}));
     const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"Ship Particulars");
-    XLSX.writeFile(wb,`Ship_Particulars_${todayStr()}.xlsx`);
+    XlsxPretty.writeFile(wb,`Ship_Particulars_${todayStr()}.xlsx`,{title:"Ship Particulars 船舶資料"});
   },
   async exportTemplate(){
     if(!hasExcelJS())return;
@@ -18557,7 +18557,7 @@ const SirePos={
     const aoa=[["類別","船名","檢查日期","檢查來源","檢查人","職稱","姓名","說明"],...rows.map(d=>[d.kind==="good"?"表現亮眼":"表現較差",shipFullLabel(d.ship),d.date,d.itype,d.inspector,d.rank,d.name,d.brief])];
     const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=[{wch:10},{wch:24},{wch:22},{wch:20},{wch:14},{wch:14},{wch:12},{wch:60}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"亮眼較差船員");
-    XLSX.writeFile(wb,`內部檢查_表現亮眼較差船員_${todayStr()}.xlsx`);toast(`已匯出 ${rows.length} 人次`);
+    XlsxPretty.writeFile(wb,`內部檢查_表現亮眼較差船員_${todayStr()}.xlsx`,{title:"內部檢查－表現亮眼／較差船員"});toast(`已匯出 ${rows.length} 人次`);
   },
   init(){
     const rerun=()=>{this.page=1;this.render();};
@@ -18908,7 +18908,7 @@ const SirePos={
     const ws=XLSX.utils.aoa_to_sheet(this.rowsToAoa(rows));
     ws["!cols"]=[{wch:10},{wch:12},{wch:16},{wch:30},{wch:45},{wch:55},{wch:10},{wch:14}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"SIRE正向評論");
-    XLSX.writeFile(wb,`SIRE正向評論_篩選_${todayStr()}.xlsx`);toast(`已匯出 ${rows.length} 筆`);
+    XlsxPretty.writeFile(wb,`SIRE正向評論_篩選_${todayStr()}.xlsx`,{title:"SIRE 正向評論"});toast(`已匯出 ${rows.length} 筆`);
   },
   exportJson(){
     const rows=this.exportSet();
@@ -18920,7 +18920,7 @@ const SirePos={
     const ws=XLSX.utils.aoa_to_sheet(this.rowsToAoa(App.sirePos));
     ws["!cols"]=[{wch:10},{wch:12},{wch:16},{wch:30},{wch:45},{wch:55},{wch:10},{wch:14}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"SIRE正向評論");
-    XLSX.writeFile(wb,`SIRE正向評論_全庫_${todayStr()}.xlsx`);toast(`已匯出 ${App.sirePos.length} 筆`);
+    XlsxPretty.writeFile(wb,`SIRE正向評論_全庫_${todayStr()}.xlsx`,{noTitle:true});toast(`已匯出 ${App.sirePos.length} 筆`);
   },
   exportJsonAll(){dl(new Blob([JSON.stringify({type:"vsm_sire_positive",exported:new Date().toISOString(),records:App.sirePos},null,1)],{type:"application/json"}),`SIRE正向評論_全庫_${todayStr()}.json`);},
   async exportTemplate(){
@@ -19238,7 +19238,7 @@ const EnhAuditLog={
     });
     const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"加強管理歷史紀錄");
-    XLSX.writeFile(wb,`加強管理歷史紀錄_${todayStr()}.xlsx`);
+    XlsxPretty.writeFile(wb,`加強管理歷史紀錄_${todayStr()}.xlsx`,{title:"加強管理歷史紀錄"});
   }
 };
 
@@ -19266,7 +19266,7 @@ const XlsxPretty=(()=>{
   const textLen=v=>{let n=0;for(const ch of String(v??""))n+=/[\u0000-ÿ]/.test(ch)?1:2;return n;};
   const lastCol=n=>{let s="";n++;while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;};
 
-  function addSheet(ewb,name,ws,title,stamp,noTitle){
+  function addSheet(ewb,name,ws,title,stamp,noTitle,sections){
     // noTitle：不加上方標題列，表頭留在第 1 列——給「匯出後可能再匯回系統」的檔案用，欄位位置跟原本一樣
     const R0=noTitle?1:3;
     const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
@@ -19299,8 +19299,37 @@ const XlsxPretty=(()=>{
       isNum[c]=vals.length>0&&vals.every(v=>typeof v==="number");
       isLong[c]=widths[c]>=24||vals.some(v=>textLen(v)>widths[c]*1.2);
     }
+    // sections：工作表裡有好幾段（標題列、空白列、第二個表頭…），逐列判斷樣式
+    const filled=r=>(r||[]).filter(v=>v!==""&&v!=null).length;
+    let zi=0;
     aoa.forEach((row,ri)=>{
       const er=sh.getRow(R0+ri);
+      if(sections){
+        const n=filled(row);
+        if(!n){er.height=8;return;}
+        if(n===1&&row[0]!==""&&row[0]!=null&&nCol>1){
+          const cell=er.getCell(1);cell.value=row[0];
+          cell.font={name:FONT,size:ri===0?13:11,bold:true,color:{argb:C.navy}};cell.alignment={vertical:"middle"};
+          return;
+        }
+        const isHdr=ri===0||!filled(aoa[ri-1]);
+        if(isHdr)zi=0;
+        for(let c=0;c<nCol;c++){
+          const cell=er.getCell(c+1),v=row[c];cell.value=(v===undefined||v===null)?"":v;cell.border=box;
+          if(isHdr){cell.font={name:FONT,size:10.5,bold:true,color:{argb:"FFFFFFFF"}};cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:C.teal}};cell.alignment={vertical:"middle",horizontal:"center",wrapText:true};continue;}
+          cell.font={name:FONT,size:10.5,color:{argb:C.ink}};
+          cell.alignment={vertical:"top",horizontal:typeof v==="number"?"right":"left",wrapText:!!isLong[c]};
+          if(zi%2===1)cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:C.zebra}};
+          const sv=typeof v==="string"?v.trim():"";
+          if(sv&&textLen(sv)<=14){
+            if(RISK[sv]){cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:RISK[sv][0]}};cell.font={name:FONT,size:10.5,bold:true,color:{argb:RISK[sv][1]}};cell.alignment={vertical:"top",horizontal:"center"};}
+            else for(const [re,bg,fg] of STATUS){if(re.test(sv)){cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:bg}};cell.font={name:FONT,size:10.5,bold:true,color:{argb:fg}};cell.alignment={vertical:"top",horizontal:"center"};break;}}
+          }
+        }
+        if(isHdr)er.height=Math.max(30,...row.map((v,c)=>Math.ceil(textLen(v)/Math.max(widths[c]-1,4))*15+6));
+        else zi++;
+        return;
+      }
       for(let c=0;c<nCol;c++){
         const cell=er.getCell(c+1),v=row[c];
         cell.value=(v===undefined||v===null)?"":v;
@@ -19323,7 +19352,8 @@ const XlsxPretty=(()=>{
       // 表頭字太長（例如「系統編號（請勿修改…）」）時自動加高，避免被切掉
       if(ri===0)er.height=Math.max(30,...row.map((v,c)=>Math.ceil(textLen(v)/Math.max(widths[c]-1,4))*15+6));
     });
-    if(aoa.length>1)sh.autoFilter={from:{row:R0,column:1},to:{row:R0-1+aoa.length,column:nCol}};
+    if(aoa.length>1&&!sections)sh.autoFilter={from:{row:R0,column:1},to:{row:R0-1+aoa.length,column:nCol}};
+    if(sections)sh.views=[{}]; // 多段式工作表不凍結第一列
     sh.headerFooter={oddFooter:`&L${title}&R&P / &N`};
     return sh;
   }
@@ -19335,7 +19365,7 @@ const XlsxPretty=(()=>{
       const ewb=new ExcelJS.Workbook();ewb.creator="FPMC";ewb.created=new Date();
       const title=opts.title||String(filename).replace(/\.xlsx?$/i,"").replace(/_\d{4}-\d{2}-\d{2}.*$/,"");
       const stamp=new Date().toLocaleString("zh-TW",{hour12:false});
-      wb.SheetNames.forEach(n=>addSheet(ewb,n,wb.Sheets[n],title,stamp,!!opts.noTitle));
+      wb.SheetNames.forEach(n=>addSheet(ewb,n,wb.Sheets[n],title,stamp,!!opts.noTitle,!!opts.sections));
       const buf=await ewb.xlsx.writeBuffer();
       const a=document.createElement("a");
       a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
@@ -21866,7 +21896,7 @@ const InspCtrl={
       r.owner,r.note]);
     const ws=XLSX.utils.aoa_to_sheet([header,...rows]);ws["!cols"]=[{wch:10},{wch:16},{wch:10},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:10},{wch:14},{wch:12},{wch:30}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"檢查管控");
-    XLSX.writeFile(wb,`檢查管控_全庫_${todayStr()}.xlsx`);
+    XlsxPretty.writeFile(wb,`檢查管控_全庫_${todayStr()}.xlsx`,{noTitle:true});
     toast(`已匯出全庫 ${rows.length} 筆`);
   },
   exportJsonAll(){
@@ -21883,7 +21913,7 @@ const InspCtrl={
       r.owner,r.note]);
     const ws=XLSX.utils.aoa_to_sheet([header,...rows]);ws["!cols"]=[{wch:10},{wch:16},{wch:10},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:10},{wch:14},{wch:12},{wch:30}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"檢查管控");
-    XLSX.writeFile(wb,`檢查管控_${todayStr()}.xlsx`);
+    XlsxPretty.writeFile(wb,`檢查管控_${todayStr()}.xlsx`,{title:"檢查管控"});
   },
   exportJson(){
     const rows=this.exportRows();
@@ -25035,7 +25065,7 @@ const Air={
       people.forEach(p=>{posRows.push({序號:i+1,"CODE（章節）":pc.code||"",評論項目:pc.item||"",正向評論內容:pc.comment||"",職稱:p.rank||"",姓名:p.person||""});});
     });});
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(posRows),"正向評論明細");
-    XLSX.writeFile(wb,`AfterInspectionReview_匯出_${todayStr()}.xlsx`);
+    XlsxPretty.writeFile(wb,`AfterInspectionReview_匯出_${todayStr()}.xlsx`,{title:"After Inspection Review"});
     if(typeof Audit!=="undefined")Audit.log("匯出","AIR",`匯出 ${scope.length} 筆`);
     toast(`✓ 已匯出 ${scope.length} 筆 填單${(this.selected&&this.selected.size)?"（僅勾選項目）":""}`);
   },
@@ -26088,7 +26118,7 @@ const Air={
     const ws=XLSX.utils.aoa_to_sheet(rows);
     ws["!cols"]=hdr.map(h=>({wch:h==="CODE"?12:(h==="重要程度"||h==="重點關注"||h==="風險"?10:22)}));
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"缺失改善明細");
-    XLSX.writeFile(wb,`AIR缺失改善明細_${(d&&d.ship)||""}_${((d&&d.date)||"").replace(/\//g,"-")}.xlsx`);
+    XlsxPretty.writeFile(wb,`AIR缺失改善明細_${(d&&d.ship)||""}_${((d&&d.date)||"").replace(/\//g,"-")}.xlsx`,{noTitle:true});
     toast("✓ 已匯出缺失改善明細 Excel（含岸上對外回覆）");
   },
   importDefectsXlsx(file){
@@ -28896,7 +28926,7 @@ const Air={
     const ws=XLSX.utils.aoa_to_sheet(rows);
     ws["!cols"]=[{wch:6},{wch:6},{wch:35},{wch:10},{wch:10},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:28},{wch:10}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"AIR");
-    XLSX.writeFile(wb,`AIR_${d.ship}_${(d.date||"").replace(/\//g,"-")}.xlsx`);
+    XlsxPretty.writeFile(wb,`AIR_${d.ship}_${(d.date||"").replace(/\//g,"-")}.xlsx`,{noTitle:true,sections:true});
     toast("✓ 已匯出 Excel 檔");
   },
   exportRecordDocx(id){
@@ -32207,7 +32237,7 @@ const Recur={
     const data=rows.map(r=>({項次:r.no,大類:r.code,查核項目:r.name,查核重點:r.tip,發生次數:r.count,主要船舶:r.ships,查核結果:"",備註:""}));
     const ws=XLSX.utils.json_to_sheet(data),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"CheckList");
-    XLSX.writeFile(wb,`重複缺失CheckList_${todayStr()}.xlsx`);
+    XlsxPretty.writeFile(wb,`重複缺失CheckList_${todayStr()}.xlsx`,{title:"重複缺失 CheckList"});
   },
   genAiDraft(){
     const keys=this.sel.size?[...this.sel]:this.rows.map(r=>r.key);
@@ -32310,7 +32340,7 @@ ${KEYPOINT_RULE}
       主要發生船舶:Object.entries(r.ships).sort((a,b)=>b[1]-a[1]).map(([s,n])=>s+"("+n+")").join("、")}));
     const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"重複性缺失");
-    XLSX.writeFile(wb,`重複性缺失分析_${todayStr()}.xlsx`);
+    XlsxPretty.writeFile(wb,`重複性缺失分析_${todayStr()}.xlsx`,{title:"重複性缺失分析"});
   }
 };
 
@@ -33276,7 +33306,7 @@ ${KEYPOINT_RULE}
     }).sort((a,b)=>b.庫內筆數-a.庫內筆數);
     const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"分類彙總分析");
-    XLSX.writeFile(wb,`分類彙總分析_${todayStr()}.xlsx`);
+    XlsxPretty.writeFile(wb,`分類彙總分析_${todayStr()}.xlsx`,{title:"分類彙總分析"});
   }
 };
 
@@ -35599,7 +35629,7 @@ const ChapterMgr={
       ws["!cols"]=[{wch:8},{wch:60}];
       XLSX.utils.book_append_sheet(wb,ws,label.replace(/[:\\/?*[\]]/g,"").slice(0,31));
     });
-    XLSX.writeFile(wb,`缺失代碼對照表_${todayStr()}.xlsx`);
+    XlsxPretty.writeFile(wb,`缺失代碼對照表_${todayStr()}.xlsx`,{noTitle:true});
     if(typeof Audit!=="undefined")Audit.log("匯出","缺失代碼對照表","匯出 Excel");
   },
   exportWord(){
@@ -36279,7 +36309,7 @@ const RosterMgr={
     const aoa=[this.TEMPLATE_HDR,...list.map(x=>[x.dept,x.name,{owner:"Owner",admin:"管理員",op1:"操作者1-督導",op2:"操作者2-船舶",op3:"操作者3-其他部門"}[x.tier]||"操作者3-其他部門"])];
     const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=[{wch:16},{wch:16},{wch:18}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"人員名單");
-    XLSX.writeFile(wb,`人員名單_${todayStr()}.xlsx`);
+    XlsxPretty.writeFile(wb,`人員名單_${todayStr()}.xlsx`,{noTitle:true});
   },
   async exportTemplate(){
     if(!hasExcelJS())return;
@@ -36444,7 +36474,7 @@ const Audit={
     const rows=this.list.map(e=>({時間:this.fmt(e.ts),操作者:e.usr,動作:e.action,對象:e.target,內容:e.summary}));
     const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"操作紀錄");
-    XLSX.writeFile(wb,`操作紀錄_${todayStr()}.xlsx`);
+    XlsxPretty.writeFile(wb,`操作紀錄_${todayStr()}.xlsx`,{title:"操作紀錄"});
   },
   clearLocal(){
     if(!confirm("清除本機操作紀錄？（雲端紀錄不受影響）"))return;
@@ -38738,7 +38768,7 @@ const SelfCheck={
     ws["!cols"]=[{wch:6},{wch:9},{wch:11},{wch:16},{wch:5},{wch:26},{wch:13},{wch:30},{wch:30},{wch:7},
                  {wch:9},{wch:12},{wch:11},{wch:22},{wch:8},{wch:9},{wch:55}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"自檢任務清單");
-    XLSX.writeFile(wb,`自檢任務清單_${todayStr().replace(/-/g,"")}_${list.length}個任務.xlsx`);
+    XlsxPretty.writeFile(wb,`自檢任務清單_${todayStr().replace(/-/g,"")}_${list.length}個任務.xlsx`,{title:"自檢任務清單"});
   },
   openTask(id){App.curTaskId=id;App._op2Bypass=true;App.saveAll();this.render();},
   backToList(){App.curTaskId=null;App._op2Bypass=true;App.saveAll();this.render();},
@@ -40123,7 +40153,7 @@ ${KEYPOINT_RULE}
       ws["!cols"]=[{wch:6},{wch:12},{wch:10},{wch:14},{wch:11},{wch:14},{wch:22},{wch:10},{wch:60},{wch:36},{wch:16},{wch:36},{wch:36},{wch:6}];
       XLSX.utils.book_append_sheet(wb,ws,"自查表");
     }
-    XLSX.writeFile(wb,this.fname(t)+".xlsx");
+    XlsxPretty.writeFile(wb,this.fname(t)+".xlsx",{noTitle:true,sections:true});
     toast(grouped?"✓ 已匯出 Excel（含「查核重點」與「來源缺失明細」兩個工作表）":"已匯出 Excel");
   },
 
@@ -40384,7 +40414,7 @@ ${KEYPOINT_RULE}
     const ws=XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"]=[{wch:4},{wch:24},{wch:8},{wch:12},{wch:12},{wch:8},{wch:6},{wch:24},{wch:55},{wch:12},{wch:20}];
     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"彙整查核重點");
-    XLSX.writeFile(wb,this.fname(t)+"_彙整查核重點.xlsx");
+    XlsxPretty.writeFile(wb,this.fname(t)+"_彙整查核重點.xlsx",{noTitle:true,sections:true});
   }
 };
 
