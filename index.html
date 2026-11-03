@@ -19992,6 +19992,9 @@ const InspCtrl2={
     if(k==="RRDA"&&/ABS/.test(s.cls||""))return /CR/.test(s.cls||"")?"CR&ABS":"ABS";
     if(k==="FFEA"&&s.vtype!=="bulk")return "NIL";
     if((k==="CACOFR"||k==="USCOFR")&&s.vtype==="bulk")return "NIL";
+    // 2026-11-03 確認：散裝船暫不需 RRDA；國輪與 CI、CJ、CL 暫不需 COFR
+    if(k==="RRDA"&&s.vtype==="bulk")return "NIL";
+    if((k==="CACOFR"||k==="USCOFR")&&(s.flag==="ROC"||["CI","CJ","CL"].includes(s.code)))return "NIL";
     return "";},
   /* 一次填整欄：點證書欄名，全部船列成一張表 */
   openCertBatch(k){
@@ -20066,12 +20069,59 @@ const InspCtrl2={
         <div class="ic2-lbl" style="margin-top:4px">SMC／ISSC／MLC 請用「新增檢查項目」（它們同時是檢查項目）。</div></div>
       <div style="border-top:1px solid var(--line);padding-top:10px"><b style="color:var(--navy)">📜 海技管理證書・整欄一次填（全部船）</b>
         <div class="ic2-row" style="margin-top:6px"><select id="ic2-add-col">${certOpts}</select><button class="btn sm" data-addm="batch">開始填寫</button></div>
-        <div class="ic2-lbl" style="margin-top:4px">也可以在「海技管理證書」範圍直接點欄名。</div></div>`
+        <div class="ic2-lbl" style="margin-top:4px">也可以在「海技管理證書」範圍直接點欄名。</div></div>
+      <div style="border-top:1px solid var(--line);padding-top:10px"><b style="color:var(--navy)">📥 從 Excel 匯入證書</b>
+        <div class="ic2-lbl">欄位：船、證書代碼、適用、到期日、簽發/登記日、版次、需確認（例：「海技證書_從檔案伺服器整理」那份）</div>
+        <input type="file" id="ic2-cert-xlsx" accept=".xlsx,.xls" style="margin-top:6px;font-size:12px"></div>`
       :`<div class="ic2-lbl" style="border-top:1px solid var(--line);padding-top:10px">海技管理證書僅 Owner／管理員可新增。</div>`}
     </div>`;
     p.style.display="";
     const host=$("#ig-page-plan2").getBoundingClientRect(),r=btn.getBoundingClientRect();
     p.style.top=(r.bottom-host.top+4)+"px";p.style.left=Math.max(0,Math.min(r.right-host.left-p.offsetWidth,host.width-p.offsetWidth))+"px";
+  },
+  /* 從 Excel 匯入證書：先在右側列出「新增／更新／略過」，按確認才寫入 */
+  async readCertXlsx(file){
+    if(!this.isAdmin()){toast("⚠ 僅 Owner／管理員可匯入證書");return;}
+    if(typeof XLSX==="undefined"){toast("⚠ Excel 函式庫未載入");return;}
+    const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const raw=XLSX.utils.sheet_to_json(ws,{defval:""});
+    const dt=v=>{if(v instanceof Date&&!isNaN(v))return InspCtrl.toLocalISO(v);const s=String(v||"").trim();return s?InspCtrl.normDate(s):"";};
+    const keys=new Set(this.CERT_COLS.map(c=>c[0])),codes=new Set(SHIPINFO.map(s=>s.code));
+    const plan=[];
+    raw.forEach(r=>{
+      const ship=String(r["船"]||"").trim(),k=String(r["證書代碼"]||"").trim().toUpperCase();
+      if(!codes.has(ship)||!keys.has(k))return;
+      let na=String(r["適用"]||"").trim();if(na==="適用")na="";
+      const rec={na,dueDate:na?"":dt(r["到期日"]),issueDate:dt(r["簽發/登記日"]),certVer:String(r["版次"]||"").trim()};
+      const flag=String(r["需確認"]||"").trim();
+      if(!rec.na&&!rec.dueDate&&!rec.issueDate&&!rec.certVer){plan.push({ship,k,act:"skip",why:flag||"沒有資料"});return;}
+      const cur=this.cell(ship,k);
+      if(cur){const d=cur.src;const same=(d.na||"")===rec.na&&(d.dueDate||"")===rec.dueDate&&(d.issueDate||"")===rec.issueDate&&(d.certVer||"")===rec.certVer;
+        plan.push({ship,k,rec,flag,act:same?"same":"update",cur});}
+      else plan.push({ship,k,rec,flag,act:"add"});
+    });
+    this._certPlan=plan;
+    const n=a=>plan.filter(p=>p.act===a).length;
+    const rowsHtml=plan.filter(p=>p.act!=="same").map(p=>`<tr><td><b>${esc(p.ship)}</b></td><td>${esc(this.colOf(p.k)[1])}</td><td>${p.act==="add"?"新增":p.act==="update"?"更新":"略過"}</td><td>${p.rec?(p.rec.na||this.fmt(p.rec.dueDate)||(p.rec.certVer?"No."+esc(p.rec.certVer):"")||this.fmt(p.rec.issueDate)):"—"}</td><td style="color:${p.flag||p.why?"var(--bad)":"inherit"}">${esc(p.flag||p.why||"")}</td></tr>`).join("");
+    this.showDrawer(`<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="lbl">從 Excel 匯入證書</div><h2>${esc(file.name)}</h2></div><button class="btn" data-close>關閉</button></div>
+      <div class="note" style="margin-top:10px">新增 <b>${n("add")}</b> 筆・更新 <b>${n("update")}</b> 筆・沒有資料略過 <b>${n("skip")}</b> 筆・內容相同 ${n("same")} 筆<div class="lbl">「需確認」的那幾筆會照樣匯入，並把需確認的原因寫進備註，之後點格子可以修改。</div></div>
+      <table style="margin-top:10px"><thead><tr><th>船</th><th>證書</th><th>動作</th><th>內容</th><th>需確認</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+      <div class="btnrow"><button class="btn primary" id="ic2-ci-ok" ${n("add")+n("update")?"":"disabled"}>確認匯入（${n("add")+n("update")} 筆）</button><button class="btn" data-close>取消</button></div>`,["import"]);
+  },
+  applyCertPlan(){
+    if(typeof EditLock!=="undefined"&&!EditLock.guard("inspctrl"))return;
+    const plan=(this._certPlan||[]).filter(p=>p.act==="add"||p.act==="update");if(!plan.length)return;
+    let add=0,upd=0;const now=Date.now();
+    plan.forEach(p=>{const note=p.flag?"需確認："+p.flag:"";
+      if(p.act==="update"){Object.assign(p.cur.src,p.rec);if(note)p.cur.src.note=note;upd++;}
+      else{App.inspCtrl.push({id:now+add,ship:p.ship,itype:this.colOf(p.k)[3],cat:"cert",...p.rec,certNo:"",owner:this.me(),note,validityMonths:""});add++;}
+    });
+    App.saveAll();
+    if(typeof Audit!=="undefined")Audit.log("新增","檢查管控",`（海技管理證書・Excel 匯入）新增 ${add} 筆、更新 ${upd} 筆`);
+    if(typeof Cloud!=="undefined")Cloud.queueAutoPublish("inspctrl");
+    this._certPlan=null;toast(`✓ 已匯入證書：新增 ${add} 筆、更新 ${upd} 筆`);
+    this.closeDrawer();this.F.scope="cert";InspCtrl.render();if(InspGroup.curPage!=="plan2")this.render();
   },
   itemPop(){
     const p=$("#ic2-pop"),btn=$("#ic2-f-items"),F=this.F;
@@ -20122,6 +20172,7 @@ const InspCtrl2={
       this.drawerClick(e);
     };
     page.addEventListener("click",onClick);
+    page.addEventListener("change",e=>{if(e.target.id==="ic2-cert-xlsx"&&e.target.files[0]){const f=e.target.files[0];$("#ic2-pop").style.display="none";this.readCertXlsx(f).catch(err=>toast("⚠ 讀取失敗："+err.message));}});
     $("#ic2-drawer").addEventListener("click",e=>this.drawerClick(e));
     page.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches("[tabindex]"))e.target.click();});
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#ic2-drawer").style.display!=="none")this.closeDrawer();});
@@ -20136,6 +20187,7 @@ const InspCtrl2={
     if(t.id==="ic2-sc-use"){$("#ic2-sc-date").value=t.dataset.d;$("#ic2-sc-date").oninput();return;}
     const bk=t.closest("[data-back]");if(bk){const[a,b]=bk.dataset.back.split("|");this.openCell(a,b);return;}
     if(t.id==="ic2-sc-save"||t.id==="ic2-sc-clear"){this.saveSched(t.dataset.ship,t.dataset.sk,t.id==="ic2-sc-clear");return;}
+    if(t.id==="ic2-ci-ok"){this.applyCertPlan();return;}
     if(t.id==="ic2-cb-save"){this.saveCertBatch(t.dataset.k);return;}
     if(t.id==="ic2-ce-save"||t.id==="ic2-ce-del"){this.saveCert(t.dataset.ship,t.dataset.sk,t.id==="ic2-ce-del");return;}
     const cp=t.closest("[data-copy]");if(cp){const txt=cp.dataset.copy;(navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast("✓ 已複製路徑，貼到檔案總管開啟"),()=>toast("無法自動複製，請手動選取路徑"));return;}
