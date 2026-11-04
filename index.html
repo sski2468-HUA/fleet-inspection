@@ -2487,7 +2487,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="nav-item" data-tab="air"><span class="num">📝</span>填單紀錄</div>
       <div class="nav-item" data-external="__air_queue__" id="nav-air-queue" style="display:none"><span class="num">☁</span>線上填單審核佇列<span id="nav-cq-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:auto"></span></div>
       <div class="nav-item" data-tab="intaudit"><span class="num">🛠</span>內部檢查缺失登錄審查（海技）<span id="air-ia-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:auto"></span></div>
-      <div class="nav-item" data-tab="self"><span class="num">4</span>自訂自查清單</div>
+      <div class="nav-item" data-tab="self"><span class="num">4</span>自訂船舶自查清單</div>
 
     </div>
     <div class="nav-group" data-group="goto">
@@ -4915,10 +4915,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       </style>
       <div class="card" id="self-subtabs" style="margin-bottom:14px">
         <div class="toolbar" style="margin-bottom:0">
-          <button class="btn sm self-tabbtn" data-sp="custom" onclick="SelfTabs.set('custom')">📝 自訂清單</button>
           <button class="btn sm self-tabbtn" data-sp="share" onclick="SelfTabs.set('share')">📤 分享缺失自查</button>
           <button class="btn sm self-tabbtn" data-sp="proj" onclick="SelfTabs.set('proj')">📋 專案自查</button>
           <span style="flex:1"></span>
+          <button class="btn sm" style="background:#e8842c;border-color:#e8842c;color:#fff;font-weight:700" onclick="ShareCase.open()" title="到「分享自查彙整清單」新建自訂自查（出題、草稿、預覽、發佈）">📝 新建自訂自查</button>
           <button class="btn sm" onclick="window.open(officeFolder()+'selfcheck-share-summary.html','_blank')" title="另開「分享自查彙整清單」：各船逐題明細、需提醒的船舶、結束／刪除活動、匯出">↗ 前往分享自查清單</button>
         </div>
       </div>
@@ -12192,7 +12192,7 @@ const NavConfig={
 };
 
 /* ───── 導航 ───── */
-const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶／公司人員資料","Ship Particulars & Company Staff"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["自訂自查清單","自訂清單／專案自查"],fleetda:["船隊缺失分析","Fleet Deficiency Analysis"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["填單紀錄","船上填報 → 維護者審核轉入"],intaudit:["內部檢查缺失登錄","督導立案、發改善單 → 維護者匯入／審核"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["船隊參考文件","Fleet Reference Documents"]};
+const TITLES={dash:["Dash Board","檢查紀錄分析"],ov:["檢查紀錄","Inspection Records & Overview"],sp:["船舶／公司人員資料","Ship Particulars & Company Staff"],defs:["缺失紀錄總表","Deficiency Records"],inspctrl:["檢查計劃及管控表","Inspection Plan & Validity Control"],self:["自訂船舶自查清單","自訂清單／專案自查"],fleetda:["船隊缺失分析","Fleet Deficiency Analysis"],recur:["重複性缺失分析","Recurring Deficiency Analysis"],ref:["分類彙總分析","Classification Summary & Analysis"],trend:["缺失趨勢比較與KPI分析","Deficiency Trend & KPI Analysis"],guide:["操作說明","User Guide"],pdfx:["PDF報告識別","PDF Report Recognition"],data:["資料管理","Import / Export / Storage"],sirepos:["正面評價/優秀案例","Positive Comments / Best Practices"],air:["填單紀錄","船上填報 → 維護者審核轉入"],intaudit:["內部檢查缺失登錄","督導立案、發改善單 → 維護者匯入／審核"],refdocs:["船隊通報單","Fleet Notices"],refdocs2:["船隊參考文件","Fleet Reference Documents"]};
 $$(".nav-item").forEach(n=>n.onclick=()=>{
   // 「操作說明」直接開新分頁的完整操作手冊（system-guide.html），舊的站內說明頁不再使用
   if(n.dataset.tab==="guide"){
@@ -20545,13 +20545,14 @@ const AuditDash2={
    不從缺失紀錄挑題，直接依某個案例（例：RISQ 13.33 電池更換要求）自己出題給船隊自查。
    發佈格式跟「船隊缺失分析 → 發佈為分享自查」相同（topic／key／checks），船上用同一個填答頁；
    另外可附程序書／表格（上傳到 Storage，題目下方顯示附件連結）。 */
-/* 左欄「自訂自查清單」的子標籤（2026-11-04）：自訂清單（自訂自查案例）／專案自查（原本 SelfCheck 任務制） */
+/* 左欄「自訂船舶自查清單」的子標籤（2026-11-04）：自訂清單（自訂自查案例）／專案自查（原本 SelfCheck 任務制） */
 const SelfTabs={
   KEY:"vsm_self_subtab_v1",
-  cur(){try{return localStorage.getItem(this.KEY)||"custom";}catch(e){return "custom";}},
+  cur(){try{return localStorage.getItem(this.KEY)||"share";}catch(e){return "share";}},
   /* 2026-11-04 專案自查功能還不完善，先只給 Owner 看；其他身分只有「自訂清單」 */
   projOk(){return typeof Role!=="undefined"&&Role.isOwner&&Role.isOwner();},
   set(p){
+    if(p==="custom")p="share"; // 2026-11-04 自訂自查的新建／草稿搬到「分享自查彙整清單」，主系統不再有自訂清單子標籤
     const ok=this.projOk();
     $$('.self-tabbtn[data-sp="proj"]').forEach(b=>b.style.display=ok?"":"none");
     if(p==="proj"&&!ok)p="custom";
@@ -20641,7 +20642,7 @@ const SelfTabs={
     }catch(e){box.innerHTML=`<div class="hint">⚠ 讀取失敗：${esc(e.message||e)}</div>`;return;}
     this.drawShare();
   },
-  /* 發佈／建立分享自查後：切到左欄「自訂自查清單」→「📤 分享缺失自查」並重新讀取 */
+  /* 發佈／建立分享自查後：切到左欄「自訂船舶自查清單」→「📤 分享缺失自查」並重新讀取 */
   showShare(){
     document.querySelectorAll(".modal-bg.show").forEach(m=>m.classList.remove("show"));
     const nav=$$(".nav-item").find(x=>x.dataset.tab==="self");
@@ -20697,11 +20698,13 @@ const SelfTabs={
 const ShareCase={
   _q:[],_files:[],_uploading:0,
   fleet(){return SHIPINFO.filter(s=>s.operator==="FPMC"&&!(typeof isSoldShip==="function"&&isSoldShip(s.code))).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code),undefined,{numeric:true}));},
-  /* 2026-11-04 改成直接在「自訂自查清單 → 自訂清單」頁面上填寫（不再跳視窗）；可存草稿（雲端 app_db，一則草稿一個 key
+  /* 2026-11-04 改成直接在「自訂船舶自查清單 → 自訂清單」頁面上填寫（不再跳視窗）；可存草稿（雲端 app_db，一則草稿一個 key
      sharecase_draft_<id>，刪除用 deleted:true 標記），預覽與發佈分開兩個按鈕。 */
   DRAFT_PREFIX:"sharecase_draft_",
   _draftId:null,_savedAt:0,
   open(draft){
+    // 2026-11-04 新建／草稿改在「分享自查彙整清單 → 📝 新建自訂自查」做（督導從內部檢查缺失登錄也進得去）
+    if(!draft){window.open(officeFolder()+"selfcheck-share-summary.html#new","_blank");return;}
     if(!canShareCheck()){toast("⚠ 自訂自查案例僅限 Owner／管理員／督導");return;}
     const nav=$$(".nav-item").find(x=>x.dataset.tab==="self");
     if(nav&&!$("#tab-self").classList.contains("show"))nav.click();
@@ -20713,16 +20716,17 @@ const ShareCase={
     const box=$("#sc-form");if(!box)return;
     const d=draft||{};
     this._draftId=d.id||null;this._savedAt=d.updatedAt||0;
-    this._q=(d.q&&d.q.length?d.q:[{topic:"",key:"",checks:""}]).map(q=>({topic:q.topic||"",key:q.key||"",checks:q.checks||""}));
+    this._q=(d.q&&d.q.length?d.q:[{topic:"",key:"",checks:"",ex:""}]).map(q=>({topic:q.topic||"",key:q.key||"",checks:q.checks||"",ex:q.ex||""}));
     this._files=(d.files||[]).slice();
     const fleet=this.fleet(),now=new Date();
     box.innerHTML=`
         <label style="font-weight:700;font-size:13px">活動名稱</label>
         <input type="text" id="sc-title" style="width:100%;margin:4px 0 12px" placeholder="例：RISQ 13.33 電池更換要求自查（${now.getFullYear()}/${now.getMonth()+1}）" value="${esc(d.title||"")}">
-        <label style="font-weight:700;font-size:13px">案例說明（背景，會附在每一題給船上參考）</label>
+        <label style="font-weight:700;font-size:13px">自查說明（為什麼要做這項自查；顯示在船上填答頁最上方，只出現一次）</label>
         <textarea id="sc-bg" rows="6" style="width:100%;margin:4px 0 12px" placeholder="例：本月 B Harmony RightShip 檢查 RISQ 13.33：GMDSS 與應急發電機的 VRLA 電池使用超過兩年…（可貼原文＋中文）">${esc(d.bg||"")}</textarea>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px">題目</b><span class="hint">一題一個要船上確認的重點；細目一行一條</span><span style="flex:1"></span><button class="btn sm" onclick="ShareCase.addQ()">＋ 新增一題</button></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:13px">題目</b><span class="hint">一題一個要船上確認的重點；細目一行一條</span></div>
         <div id="sc-qs"></div>
+        <div style="display:flex;justify-content:flex-end;margin:-2px 0 4px"><button class="btn sm" onclick="ShareCase.addQ()">＋ 新增一題</button></div>
         <div style="font-weight:700;font-size:13px;margin:14px 0 6px">附件（程序書、表格…，船上可直接開啟）</div>
         <input type="file" multiple onchange="ShareCase.addFiles(this)">
         <div id="sc-files" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
@@ -20791,15 +20795,16 @@ const ShareCase={
     return true;
   },
   /* 題目區：每次重畫前先把輸入框內容存回 _q，新增／刪除才不會洗掉已打的字 */
-  syncQ(){if(!$("#sc-qs"))return;this._q.forEach((q,i)=>{const g=id=>{const e=$(`#${id}-${i}`);return e?e.value:"";};q.topic=g("sc-topic");q.key=g("sc-key");q.checks=g("sc-chk");});},
+  syncQ(){if(!$("#sc-qs"))return;this._q.forEach((q,i)=>{const g=id=>{const e=$(`#${id}-${i}`);return e?e.value:"";};q.topic=g("sc-topic");q.key=g("sc-key");q.checks=g("sc-chk");q.ex=g("sc-ex");});},
   renderQ(){
     $("#sc-qs").innerHTML=this._q.map((q,i)=>`<div class="fda-pubq">
       <div style="display:flex;gap:8px;align-items:center"><b>#${i+1}</b><input type="text" id="sc-topic-${i}" value="${esc(q.topic)}" placeholder="題目名稱，例：VRLA 電池使用年限" style="flex:1">${this._q.length>1?`<button class="btn sm" onclick="ShareCase.delQ(${i})" title="刪除這題">✕</button>`:""}</div>
       <label class="hint" style="display:block;margin-top:6px">問題重點</label><textarea id="sc-key-${i}" rows="2" placeholder="例：GMDSS 與應急發電機起動用 VRLA 電池，使用超過兩年即應更換">${esc(q.key)}</textarea>
       <label class="hint" style="display:block;margin-top:4px">船上確認細目（一行一條，可留空）</label><textarea id="sc-chk-${i}" rows="3" placeholder="例：各組 VRLA 電池的安裝日期&#10;是否已超過兩年&#10;如需更換，是否已提出申請">${esc(q.checks)}</textarea>
+      <label class="hint" style="display:block;margin-top:4px">案例說明（選填：這一題的來源缺失或實例，例如「F31 SIRE 2026/10/10：…」；船上點開才看得到）</label><textarea id="sc-ex-${i}" rows="2" placeholder="可留空">${esc(q.ex||"")}</textarea>
     </div>`).join("");
   },
-  addQ(){this.syncQ();this._q.push({topic:"",key:"",checks:""});this.renderQ();},
+  addQ(){this.syncQ();this._q.push({topic:"",key:"",checks:"",ex:""});this.renderQ();const t=$(`#sc-topic-${this._q.length-1}`);if(t){t.scrollIntoView({behavior:"smooth",block:"center"});t.focus();}},
   delQ(i){this.syncQ();this._q.splice(i,1);this.renderQ();},
   async addFiles(inp){
     const files=[...(inp.files||[])];inp.value="";
@@ -20842,12 +20847,17 @@ const ShareCase={
     if(!qs.length){toast("⚠ 請至少出一題");return null;}
     if(qs.some(q=>!q.topic.trim()||!q.key.trim())){toast("⚠ 每一題都要有「題目名稱」和「問題重點」");return null;}
     const refs=this._files.map(f=>({name:f.name,url:RefDl.fileHref(f)}));
-    const items=qs.map(q=>{
-      const topic=q.topic.trim(),key=q.key.trim(),checks=q.checks.split(/\r?\n/).map(s=>s.replace(/^[-*•□\s]+/,"").trim()).filter(Boolean);
-      return {topic,main:"自訂案例",key,checks,examples:bg?[{label:"案例說明",detail:bg}]:[],refs,stat:"",
+    // 2026-11-04 自查說明（bg）＝整份活動的背景，存在第一題的 campIntro，船上填答頁顯示在最上方一次；
+    // 每題的「案例說明」改成各題自己的來源缺失／實例（q.ex，選填），不再把整段背景塞進每一題。
+    // （selfcheck_share_campaigns 沒有 intro 欄位，放在 items 裡就不用改資料表）
+    const items=qs.map((q,i)=>{
+      const topic=q.topic.trim(),key=q.key.trim(),ex=(q.ex||"").trim(),checks=q.checks.split(/\r?\n/).map(s=>s.replace(/^[-*•□\s]+/,"").trim()).filter(Boolean);
+      const it={topic,main:"自訂案例",key,checks,examples:ex?[{label:"案例說明",detail:ex}]:[],refs,stat:"",
         code:"",ncMain:"",ncLeaf:topic,src:"自訂案例",
         detail:`【${topic}】${key}${checks.length?"\n請確認：\n"+checks.map(c=>"□ "+c).join("\n"):""}`,
-        actual2:bg};
+        actual2:ex};
+      if(i===0&&bg)it.campIntro=bg;
+      return it;
     });
     return {title,bg,scope,refs,items};
   },
@@ -20864,7 +20874,7 @@ const ShareCase={
         <div><b>問題重點：</b>${nl(it.key)}</div>
         ${it.checks.length?`<div style="margin-top:6px"><b>請確認：</b>${it.checks.map(c=>`<div style="padding-left:1.4em;text-indent:-1.4em">□ ${esc(c)}</div>`).join("")}</div>`:""}
         ${it.refs.length?`<div style="margin-top:6px"><b>附件：</b>${it.refs.map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener" style="margin-right:10px">📎 ${esc(f.name||"附件")}</a>`).join("")}</div>`:""}
-        ${it.examples.length?`<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--ink-2)">案例說明（點開）</summary><div style="margin-top:4px;font-size:13px;line-height:1.7">${nl(it.examples[0].detail)}</div></details>`:""}
+        ${it.examples.length?`<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--ink-2)">案例說明（1）</summary><div style="margin-top:4px;font-size:13px;line-height:1.7">${nl(it.examples[0].detail)}</div></details>`:""}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;opacity:.75">
         <span class="btn sm" style="pointer-events:none">✅ 沒有</span><span class="btn sm" style="pointer-events:none">⚠️ 有，需處理</span><span class="btn sm" style="pointer-events:none">➖ 不適用</span>
@@ -20878,9 +20888,10 @@ const ShareCase={
           <div style="font-size:17px;font-weight:800;margin-top:2px">${esc(P.title)}</div>
           <div style="font-size:12.5px;opacity:.9;margin-top:4px">共 ${P.items.length} 題・${P.scope?`發給 ${P.scope.length} 艘船：${esc(P.scope.join("、"))}`:`發給全船隊 ${this.fleet().length} 艘`}${P.refs.length?`・附件 ${P.refs.length} 個`:""}</div>
         </div>
+        ${P.bg.trim()?`<div style="background:#fff8e6;border:1px solid #f1d58a;border-left:5px solid #e0a020;border-radius:10px;padding:12px 14px;margin-bottom:12px"><div style="font-weight:800;color:#8a5a00;margin-bottom:4px">📢 自查說明</div><div style="line-height:1.75;font-size:13.5px">${nl(P.bg.trim())}</div></div>`:""}
         ${P.items.map(card).join("")}
         ${imgs.length?`<div class="hint" style="margin:4px 0 6px">附件圖片（船上點連結開啟）：</div><div style="display:flex;gap:8px;flex-wrap:wrap">${imgs.map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener" title="${esc(f.name)}"><img src="${esc(f.url)}" alt="${esc(f.name)}" style="height:90px;border-radius:6px;border:1px solid var(--line);background:#fff"></a>`).join("")}</div>`:""}
-        <p class="hint" style="margin-top:10px">案例說明在船上預設收合，點「案例說明」才展開；每一題都會附上同一段案例說明與附件。</p>
+        <p class="hint" style="margin-top:10px">「自查說明」顯示在船上填答頁最上方；各題的「案例說明」（有填才有）預設收合，點開才看得到；附件每一題都會附上。</p>
       </div>
       <div class="mf"><button class="btn" onclick="ShareCase.closePreview()">← 返回修改</button><span style="flex:1"></span><button class="btn primary" onclick="ShareCase.publish(true)">📮 沒問題，發佈並複製連結</button></div></div>`;
     m.classList.add("show");
@@ -20905,7 +20916,7 @@ const ShareCase={
     if(draftId)await this.delDraft(draftId,true); // 發佈後草稿功成身退
     this.mount(null);
     if(typeof SelfTabs!=="undefined"){SelfTabs.renderDrafts(true);SelfTabs.renderCustom(true);SelfTabs.cset("pub");}
-    alert(`✓ 已發佈分享自查（${items.length} 題）。\n\n活動名稱＋填答連結已複製，請貼給船隊：\n${copyText}\n\n按「確定」後切到「自訂自查清單 → 📤 分享缺失自查」，可追蹤送出情形。`);
+    alert(`✓ 已發佈分享自查（${items.length} 題）。\n\n活動名稱＋填答連結已複製，請貼給船隊：\n${copyText}\n\n按「確定」後切到「自訂船舶自查清單 → 📤 分享缺失自查」，可追蹤送出情形。`);
     if(typeof SelfTabs!=="undefined")SelfTabs.showShare(); // 2026-11-04 不再另開彙整清單分頁
   }
 };
@@ -28033,10 +28044,10 @@ const Air={
     this._pendingShareRows=null;
     const copyText=`${campaign.title}\n填答連結：${fillLink}\n\n各輪也可從「船舶檢查填報平台」→ 上方選單「🔍 分享缺失自查」，查看本船各項自查的填單情形（是否已送出、需追蹤未結案項目）：\n${folder}`; // 與彙整清單「MAIL船」同格式
     safeCopyText(copyText,"✓ 已複製活動名稱＋填答連結");
-    // 2026-11-04 建立後切到「自訂自查清單 → 📤 分享缺失自查」，不再另開彙整清單分頁。
+    // 2026-11-04 建立後切到「自訂船舶自查清單 → 📤 分享缺失自查」，不再另開彙整清單分頁。
     // 從填單「編輯畫面」裡分享的，留在原畫面（避免離開還沒儲存的填單），只提示去哪裡看。
     const fromForm=!!this._shareFromForm;
-    alert(`✓ 已建立分享自查活動（共 ${rows.length} 項查核項目）。\n\n活動名稱＋填答連結已自動複製，請貼給船隊進行填單：\n${copyText}\n\n${fromForm?"填單畫面保留不動；填答進度可到左欄「自訂自查清單 → 📤 分享缺失自查」查看。":"按「確定」後切到「自訂自查清單 → 📤 分享缺失自查」查看進度。"}`);
+    alert(`✓ 已建立分享自查活動（共 ${rows.length} 項查核項目）。\n\n活動名稱＋填答連結已自動複製，請貼給船隊進行填單：\n${copyText}\n\n${fromForm?"填單畫面保留不動；填答進度可到左欄「自訂船舶自查清單 → 📤 分享缺失自查」查看。":"按「確定」後切到「自訂船舶自查清單 → 📤 分享缺失自查」查看進度。"}`);
     if(!fromForm&&typeof SelfTabs!=="undefined")SelfTabs.showShare();
     else if(typeof SelfTabs!=="undefined")SelfTabs._shAt=0; // 下次打開重新讀取
   },
@@ -31673,7 +31684,7 @@ ${KEYPOINT_RULE}
     safeCopyText(copyText,"✓ 已複製活動名稱＋填答連結");
     $("#fdaPubModal").classList.remove("show");$("#refAiModal").classList.remove("show");Ref._ext=null;
     this.picks.clear();this.render();
-    alert(`✓ 已發佈分享自查（${items.length} 題）。\n\n活動名稱＋填答連結已複製，請貼給船隊：\n${copyText}\n\n按「確定」後切到「自訂自查清單 → 📤 分享缺失自查」，可追蹤送出情形。`);
+    alert(`✓ 已發佈分享自查（${items.length} 題）。\n\n活動名稱＋填答連結已複製，請貼給船隊：\n${copyText}\n\n按「確定」後切到「自訂船舶自查清單 → 📤 分享缺失自查」，可追蹤送出情形。`);
     if(typeof SelfTabs!=="undefined")SelfTabs.showShare(); // 2026-11-04 不再另開彙整清單分頁
   },
   /* ════ 主管報告（安全會議／月報）：勾選項目 → AI 寫現況／分析／改善建議 → 系統附圖＋缺失清單 ════ */
@@ -37058,6 +37069,12 @@ const GateSite={
       if(go==="intaudit"){
         const gi=document.querySelector('#sidebar .nav-item[data-tab="intaudit"]');
         if(gi){gi.click();wentTo=true;}
+        try{history.replaceState(null,"",location.pathname);}catch(e){}
+      }
+      // 2026-11-04 從「分享自查彙整清單」或「內部檢查缺失登錄」連過來：?go=sharecase 開新建自訂自查；?go=sharelist 看分享缺失自查清單
+      if((go==="sharecase"||go==="sharelist")&&typeof SelfTabs!=="undefined"){
+        if(go==="sharecase"){location.href=officeFolder()+"selfcheck-share-summary.html#new";return;} // 新建自訂自查已搬到彙整清單
+        else{SelfTabs.showShare();wentTo=true;}
         try{history.replaceState(null,"",location.pathname);}catch(e){}
       }
     }catch(e){}
