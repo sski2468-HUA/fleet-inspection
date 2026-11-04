@@ -27754,13 +27754,16 @@ const Air={
   },
   /* 2026-11-04「轉入系統後常忘了分享自查」：有缺失、已轉缺失紀錄、近 90 天的檢查、還沒分享過、也沒標「不需分享」→ 提醒。
      _shareIds（雲端活動清單）還沒載入前不判斷，避免一打開整排誤報。 */
-  SHARE_REMIND_DAYS:90,
+  /* 2026-11-04 使用者：提醒不要因為時間久了就自動消失，分享了才消失。
+     只從 SHARE_REMIND_FROM（檢查日）起算，避免更早、分享功能上線前的舊填單一次全部跳出來。 */
+  SHARE_REMIND_FROM:"2026-10-01",
   NOSHARE_LABEL:"📤 尚未分享自查",
   needShare(d){
     if(!d||d.noShare||!d.usedDef||!this._shareIds)return false;
     if(!(d.defects||[]).some(r=>r.detail||r.actual))return false;
-    const t=+new Date(normDateSlash(d.date).replace(/\//g,"-"));
-    if(t&&Date.now()-t>this.SHARE_REMIND_DAYS*86400000)return false;
+    const m=String(d.date||"").match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+    const iso=m?`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`:"";
+    if(iso&&iso<this.SHARE_REMIND_FROM)return false;
     return this._shareCount(d)===0;
   },
   setNoShare(id,on){
@@ -27964,7 +27967,7 @@ const Air={
           ${(canPush&&d.defects&&d.defects.length)?`<button class="btn sm" style="background:#e4f1f2;border-color:#8cc3ca;color:#16606b;font-weight:700" onclick="Air.openShareCheckWizard(${d.id})" title="建立缺失分享：把這筆的缺失做成一條連結，分享給船隊自查">分</button>`:""}
           ${canPush?`<button class="btn sm dark" onclick="Air.openPushModal(${d.id})" title="轉入檢查紀錄／缺失紀錄總表／正面評價，可複選">轉</button>`:""}
         </td>
-        <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${this.needShare(d)?`<div style="margin-top:2px;white-space:nowrap"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;${canPush?"cursor:pointer":""}" title="已轉入缺失紀錄，但還沒分享給船隊自查${canPush?"（點一下建立分享）":""}" ${canPush?`onclick="event.stopPropagation();Air.openShareCheckWizard(${d.id})"`:""}>⚠ 尚未分享自查</span>${canPush?`<button type="button" class="btn sm" style="padding:0 6px;margin-left:4px;font-size:10.5px;line-height:1.5" title="這筆不需要分享自查，不再提醒" onclick="event.stopPropagation();Air.setNoShare('${esc(String(d.id))}',true)">不需分享</button>`:""}</div>`:""}${d.noShare&&this._shareCount(d)===0&&canPush?`<div style="margin-top:2px"><span class="hint" style="font-size:10.5px;cursor:pointer" title="點一下取消「不需分享」，恢復提醒" onclick="event.stopPropagation();Air.setNoShare('${esc(String(d.id))}',false)">⊘ 不需分享自查</span></div>`:""}${(this._shareCount(d)>0)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${this._shareCount(d)>1?" ×"+this._shareCount(d):""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span>${(typeof Role!=="undefined"&&Role.isAdmin())?`<button type="button" class="btn sm" style="padding:0 6px;margin-left:4px;font-size:10.5px;line-height:1.5" title="這筆不需要對外回覆：刪除對外回覆案件（會先下載 JSON 留存）" onclick="event.stopPropagation();Air.cancelExtReply('${esc(String(d.id))}')">✕ 取消</button>`:""}</div>`:""}${this.replyPendCount(d)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;cursor:pointer" title="對外回覆內容已更新，但還沒轉入缺失紀錄總表（點一下只更新總表的對外回覆版欄位）" onclick="event.stopPropagation();Air.pushReplyOnly(['${esc(String(d.id))}'])">⚠ 對外回覆未轉入總表 ${this.replyPendCount(d)} 條・點此轉入</span></div>`:""}</td>
+        <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${this.needShare(d)?`<div style="margin-top:2px;white-space:nowrap"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;${canPush?"cursor:pointer":""}" title="已轉入缺失紀錄，但還沒分享給船隊自查${canPush?"（點一下建立分享）":""}" ${canPush?`onclick="event.stopPropagation();Air.openShareCheckWizard(${d.id})"`:""}>⚠ 尚未分享自查</span></div>`:""}${(this._shareCount(d)>0)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${this._shareCount(d)>1?" ×"+this._shareCount(d):""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span>${(typeof Role!=="undefined"&&Role.isAdmin())?`<button type="button" class="btn sm" style="padding:0 6px;margin-left:4px;font-size:10.5px;line-height:1.5" title="這筆不需要對外回覆：刪除對外回覆案件（會先下載 JSON 留存）" onclick="event.stopPropagation();Air.cancelExtReply('${esc(String(d.id))}')">✕ 取消</button>`:""}</div>`:""}${this.replyPendCount(d)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;cursor:pointer" title="對外回覆內容已更新，但還沒轉入缺失紀錄總表（點一下只更新總表的對外回覆版欄位）" onclick="event.stopPropagation();Air.pushReplyOnly(['${esc(String(d.id))}'])">⚠ 對外回覆未轉入總表 ${this.replyPendCount(d)} 條・點此轉入</span></div>`:""}</td>
         <td>${d.reviewed?'<span style="font-size:11.5px;font-weight:700;color:var(--ok)">✅ 已確認</span>':'<span style="font-size:11.5px;color:var(--ink-3)">⬜ 尚未確認</span>'}</td>
         <td><b>${esc(shipFullLabel(d.ship))}</b></td>
         <td style="font-family:var(--mono);white-space:nowrap">${esc(normDateSlash(d.date))}</td>
