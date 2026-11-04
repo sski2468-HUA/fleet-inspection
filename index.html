@@ -20637,6 +20637,15 @@ const SelfTabs={
     }catch(e){box.innerHTML=`<div class="hint">⚠ 讀取失敗：${esc(e.message||e)}</div>`;return;}
     this.drawShare();
   },
+  /* 發佈／建立分享自查後：切到左欄「自訂自查清單」→「📤 分享缺失自查」並重新讀取 */
+  showShare(){
+    document.querySelectorAll(".modal-bg.show").forEach(m=>m.classList.remove("show"));
+    const nav=$$(".nav-item").find(x=>x.dataset.tab==="self");
+    if(nav&&!$("#tab-self").classList.contains("show"))nav.click();
+    const st=$("#ssh-f-st");if(st)st.value="on";
+    this._shAt=0;this.set("share");
+    window.scrollTo({top:0,behavior:"smooth"});
+  },
   _campType(c){const s=((c.items||[])[0]||{}).src;return s==="自訂案例"?"case":s==="船隊缺失分析"?"fda":"def";},
   _campStats(c,resps){
     const EXCL=["F25","F26","PH","PI"];
@@ -20891,9 +20900,9 @@ const ShareCase={
     safeCopyText(copyText,"✓ 已複製活動名稱＋填答連結");
     if(draftId)await this.delDraft(draftId,true); // 發佈後草稿功成身退
     this.mount(null);
-    if(typeof SelfTabs!=="undefined"){SelfTabs.renderDrafts(true);SelfTabs.cset("pub");SelfTabs.renderCustom(true);} // 發佈後切到「已發佈」，馬上看得到這一筆
-    alert(`✓ 已發佈分享自查（${items.length} 題）。\n\n活動名稱＋填答連結已複製，請貼給船隊：\n${copyText}\n\n按「確定」後另開分頁顯示「分享自查彙整清單」，可追蹤送出情形。`);
-    const w=window.open(`${officeFolder()}selfcheck-share-summary.html`,"_blank");if(!w)location.href=`${officeFolder()}selfcheck-share-summary.html`;
+    if(typeof SelfTabs!=="undefined"){SelfTabs.renderDrafts(true);SelfTabs.renderCustom(true);SelfTabs.cset("pub");}
+    alert(`✓ 已發佈分享自查（${items.length} 題）。\n\n活動名稱＋填答連結已複製，請貼給船隊：\n${copyText}\n\n按「確定」後切到「自訂自查清單 → 📤 分享缺失自查」，可追蹤送出情形。`);
+    if(typeof SelfTabs!=="undefined")SelfTabs.showShare(); // 2026-11-04 不再另開彙整清單分頁
   }
 };
 const InspCtrl={
@@ -27858,7 +27867,7 @@ const Air={
     const id=fromList?airId:this.editId;
     if(id==null){toast("⚠ 請先儲存基本資料");return;}
     const d=App.air.find(x=>x.id===id);if(!d)return;
-    this._shareAirIds=[id];this._shareTitle=null;
+    this._shareAirIds=[id];this._shareTitle=null;this._shareFromForm=!fromList; // 從填單編輯畫面分享＝建立後留在原畫面
     let rows=(fromList?(d.defects||[]):this.defRows).filter(r=>r.detail||r.actual);
     const selScope=!fromList&&this.defSel.size>0;
     if(selScope)rows=rows.filter(r=>this.defSel.has(r.id));
@@ -27875,7 +27884,7 @@ const Air={
     recs.forEach(d=>(d.defects||[]).filter(r=>r.detail||r.actual).forEach(r=>rows.push(Object.assign({},r,{_src:`${d.ship} ${d.itype||""} ${d.date}`.replace(/\s+/g," ").trim()}))));
     if(!rows.length){toast("⚠ 勾選的填單裡沒有可分享的缺失明細");return;}
     if(recs.some(d=>this._shareCount(d)>0)&&!confirm("勾選的填單中有已建立過分享自查的，確定要再建立？"))return;
-    this._shareAirIds=recs.map(d=>d.id);this._shareTitle=null;
+    this._shareAirIds=recs.map(d=>d.id);this._shareTitle=null;this._shareFromForm=false;
     this._showShareWizard(rows);
   },
   /* 2026-11-04 缺失紀錄總表／重複性缺失分析／缺失專案分析，原本建「專案自查任務」（每船一份），
@@ -27885,7 +27894,7 @@ const Air={
     rows=(rows||[]).filter(r=>r&&(r.detail||r.actual));
     if(!rows.length){toast("⚠ 沒有可分享的缺失內容");return;}
     if(rows.length>30&&!confirm(`這次共 ${rows.length} 項，船上要逐題回答，題數偏多。\n建議先篩選或勾選重點缺失再分享。\n\n確定仍要用這 ${rows.length} 項建立？`))return;
-    this._shareAirIds=[];this._shareTitle=title||"缺失自查";
+    this._shareAirIds=[];this._shareTitle=title||"缺失自查";this._shareFromForm=false;
     this._showShareWizard(rows);
   },
   /* 缺失紀錄總表的一筆 → 分享題目格式 */
@@ -28020,10 +28029,12 @@ const Air={
     this._pendingShareRows=null;
     const copyText=`${campaign.title}\n填答連結：${fillLink}\n\n各輪也可從「船舶檢查填報平台」→ 上方選單「🔍 分享缺失自查」，查看本船各項自查的填單情形（是否已送出、需追蹤未結案項目）：\n${folder}`; // 與彙整清單「MAIL船」同格式
     safeCopyText(copyText,"✓ 已複製活動名稱＋填答連結");
-    alert(`✓ 已建立分享自查活動（共 ${rows.length} 項查核項目）。\n\n活動名稱＋填答連結已自動複製，請貼給船隊進行填單：\n${copyText}\n\n按「確定」後將另開分頁顯示「分享自查彙整清單」。`);
-    this._formDirty=false;
-    const w=window.open(`${officeFolder()}selfcheck-share-summary.html`,"_blank");
-    if(!w)location.href=`${officeFolder()}selfcheck-share-summary.html`; // 瀏覽器擋掉新分頁時，退回原分頁開啟
+    // 2026-11-04 建立後切到「自訂自查清單 → 📤 分享缺失自查」，不再另開彙整清單分頁。
+    // 從填單「編輯畫面」裡分享的，留在原畫面（避免離開還沒儲存的填單），只提示去哪裡看。
+    const fromForm=!!this._shareFromForm;
+    alert(`✓ 已建立分享自查活動（共 ${rows.length} 項查核項目）。\n\n活動名稱＋填答連結已自動複製，請貼給船隊進行填單：\n${copyText}\n\n${fromForm?"填單畫面保留不動；填答進度可到左欄「自訂自查清單 → 📤 分享缺失自查」查看。":"按「確定」後切到「自訂自查清單 → 📤 分享缺失自查」查看進度。"}`);
+    if(!fromForm&&typeof SelfTabs!=="undefined")SelfTabs.showShare();
+    else if(typeof SelfTabs!=="undefined")SelfTabs._shAt=0; // 下次打開重新讀取
   },
   copyShareLink(){ safeCopyText($("#air-sw-link").value,"✓ 已複製分享連結"); }, // 舊的連結視窗已不再使用，建立後改為直接複製「活動名稱＋連結」並跳轉
   copySummaryLink(){ safeCopyText($("#air-sw-summary-link").value,"✓ 已複製彙整清單連結"); },
@@ -31658,8 +31669,8 @@ ${KEYPOINT_RULE}
     safeCopyText(copyText,"✓ 已複製活動名稱＋填答連結");
     $("#fdaPubModal").classList.remove("show");$("#refAiModal").classList.remove("show");Ref._ext=null;
     this.picks.clear();this.render();
-    alert(`✓ 已發佈分享自查（${items.length} 題）。\n\n活動名稱＋填答連結已複製，請貼給船隊：\n${copyText}\n\n按「確定」後另開分頁顯示「分享自查彙整清單」，可追蹤送出情形。`);
-    const w=window.open(`${officeFolder()}selfcheck-share-summary.html`,"_blank");if(!w)location.href=`${officeFolder()}selfcheck-share-summary.html`; // 彙整清單在主系統，不是船上網址
+    alert(`✓ 已發佈分享自查（${items.length} 題）。\n\n活動名稱＋填答連結已複製，請貼給船隊：\n${copyText}\n\n按「確定」後切到「自訂自查清單 → 📤 分享缺失自查」，可追蹤送出情形。`);
+    if(typeof SelfTabs!=="undefined")SelfTabs.showShare(); // 2026-11-04 不再另開彙整清單分頁
   },
   /* ════ 主管報告（安全會議／月報）：勾選項目 → AI 寫現況／分析／改善建議 → 系統附圖＋缺失清單 ════ */
   rptTopics(){
