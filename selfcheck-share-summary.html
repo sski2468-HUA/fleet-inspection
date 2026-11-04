@@ -570,6 +570,7 @@ function renderListView(fromDash){
         <td>${st.track?`<span class="pill bad">⚠ ${st.track} 項</span>`:'<span class="pill na">—</span>'}</td>
         <td style="white-space:nowrap">
           <button class="btn sm" onclick="openDetail(${c.id})">📊 進度</button>
+          ${(c.items||[]).some(it=>it&&it.src==="自訂案例")&&!(allResponses||[]).some(r=>String(r.campaign_id)===String(c.id))?`<button class="btn sm" style="color:#a05a10;border-color:#e8842c" onclick="SC.editCampaign(${c.id})" title="還沒有船開始填，可以修改題目／說明／附件／發給哪些船（連結不變）">✏ 編輯</button>`:""}
           <button class="btn sm" onclick="previewFill(${c.id})" title="開新分頁，看船上填答畫面長怎樣（不會存檔、不會送出）">👁 預覽</button>
           <button class="btn sm" onclick="copyMailText(${c.id})" title="複製「自查項目＋連結」（上下兩行），貼入郵件發給船隊">✉ MAIL船</button>
           <button class="btn sm" onclick="copyFillLink(${c.id})">📋 連結</button>
@@ -839,6 +840,7 @@ function copyShipLink(ship){
   safeCopyText(url,`✓ 已複製「${shipLabel(ship)}」專屬連結`);
 }
 const ST_LABEL={ok:"✅ 沒有",similar:"⚠️ 有，需處理",self:"🚩 當事船",na:"➖ 不適用",pending:"（未作答）"};
+const ST_LABEL_CASE={ok:"✅ 已完成",similar:"⚠️ 未完成，需處理",self:"🚩 當事船",na:"➖ 不適用",pending:"（未作答）"}; // 自訂自查題目改問「是否已完成」
 function toggleDetail(ship){
   const row=document.getElementById("detail-"+ship);
   if(!row)return;
@@ -865,8 +867,8 @@ function toggleDetail(ship){
       ${actions}
       ${items.map((it,i)=>`
         <div class="itemline">
-          <b>#${i+1}</b> ${esc(it.topic?("📌 "+it.topic):(it.code?("CODE "+it.code):""))}${it.topic?"":srcTag(it)} <span class="stbadge ${it.status||'pending'}">${ST_LABEL[it.status||"pending"]}</span>${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'+((it.track||[]).length?'<span class="stbadge" style="background:#eaf1f9;color:#1d4e80">已在追蹤：'+esc(it.track.join("、"))+'</span>':'')):""}
-          <div class="hint">${esc(it.detail||"")}</div>
+          <b>#${i+1}</b> ${esc(it.topic?("📌 "+it.topic):(it.code?("CODE "+it.code):""))}${it.topic?"":srcTag(it)} <span class="stbadge ${it.status||'pending'}">${(it.src==="自訂案例"?ST_LABEL_CASE:ST_LABEL)[it.status||"pending"]}</span>${(it.checks||[]).length?`<span class="stbadge" style="background:#eef3f8;color:var(--navy)">細目 ${(it.checks||[]).filter((c,j)=>(it.checkDone||[])[j]).length}／${it.checks.length}</span>`:""}${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'+((it.track||[]).length?'<span class="stbadge" style="background:#eaf1f9;color:#1d4e80">已在追蹤：'+esc(it.track.join("、"))+'</span>':'')):""}
+          ${it.topic&&(it.checks||[]).length?`<div class="hint">${esc(it.key||"")}</div><div style="font-size:12.5px;margin:2px 0">${it.checks.map((c,j)=>(it.checkDone||[])[j]?`<div style="color:var(--ok)">☑ ${esc(c)}</div>`:`<div style="color:var(--ink-3)">☐ ${esc(c)}</div>`).join("")}</div>`:`<div class="hint">${esc(it.detail||"")}</div>`}
           ${it.actual2?`<div class="hint">實際情況：${esc(it.actual2)}</div>`:""}
           ${it.supp?`<div class="hint" style="color:#8a5a00">💬 公司補充說明：${esc(it.supp)}</div>`:""}
           ${it.note?`<div style="margin-top:2px"><b>本船實際狀況：</b>${esc(it.note)}</div>`:""}
@@ -969,7 +971,7 @@ const SC={
     if(v==="drafts")this.loadDrafts();
   },
   async mount(d){
-    d=d||{};this._draftId=d.id||null;this._savedAt=d.updatedAt||0;
+    d=d||{};this._editCid=d._editCid||null;this._draftId=this._editCid?null:(d.id||null);this._savedAt=d.updatedAt||0;
     this._q=(d.q&&d.q.length?d.q:[{topic:"",key:"",checks:"",ex:"",files:[]}]).map(q=>({topic:q.topic||"",key:q.key||"",checks:q.checks||"",ex:q.ex||"",files:(q.files||[]).slice()}));
     this._files=(d.files||[]).slice();
     const fleet=await this.fleet(),now=new Date();
@@ -994,16 +996,16 @@ const SC={
       <div class="scships" id="scShips" style="display:none">${fleet.map(s=>`<label><input type="checkbox" value="${esc(s.code)}" onchange="SC.targetUI(true)"> ${esc(this.label(s))}</label>`).join("")}</div>
       <div class="hint" id="scCount" style="margin-top:6px;font-weight:700"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--line)">
-        <button class="btn" onclick="SC.saveDraft()">💾 儲存草稿</button><span class="hint" id="scDraftSt"></span>
+        ${d._editCid?`<span class="hint" style="color:#a05a10;font-weight:700">✏ 正在編輯已發佈的活動：存檔會直接更新同一個活動，填答連結不變</span>`:`<button class="btn" onclick="SC.saveDraft()">💾 儲存草稿</button><span class="hint" id="scDraftSt"></span>`}
         <span style="flex:1"></span>
         <button class="btn" onclick="SC.preview()">👁 預覽</button>
-        <button class="btn primary" onclick="SC.publish()">📮 發佈並複製連結</button>
+        ${d._editCid?`<button class="btn" onclick="if(confirm('放棄這次修改？（已發佈的活動維持原樣）'))SC.mount(null)">取消編輯</button><button class="btn primary" onclick="SC.updateCampaign()">💾 更新已發佈的活動</button>`:`<button class="btn primary" onclick="SC.publish()">📮 發佈並複製連結</button>`}
       </div>`;
     const to=d.to||"all";const r=document.querySelector(`input[name="scTo"][value="${to}"]`);if(r)r.checked=true;
     if(to==="pick"&&Array.isArray(d.ships)){const set=new Set(d.ships);document.querySelectorAll("#scShips input").forEach(x=>x.checked=set.has(x.value));}
     this.fillBy();
     this.renderQ();this.renderFiles();this.targetUI(to==="pick");this.draftSt();
-    document.getElementById("scFormHead").textContent=this._draftId?"✏ 編輯草稿":"📝 新增自訂自查";
+    document.getElementById("scFormHead").textContent=this._editCid?"✏ 編輯已發佈的活動":this._draftId?"✏ 編輯草稿":"📝 新增自訂自查";
   },
   syncQ(){if(!document.getElementById("scQs"))return;this._q.forEach((q,i)=>{const g=id=>{const e=document.getElementById(`${id}-${i}`);return e?e.value:"";};q.topic=g("scTopic");q.key=g("scKey");q.checks=g("scChk");q.ex=g("scEx");});},
   renderQ(){
@@ -1162,8 +1164,42 @@ const SC={
         ${P.items.map(card).join("")}
         ${imgs.length?`<div class="hint">附件圖片：</div><div style="display:flex;gap:8px;flex-wrap:wrap">${imgs.map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="${esc(f.name)}" style="height:90px;border-radius:6px;border:1px solid var(--line);background:#fff"></a>`).join("")}</div>`:""}
       </div>
-      <div style="display:flex;gap:8px;margin-top:10px"><button class="btn" onclick="document.getElementById('scPrev').classList.remove('show')">← 返回修改</button><span style="flex:1"></span><button class="btn primary" onclick="SC.publish(true)">📮 沒問題，發佈並複製連結</button></div></div>`;
+      <div style="display:flex;gap:8px;margin-top:10px"><button class="btn" onclick="document.getElementById('scPrev').classList.remove('show')">← 返回修改</button><span style="flex:1"></span>${this._editCid?`<button class="btn primary" onclick="document.getElementById('scPrev').classList.remove('show');SC.updateCampaign()">💾 沒問題，更新已發佈的活動</button>`:`<button class="btn primary" onclick="SC.publish(true)">📮 沒問題，發佈並複製連結</button>`}</div></div>`;
     m.classList.add("show");
+  },
+  /* 2026-11-04 編輯已發佈的自訂自查：只有「還沒有任何一艘船開始填」才能改（有船開始填之後，題目跟答案要對得上，不能再改）。
+     把活動內容轉回表單（自查說明＝第一題 campIntro；每題都有的附件＝共用附件，其餘＝本題附件），存檔＝更新同一個活動（id／連結不變）。 */
+  async noResponses(id){const r=await api(`${RESPONSE_TABLE}?select=id&campaign_id=eq.${id}&limit=1`)||[];return !r.length;},
+  async editCampaign(id){
+    const c=campaigns.find(x=>String(x.id)===String(id));if(!c)return;
+    try{if(!await this.noResponses(id)){notify("⚠ 已經有船開始填答，不能再修改內容（可結束後重新建立一則）","err");return;}}
+    catch(e){notify("⚠ 讀取失敗："+e.message,"err");return;}
+    const its=c.items||[];
+    const toFile=f=>{const url=String(f.url||"").replace(/\?download=.*$/,"");const path=(url.match(/defect-photos\/(.+)$/)||[])[1]||url;
+      const ext=(path.match(/\.([a-z0-9]+)$/i)||[])[1]||"";return {name:f.name,url,path,type:/^(jpe?g|png|gif|webp)$/i.test(ext)?"image/"+ext.toLowerCase().replace("jpg","jpeg"):/pdf/i.test(ext)?"application/pdf":""};};
+    const keyOf=f=>String(f.url||"").replace(/\?download=.*$/,"");
+    const shared=(its[0]&&its[0].refs||[]).filter(f=>its.every(it=>(it.refs||[]).some(g=>keyOf(g)===keyOf(f))));
+    const sharedKeys=new Set(shared.map(keyOf));
+    const scope=Array.isArray(c.ship_scope)&&c.ship_scope.length?c.ship_scope:null;
+    const d={_editCid:c.id,title:c.title||"",bg:(its[0]&&its[0].campIntro)||"",files:shared.map(toFile),
+      q:its.map(it=>({topic:it.topic||"",key:it.key||"",checks:(it.checks||[]).join("\n"),ex:(it.examples&&it.examples[0]&&it.examples[0].detail)||"",
+        files:(it.refs||[]).filter(f=>!sharedKeys.has(keyOf(f))).map(toFile)})),
+      to:scope?"pick":"all",ships:scope||[]};
+    setSubTab("case");this.ctab("new");await this.mount(d);window.scrollTo({top:0,behavior:"smooth"});
+    notify("✏ 已載入活動內容，修改後按「💾 更新已發佈的活動」","ok2");
+  },
+  async updateCampaign(){
+    const id=this._editCid;if(!id)return;
+    const by=this.needBy();if(!by)return;
+    const P=this.build();if(!P)return;
+    try{if(!await this.noResponses(id)){notify("⚠ 剛剛已經有船開始填答，不能再修改（內容沒有更新）","err");return;}}
+    catch(e){notify("⚠ 讀取失敗："+e.message,"err");return;}
+    if(!confirm(`更新已發佈的活動「${P.title}」？\n\n共 ${P.items.length} 題，${P.scope?"發給 "+P.scope.length+" 艘船":"發給全船隊"}。\n填答連結不變，船上打開會看到更新後的內容。`))return;
+    try{await api(`${CAMPAIGN_TABLE}?id=eq.${id}`,{method:"PATCH",headers:authHeaders({"Prefer":"return=minimal"}),body:JSON.stringify({title:P.title,items:P.items,ship_scope:P.scope})});}
+    catch(e){notify("⚠ 更新失敗："+e.message,"err");return;}
+    SLog.log("修改","自訂自查",`「${P.title}」更新內容：${P.items.length} 題，${P.scope?"發給 "+P.scope.length+" 艘船":"全船隊"}（活動 #${id}）`,by);
+    notify("✓ 已更新活動內容（連結不變）","ok2");
+    await this.mount(null);await loadCampaignList();setSubTab("list");
   },
   async publish(fromPreview){
     const by=this.needBy();if(!by)return;
