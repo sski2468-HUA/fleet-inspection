@@ -34390,12 +34390,23 @@ const Trend={
     if(sEl)sEl.style.display=m==="ship"?"":"none";
     this.render();
   },
-  populateYm(){
+  /* 2026-11-04 修正：原本只在初始化時用「有缺失的月份」建選項——資料還沒載入（例：其他部門帳號登入較慢）就會是空的，
+     「本季／上季／上半年…」設不進去，船隊排名等於沒篩期間。改成：從最早的檢查／缺失月份到今年 12 月「連續每個月」都列出，
+     選項空了或過期就重建，並保留目前已選的期間。 */
+  _ymSig:"",
+  populateYm(force){
     const s1=$("#trend-ymfrom"),s2=$("#trend-ymto");if(!s1)return;
-    const yms=[...new Set(App.defs.map(d=>d.ym||ymOf(d.date)))].filter(Boolean).sort();
+    const all=[...App.defs.map(d=>d.ym||ymOf(d.date)),...App.insp.map(r=>ymOf(r.date))].filter(m=>/^\d{4}-\d{2}$/.test(m||"")).sort();
+    const y=new Date().getFullYear(),start=all[0]||`${y}-01`,end=`${y}-12`;
+    const sig=start+"|"+end;
+    if(!force&&sig===this._ymSig&&s1.options.length)return;
+    const keep1=s1.value,keep2=s2.value;
+    const yms=[];let [cy,cm]=start.split("-").map(Number);const [ey,em]=end.split("-").map(Number);
+    while(cy<ey||(cy===ey&&cm<=em)){yms.push(`${cy}-${String(cm).padStart(2,"0")}`);cm++;if(cm>12){cm=1;cy++;}}
     const opts=yms.map(m=>`<option value="${m}">${m}</option>`).join("");
-    s1.innerHTML=opts;s2.innerHTML=opts;
-    if(yms.length){s1.value=yms[0];s2.value=yms[yms.length-1];}
+    s1.innerHTML=opts;s2.innerHTML=opts;this._ymSig=sig;
+    s1.value=yms.includes(keep1)?keep1:yms[0];
+    s2.value=yms.includes(keep2)?keep2:(all.length?all[all.length-1]:yms[yms.length-1]);
   },
   populateShips(){
     const sel=$("#trend-ship-sel");if(!sel)return;
@@ -34468,8 +34479,11 @@ const Trend={
     else if(kind==="lastyear"){fromY=toY=y-1;fromM=1;toM=12;}
     else return;
     const from=`${fromY}-${pad(fromM)}`,to=`${toY}-${pad(toM)}`;
+    this.populateYm();
     const s1=$("#trend-ymfrom"),s2=$("#trend-ymto");
-    if(s1)s1.value=from;if(s2)s2.value=to;
+    // 選單裡沒有這個月份（例：去年以前的資料起點更晚）就補一個選項，確保一定設得進去
+    const setv=(s,v)=>{if(!s)return;if(![...s.options].some(o=>o.value===v)){const o=document.createElement("option");o.value=o.textContent=v;s.appendChild(o);[...s.options].sort((a,b)=>a.value.localeCompare(b.value)).forEach(x=>s.appendChild(x));}s.value=v;};
+    setv(s1,from);setv(s2,to);
     if(!silent)this.render();
   },
   curRange(){
@@ -34521,6 +34535,8 @@ const Trend={
     const n=ymSpan(from,to).length;return {from:ymAdd(from,-n),to:ymAdd(from,-1)};
   },
   render(){
+    // 期間選單：資料晚到時（初始化時還是空的）在這裡補建，並預設今年度
+    {const s1=$("#trend-ymfrom");const wasEmpty=!!s1&&!s1.options.length;this.populateYm();if(wasEmpty&&s1&&s1.options.length)this.quickRange("year",true);}
     if(this.mode==="kpi")this.renderKpi();
     else if(this.mode==="trend")this.renderTrendChart();
     else if(this.mode==="warn")this.renderWarn();
