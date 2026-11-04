@@ -6850,11 +6850,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 </div>
 
 <div class="modal-bg" id="airShareCheckModal">
-  <div class="modal" style="max-width:520px">
+  <div class="modal" style="max-width:760px">
     <div class="mh"><h3>📤 建立分享自查連結</h3><button class="x" onclick="Air.closeShareCheckWizard()">✕</button></div>
     <div class="mb">
-      <p class="hint" style="margin-bottom:10px">將本筆填單的缺失（<span id="air-sw-count"></span> 項）做成自查 Checklist，建立成「一條連結發全船隊」的分享自查活動——船上打開連結後自行選擇本船船名即可開始填答，不用逐艘船各別發送連結。建立後不影響本筆填單原本的內容或轉入狀態。</p>
+      <p class="hint" style="margin-bottom:10px">將本筆填單的缺失（<span id="air-sw-count"></span> 項）做成自查 Checklist，一條連結發全船隊，船上自行選船名填答。不影響本筆填單原本的內容或轉入狀態。</p>
       <p class="hint" id="air-sw-src-note" style="margin-bottom:10px"></p>
+      <div style="font-weight:700;font-size:13px;margin:4px 0 6px">💬 補充說明給船上（選填）<span class="hint" style="font-weight:400">：針對某幾條缺失加說明或附件（例如照片、改善要求），船上填答時會看到</span></div>
+      <div id="air-sw-items" style="max-height:44vh;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:12px"></div>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="air-sw-limit" onchange="Air.toggleShareLimitShips()"> 限定只開放特定船舶填答（不勾＝全船隊都能選）</label>
       <div class="msel" id="ms-air-sw-ship" style="display:none;margin-top:8px"></div>
     </div>
@@ -19625,7 +19627,7 @@ const InspCtrl2={
   LSORT:"days",_bound:false,cur:null,
   INSP_COLS:[["ONBOARDVISIT","訪船","onboard visit"],["CROSSSHIPVISIT","交叉訪船","Cross ship"],["INTERNALAUDIT","內稽","Internal audit"],["SIRE","SIRE","OCIMF"],["CDI","CDI",""],["RIGHTSHIP","RightShip",""],["ASI","ASI","船旗國"],["SMC","SMC","5年證書"],["ISSC","ISSC","5年證書"],["MLC","MLC","5年證書"],["LRIT","LRIT","年度"],["IHM","IHM",""]],
   /* 海技管理證書（依海技組證書管控表 01～08 欄）：[key, 顯示名, 副標, 存檔用 itype] */
-  CERT_COLS:[["PCR","國籍證書","01 PCR","PCR"],["RSL","無線電台","02 RSL","RSL"],["MSMC","最低安全配額","03 MSMC","MSMC"],["BLUECARDS","藍卡","04 BCLC/CLC/WRC","Blue Cards"],
+  CERT_COLS:[["PCR","國籍證書","01 PCR","PCR"],["RSL","無線電台","02 RSL","RSL"],["MSMC","最低安全配額","03 MSMC","MSMC"],["BLUECARDS","民事責任證書","04 BCLC/CLC/WRC","Blue Cards"],
     ["CSR","CSR","05 版次","CSR"],["FFEA","FFEA","06 散裝 5Y","FFEA"],["CACOFR","CA COFR","07 2Y","CA COFR"],["USCOFR","US COFR","07 3Y","US COFR"],["RRDA","RRDA","08 1Y","RRDA"]],
   CERT60:["SMC","ISSC","MLC"],
   CERT_DESC:{
@@ -19635,7 +19637,7 @@ const InspCtrl2={
     PCR:["Permanent Certificate of Registry","船旗國","無效期；船東、船名、船籍變更時換發","國籍證書（記錄登記日）"],
     RSL:["Ship Radio Station License","船旗國","ROC 5 年／LISCR 4 年，依到期日換證","無線電台執照"],
     MSMC:["Minimum Safe Manning Certificate","船旗國","ROC 5 年／LISCR 無效期（記錄簽發日）","最低安全配額證書"],
-    BLUECARDS:["Blue Cards：BCLC／CLC／WRC","船旗國（依 P&I 保險）","三張效期相同，每年 2/20 隨 P&I 保單年度換發","燃油污染、油污、殘骸移除民事責任證書；散裝船沒有 CLC"],
+    BLUECARDS:["Civil Liability Certificates：BCLC／CLC／WRC","船旗國（依 P&I 保險）","三張效期相同，每年 2/20 隨 P&I 保單年度換發","燃油污染（BCLC）、油污（CLC）、殘骸移除（WRC）民事責任證書；散裝船沒有 CLC"],
     CSR:["Continuous Synopsis Record","SOLAS XI-1/5／船旗國","無效期；資料變更即發新版（追蹤版次 No.）","連續概要紀錄，舊版須全部保留在船上"],
     FFEA:["FFEA","（待補）","5 年；僅散裝船","說明待補"],
     CACOFR:["California Certificate of Financial Responsibility","加州 OSPR","2 年","進加州水域須備；不跑該航線的船為 NIL"],
@@ -19932,7 +19934,7 @@ const InspCtrl2={
       <div style="display:flex;gap:8px;align-items:center;border:1px dashed var(--line-2);border-radius:5px;padding:8px;font-size:12px"><span>📁</span><span style="flex:1;overflow-wrap:anywhere">${esc(this.FILE_ROOT+ship+"\\")}</span><button class="btn sm" data-copy="${esc(this.FILE_ROOT+ship+"\\")}">複製路徑</button></div>`:"";
     const ov=k==="ONBOARDVISIT"?`<h3>督導訪船間隔（看類別）</h3><dl class="kv">${["deck","engine"].map(t=>{const v=s.dv[t];return v?`<dt>${t==="deck"?"甲板督導":"機艙督導"}</dt><dd>${v.date?esc(v.name)+"："+this.fmt(v.date)+"（"+v.days+" 天前）":"查無訪船紀錄"} ${v.warn?'<span class="ic2-pill s1">超過 14 個月</span>':""}</dd>`:""}).join("")}</dl>`:"";
     const canEdit=InspCtrl.canEditRow(d);
-    this.showDrawer(`${this.head(ship,`${esc(c[1])} <span style="font-family:var(--mono);font-size:12px;color:var(--ink-3)">${esc(r.itype)}</span>`)}
+    this.showDrawer(`${this.head(ship,`${esc(c[1])} <span style="font-family:var(--mono);font-size:12px;color:var(--ink-3)">${esc(r.cert?c[2]:r.itype)}</span>`)}
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"><span class="ic2-pill s${r.st}">${esc(this.stLabel(r))}</span>${r.stage?`<span class="ic2-pill ${r.stage==="intermediate"?"s2":"s4"}">${r.stage==="intermediate"?"中間檢查階段":"換證階段"}</span>`:""}${r.enh?'<span class="ic2-pill s1">加強稽核（效期 6 個月）</span>':""}</div>
       <dl class="kv">
         ${r.cert?"":`<dt>最近一次檢查</dt><dd>${this.fmt(r.last)}${r.auto?'<span class="auto">自動抓檢查紀錄</span>':""}${this.lastWhoHtml(r)}</dd>
@@ -27438,8 +27440,43 @@ const Air={
     // 「題目的來源船」動態算的（填答頁 loadOrCreateResponse），不是整個活動擋掉那艘船：因為合併分享時，
     // 當事船很可能還要自查「其他船」的缺失，整艘船排除掉會漏掉這些。
     const srcShips=[...new Set((this._shareAirIds||[]).map(id=>{const d=App.air.find(x=>x.id===id);return d&&d.ship;}).filter(Boolean))];
+    this._shareSupp=rows.map(()=>({text:"",files:[],open:false,up:0}));
+    this.renderShareSupp();
     $("#air-sw-src-note").innerHTML=srcShips.length?`📋 來源船（<b>${esc(srcShips.map(shipFullLabel).join("、"))}</b>）開啟後，自己那幾筆缺失會自動標記為「不適用本船」，不用重複處理；其餘缺失仍會照常列出讓它自查（合併分享時尤其重要，不會整艘船被排除在外）。`:"";
     $("#airShareCheckModal").classList.add("show");
+  },
+  /* 2026-11-04 分享缺失時可針對個別缺失加「公司補充說明」＋附件（例：和輝 RS landing pad 案，請各輪確認並提供照片）。
+     存在 item.supp／item.suppRefs——不能用 note（船上作答欄位），船上填答頁與彙整清單都會顯示。 */
+  renderShareSupp(){
+    const el=$("#air-sw-items");if(!el)return;
+    const rows=this._pendingShareRows||[],S=this._shareSupp||[];
+    el.innerHTML=rows.map((r,i)=>{const s=S[i]||{};const has=(s.text||"").trim()||(s.files||[]).length;
+      const txt=String(r.detail||r.actual||"").replace(/\s+/g," ");
+      return `<div style="padding:8px 10px;border-bottom:1px solid var(--line);${has?"background:#fffbea":""}">
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <b style="white-space:nowrap">${i+1}.</b>
+          <div style="flex:1;min-width:0;font-size:13px"><b>${esc(r.code?"CODE "+r.code:"")}</b>${r._src?` <span class="hint">${esc(r._src)}</span>`:""}<div style="color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(txt)}">${esc(txt)}</div></div>
+          <button class="btn sm${has?" primary":""}" style="white-space:nowrap" onclick="Air.toggleShareSupp(${i})">${has?"✏ 已補充":"＋ 補充"}</button>
+        </div>
+        ${s.open?`<div style="margin:8px 0 0 22px">
+          <textarea id="air-sw-supp-${i}" rows="3" style="width:100%" placeholder="例：請各輪檢查艙蓋承載墊是否有類似加焊墊片情形，並拍照回報；如有請提出修理需求。" oninput="Air._shareSupp[${i}].text=this.value">${esc(s.text||"")}</textarea>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px">
+            <label class="btn sm" style="cursor:pointer">📎 附件<input type="file" multiple style="display:none" onchange="Air.addShareSuppFiles(${i},this)"></label>
+            ${(s.files||[]).map((f,j)=>`<span class="stat" style="background:#eef3f8;color:var(--ink);display:inline-flex;gap:4px;align-items:center">📎 <a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a><a href="#" title="移除" onclick="event.preventDefault();Air._shareSupp[${i}].files.splice(${j},1);Air.renderShareSupp()" style="color:var(--bad);text-decoration:none">✕</a></span>`).join("")}
+            ${s.up?`<span class="hint">上傳中…</span>`:""}
+          </div></div>`:""}
+      </div>`;}).join("")||`<div class="hint" style="padding:10px">（無）</div>`;
+  },
+  toggleShareSupp(i){const s=this._shareSupp[i];if(!s)return;s.open=!s.open;this.renderShareSupp();if(s.open)setTimeout(()=>{const t=$("#air-sw-supp-"+i);if(t)t.focus();},0);},
+  async addShareSuppFiles(i,inp){
+    const s=this._shareSupp[i];const files=[...(inp.files||[])];inp.value="";if(!s)return;
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){toast("⚠ 雲端未連線，無法上傳附件");return;}
+    for(const f of files){
+      s.up++;this.renderShareSupp();
+      try{toast(`「${f.name}」上傳中…`);const p=await RefDl.uploadFile(f);if(!s.files.some(x=>x.path===p.path))s.files.push({name:p.name,url:p.url,path:p.path});toast(`✓「${f.name}」已上傳`);}
+      catch(e){toast(`⚠「${f.name}」沒有上傳：${e.message||e}`,true);}
+      finally{s.up--;this.renderShareSupp();}
+    }
   },
   closeShareCheckWizard(){$("#airShareCheckModal").classList.remove("show");},
   toggleShareLimitShips(){
@@ -27460,10 +27497,15 @@ const Air={
     // 用「缺失詳情」「實際情況」各自一個 <div> 分行顯示，欄位名故意叫 actual2 而不是 actual，
     // 是因為 actual 這個名字在填答頁本來就用來存「船上打算怎麼處理」（船員自己的作答），
     // 兩個是完全不同的東西，撞名會被船員填的內容蓋掉，所以來源的「實際情況」另外取名。
-    const items=rows.map(r=>({
-      code:r.code||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",
-      detail:r.detail||"",actual2:r.actual||"",src:r._src||(recs.length===1?`${d.ship} ${d.itype||""} ${d.date}`.replace(/\s+/g," ").trim():"")
-    }));
+    if((this._shareSupp||[]).some(s=>s.up)){toast("⚠ 附件還在上傳，請稍候再建立");return;}
+    const items=rows.map((r,i)=>{
+      const s=(this._shareSupp||[])[i]||{};
+      const it={code:r.code||"",ncMain:r.ncMain||"",ncLeaf:r.ncLeaf||"",
+        detail:r.detail||"",actual2:r.actual||"",src:r._src||(recs.length===1?`${d.ship} ${d.itype||""} ${d.date}`.replace(/\s+/g," ").trim():"")};
+      if((s.text||"").trim())it.supp=s.text.trim();
+      if((s.files||[]).length)it.suppRefs=s.files.map(f=>({name:f.name,url:f.url,path:f.path}));
+      return it;
+    });
     const campaignId=Date.now();
     // 活動名稱：缺失自查：PSC-B108(2026/9/15)、BI(2026/9/15)，SIRE-SS(2026/9/20)（依檢查來源分組，日期不補零）
     const fmtD=s=>{const m=String(s||"").match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);return m?`${m[1]}/${+m[2]}/${+m[3]}`:String(s||"");};

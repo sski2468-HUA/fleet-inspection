@@ -746,8 +746,8 @@ function exportExcel(){
   const {status,issues}=collectReport();
   const wb=XLSX.utils.book_new();
   // 第一個分頁：這次分享自查的項目（缺失內容），後面才是各船完成狀況與需處理項目
-  const wsItems=XLSX.utils.json_to_sheet((curCampaign.items||[]).map((it,i)=>({"編號":i+1,"CODE":it.code||"","來源檢查":fmtSrc(it.src),"缺失內容":it.detail||"","來源實際情況":it.actual2||"","追蹤期限":it.trackDue||""})));
-  wsItems["!cols"]=[6,10,30,60,50,12].map(w=>({wch:w}));
+  const wsItems=XLSX.utils.json_to_sheet((curCampaign.items||[]).map((it,i)=>({"編號":i+1,"CODE":it.code||"","來源檢查":fmtSrc(it.src),"缺失內容":it.detail||"","來源實際情況":it.actual2||"","公司補充說明":it.supp||"","追蹤期限":it.trackDue||""})));
+  wsItems["!cols"]=[6,10,30,60,50,40,12].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,wsItems,"自查項目");
   const ws1=XLSX.utils.json_to_sheet(status.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"填答進度":r.progress,"狀態":r.state,"送出次數":r.submitCount,"最後送出":r.submittedAt,"需處理項數":r.needN,"未結案數":r.openN})));
   ws1["!cols"]=[8,14,12,12,10,9,8,20,10,9].map(w=>({wch:w}));
@@ -767,7 +767,7 @@ function exportPdf(){
     <div>產出日期：${new Date().toLocaleString("zh-TW",{hour12:false})}　查核項目 ${(curCampaign.items||[]).length} 項　已送出 ${status.filter(r=>r.state==="已送出").length} / ${status.length} 艘　需處理 ${issues.length} 項（未結案 ${issues.filter(r=>r.closed==="未結案").length}）</div>
     <h2>一、本次自查項目（共 ${(curCampaign.items||[]).length} 項）</h2>
     <table><thead><tr><th style="width:5%">#</th><th style="width:9%">CODE</th><th style="width:16%">來源檢查</th><th style="width:40%">缺失內容</th><th style="width:30%">來源實際情況</th></tr></thead><tbody>
-    ${(curCampaign.items||[]).map((it,i)=>`<tr><td>${i+1}</td><td>${c(it.code)}</td><td>${c(fmtSrc(it.src))}</td><td>${c(it.detail)}</td><td>${c(it.actual2)}</td></tr>`).join("")||`<tr><td colspan="5">（無）</td></tr>`}</tbody></table>
+    ${(curCampaign.items||[]).map((it,i)=>`<tr><td>${i+1}</td><td>${c(it.code)}</td><td>${c(fmtSrc(it.src))}</td><td>${c(it.detail)}</td><td>${c(it.actual2)}${it.supp?"<br><b>公司補充說明：</b>"+c(it.supp):""}</td></tr>`).join("")||`<tr><td colspan="5">（無）</td></tr>`}</tbody></table>
     <h2>二、船隊完成狀況</h2>
     <table><thead><tr><th>船舶</th><th>填寫人</th><th>進度</th><th>狀態</th><th>最後送出</th><th>需處理</th><th>未結案</th></tr></thead><tbody>
     ${status.map(r=>`<tr><td>${c(r.name)}</td><td>${c(r.checker)}${r.title?"（"+c(r.title)+"）":""}</td><td>${c(r.progress)}</td><td>${r.state}</td><td>${c(r.submittedAt)}</td><td>${r.needN}</td><td>${r.openN}</td></tr>`).join("")}</tbody></table>
@@ -815,6 +815,7 @@ function toggleDetail(ship){
           <b>#${i+1}</b> ${esc(it.topic?("📌 "+it.topic):(it.code?("CODE "+it.code):""))}${it.topic?"":srcTag(it)} <span class="stbadge ${it.status||'pending'}">${ST_LABEL[it.status||"pending"]}</span>${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'+((it.track||[]).length?'<span class="stbadge" style="background:#eaf1f9;color:#1d4e80">已在追蹤：'+esc(it.track.join("、"))+'</span>':'')):""}
           <div class="hint">${esc(it.detail||"")}</div>
           ${it.actual2?`<div class="hint">實際情況：${esc(it.actual2)}</div>`:""}
+          ${it.supp?`<div class="hint" style="color:#8a5a00">💬 公司補充說明：${esc(it.supp)}</div>`:""}
           ${it.note?`<div style="margin-top:2px"><b>本船實際狀況：</b>${esc(it.note)}</div>`:""}
           ${it.naNote?`<div style="margin-top:2px"><b>不適用原因：</b>${esc(it.naNote)}</div>`:""}
           ${it.actual?`<div><b>打算怎麼處理：</b>${esc(it.actual)}</div>`:""}
