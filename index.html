@@ -3328,20 +3328,30 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     </div>
 
     <div class="modal-bg" id="icEditModal">
-      <div class="modal">
+      <div class="modal" style="max-width:1240px;width:96vw">
         <div class="mh"><h3 id="ic-title">編輯檢查管控紀錄</h3><button class="x" onclick="InspCtrl.closeEdit()">✕</button></div>
         <div class="mb">
           <style>
+            /* 2026-11-04 完整編輯＋排程合併：左＝基本資料／到期日／負責人，右＝排程（同一個儲存） */
+            #icEditModal .ice-2col{display:flex;gap:18px;align-items:flex-start}
+            #icEditModal .ice-2col>.fgrid{flex:1.55;min-width:0}
+            #icEditModal .ice-right{flex:1;min-width:280px;background:#f3f8f6;border:1px solid #cfe7da;border-radius:10px;padding:10px 14px;position:sticky;top:0;display:flex;flex-direction:column;gap:10px}
+            #icEditModal .ice-right label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600}
+            #icEditModal .ice-right .ice-sec{margin:0}
+            #icEditModal .ice-warn{font-size:12px;color:#b3261e;font-weight:700}
+            #icEditModal .ice-sg{font-size:12px;background:#fff;border:1px dashed #8cc3ca;border-radius:6px;padding:6px 8px}
+            @media(max-width:900px){#icEditModal .ice-2col{flex-direction:column}#icEditModal .ice-right{position:static;width:100%;box-sizing:border-box}}
             #icEditModal .ice-sec{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--navy);margin:10px 0 -2px;padding-bottom:4px;border-bottom:1px solid var(--line)}
             #icEditModal .ice-sec:first-child{margin-top:0}
             #icEditModal .ice-tip{display:block;font-size:11px;font-weight:400;color:var(--ink-3);margin-top:3px;line-height:1.4}
             #icEditModal .ice-box{border-radius:6px;padding:8px 10px}
           </style>
+          <div class="ice-2col">
           <div class="fgrid">
             <div class="ice-sec">① 基本資料</div>
-            <label>船名<select id="ic-e-ship" onchange="InspCtrl.refreshOwnerShipHint()"></select></label>
+            <label>船名<select id="ic-e-ship" onchange="InspCtrl.refreshOwnerShipHint();InspCtrl.refreshSchedPanel()"></select></label>
             <label>檢查項目
-              <select id="ic-e-itype-sel" onchange="$('#ic-e-itype-other').style.display=this.value==='__other'?'':'none';InspCtrl.refreshEnhanceUI();InspCtrl.applyOwnerCat();"></select>
+              <select id="ic-e-itype-sel" onchange="$('#ic-e-itype-other').style.display=this.value==='__other'?'':'none';InspCtrl.refreshEnhanceUI();InspCtrl.applyOwnerCat();InspCtrl.refreshSchedPanel();"></select>
               <input type="text" id="ic-e-itype-other" placeholder="自訂檢查項目名稱" style="display:none;margin-top:6px" oninput="InspCtrl.refreshEnhanceUI()">
             </label>
             <label>效期（月）<input type="text" id="ic-e-valid" placeholder="例：12；沒有填 -"></label>
@@ -3354,10 +3364,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <label>到期日
               <input type="date" id="ic-e-due">
               <span class="ice-tip">一般由系統算出；改了就以證書實際日期為準</span>
-            </label>
-            <label>預排檢查日
-              <input type="date" id="ic-e-sched">
-              <span class="ice-tip">留空＝未排程</span>
             </label>
             <label>中間檢驗完成日
               <input type="date" id="ic-e-midactual">
@@ -3402,6 +3408,25 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
             <div class="ice-sec">④ 備註</div>
             <label class="fw"><textarea id="ic-e-note" placeholder="例：配合靠港安排、加強稽核追蹤事項" style="min-height:70px"></textarea></label>
+          </div>
+          <div class="ice-right">
+            <div class="ice-sec">📅 排程</div>
+            <div id="ic-e-sch-info"></div>
+            <label>預排檢查日
+              <span style="display:flex;gap:6px;align-items:center"><input type="date" id="ic-e-sched" style="flex:1" oninput="InspCtrl.checkSchedDate()"><button type="button" class="btn sm" title="清除預排日期、港口、備註（按儲存後生效）" onclick="['#ic-e-sched','#ic-e-schedport','#ic-e-schednote'].forEach(s=>{const e=$(s);if(e)e.value='';});InspCtrl.checkSchedDate()">清除</button></span>
+              <span class="ice-warn" id="ic-e-sch-warn"></span>
+              <span class="ice-tip">留空＝未排程</span>
+            </label>
+            <label>預計港口
+              <input type="text" id="ic-e-schedport" list="dl-places" placeholder="例：Ningbo, China" autocomplete="off">
+              <span class="ice-tip">格式：港口, 國家（跟外部線上填單一樣，打幾個字可選）</span>
+            </label>
+            <div id="ic-e-sch-role" style="display:flex;flex-direction:column;gap:10px"></div>
+            <label>排程備註
+              <input type="text" id="ic-e-schednote" placeholder="例：配合靠港卸貨">
+            </label>
+            <div id="ic-e-sch-also"></div>
+          </div>
           </div>
         </div>
         <div class="mf">
@@ -19984,7 +20009,9 @@ const InspCtrl2={
     if(g.a<today&&g.b>=today)g.a=today;return g;
   },
   openSched(ship,k){
-    const r=this.cell(ship,k);if(!r)return;const d=r.src,c=this.colOf(k),s=this.SHIPS.find(x=>x.code===ship)||{dv:{}},sg=this.suggest(r);
+    const r=this.cell(ship,k);if(!r)return;
+    // 2026-11-04 檢查項目的排程改在「完整編輯」視窗右半邊一次完成（左基本資料／到期日、右排程）；證書的「安排換證」仍用側欄
+    if(!r.cert){this.closeDrawer();InspCtrl.openEdit(r.id);setTimeout(()=>{const e=$("#ic-e-sched");if(e&&$("#icEditModal").classList.contains("show"))e.focus();},60);return;}const d=r.src,c=this.colOf(k),s=this.SHIPS.find(x=>x.code===ship)||{dv:{}},sg=this.suggest(r);
     if(!InspCtrl.canEditRow(d)){toast("⚠ 僅該筆「檢查安排人」本人或管理員可修改排程");return;}
     const owners=[...new Set(this.ROWS.map(x=>x.owner).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
     const others=this.cols().map(cc=>this.cell(ship,cc[0])).filter(x=>x&&x!==r&&!x.sched&&x.due&&x.days<=120&&InspCtrl.canEditRow(x.src));
@@ -20007,7 +20034,7 @@ const InspCtrl2={
         ${this.CERT60.includes(k)?`<label for="ic2-sc-insp">檢查員</label><input id="ic2-sc-insp" placeholder="RO／船旗國檢查員" value="${esc(d.certInspector||"")}">`:""}
         ${k==="INTERNALAUDIT"?`<label for="ic2-sc-aud">稽核員</label><select id="ic2-sc-aud"><option value="">（未指派）</option>${auditors.map(a=>`<option ${a===d.auditor?"selected":""}>${esc(a)}</option>`).join("")}</select>
           <span></span><div class="warnbox" id="ic2-sc-audwarn"></div>`:""}
-        <label for="ic2-sc-port">預計港口</label><input id="ic2-sc-port" placeholder="例：寧波" value="${esc(d.schedPort||"")}">
+        <label for="ic2-sc-port">預計港口</label><input id="ic2-sc-port" list="dl-places" autocomplete="off" placeholder="例：Ningbo, China" value="${esc(d.schedPort||"")}">
         <label for="ic2-sc-note">排程備註</label><input id="ic2-sc-note" placeholder="例：配合靠港卸貨" value="${esc(d.schedNote||"")}">
       </div>
       ${others.length?`<h3>同一次靠港一起排（120 天內到期、尚未排程）</h3>${others.map(o=>`<label style="display:flex;gap:6px;align-items:center;margin:3px 0"><input type="checkbox" data-also="${o.k}"> ${esc(this.colOf(o.k)[1])} <span class="ic2-pill s${o.st}">${esc(this.cellTxt(o))}</span></label>`).join("")}`:""}
@@ -21957,7 +21984,70 @@ const InspCtrl={
     bindDatePicker("ic-e-enhance-since");
     this.refreshEnhanceUI();
     const createInspBox=$("#ic-e-createinsp");if(createInspBox)createInspBox.checked=false;
+    // 右半邊排程：港口、備註；訪船人／稽核員／檢查員依檢查項目動態產生
+    set("#ic-e-schedport",d.schedPort);set("#ic-e-schednote",d.schedNote);
+    if(typeof refreshPlaceList==="function")try{refreshPlaceList();}catch(e){}
+    $("#ic-e-sch-role").innerHTML="";
+    this.refreshSchedPanel();
     $("#icEditModal").classList.add("show");
+  },
+  /* 2026-11-04 完整編輯與排程合併成同一個視窗（右半邊）：建議期間、日期提醒、訪船人／稽核員／檢查員、
+     同一次靠港一起排——原本在檢查管控2 的「📅 排程」側欄，現在都在這裡，一次儲存。 */
+  _schedCtx(){
+    if(typeof InspCtrl2==="undefined")return null;
+    const I=InspCtrl2;I.build();
+    const ship=$("#ic-e-ship").value,k=I.NK(this.curEditItype()||"");
+    const d=this.editId!=null?(App.inspCtrl.find(x=>x.id===this.editId)||{}):{};
+    const r=this.editId!=null&&d.ship===ship&&I.NK(d.itype)===k?I.row(d):null; // 換了船／項目就不沿用原本的到期資訊
+    const si=SHIPINFO.find(x=>x.code===ship)||{};
+    return {I,ship,k,d,r,sg:r?I.suggest(r):null,s:{...si,dv:I.devs(ship,I.S)}};
+  },
+  refreshSchedPanel(){
+    const box=$("#ic-e-sch-role");if(!box)return;
+    const C=this._schedCtx();
+    if(!C){box.innerHTML="";return;}
+    const {I,k,d,r,sg,s}=C;
+    const keep=(id,dv)=>{const e=$("#"+id);return e?e.value:(dv||"");};
+    const vis0=keep("ic-e-visitor",d.visitor),aud0=keep("ic-e-auditor",d.auditor),ins0=keep("ic-e-certinsp",d.certInspector);
+    $("#ic-e-sch-info").innerHTML=(r&&r.due?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="ic2-pill s${r.st}">${esc(I.stLabel(r))}</span><span class="ice-tip" style="margin:0">到期 ${I.fmt(r.due)}</span></div>`:"")
+      +(sg?`<div class="ice-sg" style="margin-top:6px">建議期間 <b>${I.fmt(sg.a)} ～ ${I.fmt(sg.b)}</b><div class="ice-tip">${esc(sg.why)}</div><button type="button" class="btn sm" style="margin-top:4px" onclick="$('#ic-e-sched').value='${sg.a}';InspCtrl.checkSchedDate()">帶入建議日期</button></div>`:"");
+    let h="";
+    const isVisit=k==="ONBOARDVISIT"||k==="CROSSSHIPVISIT";
+    if(isVisit){
+      let visDefault=vis0,hint="";
+      if(k==="ONBOARDVISIT"){const a=s.dv.deck,b=s.dv.engine;if(a&&b){const pick=(a.days??1e9)>=(b.days??1e9)?["甲板督導",a]:["機艙督導",b];if(!visDefault&&this.editId!=null&&!d.visitor)visDefault=pick[1].assigned||pick[1].name;
+        hint=`<span class="ice-tip">建議這次由 <b>${pick[0]}</b> 前往（${pick[1].date?"已 "+pick[1].days+" 天未訪":"查無訪船紀錄"}）</span>`;}}
+      h+=`<label>訪船人<select id="ic-e-visitor" onchange="InspCtrl.refreshVisInfo()"><option value="">（未指派）</option>
+        <optgroup label="甲板督導">${I.S.deck.map(n=>`<option ${n===visDefault?"selected":""}>${esc(n)}</option>`).join("")}</optgroup>
+        <optgroup label="機艙督導">${I.S.engine.map(n=>`<option ${n===visDefault?"selected":""}>${esc(n)}</option>`).join("")}</optgroup></select>${hint}<span id="ic-e-visinfo" style="font-size:12px;font-weight:400"></span></label>`;
+    }
+    if(I.CERT60.includes(k))h+=`<label>檢查員<input type="text" id="ic-e-certinsp" placeholder="RO／船旗國檢查員" value="${esc(ins0)}"></label>`;
+    if(k==="INTERNALAUDIT"){const auditors=(typeof AuditDash!=="undefined"&&AuditDash.AUDITORS)||[];
+      h+=`<label>稽核員<select id="ic-e-auditor" onchange="InspCtrl.refreshVisInfo()"><option value="">（未指派）</option>${(aud0&&!auditors.includes(aud0)?[aud0,...auditors]:auditors).map(a=>`<option ${a===aud0?"selected":""}>${esc(a)}</option>`).join("")}</select><span class="ice-warn" id="ic-e-audwarn"></span></label>`;}
+    box.innerHTML=h;
+    // 同一次靠港一起排：只有編輯既有紀錄時才列（同船、120 天內到期、尚未排程、自己可改的）
+    const also=$("#ic-e-sch-also");
+    if(also){
+      const others=r?[...I.INSP_COLS,...I.extraCols(),...I.CERT_COLS].map(c=>I.cell(C.ship,c[0])).filter(x=>x&&x.src!==d&&!x.sched&&x.due&&x.days<=120&&this.canEditRow(x.src)):[];
+      also.innerHTML=others.length?`<div class="ice-sec" style="font-size:12.5px">同一次靠港一起排</div><div class="ice-tip" style="margin:2px 0 4px">120 天內到期、尚未排程；勾選的會套用相同日期／港口／備註</div>${others.map(o=>`<label style="flex-direction:row;align-items:center;gap:6px;font-weight:400"><input type="checkbox" data-ice-also="${o.id}"> ${esc(I.colOf(o.k)[1])} <span class="ic2-pill s${o.st}">${esc(I.cellTxt(o))}</span></label>`).join("")}`:"";
+    }
+    this.refreshVisInfo();this.checkSchedDate();
+  },
+  refreshVisInfo(){
+    const C=this._schedCtx();if(!C)return;const {I,k,s}=C;
+    const vis=$("#ic-e-visitor"),box=$("#ic-e-visinfo");
+    if(vis&&box){const v=vis.value;
+      if(!v)box.innerHTML="";
+      else{const cat=I.S.deck.includes(v)?"甲板":"機艙",own=[s.deckSup,s.deckSupAlt].includes(v)?"本船甲板督導":[s.engineSup,s.engineSupAlt].includes(v)?"本船機艙督導":"";
+        box.innerHTML=k==="ONBOARDVISIT"?`<span class="ic2-pill ${cat==="甲板"?"s3":"s4"}">計入${cat}督導訪船</span> <span class="ice-tip" style="display:inline">${own||"非本船督導（輪替／代理），依類別計入"}</span>`
+          :own?`<span class="ice-warn">⚠ ${esc(v)} 是${own}，交叉訪船應由其他船的督導前往</span>`:`<span class="ic2-pill s3">交叉訪船・${cat}</span> <span class="ice-tip" style="display:inline">不計入本船 onboard visit 次數</span>`;}}
+    const aud=$("#ic-e-auditor"),aw=$("#ic-e-audwarn");
+    if(aud&&aw){const v=aud.value;aw.textContent=v&&(v===s.deckSup||v===s.engineSup)?`⚠ ${v} 是本船${v===s.deckSup?"甲板":"機艙"}督導，依 ISM 不可稽核自己督導的船`:"";}
+  },
+  checkSchedDate(){
+    const w=$("#ic-e-sch-warn");if(!w)return;
+    const v=$("#ic-e-sched").value,C=this._schedCtx(),r=C&&C.r,sg=C&&C.sg,today=todayStr();
+    w.textContent=!v?"":v<today?"⚠ 這個日期已經過了":r&&r.due&&v>r.due?`⚠ 晚於到期日 ${C.I.fmt(r.due)}，排到那天已經逾期`:sg&&r.stage==="intermediate"&&v<sg.a?"⚠ 早於中間檢查窗口，該次檢查不算數":"";
   },
   refreshEnhanceUI(){
     const itype=this.curEditItype();
@@ -22116,6 +22206,13 @@ const InspCtrl={
     if(itype==="__other")itype=g("#ic-e-itype-other");
     const rec={ship:g("#ic-e-ship"),itype,validityMonths:g("#ic-e-valid"),lastDate:g("#ic-e-last"),dueDate:g("#ic-e-due"),schedDate:g("#ic-e-sched"),midDate:g("#ic-e-midactual"),owner:g("#ic-e-owner"),ownerCat:($("#ic-e-owner-cat")?$("#ic-e-owner-cat").value:"haiji"),note:g("#ic-e-note")};
     if(!rec.ship||!rec.itype){toast("⚠ 請填寫船名與檢查項目");return;}
+    // 右半邊排程欄位（2026-11-04 合併）：沒有預排日就一併清掉港口／備註；角色欄位只在畫面上有出現時才寫入
+    rec.schedPort=rec.schedDate?g("#ic-e-schedport"):"";
+    rec.schedNote=rec.schedDate?g("#ic-e-schednote"):"";
+    if($("#ic-e-visitor"))rec.visitor=$("#ic-e-visitor").value;
+    if($("#ic-e-auditor"))rec.auditor=$("#ic-e-auditor").value;
+    if($("#ic-e-certinsp"))rec.certInspector=g("#ic-e-certinsp");
+    const alsoIds=[...document.querySelectorAll("#icEditModal [data-ice-also]:checked")].map(x=>+x.dataset.iceAlso);
     // 「檢查安排人」欄位僅限 Owner／管理員調整：非管理員若改了這欄，直接擋下整筆儲存並提醒，
     // 避免督導自己改自己被指派給哪艘船（其餘欄位不受影響，維持原本可編輯規則）。
     if(typeof Role!=="undefined"&&!Role.isAdmin()){
@@ -22151,7 +22248,13 @@ const InspCtrl={
       rec.dueDateOverride="";
     }
     if(this.editId==null){rec.id=this.nextId();App.inspCtrl.push(rec);toast("✓ 已新增");if(typeof Audit!=="undefined")Audit.log("新增","檢查管控",`${rec.ship} ${rec.itype}`);}
-    else{const d=App.inspCtrl.find(x=>x.id===this.editId);Object.assign(d,rec);toast("✓ 已更新");if(typeof Audit!=="undefined")Audit.log("編輯","檢查管控",`#${this.editId} ${rec.ship} ${rec.itype}${enhanceOn?"（加強稽核）":""}`);}
+    else{const d=App.inspCtrl.find(x=>x.id===this.editId);Object.assign(d,rec);toast("✓ 已更新");if(typeof Audit!=="undefined")Audit.log("編輯","檢查管控",`#${this.editId} ${rec.ship} ${rec.itype}${enhanceOn?"（加強稽核）":""}${rec.schedDate?`；預排 ${rec.schedDate}${rec.schedPort?"（"+rec.schedPort+"）":""}`:""}`);}
+    if(rec.schedDate&&alsoIds.length){
+      const done=[];
+      alsoIds.forEach(id=>{const o=App.inspCtrl.find(x=>x.id===id);if(!o||o.ship!==rec.ship||!this.canEditRow(o))return;
+        o.schedDate=rec.schedDate;o.schedPort=rec.schedPort;o.schedNote=rec.schedNote;done.push(`#${o.id} ${o.itype}`);});
+      if(done.length){if(typeof Audit!=="undefined")Audit.log("編輯","檢查管控",`同一次靠港一起排 ${rec.schedDate}${rec.schedPort?"（"+rec.schedPort+"）":""}：${done.join("、")}`);toast(`✓ 已更新，並一起排程 ${done.length} 項`);}
+    }
     // 「同時建立檢查紀錄」：手動填的「最近一次檢查日」只是這張管控表自己的欄位，
     // 不會自動出現在「檢查紀錄」裡（自動抓取是反過來，從檢查紀錄去抓，不是從管控表推回去建立）。
     // 勾了這個選項，才會順手在「檢查紀錄」也建一筆一致的資料，讓兩邊對得起來、之後也抓得到。
@@ -27547,7 +27650,7 @@ const Air={
     $("#air-sw-summary-link").value=`${officeFolder()}selfcheck-share-summary.html`;
     this.closeShareCheckWizard();
     this._pendingShareRows=null;
-    const copyText=`${campaign.title}\n${fillLink}`;
+    const copyText=`${campaign.title}\n填答連結：${fillLink}\n\n各輪也可從「船舶檢查填報平台」→ 上方選單「🔍 分享缺失自查」，查看本船各項自查的填單情形（是否已送出、需追蹤未結案項目）：\n${folder}`; // 與彙整清單「MAIL船」同格式
     safeCopyText(copyText,"✓ 已複製活動名稱＋填答連結");
     alert(`✓ 已建立分享自查活動（共 ${rows.length} 項查核項目）。\n\n活動名稱＋填答連結已自動複製，請貼給船隊進行填單：\n${copyText}\n\n按「確定」後將另開分頁顯示「分享自查彙整清單」。`);
     this._formDirty=false;

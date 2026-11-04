@@ -160,6 +160,7 @@ tr.done td{background:#eaf5ee}
         <button class="btn sm" onclick="exportExcel()" title="船隊完成狀況＋需處理項目（實際情況／處理情況／結案狀態）">⬇ 下載 Excel</button>
         <button class="btn sm" onclick="exportPdf()" title="開啟列印，選「另存為 PDF」">⬇ 下載 PDF</button>
         <button class="btn sm" onclick="copyMailText()" title="複製「自查項目＋連結」（上下兩行），貼入郵件發給船隊">✉ MAIL船</button>
+        <button class="btn sm" onclick="previewFill()" title="開新分頁，看船上填答畫面長怎樣（不會存檔、不會送出）">👁 預覽船上畫面</button>
         <button class="btn sm" onclick="copyFillLink()">📋 複製連結</button>
         <button class="btn sm" onclick="loadCampaign(curCampaign&&curCampaign.id)">🔄 重新整理</button>
       </div>
@@ -240,6 +241,12 @@ function fallbackCopyText(text,okMsg){
    之前只能回去問海技人員或重新建一個活動——這裡讓填答連結可以隨時從這個
    彙整清單頁面依「目前選的活動」重新算出來、重新複製，活動 id 就是連結參數本身，
    只要活動還在（沒被刪除），永遠可以在這裡找回同一條連結。 */
+/* 預覽船上填單畫面（2026-11-04）：開船上填答頁 ?preview=1，不用選船、不建立填答、不會存檔或送出 */
+function previewFill(id){
+  const cid=id!=null?id:(curCampaign&&curCampaign.id);
+  if(cid==null){notify("⚠ 請先選擇活動","err");return;}
+  window.open(`${SHIP_SITE}submit-selfcheck-share.html?cid=${cid}&preview=1`,"_blank","noopener");
+}
 function copyFillLink(id){
   const cid=id!=null?id:(curCampaign&&curCampaign.id);
   if(cid==null){notify("⚠ 請先選擇活動","err");return;}
@@ -252,7 +259,8 @@ function copyMailText(id){
   if(cid==null){notify("⚠ 請先選擇活動","err");return;}
   const c=campaigns.find(x=>String(x.id)===String(cid));
   const url=`${SHIP_SITE}submit-selfcheck-share.html?cid=${cid}`;
-  const text=`${c&&c.title?c.title+"\n":""}${url}`; // 上面自查項目、下面連結
+  // 上面自查項目、下面填答連結；再補一段「船舶檢查填報平台」入口，船上可隨時回去看本船填單情形（2026-11-04）
+  const text=`${c&&c.title?c.title+"\n":""}填答連結：${url}\n\n各輪也可從「船舶檢查填報平台」→ 上方選單「🔍 分享缺失自查」，查看本船各項自查的填單情形（是否已送出、需追蹤未結案項目）：\n${SHIP_SITE}`;
   safeCopyText(text,"✓ 已複製");
   alert("已複製下列內容，可貼入郵件發給船隊：\n\n"+text);
 }
@@ -524,6 +532,7 @@ function renderListView(fromDash){
         <td>${st.track?`<span class="pill bad">⚠ ${st.track} 項</span>`:'<span class="pill na">—</span>'}</td>
         <td style="white-space:nowrap">
           <button class="btn sm" onclick="openDetail(${c.id})">📊 進度</button>
+          <button class="btn sm" onclick="previewFill(${c.id})" title="開新分頁，看船上填答畫面長怎樣（不會存檔、不會送出）">👁 預覽</button>
           <button class="btn sm" onclick="copyMailText(${c.id})" title="複製「自查項目＋連結」（上下兩行），貼入郵件發給船隊">✉ MAIL船</button>
           <button class="btn sm" onclick="copyFillLink(${c.id})">📋 連結</button>
           <button class="btn sm" onclick="toggleActive(${c.id})">${ended?"▶ 重啟":"⏸ 結束"}</button>
