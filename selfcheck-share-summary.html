@@ -114,6 +114,7 @@ tr.done td{background:#eaf5ee}
     <span style="display:flex;flex-direction:column;gap:6px;align-items:stretch;flex:none">
       <a class="btn sm" href="./" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:#fff">← 回船舶檢查暨缺失管理系統</a>
       <a class="btn sm" href="intaudit.html" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:#fff" title="督導／稽核員：回到內部檢查缺失登錄">← 回內部檢查缺失登錄</a>
+      <button type="button" class="btn sm" id="delPassBtn" onclick="DelPass.change()" style="display:none;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:#ffd9a8" title="只有 Owner 看得到">🔑 刪除密碼</button>
       <button type="button" class="btn sm" id="slogBtn" onclick="SLog.open()" style="display:none;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:#ffd9a8" title="只有 Owner 看得到">📜 操作紀錄</button>
       <a class="btn sm" href="selfcheck-share-guide.html" target="_blank" rel="noopener" style="background:#fff;border-color:#fff;color:var(--navy)" title="怎麼進來、怎麼新建自訂自查、怎麼看各船自查情形">📖 操作手冊</a>
     </span>
@@ -593,8 +594,34 @@ async function toggleActive(id){
     if(curCampaign&&String(curCampaign.id)===String(id))curCampaign.active=next;
   }catch(e){notify("⚠ 更新失敗："+e.message,"err");}
 }
+/* 2026-11-04 刪除密碼：刪除活動／刪除某艘船的填答都要先輸入。密碼只存 SHA-256（雲端 app_db「sharecheck_del_pass」），
+   還沒設定過時用預設密碼的雜湊；Owner 可在右上「🔑 刪除密碼」更改。 */
+const DelPass={
+  KEY:"sharecheck_del_pass",DEFAULT_HASH:"a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+  async sha(s){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(s)));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");},
+  async hash(){try{const r=(await api(`app_db?select=payload&k=eq.${this.KEY}`)||[])[0];if(r&&r.payload&&r.payload.hash)return r.payload.hash;}catch(e){}return this.DEFAULT_HASH;},
+  async check(what){
+    const v=prompt(`🔒 ${what}需要刪除密碼，請輸入：`);
+    if(v===null)return false;
+    if(await this.sha(v.trim())!==await this.hash()){notify("❌ 刪除密碼錯誤，未刪除","err");SLog.log("刪除失敗","密碼錯誤",what);return false;}
+    return true;
+  },
+  async change(){
+    if(!SLog.isOwner()){notify("⚠ 只有 Owner 可以更改刪除密碼","err");return;}
+    const old=prompt("請先輸入目前的刪除密碼：");if(old===null)return;
+    if(await this.sha(old.trim())!==await this.hash()){notify("❌ 目前密碼錯誤","err");return;}
+    const n1=prompt("請輸入新的刪除密碼（至少 4 碼）：");if(n1===null)return;
+    if(n1.trim().length<4){notify("⚠ 新密碼至少 4 碼","err");return;}
+    const n2=prompt("請再輸入一次新的刪除密碼：");if(n2===null)return;
+    if(n1.trim()!==n2.trim()){notify("⚠ 兩次輸入不一樣，未更改","err");return;}
+    try{await api("app_db?on_conflict=k",{method:"POST",headers:authHeaders({"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.KEY,updated:Date.now(),payload:{hash:await this.sha(n1.trim()),at:Date.now(),by:SLog.user()}}])});}
+    catch(e){notify("⚠ 更改失敗："+e.message,"err");return;}
+    SLog.log("修改","刪除密碼","更改分享自查的刪除密碼");notify("✓ 刪除密碼已更改","ok2");
+  }
+};
 async function deleteCampaign(id){
   const c=campaigns.find(x=>String(x.id)===String(id));if(!c)return;
+  if(!await DelPass.check(`刪除活動「${c.title||id}」`))return;
   const st=campaignStats(c);
   const v=prompt(`確定要刪除活動「${c.title}」？\n\n這會一併永久刪除已收到的 ${st.started} 艘船填答內容，動作無法復原。\n\n請輸入「確定刪除」以繼續：`);
   if(v!=="確定刪除"){if(v!==null)notify("⚠ 輸入不符，已取消","err");return;}
@@ -701,6 +728,7 @@ function renderTable(){
 
 async function deleteResponse(ship){
   const resp=responses.find(r=>r.ship===ship);if(!resp)return;
+  if(!await DelPass.check(`刪除「${shipLabel(ship)}」的填答`))return;
   if(!confirm(`確定要刪除「${shipLabel(ship)}」這艘船在本活動的填答內容？此動作無法復原，該船之後重新打開連結會視為第一次填答。`))return;
   try{
     await api(`${RESPONSE_TABLE}?id=eq.${resp.id}`,{method:"DELETE",headers:authHeaders()});
@@ -809,6 +837,10 @@ function exportExcel(){
   const ws2=XLSX.utils.json_to_sheet(issues.map(r=>({"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"CODE":r.itemCode,"來源檢查":fmtSrc(r.src),"缺失內容":r.detail,"來源實際情況":r.actual2,"本船實際狀況":r.note,"處理情況":r.handle,"結案狀態":r.closed,"已在追蹤（FLOW／內控／物料配件）":r.tracking,"改善情形說明":r.closeNote,"結案日期":r.closedAt,"追蹤期限":r.trackDue,"現況照片":r.phB||"","改善後照片":r.phA||""})));
   ws2["!cols"]=[8,14,12,12,10,20,40,36,36,36,9,36,12,12].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws2,"需處理項目");
+  // 2026-11-04 細目回覆：每艘船每一條「請確認」細目有沒有勾、補充說明（例：鋼瓶支數），方便督導彙整
+  const ckRows=[];
+  (responses||[]).forEach(r=>(r.items||[]).forEach((it,i)=>(it.checks||[]).forEach((c,j)=>ckRows.push({"船舶代碼":r.ship,"船名":shipLabel(r.ship),"題號":i+1,"題目":it.topic||it.code||"","細目":c,"已勾":(it.checkDone||[])[j]?"✓":"","補充說明":(it.checkNote||[])[j]||"","本題回答":(it.src==="自訂案例"?ST_LABEL_CASE:ST_LABEL)[it.status||"pending"].replace(/^[^一-龥（]+/,"")}))));
+  if(ckRows.length){const ws3=XLSX.utils.json_to_sheet(ckRows);ws3["!cols"]=[8,22,6,26,40,6,36,16].map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws3,"細目回覆");}
   XLSX.writeFile(wb,`分享自查彙整_${(curCampaign.title||curCampaign.id).replace(/[\\/:*?"<>|]/g,"_")}_${new Date().toISOString().slice(0,10)}.xlsx`);
   notify(`✓ 已下載 Excel（${status.length} 艘船、${issues.length} 項需處理）`,"ok2");
 }
@@ -868,7 +900,7 @@ function toggleDetail(ship){
       ${items.map((it,i)=>`
         <div class="itemline">
           <b>#${i+1}</b> ${esc(it.topic?("📌 "+it.topic):(it.code?("CODE "+it.code):""))}${it.topic?"":srcTag(it)} <span class="stbadge ${it.status||'pending'}">${(it.src==="自訂案例"?ST_LABEL_CASE:ST_LABEL)[it.status||"pending"]}</span>${(it.checks||[]).length?`<span class="stbadge" style="background:#eef3f8;color:var(--navy)">細目 ${(it.checks||[]).filter((c,j)=>(it.checkDone||[])[j]).length}／${it.checks.length}</span>`:""}${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'+((it.track||[]).length?'<span class="stbadge" style="background:#eaf1f9;color:#1d4e80">已在追蹤：'+esc(it.track.join("、"))+'</span>':'')):""}
-          ${it.topic&&(it.checks||[]).length?`<div class="hint">${esc(it.key||"")}</div><div style="font-size:12.5px;margin:2px 0">${it.checks.map((c,j)=>(it.checkDone||[])[j]?`<div style="color:var(--ok)">☑ ${esc(c)}</div>`:`<div style="color:var(--ink-3)">☐ ${esc(c)}</div>`).join("")}</div>`:`<div class="hint">${esc(it.detail||"")}</div>`}
+          ${it.topic&&(it.checks||[]).length?`<div class="hint">${esc(it.key||"")}</div><div style="font-size:12.5px;margin:2px 0">${it.checks.map((c,j)=>{const nt=(it.checkNote||[])[j];const ns=nt?`<span style="color:#1e7f8c;font-weight:700">　➜ ${esc(nt)}</span>`:"";return (it.checkDone||[])[j]?`<div style="color:var(--ok)">☑ ${esc(c)}${ns}</div>`:`<div style="color:var(--ink-3)">☐ ${esc(c)}${ns}</div>`;}).join("")}</div>`:`<div class="hint">${esc(it.detail||"")}</div>`}
           ${it.actual2?`<div class="hint">實際情況：${esc(it.actual2)}</div>`:""}
           ${it.supp?`<div class="hint" style="color:#8a5a00">💬 公司補充說明：${esc(it.supp)}</div>`:""}
           ${it.note?`<div style="margin-top:2px"><b>本船實際狀況：</b>${esc(it.note)}</div>`:""}
@@ -1240,7 +1272,7 @@ const SLog={
     const e={ts:Date.now(),usr:this.user(by),action,target:"分享自查－"+target,summary:String(summary||"").slice(0,180)};
     api("audit_log",{method:"POST",headers:authHeaders({"Prefer":"return=minimal"}),body:JSON.stringify([e])}).catch(err=>console.warn("audit log",err));
   },
-  initBtn(){const b=document.getElementById("slogBtn");if(b)b.style.display=this.isOwner()?"":"none";},
+  initBtn(){const b=document.getElementById("slogBtn");if(b)b.style.display=this.isOwner()?"":"none";const k=document.getElementById("delPassBtn");if(k)k.style.display=this.isOwner()?"":"none";},
   close(){const m=document.getElementById("slogModal");if(m)m.classList.remove("show");},
   async open(){
     if(!this.isOwner()){notify("⚠ 操作紀錄只限 Owner 查看（請先在主系統以 Owner 身份登入）","err");return;}
