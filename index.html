@@ -6882,8 +6882,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <p class="hint" id="air-sw-src-note" style="margin-bottom:10px"></p>
       <div style="font-weight:700;font-size:13px;margin:4px 0 6px">💬 補充說明給船上（選填）<span class="hint" style="font-weight:400">：針對某幾條缺失加說明或附件（例如照片、改善要求），船上填答時會看到</span><button type="button" class="btn sm" id="air-sw-fullall" style="float:right" onclick="Air.toggleShareFullAll()">▾ 全部展開</button></div>
       <div id="air-sw-items" style="max-height:44vh;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:12px"></div>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="air-sw-limit" onchange="Air.toggleShareLimitShips()"> 限定只開放特定船舶填答（不勾＝全船隊都能選）</label>
+      <div style="font-weight:700;font-size:13px;margin:4px 0 6px">發給哪些船</div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="radio" name="air-sw-to" value="all" checked onchange="Air.toggleShareLimitShips()"> 全船隊</label>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="radio" name="air-sw-to" value="bulk" onchange="Air.toggleShareLimitShips()"> 散裝船</label>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="radio" name="air-sw-to" value="tanker" onchange="Air.toggleShareLimitShips()"> 油輪</label>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="radio" name="air-sw-to" value="pick" onchange="Air.toggleShareLimitShips()"> 自行選擇船舶</label>
+        <input type="checkbox" id="air-sw-limit" style="display:none">
+      </div>
       <div class="msel" id="ms-air-sw-ship" style="display:none;margin-top:8px"></div>
+      <div class="hint" id="air-sw-scope-note" style="margin-top:6px;font-weight:700"></div>
     </div>
     <div class="mf">
       <span style="flex:1"></span>
@@ -14315,7 +14323,6 @@ const Todo={
     else return [];
     items=items.concat(this.forAirAssigned());
     items=items.concat(this.forReplyPend());
-    items=items.concat(this.forNoShare());
     items=items.concat(this.forRefDl());
     /* 對應頁面已被隱藏的待辦不再提示 —— 功能都看不到了還一直催人去做，
        只會讓人困惑（船上看不到「航次報表收件」，卻被提醒有表單未上傳）。 */
@@ -26136,7 +26143,7 @@ const Air={
       const known=order.filter(x=>set.has(x));
       const others=[...set].filter(x=>!order.includes(x)&&x!=="已轉全部").sort();
       const tail=set.has("已轉全部")?["已轉全部"]:[];
-      return [...known,...others,...tail,Air.PEND_LABEL,Air.NOSHARE_LABEL];
+      return [...known,...others,...tail,Air.PEND_LABEL];
     },()=>{this.page=1;this.renderList();});
     this.ms.reviewed=MSel("ms-air-reviewed","督導確認",()=>["已確認","尚未確認"],()=>{this.page=1;this.renderList();});
     if(typeof AirQueue!=="undefined")setTimeout(()=>AirQueue.refresh(),1500); // 延後執行，等 Cloud.init() 連線完成
@@ -26168,7 +26175,7 @@ const Air={
       // 「⚠ 對外回覆未轉入」是額外條件：有勾它時，符合它或符合其他勾選狀態的都列出
       if(this.ms.status&&this.ms.status.sel&&this.ms.status.sel.size){
         const sel=this.ms.status.sel,pend=this.replyPendCount(d)>0;
-        if(!(sel.has(this.statusText(d))||(pend&&sel.has(this.PEND_LABEL))||(sel.has(this.NOSHARE_LABEL)&&this.needShare(d))))return false;
+        if(!(sel.has(this.statusText(d))||(pend&&sel.has(this.PEND_LABEL))))return false;
       }
       if(this.ms.reviewed&&!this.ms.reviewed.pass(d.reviewed?"已確認":"尚未確認"))return false;
       return true;
@@ -27547,10 +27554,12 @@ const Air={
   },
   _showShareWizard(rows){
     this._pendingShareRows=rows;
-    this.ms.swShip=MSel("ms-air-sw-ship","限定船舶",()=>SHIPINFO.filter(s=>s.operator==="FPMC").map(s=>s.code).sort(),()=>{},shipFullLabel);
+    this.ms.swShip=MSel("ms-air-sw-ship","選擇船舶",()=>this._shareFleet().map(s=>s.code),()=>this._shareScopeNote(),shipFullLabel);
     this.ms.swShip.clear&&this.ms.swShip.clear();
     $("#air-sw-limit").checked=false;
+    const r0=document.querySelector('input[name="air-sw-to"][value="all"]');if(r0)r0.checked=true;
     $("#ms-air-sw-ship").style.display="none";
+    this._shareScopeNote();
     $("#air-sw-count").textContent=rows.length;
     // 「當事船」＝這次分享的缺失所屬的船，不需要自查自己這幾筆——這裡只是提示，實際排除是每一題各自比對
     // 「題目的來源船」動態算的（填答頁 loadOrCreateResponse），不是整個活動擋掉那艘船：因為合併分享時，
@@ -27598,8 +27607,26 @@ const Air={
     }
   },
   closeShareCheckWizard(){$("#airShareCheckModal").classList.remove("show");},
+  /* 2026-11-04 發給哪些船：全船隊／散裝船／油輪／自行選擇。選散裝或油輪時，直接把該船型的船帶進清單（之後切到「自行選擇」可再增減） */
+  _shareFleet(){return SHIPINFO.filter(s=>s.operator==="FPMC"&&!(typeof isSoldShip==="function"&&isSoldShip(s.code))).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code),undefined,{numeric:true}));},
+  _shareMode(){return (document.querySelector('input[name="air-sw-to"]:checked')||{}).value||"all";},
+  _shareScope(){
+    const mode=this._shareMode();
+    if(mode==="bulk"||mode==="tanker")return this._shareFleet().filter(s=>s.vtype===mode).map(s=>s.code);
+    if(mode==="pick")return [...this.ms.swShip.sel];
+    return null; // null＝全船隊
+  },
+  _shareScopeNote(){
+    const el=$("#air-sw-scope-note");if(!el)return;
+    const sc=this._shareScope();
+    el.textContent=sc==null?`全船隊（${this._shareFleet().length} 艘）都可以選船名填答`:sc.length?`共 ${sc.length} 艘：${sc.map(c=>c).join("、")}`:"⚠ 還沒選船";
+  },
   toggleShareLimitShips(){
-    $("#ms-air-sw-ship").style.display=$("#air-sw-limit").checked?"":"none";
+    const mode=this._shareMode();
+    if(mode==="bulk"||mode==="tanker")this.ms.swShip.set(this._shareFleet().filter(s=>s.vtype===mode).map(s=>s.code)); // 先帶入，改選「自行選擇」可微調
+    $("#ms-air-sw-ship").style.display=mode==="pick"?"":"none";
+    $("#air-sw-limit").checked=mode!=="all";
+    this._shareScopeNote();
   },
   async createShareCheckTasks(){
     if(!await Guard.require())return;
@@ -27609,9 +27636,8 @@ const Air={
     const d=recs[0];if(!d)return;
     const rows=this._pendingShareRows;
     if(!rows||!rows.length){toast("⚠ 找不到要分享的缺失，請重新開啟");return;}
-    const limited=$("#air-sw-limit").checked;
-    const shipScope=limited?[...this.ms.swShip.sel]:null;
-    if(limited&&(!shipScope||!shipScope.length)){toast("⚠ 已勾選「限定只開放特定船舶」，請至少選擇一艘船");return;}
+    const shipScope=this._shareScope();
+    if(shipScope&&!shipScope.length){toast("⚠ 請至少選擇一艘船（或改選全船隊）");return;}
     // ⚠ detail／actual2 務必分開存成兩個欄位，不要先拼成一段文字：填答頁 renderRef() 是
     // 用「缺失詳情」「實際情況」各自一個 <div> 分行顯示，欄位名故意叫 actual2 而不是 actual，
     // 是因為 actual 這個名字在填答頁本來就用來存「船上打算怎麼處理」（船員自己的作答），
@@ -27967,7 +27993,7 @@ const Air={
           ${(canPush&&d.defects&&d.defects.length)?`<button class="btn sm" style="background:#e4f1f2;border-color:#8cc3ca;color:#16606b;font-weight:700" onclick="Air.openShareCheckWizard(${d.id})" title="建立缺失分享：把這筆的缺失做成一條連結，分享給船隊自查">分</button>`:""}
           ${canPush?`<button class="btn sm dark" onclick="Air.openPushModal(${d.id})" title="轉入檢查紀錄／缺失紀錄總表／正面評價，可複選">轉</button>`:""}
         </td>
-        <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${this.needShare(d)?`<div style="margin-top:2px;white-space:nowrap"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;${canPush?"cursor:pointer":""}" title="已轉入缺失紀錄，但還沒分享給船隊自查${canPush?"（點一下建立分享）":""}" ${canPush?`onclick="event.stopPropagation();Air.openShareCheckWizard(${d.id})"`:""}>⚠ 尚未分享自查</span></div>`:""}${(this._shareCount(d)>0)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${this._shareCount(d)>1?" ×"+this._shareCount(d):""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span>${(typeof Role!=="undefined"&&Role.isAdmin())?`<button type="button" class="btn sm" style="padding:0 6px;margin-left:4px;font-size:10.5px;line-height:1.5" title="這筆不需要對外回覆：刪除對外回覆案件（會先下載 JSON 留存）" onclick="event.stopPropagation();Air.cancelExtReply('${esc(String(d.id))}')">✕ 取消</button>`:""}</div>`:""}${this.replyPendCount(d)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;cursor:pointer" title="對外回覆內容已更新，但還沒轉入缺失紀錄總表（點一下只更新總表的對外回覆版欄位）" onclick="event.stopPropagation();Air.pushReplyOnly(['${esc(String(d.id))}'])">⚠ 對外回覆未轉入總表 ${this.replyPendCount(d)} 條・點此轉入</span></div>`:""}</td>
+        <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${(this._shareCount(d)>0)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${this._shareCount(d)>1?" ×"+this._shareCount(d):""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span>${(typeof Role!=="undefined"&&Role.isAdmin())?`<button type="button" class="btn sm" style="padding:0 6px;margin-left:4px;font-size:10.5px;line-height:1.5" title="這筆不需要對外回覆：刪除對外回覆案件（會先下載 JSON 留存）" onclick="event.stopPropagation();Air.cancelExtReply('${esc(String(d.id))}')">✕ 取消</button>`:""}</div>`:""}${this.replyPendCount(d)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;cursor:pointer" title="對外回覆內容已更新，但還沒轉入缺失紀錄總表（點一下只更新總表的對外回覆版欄位）" onclick="event.stopPropagation();Air.pushReplyOnly(['${esc(String(d.id))}'])">⚠ 對外回覆未轉入總表 ${this.replyPendCount(d)} 條・點此轉入</span></div>`:""}</td>
         <td>${d.reviewed?'<span style="font-size:11.5px;font-weight:700;color:var(--ok)">✅ 已確認</span>':'<span style="font-size:11.5px;color:var(--ink-3)">⬜ 尚未確認</span>'}</td>
         <td><b>${esc(shipFullLabel(d.ship))}</b></td>
         <td style="font-family:var(--mono);white-space:nowrap">${esc(normDateSlash(d.date))}</td>
