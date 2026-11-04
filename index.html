@@ -3649,7 +3649,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <th style="cursor:pointer" onclick="Air.sortBy('place')">檢查地點 <span id="sh-air-place"></span></th>
               <th style="cursor:pointer" onclick="Air.sortBy('ndef')">缺失數 <span id="sh-air-ndef"></span></th>
               <th style="cursor:pointer" onclick="Air.sortBy('npos')">正評數 <span id="sh-air-npos"></span></th>
-              <th style="cursor:pointer" onclick="Air.sortBy('createdBy')">匯入方式／匯入者／時間 <span id="sh-air-createdBy"></span></th>
+              <th style="cursor:pointer;width:120px" onclick="Air.sortBy('createdBy')">匯入方式 <span id="sh-air-createdBy"></span></th>
             </tr></thead><tbody id="air-tbody"></tbody></table>
           </div>
           <div class="pager" id="air-pager"></div>
@@ -6855,7 +6855,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <div class="mb">
       <p class="hint" style="margin-bottom:10px">將本筆填單的缺失（<span id="air-sw-count"></span> 項）做成自查 Checklist，一條連結發全船隊，船上自行選船名填答。不影響本筆填單原本的內容或轉入狀態。</p>
       <p class="hint" id="air-sw-src-note" style="margin-bottom:10px"></p>
-      <div style="font-weight:700;font-size:13px;margin:4px 0 6px">💬 補充說明給船上（選填）<span class="hint" style="font-weight:400">：針對某幾條缺失加說明或附件（例如照片、改善要求），船上填答時會看到</span></div>
+      <div style="font-weight:700;font-size:13px;margin:4px 0 6px">💬 補充說明給船上（選填）<span class="hint" style="font-weight:400">：針對某幾條缺失加說明或附件（例如照片、改善要求），船上填答時會看到</span><button type="button" class="btn sm" id="air-sw-fullall" style="float:right" onclick="Air.toggleShareFullAll()">▾ 全部展開</button></div>
       <div id="air-sw-items" style="max-height:44vh;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:12px"></div>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="air-sw-limit" onchange="Air.toggleShareLimitShips()"> 限定只開放特定船舶填答（不勾＝全船隊都能選）</label>
       <div class="msel" id="ms-air-sw-ship" style="display:none;margin-top:8px"></div>
@@ -14290,6 +14290,7 @@ const Todo={
     else return [];
     items=items.concat(this.forAirAssigned());
     items=items.concat(this.forReplyPend());
+    items=items.concat(this.forNoShare());
     items=items.concat(this.forRefDl());
     /* 對應頁面已被隱藏的待辦不再提示 —— 功能都看不到了還一直催人去做，
        只會讓人困惑（船上看不到「航次報表收件」，卻被提醒有表單未上傳）。 */
@@ -14311,6 +14312,18 @@ const Todo={
     const n=recs.reduce((s,d)=>s+Air.replyPendCount(d),0);
     return [{icon:"📥",tab:"air",text:`對外回覆未轉入缺失紀錄總表：${recs.length} 筆填單、共 ${n} 條（${recs.slice(0,3).map(d=>`${d.ship} ${d.date}`).join("、")}${recs.length>3?"…":""}）`,
       action:()=>goToTab("air",()=>{try{Air.showList();}catch(e){}if(Air.ms&&Air.ms.status){Air.ms.status.set([Air.PEND_LABEL]);}Air.page=1;Air.renderList();})}];
+  },
+  /* 已轉入缺失紀錄、但還沒分享給船隊自查（2026-11-04）：對象同 forReplyPend（海技負責人，沒填才退回 Owner／匯入者） */
+  forNoShare(){
+    if(typeof Air==="undefined"||!(Role.isAdmin&&Role.isAdmin()))return [];
+    if(!Air._shareIds){Air._loadShareIds();return [];}
+    const me=String(Role.personName?Role.personName()||"":"").trim();
+    const mgrOf=code=>{const s=(typeof SHIPINFO!=="undefined")?SHIPINFO.find(x=>x.code===code):null;return s?String(s.mgr||"").trim():"";};
+    const recs=(App.air||[]).filter(d=>Air.needShare(d))
+      .filter(d=>{const m=mgrOf(d.ship);return m?(!!me&&m===me):(Role.isOwner()||(!!me&&String(d.createdBy||"").includes(me)));});
+    if(!recs.length)return [];
+    return [{icon:"📤",tab:"air",text:`缺失已轉入、尚未分享船隊自查：${recs.length} 筆（${recs.slice(0,3).map(d=>`${d.ship} ${d.itype||""} ${d.date}`).join("、")}${recs.length>3?"…":""}）`,
+      action:()=>goToTab("air",()=>{try{Air.showList();}catch(e){}if(Air.ms&&Air.ms.status){Air.ms.status.set([Air.NOSHARE_LABEL]);}Air.page=1;Air.renderList();})}];
   },
   /* 船舶平台參考文件：過了定期更新日（例 IMO 4/30、7/31、10/31）版本還沒換，提醒 Owner／管理員去官方網站確認新版（2026-11-03） */
   forRefDl(){
@@ -26020,7 +26033,7 @@ const Air={
       const known=order.filter(x=>set.has(x));
       const others=[...set].filter(x=>!order.includes(x)&&x!=="已轉全部").sort();
       const tail=set.has("已轉全部")?["已轉全部"]:[];
-      return [...known,...others,...tail,Air.PEND_LABEL];
+      return [...known,...others,...tail,Air.PEND_LABEL,Air.NOSHARE_LABEL];
     },()=>{this.page=1;this.renderList();});
     this.ms.reviewed=MSel("ms-air-reviewed","督導確認",()=>["已確認","尚未確認"],()=>{this.page=1;this.renderList();});
     if(typeof AirQueue!=="undefined")setTimeout(()=>AirQueue.refresh(),1500); // 延後執行，等 Cloud.init() 連線完成
@@ -26052,7 +26065,7 @@ const Air={
       // 「⚠ 對外回覆未轉入」是額外條件：有勾它時，符合它或符合其他勾選狀態的都列出
       if(this.ms.status&&this.ms.status.sel&&this.ms.status.sel.size){
         const sel=this.ms.status.sel,pend=this.replyPendCount(d)>0;
-        if(!(sel.has(this.statusText(d))||(pend&&sel.has(this.PEND_LABEL))))return false;
+        if(!(sel.has(this.statusText(d))||(pend&&sel.has(this.PEND_LABEL))||(sel.has(this.NOSHARE_LABEL)&&this.needShare(d))))return false;
       }
       if(this.ms.reviewed&&!this.ms.reviewed.pass(d.reviewed?"已確認":"尚未確認"))return false;
       return true;
@@ -27450,12 +27463,14 @@ const Air={
   renderShareSupp(){
     const el=$("#air-sw-items");if(!el)return;
     const rows=this._pendingShareRows||[],S=this._shareSupp||[];
+    const fb=$("#air-sw-fullall");if(fb)fb.textContent=S.length&&S.every(s=>s.full)?"▴ 全部收合":"▾ 全部展開";
     el.innerHTML=rows.map((r,i)=>{const s=S[i]||{};const has=(s.text||"").trim()||(s.files||[]).length;
       const txt=String(r.detail||r.actual||"").replace(/\s+/g," ");
       return `<div style="padding:8px 10px;border-bottom:1px solid var(--line);${has?"background:#fffbea":""}">
         <div style="display:flex;gap:8px;align-items:flex-start">
           <b style="white-space:nowrap">${i+1}.</b>
-          <div style="flex:1;min-width:0;font-size:13px"><b>${esc(r.code?"CODE "+r.code:"")}</b>${r._src?` <span class="hint">${esc(r._src)}</span>`:""}<div style="color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(txt)}">${esc(txt)}</div></div>
+          <div style="flex:1;min-width:0;font-size:13px;cursor:pointer" onclick="Air._shareSupp[${i}].full=!Air._shareSupp[${i}].full;Air.renderShareSupp()" title="點一下展開／收合缺失內容"><b>${s.full?"▾":"▸"} ${esc(r.code?"CODE "+r.code:"")}</b>${r._src?` <span class="hint">${esc(r._src)}</span>`:""}
+            ${s.full?`<div style="color:var(--ink-2);white-space:pre-wrap;line-height:1.6;margin-top:2px">${esc(r.detail||"")}${r.actual?`<div style="margin-top:4px"><b>實際情況：</b>${esc(r.actual)}</div>`:""}</div>`:`<div style="color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(txt)}</div>`}</div>
           <button class="btn sm${has?" primary":""}" style="white-space:nowrap" onclick="Air.toggleShareSupp(${i})">${has?"✏ 已補充":"＋ 補充"}</button>
         </div>
         ${s.open?`<div style="margin:8px 0 0 22px">
@@ -27467,6 +27482,7 @@ const Air={
           </div></div>`:""}
       </div>`;}).join("")||`<div class="hint" style="padding:10px">（無）</div>`;
   },
+  toggleShareFullAll(){const S=this._shareSupp||[];const on=!S.every(s=>s.full);S.forEach(s=>s.full=on);this.renderShareSupp();},
   toggleShareSupp(i){const s=this._shareSupp[i];if(!s)return;s.open=!s.open;this.renderShareSupp();if(s.open)setTimeout(()=>{const t=$("#air-sw-supp-"+i);if(t)t.focus();},0);},
   async addShareSuppFiles(i,inp){
     const s=this._shareSupp[i];const files=[...(inp.files||[])];inp.value="";if(!s)return;
@@ -27520,6 +27536,7 @@ const Air={
       return;
     }
     recs.forEach(x=>{x.sharedCheckCampaignIds=[...(x.sharedCheckCampaignIds||[]),campaignId];});
+    if(this._shareIds)this._shareIds.add(String(campaignId)); // 「⚠ 尚未分享自查」提醒馬上消失，不用等 60 秒後重新讀雲端
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow(); // 立刻上傳「已分享自查」標記（2026-10-21：SA 那筆分享後標記沒傳上去）
     if(this._shareSrc)recs.forEach(x=>{const k=String(x.id);this._shareSrc.set(k,(this._shareSrc.get(k)||0)+1);});
     if(typeof Audit!=="undefined")Audit.log("新增","分享自查",`由AIR#${recs.map(x=>x.id).join("、#")}（${recs.map(x=>x.ship+" "+x.date).join("、")}）分享 ${rows.length} 項缺失，建立分享自查活動 #${campaignId}${shipScope?`（限定 ${shipScope.length} 艘船）`:"（全船隊）"}`);
@@ -27623,6 +27640,34 @@ const Air={
     if(d.importSource==="quick")return wrap("海技快速新增（零缺失）");
     // 早期（這個欄位上線前）建立的舊資料沒有 importSource，退回只顯示建立者姓名／時間，不誤判成任何一種來源。
     return [who,when].filter(Boolean).join(" · ");
+  },
+  /* 清單用的精簡版（2026-11-04 使用者覺得欄位太寬）：只顯示方式＋匯入者姓名，完整的身分／時間放在滑鼠提示 */
+  originShort(d){
+    const M={excel:"Excel匯入",word:"Word匯入",json:"JSON匯入",queue:"線上填單",manual:"手動新增",quick:"快速新增"};
+    const who=String(d.createdBy||"").replace(/[（(].*?[)）]/g,"").trim();
+    const when=d.createdAt?new Date(d.createdAt).toLocaleString("zh-TW",{hour12:false}):"";
+    const tip=[String(d.createdBy||""),when].filter(Boolean).join(" · ");
+    return `<span title="${esc(tip)}">${esc(M[d.importSource]||"")}${who?`<div class="hint" style="font-size:10.5px">${esc(who)}</div>`:""}</span>`;
+  },
+  /* 2026-11-04「轉入系統後常忘了分享自查」：有缺失、已轉缺失紀錄、近 90 天的檢查、還沒分享過、也沒標「不需分享」→ 提醒。
+     _shareIds（雲端活動清單）還沒載入前不判斷，避免一打開整排誤報。 */
+  SHARE_REMIND_DAYS:90,
+  NOSHARE_LABEL:"📤 尚未分享自查",
+  needShare(d){
+    if(!d||d.noShare||!d.usedDef||!this._shareIds)return false;
+    if(!(d.defects||[]).some(r=>r.detail||r.actual))return false;
+    const t=+new Date(normDateSlash(d.date).replace(/\//g,"-"));
+    if(t&&Date.now()-t>this.SHARE_REMIND_DAYS*86400000)return false;
+    return this._shareCount(d)===0;
+  },
+  setNoShare(id,on){
+    if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅限 Owner／管理員");return;}
+    const d=App.air.find(x=>String(x.id)===String(id));if(!d)return;
+    if(on){if(!confirm(`這筆（${shipFullLabel(d.ship)} ${d.date} ${d.itype||""}）的缺失不需要分享給船隊自查？\n之後就不會再提醒。`))return;d.noShare=true;}
+    else delete d.noShare;
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
+    if(typeof Audit!=="undefined")Audit.log("修改","填單紀錄",`AIR#${d.id}（${d.ship} ${d.date}）${on?"標記不需分享自查":"取消「不需分享」標記"}`);
+    this.renderList();if(typeof Todo!=="undefined")Todo.render();
   },
   toggleAll(on){this.selected=on?new Set(this.filtered().map(d=>String(d.id))):new Set();this.renderList();},
   clearSel(){this.selected=new Set();this.renderList();},
@@ -27783,6 +27828,7 @@ const Air={
         if(pruned){App.saveAll();if(typeof Audit!=="undefined")Audit.log("整理","分享自查標記",`清除 ${pruned} 個已不存在的分享活動紀錄`);}
       }
       this.renderList();
+      if(typeof Todo!=="undefined")try{Todo.render();}catch(e){}
     }).catch(()=>{});
   },
   renderList(){
@@ -27815,7 +27861,7 @@ const Air={
           ${(canPush&&d.defects&&d.defects.length)?`<button class="btn sm" style="background:#e4f1f2;border-color:#8cc3ca;color:#16606b;font-weight:700" onclick="Air.openShareCheckWizard(${d.id})" title="建立缺失分享：把這筆的缺失做成一條連結，分享給船隊自查">分</button>`:""}
           ${canPush?`<button class="btn sm dark" onclick="Air.openPushModal(${d.id})" title="轉入檢查紀錄／缺失紀錄總表／正面評價，可複選">轉</button>`:""}
         </td>
-        <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${(this._shareCount(d)>0)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${this._shareCount(d)>1?" ×"+this._shareCount(d):""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span>${(typeof Role!=="undefined"&&Role.isAdmin())?`<button type="button" class="btn sm" style="padding:0 6px;margin-left:4px;font-size:10.5px;line-height:1.5" title="這筆不需要對外回覆：刪除對外回覆案件（會先下載 JSON 留存）" onclick="event.stopPropagation();Air.cancelExtReply('${esc(String(d.id))}')">✕ 取消</button>`:""}</div>`:""}${this.replyPendCount(d)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;cursor:pointer" title="對外回覆內容已更新，但還沒轉入缺失紀錄總表（點一下只更新總表的對外回覆版欄位）" onclick="event.stopPropagation();Air.pushReplyOnly(['${esc(String(d.id))}'])">⚠ 對外回覆未轉入總表 ${this.replyPendCount(d)} 條・點此轉入</span></div>`:""}</td>
+        <td><span style="font-size:11.5px;font-weight:700;color:${stColor}">${st}</span>${this.needShare(d)?`<div style="margin-top:2px;white-space:nowrap"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;${canPush?"cursor:pointer":""}" title="已轉入缺失紀錄，但還沒分享給船隊自查${canPush?"（點一下建立分享）":""}" ${canPush?`onclick="event.stopPropagation();Air.openShareCheckWizard(${d.id})"`:""}>⚠ 尚未分享自查</span>${canPush?`<button type="button" class="btn sm" style="padding:0 6px;margin-left:4px;font-size:10.5px;line-height:1.5" title="這筆不需要分享自查，不再提醒" onclick="event.stopPropagation();Air.setNoShare('${esc(String(d.id))}',true)">不需分享</button>`:""}</div>`:""}${d.noShare&&this._shareCount(d)===0&&canPush?`<div style="margin-top:2px"><span class="hint" style="font-size:10.5px;cursor:pointer" title="點一下取消「不需分享」，恢復提醒" onclick="event.stopPropagation();Air.setNoShare('${esc(String(d.id))}',false)">⊘ 不需分享自查</span></div>`:""}${(this._shareCount(d)>0)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#16606b;background:#e4f1f2;border-radius:10px;padding:1px 7px">📤 已分享自查${this._shareCount(d)>1?" ×"+this._shareCount(d):""}</span></div>`:""}${(this._extIds&&this._extIds.has(String(d.id)))?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#7a5a10;background:#fff3cd;border-radius:10px;padding:1px 7px">🌐 已對外回覆</span>${(typeof Role!=="undefined"&&Role.isAdmin())?`<button type="button" class="btn sm" style="padding:0 6px;margin-left:4px;font-size:10.5px;line-height:1.5" title="這筆不需要對外回覆：刪除對外回覆案件（會先下載 JSON 留存）" onclick="event.stopPropagation();Air.cancelExtReply('${esc(String(d.id))}')">✕ 取消</button>`:""}</div>`:""}${this.replyPendCount(d)?`<div style="margin-top:2px"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#d4691b;border-radius:10px;padding:1px 7px;cursor:pointer" title="對外回覆內容已更新，但還沒轉入缺失紀錄總表（點一下只更新總表的對外回覆版欄位）" onclick="event.stopPropagation();Air.pushReplyOnly(['${esc(String(d.id))}'])">⚠ 對外回覆未轉入總表 ${this.replyPendCount(d)} 條・點此轉入</span></div>`:""}</td>
         <td>${d.reviewed?'<span style="font-size:11.5px;font-weight:700;color:var(--ok)">✅ 已確認</span>':'<span style="font-size:11.5px;color:var(--ink-3)">⬜ 尚未確認</span>'}</td>
         <td><b>${esc(shipFullLabel(d.ship))}</b></td>
         <td style="font-family:var(--mono);white-space:nowrap">${esc(normDateSlash(d.date))}</td>
@@ -27823,7 +27869,7 @@ const Air={
         <td class="col-narrow">${esc(d.place)}</td>
         <td style="text-align:center">${d.ndef??0}</td>
         <td style="text-align:center">${d.npos??0}</td>
-        <td class="col-narrow" style="font-size:11.5px;line-height:1.5">${this.originLabel(d)}</td>
+        <td style="font-size:11px;line-height:1.4;max-width:120px;width:120px">${this.originShort(d)}</td>
       </tr>`;
     }).join("");
     const pg2=$("#air-pager");
