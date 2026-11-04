@@ -114,6 +114,7 @@ tr.done td{background:#eaf5ee}
     <span style="display:flex;flex-direction:column;gap:6px;align-items:stretch;flex:none">
       <a class="btn sm" href="./" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:#fff">← 回船舶檢查暨缺失管理系統</a>
       <a class="btn sm" href="intaudit.html" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:#fff" title="督導／稽核員：回到內部檢查缺失登錄">← 回內部檢查缺失登錄</a>
+      <button type="button" class="btn sm" id="slogBtn" onclick="SLog.open()" style="display:none;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35);color:#ffd9a8" title="只有 Owner 看得到">📜 操作紀錄</button>
       <a class="btn sm" href="selfcheck-share-guide.html" target="_blank" rel="noopener" style="background:#fff;border-color:#fff;color:var(--navy)" title="怎麼進來、怎麼新建自訂自查、怎麼看各船自查情形">📖 操作手冊</a>
     </span>
     <div style="flex:1;min-width:240px">
@@ -585,6 +586,7 @@ async function toggleActive(id){
   try{
     await api(`${CAMPAIGN_TABLE}?id=eq.${id}`,{method:"PATCH",headers:authHeaders({"Prefer":"return=minimal"}),body:JSON.stringify({active:next})});
     c.active=next;
+    SLog.log(next?"重新啟用":"結束","活動",`「${c.title||id}」`);
     notify(next?"✓ 已重新啟用，船上又可以打開連結繼續填答":"✓ 已結束活動（資料仍保留，船上打開連結會看到已結束提示，不能再填答）","ok2");
     renderListView();
     if(curCampaign&&String(curCampaign.id)===String(id))curCampaign.active=next;
@@ -598,6 +600,7 @@ async function deleteCampaign(id){
   try{
     await api(`${RESPONSE_TABLE}?campaign_id=eq.${id}`,{method:"DELETE",headers:authHeaders()});
     await api(`${CAMPAIGN_TABLE}?id=eq.${id}`,{method:"DELETE",headers:authHeaders()});
+    SLog.log("刪除","活動",`「${c.title||id}」（含 ${st.started} 艘船的填答）`);
     notify("✓ 已刪除活動","ok2");
     await loadCampaignList();
   }catch(e){notify("⚠ 刪除失敗："+e.message,"err");}
@@ -702,6 +705,7 @@ async function deleteResponse(ship){
     await api(`${RESPONSE_TABLE}?id=eq.${resp.id}`,{method:"DELETE",headers:authHeaders()});
     responses=responses.filter(r=>r.id!==resp.id);
     allResponses=allResponses.filter(r=>r.id!==resp.id);
+    SLog.log("刪除","船舶填答",`${shipLabel(ship)}／「${(curCampaign&&curCampaign.title)||""}」`);
     notify("✓ 已刪除該船填答","ok2");
     renderTable();
   }catch(e){notify("⚠ 刪除失敗："+e.message,"err");}
@@ -869,7 +873,7 @@ function toggleDetail(ship){
           ${it.naNote?`<div style="margin-top:2px"><b>不適用原因：</b>${esc(it.naNote)}</div>`:""}
           ${it.actual?`<div><b>打算怎麼處理：</b>${esc(it.actual)}</div>`:""}
           ${it.closeNote?`<div style="margin-top:2px"><b>改善情形說明：</b>${esc(it.closeNote)}</div>`:""}
-          ${["photosBefore","photosAfter"].map(k=>(it[k]||[]).length?`<div style="margin-top:4px"><b>${k==="photosBefore"?"📷 現況照片":"📷 改善後照片"}：</b><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">${it[k].map(ph=>`<a href="${esc(ph.url)}" target="_blank" rel="noopener"><img src="${esc(ph.url)}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line)"></a>`).join("")}</div></div>`:"").join("")}
+          ${["photosBefore","photosAfter"].map(k=>(it[k]||[]).length?`<div style="margin-top:4px"><b>${k==="photosBefore"?"📷 現況照片／PDF":"📷 改善後照片／PDF"}：</b><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">${it[k].map(ph=>`<a href="${esc(ph.url)}" target="_blank" rel="noopener" title="${esc(ph.name||"")}">${/pdf/i.test(ph.type||"")||/\.pdf$/i.test(ph.name||ph.path||"")?`<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:64px;height:64px;border-radius:6px;border:1px solid var(--line);background:#fdecea;color:#b3261e;font-size:18px;line-height:1.2">📄<b style="font-size:11px">PDF</b></span>`:`<img src="${esc(ph.url)}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">`}</a>`).join("")}</div></div>`:"").join("")}
           ${it.closed&&it.closedAt?`<div class="hint">結案日期：${esc(it.closedAt)}</div>`:""}
           ${it.status==="similar"?`<div style="margin-top:6px;display:flex;align-items:center;gap:6px">
             <label class="hint" style="margin:0">🗓 追蹤期限：</label>
@@ -890,6 +894,7 @@ async function setTrackDue(ship,i,val){
   items[i].trackDue=val;
   try{
     await api(`${RESPONSE_TABLE}?id=eq.${resp.id}`,{method:"PATCH",headers:authHeaders({"Prefer":"return=minimal"}),body:JSON.stringify({items,updated_at:Date.now()})});
+    SLog.log("修改","追蹤期限",`${shipLabel(ship)}／「${(curCampaign&&curCampaign.title)||""}」第 ${i+1} 項：${val||"清除"}`);
     notify(val?"✓ 已設定追蹤期限":"✓ 已清除追蹤期限","ok2");
     const ar=allResponses.find(r=>r.id===resp.id);if(ar)ar.items=items;
   }catch(e){notify("⚠ 更新失敗："+e.message,"err");}
@@ -1088,6 +1093,7 @@ const SC={
     const now=Date.now();
     try{await api("app_db?on_conflict=k",{method:"POST",headers:authHeaders({"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.DRAFT_PREFIX+id,updated:now,payload:{id,...st,by,updatedAt:now}}])});}
     catch(e){notify("⚠ 草稿儲存失敗："+e.message,"err");return;}
+    SLog.log(this._draftId?"修改":"新增","自訂自查草稿",`「${st.title||"（未命名）"}」`,by);
     this._draftId=id;this._savedAt=now;this.draftSt();document.getElementById("scFormHead").textContent="✏ 編輯草稿";
     notify("✓ 草稿已儲存","ok2");this.loadDrafts(true);
   },
@@ -1112,7 +1118,7 @@ const SC={
     try{await api("app_db?on_conflict=k",{method:"POST",headers:authHeaders({"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.DRAFT_PREFIX+id,updated:Date.now(),payload:{id,deleted:true,deletedAt:Date.now(),by:this.by()}}])});}
     catch(e){if(!silent)notify("⚠ 刪除失敗："+e.message,"err");return;}
     if(String(this._draftId)===String(id)&&!silent)await this.mount(null);
-    if(!silent)notify("已刪除草稿","ok2");this.loadDrafts(true);
+    if(!silent){notify("已刪除草稿","ok2");SLog.log("刪除","自訂自查草稿",`#${id}`);}this.loadDrafts(true);
   },
   build(){
     if(this._uploading){notify("⚠ 附件還在上傳，請稍候","err");return null;}
@@ -1173,6 +1179,7 @@ const SC={
       catch(e){lastErr=e;if(!/409|23505|duplicate/i.test(e.message))break;await new Promise(r=>setTimeout(r,30));}
     }
     if(!id){notify("⚠ 發佈失敗："+(lastErr?lastErr.message:""),"err");return;}
+    SLog.log("發佈","自訂自查",`「${P.title}」${P.items.length} 題，${P.scope?"發給 "+P.scope.length+" 艘船":"全船隊"}（活動 #${id}）`,by);
     const link=`${SHIP_SITE}submit-selfcheck-share.html?cid=${id}`;
     const text=`${P.title}\n填答連結：${link}\n\n各輪也可從「船舶檢查填報平台」→ 上方選單「🔍 分享缺失自查」，查看本船各項自查的填單情形（是否已送出、需追蹤未結案項目）：\n${SHIP_SITE}`;
     safeCopyText(text,"✓ 已複製活動名稱＋填答連結");
@@ -1182,6 +1189,40 @@ const SC={
     await loadCampaignList();setSubTab("list");
   }
 };
+/* ══ 📜 操作紀錄（2026-11-04）：寫進主系統同一張 audit_log（對象以「分享自查」開頭，主系統「資料管理 → 操作紀錄查詢」也看得到）。
+   查看只限 Owner：本頁沒有登入，用主系統／內部檢查缺失登錄的登入身份（vsm_identity_v1，8 小時）判斷。 ══ */
+const SLog={
+  rows:[],TIER:{owner:"Owner",admin:"管理員",op1:"督導",op2:"船舶",op3:"其他部門"},
+  ident(){try{const s=JSON.parse(localStorage.getItem("vsm_identity_v1"));return s&&s.name&&s.exp>Date.now()?s:null;}catch(e){return null;}},
+  isOwner(){const s=this.ident();return !!(s&&s.tier==="owner");},
+  user(fallback){const s=this.ident();return s?`${s.name}（${this.TIER[s.tier]||s.tier}）`:(fallback||((typeof SC!=="undefined"&&SC.by())||"未具名"))+"（未登入）";},
+  log(action,target,summary,by){
+    const e={ts:Date.now(),usr:this.user(by),action,target:"分享自查－"+target,summary:String(summary||"").slice(0,180)};
+    api("audit_log",{method:"POST",headers:authHeaders({"Prefer":"return=minimal"}),body:JSON.stringify([e])}).catch(err=>console.warn("audit log",err));
+  },
+  initBtn(){const b=document.getElementById("slogBtn");if(b)b.style.display=this.isOwner()?"":"none";},
+  close(){const m=document.getElementById("slogModal");if(m)m.classList.remove("show");},
+  async open(){
+    if(!this.isOwner()){notify("⚠ 操作紀錄只限 Owner 查看（請先在主系統以 Owner 身份登入）","err");return;}
+    let m=document.getElementById("slogModal");
+    if(!m){m=document.createElement("div");m.className="modal-bg";m.id="slogModal";m.innerHTML=`<div class="modal-box" style="max-width:980px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><b style="font-size:15px;color:var(--navy)">📜 分享自查　操作紀錄</b>
+        <input type="text" id="slogQ" placeholder="搜尋人員／動作／內容" oninput="SLog.render()" style="flex:1;min-width:180px;padding:6px 10px;font-size:13px">
+        <span class="hint" id="slogStat"></span><button class="btn sm" onclick="SLog.open()">🔄 重新載入</button><button class="btn sm" onclick="SLog.close()">關閉</button></div>
+      <div style="overflow:auto;flex:1"><table><thead><tr><th>時間</th><th>人員</th><th>動作</th><th>對象</th><th>內容</th></tr></thead><tbody id="slogBody"></tbody></table></div></div>`;document.body.appendChild(m);}
+    m.classList.add("show");document.getElementById("slogBody").innerHTML=`<tr><td colspan="5" class="hint">載入中…</td></tr>`;
+    try{this.rows=await api("audit_log?select=ts,usr,action,target,summary&target=like."+encodeURIComponent("分享自查*")+"&order=ts.desc&limit=1000")||[];}
+    catch(e){this.rows=[];notify("⚠ 載入失敗："+e.message,"err");}
+    this.render();
+  },
+  render(){
+    const q=(document.getElementById("slogQ").value||"").trim().toLowerCase();
+    const list=this.rows.filter(e=>!q||[e.usr,e.action,e.target,e.summary].join(" ").toLowerCase().includes(q));
+    document.getElementById("slogStat").textContent=`共 ${list.length} 筆（最近 1000 筆內）`;
+    document.getElementById("slogBody").innerHTML=list.map(e=>`<tr><td style="white-space:nowrap;font-size:12px">${esc(new Date(+e.ts).toLocaleString("zh-TW",{hour12:false}))}</td><td style="white-space:nowrap"><b>${esc(e.usr)}</b></td><td style="white-space:nowrap;${e.action==="刪除"?"color:var(--bad);font-weight:700":""}">${esc(e.action)}</td><td style="white-space:nowrap">${esc(String(e.target||"").replace(/^分享自查－?/,"")||"分享自查")}</td><td>${esc(e.summary)}</td></tr>`).join("")||`<tr><td colspan="5" class="hint">尚無紀錄</td></tr>`;
+  }
+};
+SLog.initBtn();
 if(/^#new$/.test(location.hash||"")){setHash("");setTimeout(()=>{setSubTab("case");SC.ctab("new");},0);}
 loadCampaignList();
 /* 打開頁面時已自動整理一次；之後只在「離開又回到這個分頁」且距上次整理超過 60 秒時才自動再整理，
