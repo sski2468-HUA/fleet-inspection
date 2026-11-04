@@ -925,6 +925,33 @@ const SC={
   },
   label(s){return [s.zh,s.name].filter(Boolean).join(" ")||s.code;},
   by(){try{return localStorage.getItem(this.BYKEY)||"";}catch(e){return "";}},
+  /* 建立者：先選部門再選人（名單＝主系統登入名單 app_db roster，海技在主系統「資料管理」維護）；記住上次選的 */
+  _roster:null,DEPTKEY:"scs_creator_dept",
+  async roster(){
+    if(this._roster)return this._roster;
+    try{const r=(await api("app_db?select=payload&k=eq.roster")||[])[0];this._roster=(r&&Array.isArray(r.payload)?r.payload:[]).filter(x=>x&&x.name&&!["船舶","訪客"].includes(x.dept)&&x.tier!=="op2");}
+    catch(e){this._roster=[];}
+    return this._roster;
+  },
+  async byPickerHtml(){
+    const R=await this.roster();
+    if(!R.length)return `<input type="text" id="scBy" value="${esc(this.by())}" placeholder="例：潘獻波" style="max-width:260px">`; // 名單讀不到時退回手動輸入
+    const depts=[...new Set(R.map(x=>x.dept||"其他"))];
+    let d0="";try{d0=localStorage.getItem(this.DEPTKEY)||"";}catch(e){}
+    const by0=this.by();
+    if(by0&&!R.some(x=>(x.dept||"其他")===d0&&x.name===by0)){const hit=R.find(x=>x.name===by0);d0=hit?(hit.dept||"其他"):d0;}
+    return `<div style="display:flex;gap:8px;flex-wrap:wrap;max-width:460px">
+      <select id="scByDept" style="flex:1;min-width:150px" onchange="SC.fillBy()"><option value="">選擇部門…</option>${depts.map(d=>`<option ${d===d0?"selected":""}>${esc(d)}</option>`).join("")}</select>
+      <select id="scBy" style="flex:1;min-width:150px" onchange="SC.rememberBy()"></select></div>`;
+  },
+  fillBy(keep){
+    const ds=document.getElementById("scByDept"),ps=document.getElementById("scBy");if(!ds||!ps||ps.tagName!=="SELECT")return;
+    const d=ds.value,names=(this._roster||[]).filter(x=>(x.dept||"其他")===d).map(x=>x.name);
+    const cur=keep||this.by();
+    ps.innerHTML=`<option value="">${d?"選擇人員…":"先選部門"}</option>`+names.map(n=>`<option ${n===cur?"selected":""}>${esc(n)}</option>`).join("");
+    try{localStorage.setItem(this.DEPTKEY,d);}catch(e){}
+  },
+  rememberBy(){const v=(document.getElementById("scBy").value||"").trim();try{localStorage.setItem(this.BYKEY,v);}catch(e){}},
   async enter(){if(!document.getElementById("scTitle"))await this.mount(null);this.loadDrafts();},
   ctab(v){
     document.querySelectorAll("#caseCard [data-ct]").forEach(b=>b.classList.toggle("on",b.dataset.ct===v));
@@ -938,7 +965,7 @@ const SC={
     this._files=(d.files||[]).slice();
     const fleet=await this.fleet(),now=new Date();
     document.getElementById("scForm").innerHTML=`
-      <label class="f">建立者（您的姓名）</label><input type="text" id="scBy" value="${esc(this.by())}" placeholder="例：潘獻波" style="max-width:260px" oninput="try{localStorage.setItem(SC.BYKEY,this.value.trim())}catch(e){}">
+      <label class="f">建立者（先選部門，再選人）</label>${await this.byPickerHtml()}
       <label class="f">活動名稱</label><input type="text" id="scTitle" value="${esc(d.title||"")}" placeholder="例：SCBA 呼吸器鋼瓶充氣壓力自查（${now.getFullYear()}/${now.getMonth()+1}）">
       <label class="f">自查說明（為什麼要做這項自查；顯示在船上填答頁最上方，只出現一次）</label>
       <textarea id="scBg" rows="6" placeholder="例：近期上船訪查發現…；依 CDI 要求…；請各輪排查並回覆。">${esc(d.bg||"")}</textarea>
@@ -965,6 +992,7 @@ const SC={
       </div>`;
     const to=d.to||"all";const r=document.querySelector(`input[name="scTo"][value="${to}"]`);if(r)r.checked=true;
     if(to==="pick"&&Array.isArray(d.ships)){const set=new Set(d.ships);document.querySelectorAll("#scShips input").forEach(x=>x.checked=set.has(x.value));}
+    this.fillBy();
     this.renderQ();this.renderFiles();this.targetUI(to==="pick");this.draftSt();
     document.getElementById("scFormHead").textContent=this._draftId?"✏ 編輯草稿":"📝 新增自訂自查";
   },
@@ -1025,13 +1053,29 @@ const SC={
       files:this._files.map(f=>({name:f.name,url:f.url,path:f.path,type:f.type,size:f.size})),to:m,
       ships:m==="pick"?[...document.querySelectorAll("#scShips input:checked")].map(x=>x.value):[]};
   },
-  needBy(){const v=(document.getElementById("scBy").value||"").trim();if(!v){notify("⚠ 請先填「建立者（您的姓名）」","err");document.getElementById("scBy").focus();return "";}try{localStorage.setItem(this.BYKEY,v);}catch(e){}return v;},
+  needBy(){const v=(document.getElementById("scBy").value||"").trim();if(!v){notify("⚠ 請先選「建立者」（部門→人員）","err");document.getElementById("scBy").focus();return "";}try{localStorage.setItem(this.BYKEY,v);}catch(e){}return v;},
   async saveDraft(){
     if(this._uploading){notify("⚠ 附件還在上傳，請稍候","err");return;}
     const by=this.needBy();if(!by)return;
     const st=this.state();
     if(!st.title&&!st.bg.trim()&&!st.q.some(q=>q.topic||q.key)){notify("⚠ 還沒填任何內容","err");return;}
-    const id=this._draftId||Date.now(),now=Date.now();
+    // 2026-11-04 多人同時使用的保護：
+    // ① 新草稿：編號＝時間＋亂數，存之前先確認雲端沒有同編號，避免兩人同一瞬間新建互相蓋掉
+    // ② 編輯既有草稿：存之前看雲端版本，若別人在我打開之後存過，先提醒再決定要不要覆蓋
+    let id=this._draftId;
+    try{
+      if(!id){
+        for(let t=0;t<5;t++){const c=Date.now()*1000+Math.floor(Math.random()*1000);
+          const ex=await api(`app_db?select=k&k=eq.${this.DRAFT_PREFIX}${c}`)||[];if(!ex.length){id=c;break;}}
+        if(!id)throw new Error("無法產生草稿編號，請再按一次");
+      }else{
+        const cur=(await api(`app_db?select=payload&k=eq.${this.DRAFT_PREFIX}${id}`)||[])[0];
+        const p=cur&&cur.payload;
+        if(p&&p.deleted){if(!confirm("這則草稿已經被刪除或發佈了。\n要另存成一則新草稿嗎？"))return;id=null;this._draftId=null;return this.saveDraft();}
+        if(p&&p.updatedAt&&this._savedAt&&p.updatedAt>this._savedAt&&!confirm(`這則草稿在你打開之後，已被「${p.by||"其他人"}」於 ${new Date(p.updatedAt).toLocaleString("zh-TW",{hour12:false})} 修改過。\n\n按「確定」用你的內容覆蓋；按「取消」不存（可先到草稿重新開啟看對方改了什麼）。`))return;
+      }
+    }catch(e){notify("⚠ 草稿儲存失敗："+e.message,"err");return;}
+    const now=Date.now();
     try{await api("app_db?on_conflict=k",{method:"POST",headers:authHeaders({"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.DRAFT_PREFIX+id,updated:now,payload:{id,...st,by,updatedAt:now}}])});}
     catch(e){notify("⚠ 草稿儲存失敗："+e.message,"err");return;}
     this._draftId=id;this._savedAt=now;this.draftSt();document.getElementById("scFormHead").textContent="✏ 編輯草稿";
@@ -1109,10 +1153,15 @@ const SC={
     const P=this.build();if(!P)return;
     if(!fromPreview&&!confirm(`確定發佈「${P.title}」？\n\n共 ${P.items.length} 題，${P.scope?"發給 "+P.scope.length+" 艘船":"發給全船隊"}${P.refs.length?"，附件 "+P.refs.length+" 個":""}。\n發佈後船上就可以開始作答（建議先按「👁 預覽」看過）。`))return;
     const pv=document.getElementById("scPrev");if(pv)pv.classList.remove("show");
-    const id=Date.now();
-    const campaign={id,title:P.title,items:P.items,ship_scope:P.scope,source_air_id:null,created_at:Date.now(),created_by:by,active:true};
-    try{await api(CAMPAIGN_TABLE,{method:"POST",headers:authHeaders({"Prefer":"return=minimal"}),body:JSON.stringify([campaign])});}
-    catch(e){notify("⚠ 發佈失敗："+e.message,"err");return;}
+    // 發佈＝新增一筆（不是覆蓋）：萬一跟別人同一毫秒發佈撞到同一個活動編號，資料庫會拒絕，這裡換個編號再試，不會蓋掉別人的活動
+    let id=0,lastErr=null;
+    for(let t=0;t<3;t++){
+      const tryId=Date.now()+t*7;
+      const campaign={id:tryId,title:P.title,items:P.items,ship_scope:P.scope,source_air_id:null,created_at:Date.now(),created_by:by,active:true};
+      try{await api(CAMPAIGN_TABLE,{method:"POST",headers:authHeaders({"Prefer":"return=minimal"}),body:JSON.stringify([campaign])});id=tryId;break;}
+      catch(e){lastErr=e;if(!/409|23505|duplicate/i.test(e.message))break;await new Promise(r=>setTimeout(r,30));}
+    }
+    if(!id){notify("⚠ 發佈失敗："+(lastErr?lastErr.message:""),"err");return;}
     const link=`${SHIP_SITE}submit-selfcheck-share.html?cid=${id}`;
     const text=`${P.title}\n填答連結：${link}\n\n各輪也可從「船舶檢查填報平台」→ 上方選單「🔍 分享缺失自查」，查看本船各項自查的填單情形（是否已送出、需追蹤未結案項目）：\n${SHIP_SITE}`;
     safeCopyText(text,"✓ 已複製活動名稱＋填答連結");
