@@ -4911,7 +4911,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         </div>
       </div>
       <div id="self-page-custom">
-        <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;gap:4px;border-bottom:2px solid var(--line);margin:0 0 12px">
+          <button type="button" class="scc-tab" data-cv="new" onclick="SelfTabs.cset('new')">✏ 新建</button>
+          <button type="button" class="scc-tab" data-cv="drafts" onclick="SelfTabs.cset('drafts')">💾 草稿 <span class="scc-n" id="scc-n-drafts"></span></button>
+          <button type="button" class="scc-tab" data-cv="pub" onclick="SelfTabs.cset('pub')">📮 已發佈 <span class="scc-n" id="scc-n-pub"></span></button>
+        </div>
+        <style>
+          .scc-tab{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;padding:8px 16px;font-size:14px;font-weight:700;color:var(--ink-3);cursor:pointer;font-family:inherit}
+          .scc-tab:hover{color:var(--navy)}
+          .scc-tab.on{color:var(--navy);border-bottom-color:#e8842c}
+          .scc-n{font-size:11px;font-weight:700;background:#eef1f4;color:var(--ink-2);border-radius:10px;padding:1px 7px}
+          .scc-n:empty{display:none}
+          #self-page-custom>[data-cpage]{display:none}
+          #self-page-custom>[data-cpage].on{display:block}
+        </style>
+        <div class="card" data-cpage="new" style="margin-bottom:14px">
           <h3><span id="sc-form-head">📝 新增自訂自查案例</span>
             <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
               <button class="btn sm" onclick="if(confirm('清空表單、開始一則新的？（已存的草稿不受影響）'))ShareCase.mount(null)">＋ 開新的一則</button>
@@ -4920,11 +4934,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <p class="hint" style="margin:0 0 10px">依某個案例自己出題（例：其他公司事故、檢查發現的共通問題），一條連結發給船隊自查；可附照片、程序書。還沒寫完可以先「儲存草稿」，之後從下方草稿清單接著編輯。</p>
           <div id="sc-form"></div>
         </div>
-        <div class="card" style="margin-bottom:14px">
+        <div class="card" data-cpage="drafts" style="margin-bottom:14px">
           <h3>💾 草稿<span style="margin-left:auto"><button class="btn sm" onclick="SelfTabs.renderDrafts(true)">🔄 重新整理</button></span></h3>
           <div id="scl-drafts"><div class="hint">讀取中…</div></div>
         </div>
-        <div class="card">
+        <div class="card" data-cpage="pub">
           <h3>📮 已發佈<span style="margin-left:auto"><button class="btn sm" onclick="SelfTabs.renderCustom(true)">🔄 重新整理</button></span></h3>
           <p class="hint" style="margin:0 0 8px">結果在「分享自查彙整清單」查看（📊 進度）。</p>
           <div id="scl-list"><div class="hint">讀取中…</div></div>
@@ -20511,10 +20525,20 @@ const SelfTabs={
     const sec=$("#tab-self");if(!sec)return;
     sec.classList.toggle("mode-custom",p==="custom");
     $$(".self-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.sp===p));
-    if(p==="custom"){if(!$("#sc-title"))ShareCase.mount(null);this.renderDrafts();this.renderCustom();}
+    if(p==="custom"){if(!$("#sc-title"))ShareCase.mount(null);this.cset(this.ccur());this.renderDrafts();this.renderCustom();}
     else{try{SelfCheck.render();}catch(e){}}
   },
   init(){this.set(this.cur());},
+  /* 自訂清單裡的三個子畫面：新建／草稿／已發佈 */
+  CKEY:"vsm_self_cpage_v1",
+  ccur(){try{return localStorage.getItem(this.CKEY)||"new";}catch(e){return "new";}},
+  cset(v){
+    try{localStorage.setItem(this.CKEY,v);}catch(e){}
+    $$("#self-page-custom .scc-tab").forEach(b=>b.classList.toggle("on",b.dataset.cv===v));
+    $$("#self-page-custom>[data-cpage]").forEach(c=>c.classList.toggle("on",c.dataset.cpage===v));
+    if(v==="drafts")this.renderDrafts();
+    if(v==="pub")this.renderCustom();
+  },
   /* 自訂清單：雲端讀取 src＝自訂案例 的分享自查活動（唯讀），每列提供預覽／進度／MAIL 文字 */
   async renderCustom(force){
     const box=$("#scl-list");if(!box)return;
@@ -20529,6 +20553,7 @@ const SelfTabs={
   drawCustom(){
     const box=$("#scl-list");if(!box)return;
     const rows=this._rows||[];
+    const nEl=$("#scc-n-pub");if(nEl)nEl.textContent=rows.length||"";
     if(!rows.length){box.innerHTML=`<div class="hint" style="padding:10px 4px">還沒有自訂自查案例，按右上「＋ 新增自訂自查案例」開始。</div>`;return;}
     const fmt=t=>t?new Date(t).toLocaleString("zh-TW",{hour12:false}).replace(/:\d\d$/,""):"";
     box.innerHTML=rows.map(c=>{
@@ -20554,6 +20579,7 @@ const SelfTabs={
   drawDrafts(){
     const box=$("#scl-drafts");if(!box)return;
     const rows=this._drafts||[];
+    const nEl=$("#scc-n-drafts");if(nEl)nEl.textContent=rows.length||"";
     if(!rows.length){box.innerHTML=`<div class="hint" style="padding:6px 4px">目前沒有草稿。</div>`;return;}
     const fmt=t=>t?new Date(t).toLocaleString("zh-TW",{hour12:false}).replace(/:\d\d$/,""):"";
     box.innerHTML=rows.map(d=>{const nq=(d.q||[]).filter(q=>q.topic||q.key).length,nf=(d.files||[]).length,cur=String(ShareCase._draftId)===String(d.id);
@@ -20585,7 +20611,7 @@ const ShareCase={
     if(!canShareCheck()){toast("⚠ 自訂自查案例僅限 Owner／管理員／督導");return;}
     const nav=$$(".nav-item").find(x=>x.dataset.tab==="self");
     if(nav&&!$("#tab-self").classList.contains("show"))nav.click();
-    if(typeof SelfTabs!=="undefined")SelfTabs.set("custom");
+    if(typeof SelfTabs!=="undefined"){SelfTabs.set("custom");SelfTabs.cset("new");}
     this.mount(draft||null);
     const f=$("#sc-form");if(f)f.scrollIntoView({behavior:"smooth",block:"start"});
   },
@@ -20784,7 +20810,7 @@ const ShareCase={
     safeCopyText(copyText,"✓ 已複製活動名稱＋填答連結");
     if(draftId)await this.delDraft(draftId,true); // 發佈後草稿功成身退
     this.mount(null);
-    if(typeof SelfTabs!=="undefined"){SelfTabs.renderCustom(true);SelfTabs.renderDrafts(true);} // 自訂清單馬上多出這一筆
+    if(typeof SelfTabs!=="undefined"){SelfTabs.renderDrafts(true);SelfTabs.cset("pub");SelfTabs.renderCustom(true);} // 發佈後切到「已發佈」，馬上看得到這一筆
     alert(`✓ 已發佈分享自查（${items.length} 題）。\n\n活動名稱＋填答連結已複製，請貼給船隊：\n${copyText}\n\n按「確定」後另開分頁顯示「分享自查彙整清單」，可追蹤送出情形。`);
     const w=window.open(`${officeFolder()}selfcheck-share-summary.html`,"_blank");if(!w)location.href=`${officeFolder()}selfcheck-share-summary.html`;
   }
