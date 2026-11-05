@@ -7864,9 +7864,10 @@ const DefsGrid={
 
   /* ── 分類欄位（沿用系統既有 NCDB 分類樹與連動邏輯）── */
   COLS:[
-    {k:"ncProb", t:"問題別",   opts:()=>["设备问题","作业问题"]},
-    {k:"ncMain", t:"大類",     opts:r=>r.ncProb?ncMainsOfProb(r.ncProb).sort():ncAllMains().sort()},
-    {k:"ncLeaf", t:"具體名稱", opts:r=>r.ncMain?ncLeavesOfMain(r.ncMain).sort():ncAllLeaves().sort()},
+    /* 2026-11-05 問題別／大類／具體名稱改為可複選（跟批量編輯一樣，多個值用 ‖ 分隔存放） */
+    {k:"ncProb", t:"問題別",   multi:true, sep:"‖", opts:()=>["设备问题","作业问题"]},
+    {k:"ncMain", t:"大類",     multi:true, sep:"‖", opts:r=>ncMainsForProbs(new Set(ncTags(r.ncProb))).sort()},
+    {k:"ncLeaf", t:"具體名稱", multi:true, sep:"‖", opts:r=>ncLeavesForProbsMains(new Set(ncTags(r.ncProb)),new Set(ncTags(r.ncMain))).sort()},
     {k:"ncRoot", t:"根因",     multi:true, opts:()=>((typeof NCTree!=="undefined"?NCTree.list.rootCause:[])||[]).map(x=>x[0]),
       /* 根因跟三要素是不同分類維度，選了根因後要自動把對應的三要素併回 ncFactor 欄位，
          省得同一件事要選兩次；跟編輯模式／新增缺失視窗共用同一套換算邏輯。 */
@@ -7965,7 +7966,7 @@ const DefsGrid={
       </span>
       ${miss?`<button class="btn sm ${this.onlyMiss?"dark":""}" onclick="DefsGrid.toggleMiss()">🔍 只看未分類</button>`:""}
     </div>
-    ${this.on?`<p class="hint" style="margin-top:6px">💡 「三要素」欄可複選（點選切換勾選，完成後點外部或按 Esc 關閉）；若不想在這張寬表格裡左右滑動，也可直接點列最左側的「✎」開啟單筆編輯視窗，同樣能複選三要素，且不需橫向捲動。</p>`:""}`;
+    ${this.on?`<p class="hint" style="margin-top:6px">💡 「問題別／大類／具體名稱／根因／三要素」都可複選（點選切換勾選，完成後點外部或按 Esc 關閉）；若不想在這張寬表格裡左右滑動，也可直接點列最左側的「✎」開啟單筆編輯視窗，同樣能複選三要素，且不需橫向捲動。</p>`:""}`;
   },
   refreshBar(){const b=$("#dg-bar");if(b)b.innerHTML=this.barHtml();},
   toggleMiss(){this.onlyMiss=!this.onlyMiss;Defs.page=1;Defs.render();},
@@ -7988,6 +7989,7 @@ const DefsGrid={
     else if(k==="risk")    inner=`<span class="st ${+v>=3?"st-hi":+v===2?"st-md":"st-lo"}">${esc(v)}</span>`;
     else if(k==="ncFocus") inner=v==="是"?`<span class="st st-fc">★ 是</span>`:`<span class="st st-nu">否</span>`;
     else if(k==="ncOpinion") inner=`<span class="st" style="background:#eef7ee;color:#2d6a4f">${esc(ncOpinionLabel(v))}</span>`;
+    else if(col.sep==="‖") inner=ncTags(v).map(x=>`<div style="font-size:11.5px">${esc(x)}</div>`).join("");
     else inner=`<span style="font-size:11.5px">${esc(v)}</span>`;
     const cls=["cls-col"];
     if(this.on)cls.push("dg-cell");
@@ -8031,12 +8033,32 @@ const DefsGrid={
     const box=document.createElement("div");
     box.className="dg-editor";
     if(col.multi){
-      const cur=new Set(String(d[k]||"").split(/[、,，]/).map(s=>s.trim()).filter(Boolean));
+      const cur=new Set(this.vals(col,d));
+      /* 換到另一格時，游標停在第一個已勾選的項目；同一格重開（剛勾完一項）則維持原位置 */
+      const edKey=id+"|"+k;
+      if(this._edKey!==edKey){const f=opts.findIndex(o=>cur.has(o));this.edHi=f>=0?f:0;this._edKey=edKey;}
       this.edHi=Math.max(0,Math.min(opts.length-1,this.edHi||0));
-      box.innerHTML=`<div class="dg-eh">${col.t}（可複選）　點選切換 · Enter 切換／Tab 下一欄 · Esc 或點外部＝完成</div>`+
-        opts.map((o,j)=>`<div class="dg-opt ${j===this.edHi?"hi":""} ${cur.has(o)?"dg-checked":""}" data-j="${j}" onclick="DefsGrid.toggleMulti(${j})">${cur.has(o)?"☑":"☐"} ${esc(o)}</div>`).join("")+
-        `<div class="dg-opt dg-clear" onclick="DefsGrid.pick(-1)">✕ 清除此欄</div>`+
-        `<div class="dg-opt dg-ok" onclick="DefsGrid.closeEd()">✓ 完成</div>`;
+      const isNc=(k==="ncMain"||k==="ncLeaf");
+      const lv=k==="ncMain"?"main":"leaf";
+      const probs=ncTags(d.ncProb), mains=ncTags(d.ncMain);
+      const canAddNew=(k==="ncMain"&&probs.length===1)||(k==="ncLeaf"&&probs.length===1&&mains.length===1);
+      const addNewHtml=canAddNew?`<div class="dg-opt dg-addnew" style="border-top:1px solid var(--line);padding-top:6px;cursor:default" onclick="event.stopPropagation()">
+        <input type="text" id="dg-new-val" placeholder="輸入新的${esc(col.t)}…" style="width:100%;box-sizing:border-box;margin-bottom:4px" onkeydown="if(event.key==='Enter'){event.preventDefault();DefsGrid.addNewOpt();}else if(event.key==='Escape'){DefsGrid.closeEd();}">
+        <button class="btn sm primary" style="width:100%" onclick="DefsGrid.addNewOpt()">＋ 新增到「${esc(k==="ncMain"?probs[0]:mains[0])}」下面</button>
+      </div>`:"";
+      const optsHtml=opts.map((o,j)=>isNc
+        ? `<div class="dg-opt ${j===this.edHi?"hi":""} ${cur.has(o)?"dg-checked":""}" data-j="${j}" style="display:flex;align-items:center;gap:1px;padding:2px 2px 2px 10px;overflow:visible;white-space:normal">
+            <span onclick="DefsGrid.toggleMulti(${j})" style="flex:1;cursor:pointer;padding:3px 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cur.has(o)?"☑":"☐"} ${esc(o)}</span>
+            <button class="dg-icbtn" onclick="event.stopPropagation();DefsGrid.ncEdit('rename','${lv}',${j})" title="改名（同步更新既有缺失）">✎</button>
+            ${k==="ncMain"?`<button class="dg-icbtn" onclick="event.stopPropagation();DefsGrid.ncEdit('move','main',${j})" title="搬移到另一個問題別（同步更新既有缺失）">⇄</button>`:""}
+            <button class="dg-icbtn" onclick="event.stopPropagation();DefsGrid.ncEdit('delete','${lv}',${j})" title="刪除（既有缺失的欄位會被清空）">🗑</button>
+          </div>`
+        : `<div class="dg-opt ${j===this.edHi?"hi":""} ${cur.has(o)?"dg-checked":""}" data-j="${j}" onclick="DefsGrid.toggleMulti(${j})">${cur.has(o)?"☑":"☐"} ${esc(o)}</div>`).join("");
+      box.innerHTML=`<div class="dg-eh">${col.t}（可複選）　點選切換 · Enter／空白鍵 切換 · Tab 下一欄 · Esc 或點外部＝完成${cur.size?`<br>已選：<b>${esc([...cur].join("、"))}</b>`:""}</div>`+
+        optsHtml+
+        (cur.size?`<div class="dg-opt dg-clear" onclick="DefsGrid.pick(-1)">✕ 清除此欄</div>`:"")+
+        `<div class="dg-opt dg-ok" onclick="DefsGrid.closeEd()">✓ 完成</div>`+
+        addNewHtml;
     }else{
       this.edHi=Math.max(0,opts.indexOf(d[k]));
       const canAddNew=(k==="ncMain"&&d.ncProb)||(k==="ncLeaf"&&d.ncProb&&d.ncMain);
@@ -8079,14 +8101,20 @@ const DefsGrid={
     const col=this.COLS[this.ac];
     const opts=col.opts(d);
     const val=opts[j];if(val==null)return;
-    const prob=d.ncProb;
+    /* 問題別／大類可複選後，要找出「這個選項」實際掛在哪個問題別／大類底下 */
+    const probs=ncTags(d.ncProb), mains=ncTags(d.ncMain);
     if(level==="main"){
+      const prob=probs.find(p=>ncMainsOfProb(p).includes(val))||["设备问题","作业问题"].find(p=>ncMainsOfProb(p).includes(val));
+      if(!prob){toast("⚠ 找不到此大類所屬的問題別");return;}
       if(action==="rename")await NCTree.renameMainPrompt(prob,val);
       else if(action==="move")await NCTree.moveMainPrompt(prob,val);
       else if(action==="delete")await NCTree.deleteMainPrompt(prob,val);
     }else{
-      if(action==="rename")await NCTree.renameLeafPrompt(prob,d.ncMain,val);
-      else if(action==="delete")await NCTree.deleteLeaf(prob,d.ncMain,val);
+      const hits=ncFindProbMainByLeaf(val);
+      const hit=hits.find(h=>mains.includes(h[1]))||hits[0];
+      if(!hit){toast("⚠ 找不到此具體名稱所屬的大類");return;}
+      if(action==="rename")await NCTree.renameLeafPrompt(hit[0],hit[1],val);
+      else if(action==="delete")await NCTree.deleteLeaf(hit[0],hit[1],val);
     }
     if(this.on&&this.ar!=null&&this.ac>=0)this.openEd(this.ar,this.COLS[this.ac].k);
   },
@@ -8099,12 +8127,13 @@ const DefsGrid={
     const col=this.COLS[this.ac];
     if(typeof NCTree==="undefined"){toast("⚠ 分類階層模組未載入");return;}
     let res;
+    const probs=ncTags(d.ncProb), mains=ncTags(d.ncMain);
     if(col.k==="ncMain"){
-      if(!d.ncProb){toast("⚠ 請先選擇問題別");return;}
-      res=await NCTree.quickAdd(d.ncProb,v,null);
+      if(probs.length!==1){toast("⚠ 新增大類時，問題別只能選一個");return;}
+      res=await NCTree.quickAdd(probs[0],v,null);
     }else if(col.k==="ncLeaf"){
-      if(!d.ncMain){toast("⚠ 請先選擇大類");return;}
-      res=await NCTree.quickAdd(d.ncProb,d.ncMain,v);
+      if(probs.length!==1||mains.length!==1){toast("⚠ 新增具體名稱時，問題別與大類都只能選一個");return;}
+      res=await NCTree.quickAdd(probs[0],mains[0],v);
     }else{return;}
     if(!res||!res.ok){toast("⚠ "+(res&&res.msg?res.msg:"新增失敗"));return;}
     toast(`✓ 已新增「${v}」`);
@@ -8117,7 +8146,30 @@ const DefsGrid={
     const opts=this.COLS[ci].opts(d);
     const j=opts.indexOf(v);
     if(j<0){this.openEd(this.ar,k);return;}
+    if(this.COLS[ci].multi){
+      if(!this.vals(this.COLS[ci],d).includes(v))this.toggleMulti(j);
+      else this.openEd(this.ar,k);
+      return;
+    }
     this.pick(j);
+  },
+  /* 多選欄位的拆分／合併：問題別／大類／具體名稱用 ‖（名稱本身常含「、」），根因／三要素用「、」 */
+  vals(col,d){
+    if(col.sep==="‖")return ncTags(d[col.k]);
+    return String(d[col.k]||"").split(/[、,，]/).map(s=>s.trim()).filter(Boolean);
+  },
+  /* 上層改了以後，把下層已經不屬於上層的選項拿掉，避免出現不合法的組合 */
+  pruneNc(d){
+    const probs=new Set(ncTags(d.ncProb));
+    if(probs.size){
+      const okM=new Set(ncMainsForProbs(probs));
+      d.ncMain=ncTags(d.ncMain).filter(m=>okM.has(m)).join("‖");
+    }
+    const mains=new Set(ncTags(d.ncMain));
+    if(probs.size||mains.size){
+      const okL=new Set(ncLeavesForProbsMains(probs,mains));
+      d.ncLeaf=ncTags(d.ncLeaf).filter(l=>okL.has(l)).join("‖");
+    }
   },
   pick(j){
     const d=App.defs.find(x=>String(x.id)===String(this.ar));if(!d)return;
@@ -8150,10 +8202,23 @@ const DefsGrid={
     const d=App.defs.find(x=>String(x.id)===String(this.ar));if(!d)return;
     const col=this.COLS[this.ac], opts=col.opts(d);
     const val=opts[j];if(val==null)return;
-    const cur=new Set(String(d[col.k]||"").split(/[、,，]/).map(s=>s.trim()).filter(Boolean));
-    if(cur.has(val))cur.delete(val);else cur.add(val);
+    const cur=new Set(this.vals(col,d));
+    const adding=!cur.has(val);
+    if(adding)cur.add(val);else cur.delete(val);
     this.snapshot();
-    d[col.k]=[...cur].join("、");
+    d[col.k]=[...cur].join(col.sep||"、");
+    if(col.k==="ncProb"||col.k==="ncMain")this.pruneNc(d);
+    /* 反推：勾具體名稱時，若它所屬的問題別／大類還沒勾，自動補勾（不必照順序選） */
+    if(col.k==="ncLeaf"&&adding){
+      const hits=ncFindProbMainByLeaf(val);
+      const mains=ncTags(d.ncMain), probs=ncTags(d.ncProb);
+      if(hits.length&&!hits.some(h=>mains.includes(h[1]))){
+        const [fp,fm]=hits.find(h=>!probs.length||probs.includes(h[0]))||hits[0];
+        if(!probs.includes(fp))d.ncProb=[...probs,fp].join("‖");
+        d.ncMain=[...mains,fm].join("‖");
+        if(hits.length>1)toast(`⚠「${val}」在多個大類下都有，已自動補勾「${fm}」，如不對請手動調整`);
+      }
+    }
     if(col.onAfter)col.onAfter(d);
     if(d.ncMethod&&d.ncMethod.includes("自動"))d.ncMethod="人工";
     if(this.sug[d.id]){delete this.sug[d.id][col.k];
