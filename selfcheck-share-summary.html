@@ -61,6 +61,13 @@ tr.done td{background:#eaf5ee}
 .kpi .kgo-t{font-size:10.5px;color:#2c64a0;margin-top:3px;opacity:.75}
 .kpi.kgo:hover .kgo-t{opacity:1;font-weight:700}
 .kpi.kon{border-color:#2c64a0;background:#eef4fb;box-shadow:inset 0 0 0 1px #2c64a0}
+.kpi.ktkbox{padding:8px 10px}
+.kpi .ktk{display:flex;align-items:center;gap:6px;width:100%;border:0;background:none;padding:3px 6px;border-radius:6px;font:inherit;font-size:12.5px;color:var(--ink-2,#3c4f5a);cursor:pointer;text-align:left}
+.kpi .ktk span{flex:1}
+.kpi .ktk b{font-size:15px;color:var(--navy);font-variant-numeric:tabular-nums}
+.kpi .ktk i{font-style:normal;color:#2c64a0;width:8px}
+.kpi button.ktk:hover,.kpi button.ktk.on{background:#e3edf8}
+.kpi .ktk.off{cursor:default;opacity:.45}
 .kpi .kln{color:inherit;text-decoration:underline;text-decoration-color:#9fb6cf;text-underline-offset:3px;padding:0 2px;border-radius:4px}
 .kpi .kln:hover,.kpi .kln.on{background:#e3edf8;color:#1d4e80;text-decoration-color:#1d4e80}
 .modal-bg{position:fixed;inset:0;background:rgba(15,30,45,.45);display:none;align-items:center;justify-content:center;z-index:200;padding:16px}
@@ -1106,13 +1113,14 @@ const Stat={
     /* 2026-11-05 卡片可點：有清單可看（數字>0）才可點，點了切換下方清單／篩選；結案率沒有對應清單，不可點 */
     const tkNow=document.getElementById("stTrack").value;
     const k=(v,l,st,go,n)=>{const can=go&&n>0;return `<div class="kpi${can?" kgo":""}${can&&this._go===go?" kon":""}" ${can?`role="button" tabindex="0" onclick="Stat.go('${go}')" onkeydown="if(event.key==='Enter')Stat.go('${go}')" title="點選列出清單"`:""}><div class="v" style="${st||""}">${v}</div><div class="l">${l}</div>${can?`<div class="kgo-t">查看清單 ›</div>`:""}</div>`;};
-    const tkLink=t=>{const n=cnt(t);return n?`<a href="javascript:void(0)" class="kln${tkNow===t&&this.side==="open"?" on":""}" onclick="event.stopPropagation();Stat.go('t:${t}')" title="列出 ${t} 追蹤中的未結案項目">${n}</a>`:`<span style="opacity:.45">0</span>`;};
+    /* 追蹤方式卡：每種方式一行「名稱 … 數字 ›」，整行可點（0 的不能點），不再擠成 4／4／10 */
+    const tkLink=t=>{const n=cnt(t);return n?`<button type="button" class="ktk${tkNow===t&&this.side==="open"?" on":""}" onclick="Stat.go('t:${t}')" title="列出 ${t} 追蹤中的未結案項目"><span>${t}</span><b>${n}</b><i>›</i></button>`:`<div class="ktk off"><span>${t}</span><b>0</b><i></i></div>`;};
     document.getElementById("statKpis").innerHTML=
       k(f.length,`需處理項目（${new Set(f.map(x=>x.ship)).size} 艘船、${new Set(f.map(x=>x.c.id)).size} 個主題）`,"","all",f.length)+
       k(open.length,`未結案（${new Set(open.map(x=>x.ship)).size} 艘船）`,open.length?"color:var(--bad)":"","open",open.length)+
       k(closed.length,"已結案","color:var(--ok)","closed",closed.length)+
       k(f.length?Math.round(closed.length/f.length*100)+"%":"—","結案率","color:var(--ok)")+
-      `<div class="kpi"><div class="v">${tkLink("FLOW")}／${tkLink("內控")}／${tkLink("物料配件")}</div><div class="l">未結案追蹤方式：FLOW／內控／物料配件<br><span style="color:#2c64a0">點數字列出清單</span></div></div>`+
+      `<div class="kpi ktkbox"><div class="l" style="margin-bottom:4px">未結案的追蹤方式</div>${tkLink("FLOW")}${tkLink("內控")}${tkLink("物料配件")}${cnt("其他")?tkLink("其他"):""}</div>`+
       k(none,"未結案但未選追蹤方式",none?"color:#a05a10":"","none",none)+
       (flowNoMissing?k(flowNoMissing,"選了 FLOW 但還沒填單號","color:#a05a10","flowmiss",flowNoMissing):"");
     document.getElementById("stOpenN").textContent=`(${open.length})`;

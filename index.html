@@ -3405,6 +3405,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
                 <input type="text" id="ic-e-enhance-reason" placeholder="例：PSC 滯留／缺失偏多">
                 <span style="font-size:12px;color:#9a5a1a">起算日</span>
                 <input type="text" id="ic-e-enhance-since" placeholder="2026/7/10" oninput="InspCtrl.onEnhanceSinceInput()">
+                <span style="font-size:12px;color:#9a5a1a">管控期間</span>
+                <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  <input type="number" id="ic-e-enhance-years" min="0" step="0.5" placeholder="3" style="width:70px" oninput="InspCtrl.onEnhanceYears()"> 年
+                  <span style="font-size:12px;color:#9a5a1a;margin-left:6px">或 管控至</span>
+                  <input type="text" id="ic-e-enhance-until" placeholder="2028/6/23" style="width:130px" oninput="InspCtrl.onEnhanceUntil()">
+                </span>
+                <span style="font-size:12px;color:#9a5a1a">首次稽核</span>
+                <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px">
+                  列入後 <input type="number" id="ic-e-enhance-first" min="1" max="12" step="1" placeholder="3" style="width:60px" oninput="InspCtrl.refreshProbeDue&&InspCtrl.refreshProbeDue()"> 個月內完成
+                  <span style="color:#9a5a1a;font-size:11.5px">（上次稽核在起算日之前才適用；之後每 6 個月一次）</span>
+                </span>
               </span>
               <span class="ice-tip" id="ic-e-enhance-hint"></span>
             </label>
@@ -4886,7 +4897,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           </div>
           <div class="tblwrap" style="max-height:520px">
             <table class="tbl">
-              <thead><tr><th>船舶</th><th>檢查項目</th><th>列入加強日</th><th>解除加強日</th><th>狀態</th><th>原因／備註</th><th>記錄人／時間</th></tr></thead>
+              <thead><tr><th>船舶</th><th>檢查項目</th><th>列入加強日</th><th>解除加強日</th><th>狀態</th><th>原因／備註</th><th>記錄人／時間</th><th style="width:110px">操作</th></tr></thead>
               <tbody id="el-tbody"></tbody>
             </table>
           </div>
@@ -19418,7 +19429,10 @@ const EnhAuditLog={
     if(!current.length){toast("目前沒有任何船舶被列為加強稽核，無需回填");return;}
     let n=0;
     current.forEach(d=>{
-      const already=App.enhAuditLog.some(l=>l.event==="start"&&l.ship===d.ship&&l.itype===d.itype&&l.date===(d.enhancedSince||todayStr()));
+      // 2026-11-05 改成：這艘船＋檢查項目「最新一筆」已經是「列入」（尚未解除），就算已登過——
+      // 原本只比對日期，起算日一改就會再補登一筆，造成同一段加強期間出現兩列（例：CM 10/29 與 11/2）。
+      const evs=App.enhAuditLog.filter(l=>l.ship===d.ship&&l.itype===d.itype).sort((a,b)=>(dateSortVal(a.date)-dateSortVal(b.date))||(a.loggedAt||0)-(b.loggedAt||0));
+      const already=evs.length&&evs[evs.length-1].event==="start";
       if(already)return;
       this.record(d.ship,d.itype,"start",d.enhancedSince||todayStr(),d.enhancedReason||"","（系統回填：功能上線前既有的加強稽核狀態）");
       n++;
@@ -19455,6 +19469,60 @@ const EnhAuditLog={
     this.render();
   },
   clearFilters(){Object.values(this.ms).forEach(m=>m.clear&&m.clear());this.page=1;this.render();},
+  /* 2026-11-05 歷史紀錄可修正：重複登錄、日期或原因登錯時，可逐列編輯或刪除（一次只動一列，不做批次刪除） */
+  canEdit(){return typeof Role==="undefined"||Role.can("inspctrl_edit");},
+  _log(id){return id==null?null:(App.enhAuditLog||[]).find(x=>x.id===id)||null;},
+  openEdit(startId,endId){
+    if(!this.canEdit()){toast("⚠ 您的權限僅可查看");return;}
+    const s=this._log(startId),e=this._log(endId);
+    let m=$("#elEditModal");
+    if(!m){
+      m=document.createElement("div");m.className="modal";m.id="elEditModal";
+      m.innerHTML=`<div class="box" style="max-width:520px"><div class="mh"><h3 id="el-ed-title">編輯加強管理紀錄</h3><button class="x" onclick="EnhAuditLog.closeEdit()">✕</button></div>
+        <div style="padding:14px 18px;display:grid;grid-template-columns:90px 1fr;gap:10px 10px;align-items:center">
+          <span>列入加強日</span><input type="text" id="el-ed-start" placeholder="2026/11/2">
+          <span>原因</span><textarea id="el-ed-reason" rows="3" style="width:100%"></textarea>
+          <span>解除加強日</span><input type="text" id="el-ed-end" placeholder="空白＝仍在加強中">
+          <span>解除備註</span><input type="text" id="el-ed-endnote">
+          <span></span><span class="hint">只修改這份歷史紀錄；目前是否列為加強稽核，請到「檢查管控」編輯該船的 Internal audit。</span>
+        </div>
+        <div class="mf"><button class="btn" onclick="EnhAuditLog.closeEdit()">取消</button><button class="btn primary" onclick="EnhAuditLog.saveEdit()">💾 儲存</button></div></div>`;
+      document.body.appendChild(m);
+      bindDatePicker&&bindDatePicker("el-ed-start");bindDatePicker&&bindDatePicker("el-ed-end");
+    }
+    this._ed={startId,endId,ship:(s||e||{}).ship,itype:(s||e||{}).itype};
+    $("#el-ed-title").textContent=`編輯加強管理紀錄 － ${this._ed.ship||""}`;
+    $("#el-ed-start").value=s?s.date||"":"";
+    $("#el-ed-reason").value=s?s.reason||"":"";
+    $("#el-ed-end").value=e?e.date||"":"";
+    $("#el-ed-endnote").value=e?(e.note||e.reason||""):"";
+    m.classList.add("show");
+  },
+  closeEdit(){const m=$("#elEditModal");if(m)m.classList.remove("show");},
+  saveEdit(){
+    const ed=this._ed;if(!ed)return;
+    const sd=$("#el-ed-start").value.trim(),reason=$("#el-ed-reason").value.trim(),endD=$("#el-ed-end").value.trim(),endNote=$("#el-ed-endnote").value.trim();
+    let s=this._log(ed.startId),e=this._log(ed.endId);
+    if(s){s.date=sd||s.date;s.reason=reason;}
+    else if(sd){this.record(ed.ship,ed.itype,"start",sd,reason,"（手動補登）");}
+    if(e){
+      if(!endD){App.enhAuditLog=App.enhAuditLog.filter(x=>x.id!==e.id);}   // 清空解除日＝改回加強中
+      else{e.date=endD;e.note=endNote;}
+    }else if(endD){if(!App.enhAuditLog)App.enhAuditLog=[];App.enhAuditLog.push({id:this.nextId(),ship:ed.ship,itype:ed.itype,event:"end",date:endD,reason:"",note:endNote,loggedBy:(typeof Audit!=="undefined")?Audit.user():"",loggedAt:Date.now()});}
+    App.saveAll();this.pushCloud();
+    if(typeof Audit!=="undefined")Audit.log("編輯","加強管理歷史",`${ed.ship}：列入 ${sd||"—"}${endD?"，解除 "+endD:""}`);
+    toast("✓ 已更新加強管理紀錄");this.closeEdit();this.render();
+  },
+  delRow(startId,endId){
+    if(!this.canEdit()){toast("⚠ 您的權限僅可查看");return;}
+    const s=this._log(startId),e=this._log(endId),x=s||e;if(!x)return;
+    if(!confirm(`刪除這一列加強管理紀錄？\n${x.ship}　列入 ${s?s.date:"—"}　解除 ${e?e.date:"—"}\n（只刪這一列，用於重複或登錯的紀錄）`))return;
+    const ids=new Set([startId,endId].filter(v=>v!=null));
+    App.enhAuditLog=(App.enhAuditLog||[]).filter(l=>!ids.has(l.id));
+    App.saveAll();this.pushCloud();
+    if(typeof Audit!=="undefined")Audit.log("刪除","加強管理歷史",`${x.ship}：列入 ${s?s.date:"—"}／解除 ${e?e.date:"—"}`);
+    toast("✓ 已刪除這一列");this.render();
+  },
   /* 把「列入加強」「解除加強」兩筆各自獨立的事件，依船舶＋檢查項目分組後按日期配對成一列，
      避免使用者自己對照哪筆開始對應哪筆結束。正常情況一組一對一，若資料不完整（例如只回填了
      開始、還沒有對應結束），仍會單獨列出、不會漏掉。 */
@@ -19476,10 +19544,10 @@ const EnhAuditLog={
           pending=e;
         }else{
           if(pending){
-            paired.push({ship:pending.ship,itype:pending.itype,startDate:pending.date,startReason:pending.reason,startLog:pending,endDate:e.date,endNote:e.note||e.reason||""});
+            paired.push({ship:pending.ship,itype:pending.itype,startDate:pending.date,startReason:pending.reason,startLog:pending,endDate:e.date,endNote:e.note||e.reason||"",endLog:e});
             pending=null;
           }else{
-            paired.push({ship:e.ship,itype:e.itype,startDate:null,startReason:"",startLog:null,endDate:e.date,endNote:e.note||e.reason||""});
+            paired.push({ship:e.ship,itype:e.itype,startDate:null,startReason:"",startLog:null,endDate:e.date,endNote:e.note||e.reason||"",endLog:e});
           }
         }
       });
@@ -19519,8 +19587,9 @@ const EnhAuditLog={
         <td style="white-space:nowrap">${statusHtml}</td>
         <td style="max-width:320px;white-space:pre-wrap">${esc(p.startReason||"")}${p.endNote?`<br><span class="hint">解除備註：${esc(p.endNote)}</span>`:""}</td>
         <td style="white-space:nowrap">${p.startLog?esc(p.startLog.loggedBy||""):""}<br><span class="hint">${p.startLog&&p.startLog.loggedAt?new Date(p.startLog.loggedAt).toLocaleString("zh-TW",{hour12:false}):""}</span></td>
+        <td style="white-space:nowrap">${this.canEdit()?`<button class="btn sm" onclick="EnhAuditLog.openEdit(${p.startLog?p.startLog.id:"null"},${p.endLog?p.endLog.id:"null"})">✎ 編輯</button> <button class="btn sm" style="color:var(--bad)" onclick="EnhAuditLog.delRow(${p.startLog?p.startLog.id:"null"},${p.endLog?p.endLog.id:"null"})" title="刪除這一列（重複或登錯的紀錄）">🗑</button>`:""}</td>
       </tr>`;
-      }).join("")||`<tr><td colspan="7" class="hint" style="text-align:center;padding:14px">目前沒有加強管理歷史紀錄</td></tr>`;
+      }).join("")||`<tr><td colspan="8" class="hint" style="text-align:center;padding:14px">目前沒有加強管理歷史紀錄</td></tr>`;
     }
     const pager=$("#el-pager");
     if(pager)pager.innerHTML=`<button class="btn sm" ${this.page<=1?"disabled":""} onclick="EnhAuditLog.page--;EnhAuditLog.render()">‹ 上一頁</button>
@@ -20586,7 +20655,7 @@ const AuditDash2={
     const ism=[r.auditor,r.auditor2].filter(a=>a&&(a===s.deckSup||a===s.engineSup));
     $("#ic2-drawer").innerHTML=`
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="lbl">內稽動態・${esc(r.zh||"")} ${esc(r.vesselName||"")}</div><h2>${esc(r.ship)} 內部稽核</h2></div><button class="btn" data-close>關閉</button></div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"><span class="ic2-pill ${this.STEP[r.step][1]}">${this.STEP[r.step][0]}</span>${r.enhanced?`<span class="ic2-pill s1">⭐ 加強稽核：${esc(r.enhancedReason||"")}</span>`:""}${!r.actualAuditDate&&r.dueDate?`<span class="ic2-pill ${r.daysLeft<0?"s0":r.daysLeft<=30?"s1":r.daysLeft<=90?"s2":"s3"}">到期 ${this.fmt(r.dueDate)}・${r.daysLeft<0?"逾期 "+(-r.daysLeft):"剩 "+r.daysLeft} 天</span>`:""}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"><span class="ic2-pill ${this.STEP[r.step][1]}">${this.STEP[r.step][0]}</span>${r.enhanced?`<span class="ic2-pill s1">⭐ 加強稽核：${esc(r.enhancedReason||"")}${r.enhancedSince||r.enhancedUntil?`（${esc(this.fmt(InspCtrl.normDate(r.enhancedSince)||""))} 起${r.enhancedUntil?"，管控至 "+esc(this.fmt(InspCtrl.normDate(r.enhancedUntil))):""}）`:""}</span>`:""}${!r.actualAuditDate&&r.dueDate?`<span class="ic2-pill ${r.daysLeft<0?"s0":r.daysLeft<=30?"s1":r.daysLeft<=90?"s2":"s3"}">到期 ${this.fmt(r.dueDate)}・${r.daysLeft<0?"逾期 "+(-r.daysLeft):"剩 "+r.daysLeft} 天</span>`:""}</div>
       ${can?"":`<div class="note" style="margin-top:10px">您目前僅能查看；內稽動態由指定編輯者或 Owner 修改。</div>`}
       <h3>排程</h3>
       <div class="form">
@@ -21284,6 +21353,20 @@ const InspCtrl={
         dueDateCalc=this.toLocalISO(dt);
       }
     }
+    /* 2026-11-05 加強稽核「列入後 N 個月內完成首次稽核」（PSC／船旗國常有這類要求，預設 3 個月，每艘可改）：
+       上次稽核在列入（起算日）之前 → 到期日＝起算日＋N 個月，但不晚於原本一般週期（上次稽核＋12 個月）；
+       列入後做過一次稽核，就回到每 6 個月一次。 */
+    let enhancedFirstDue=null;
+    if(isAuto&&isEnhancedAudit&&d.enhancedSince){
+      const es=this.normDate(d.enhancedSince);
+      if(es&&(!lastDateCalc||lastDateCalc<es)){
+        const fm=parseFloat(d.enhancedFirstMonths);const n=isNaN(fm)||fm<=0?3:fm;
+        const f=new Date(es+"T00:00:00");f.setMonth(f.getMonth()+Math.round(n));
+        let cand=this.toLocalISO(f);
+        if(lastDateCalc){const g=new Date(lastDateCalc+"T00:00:00");g.setMonth(g.getMonth()+12);const normal=this.toLocalISO(g);if(normal<cand)cand=normal;}
+        dueDateCalc=cand;enhancedFirstDue=cand;
+      }
+    }
     // LRIT等：勾選「固定週期」後，到期日改由「每年固定月/日」推算，不受最近一次檢查日的效期加總影響；
     // 一旦使用者更新最近一次檢查日（完成當年度的申報／檢查），才會自動推進到下一次的固定月/日。
     const isLritFixed=!!(this.normItype(d.itype)==="LRIT"&&d.fixedAnnualDate);
@@ -21344,13 +21427,16 @@ const InspCtrl={
     }
     if(isCert60&&!activeStage)activeStage="renewal";
     let enhancedLockDays=null;
-    if(isEnhancedAudit&&d.enhancedSince){
+    if(isEnhancedAudit&&d.enhancedUntil&&this.normDate(d.enhancedUntil)){
+      // 有設定管控期間：以管控結束日計算尚餘天數
+      enhancedLockDays=Math.max(0,Math.round((new Date(this.normDate(d.enhancedUntil)+"T00:00:00")-new Date(todayStr()+"T00:00:00"))/86400000));
+    }else if(isEnhancedAudit&&d.enhancedSince){
       const es=this.normDate(d.enhancedSince);
       if(es){const diff=Math.round((new Date(todayStr())-new Date(es+"T00:00:00"))/86400000);enhancedLockDays=Math.max(0,365-diff);}
     }
     return {...d,lastDateCalc,dueDateCalc,dueDateDefault,dueDateOverrideActive,autoLast,lastInspector,isAuto,status,daysLeft,
       midStatus,midDaysLeft,
-      isCert60,midStartCalc,midEndCalc,midWindowOpen,midDone,activeStage,isEnhancedAudit,enhancedLockDays,
+      isCert60,midStartCalc,midEndCalc,midWindowOpen,midDone,activeStage,isEnhancedAudit,enhancedLockDays,enhancedFirstDue,
       isLritFixed,canOverrideDue};
   },
   statusClass(s){return (s==="逾期"||s==="即將到期(紅)")?"bad":s==="即將到期(黃)"?"warn":s==="正常"?"ok":"mute";},
@@ -22450,6 +22536,10 @@ const InspCtrl={
     this._enhanceSinceEdit=d.enhancedSince||"";
     $("#ic-e-enhance-since").value=this._enhanceSinceEdit;
     bindDatePicker("ic-e-enhance-since");
+    {const fm=$("#ic-e-enhance-first");if(fm)fm.value=d.enhancedFirstMonths||"";}
+    this._dueAuto=!d.dueDateOverride;   // 沒手動覆寫到期日的，改加強稽核設定時到期日欄跟著自動重算
+    {const u=$("#ic-e-enhance-until");if(u){u.value=d.enhancedUntil?this.normDate(d.enhancedUntil).replace(/-/g,"/"):"";bindDatePicker("ic-e-enhance-until");}
+     const y=$("#ic-e-enhance-years");if(y){y.value="";if(d.enhancedUntil&&d.enhancedSince){const m=(new Date(this.normDate(d.enhancedUntil)+"T00:00:00")-new Date(this.normDate(d.enhancedSince)+"T00:00:00"))/86400000/365.25;if(m>0)y.value=String(Math.round(m*10)/10);}}}
     this.refreshEnhanceUI();
     const createInspBox=$("#ic-e-createinsp");if(createInspBox)createInspBox.checked=false;
     // 右半邊排程：港口、備註；訪船人／稽核員／檢查員依檢查項目動態產生
@@ -22561,10 +22651,19 @@ const InspCtrl={
     if(cb&&cb.checked&&mmdd&&/^\d{2}-\d{2}$/.test((mmdd.value||"").trim()))this.resetDueToDefault();
     this.refreshEnhanceUI();
   },
+  /* 改了加強稽核（勾選／起算日／首次稽核月數）後，若這筆沒有手動覆寫到期日，到期日欄位即時改成新算出的值，
+     避免存檔時把舊的到期日誤當成「手動覆寫」存進去。 */
+  refreshProbeDue(){
+    if(!this._dueAuto||!$("#ic-e-due"))return;
+    const itype=this.curEditItype();
+    const probe={ship:$("#ic-e-ship")?$("#ic-e-ship").value:"",itype,validityMonths:$("#ic-e-valid")?$("#ic-e-valid").value:"",lastDate:$("#ic-e-last")?$("#ic-e-last").value:"",enhancedAudit:$("#ic-e-enhance")?$("#ic-e-enhance").checked:false,enhancedSince:($("#ic-e-enhance-since")&&$("#ic-e-enhance-since").value.trim())||this._enhanceSinceEdit||"",enhancedFirstMonths:($("#ic-e-enhance-first")&&$("#ic-e-enhance-first").value.trim())||"",dueDateOverride:""};
+    const rc=this.computeRow(probe);
+    if(rc.dueDateDefault)$("#ic-e-due").value=this.dateInputVal(rc.dueDateDefault);
+  },
   resetDueToDefault(){
     const itype=this.curEditItype();
     const lritOn=$("#ic-e-lritfixed")&&$("#ic-e-lritfixed").checked;
-    const probe={ship:$("#ic-e-ship")?$("#ic-e-ship").value:"",itype,validityMonths:$("#ic-e-valid")?$("#ic-e-valid").value:"",lastDate:$("#ic-e-last")?$("#ic-e-last").value:"",enhancedAudit:$("#ic-e-enhance")?$("#ic-e-enhance").checked:false,dueDateOverride:"",fixedAnnualDate:lritOn?($("#ic-e-lritfixed-mmdd")&&$("#ic-e-lritfixed-mmdd").value||"").trim():""};
+    const probe={ship:$("#ic-e-ship")?$("#ic-e-ship").value:"",itype,validityMonths:$("#ic-e-valid")?$("#ic-e-valid").value:"",lastDate:$("#ic-e-last")?$("#ic-e-last").value:"",enhancedAudit:$("#ic-e-enhance")?$("#ic-e-enhance").checked:false,enhancedSince:($("#ic-e-enhance-since")&&$("#ic-e-enhance-since").value.trim())||this._enhanceSinceEdit||"",enhancedFirstMonths:($("#ic-e-enhance-first")&&$("#ic-e-enhance-first").value.trim())||"",dueDateOverride:"",fixedAnnualDate:lritOn?($("#ic-e-lritfixed-mmdd")&&$("#ic-e-lritfixed-mmdd").value||"").trim():""};
     const rc=this.computeRow(probe);
     $("#ic-e-due").value=this.dateInputVal(rc.dueDateDefault);
     const resetHint=$("#ic-e-duereset-hint");
@@ -22586,24 +22685,55 @@ const InspCtrl={
       const sinceInp=$("#ic-e-enhance-since");
       if(!this._enhanceSinceEdit){this._enhanceSinceEdit=todayStr();}
       if(sinceInp&&!sinceInp.value.trim())sinceInp.value=this._enhanceSinceEdit;
-      hint.textContent=`加強稽核自 ${this._enhanceSinceEdit} 生效（可調整左側「起算日」欄位）`;
+      const until=this.enhUntilInput();
+      const left=until?Math.round((new Date(until+"T00:00:00")-new Date(todayStr()+"T00:00:00"))/86400000):null;
+      hint.textContent=until
+        ?`加強稽核管控期間 ${this._enhanceSinceEdit} ～ ${until}（${left>=0?"尚餘 "+left+" 天":"已到期 "+(-left)+" 天，可評估是否解除"}）`
+        :`加強稽核自 ${this._enhanceSinceEdit} 生效（可填「管控期間」幾年或管控至哪天；未填則依規則至少維持一年）`;
     }else{
       if(this._enhanceSinceEdit&&!skipWarn){
-        const days=Math.round((new Date(todayStr())-new Date(this._enhanceSinceEdit+"T00:00:00"))/86400000);
-        const remain=365-days;
+        const until=this.enhUntilInput();
+        const days=Math.round((new Date(todayStr())-new Date(this.normDate(this._enhanceSinceEdit)+"T00:00:00"))/86400000);
+        const remain=until?Math.round((new Date(until+"T00:00:00")-new Date(todayStr()+"T00:00:00"))/86400000):365-days;
         if(remain>0){
-          if(!confirm(`此船加強稽核已於 ${this._enhanceSinceEdit} 生效，依規則建議至少維持一年（尚餘 ${remain} 天），確定要提前取消嗎？`)){
+          if(!confirm(until?`此船加強稽核管控至 ${until}（尚餘 ${remain} 天），確定要提前取消嗎？`:`此船加強稽核已於 ${this._enhanceSinceEdit} 生效，依規則建議至少維持一年（尚餘 ${remain} 天），確定要提前取消嗎？`)){
             cb.checked=true;hint.textContent=`加強稽核自 ${this._enhanceSinceEdit} 生效（尚餘 ${remain} 天建議不提前取消）`;return;
           }
         }
       }
       hint.textContent="";
     }
+    this.refreshProbeDue();
   },
   /* 手動調整加強稽核「起算日」時即時同步，並更新提示文字（不觸發取消確認對話框） */
   onEnhanceSinceInput(){
     const v=($("#ic-e-enhance-since").value||"").trim();
     this._enhanceSinceEdit=v;
+    const y=$("#ic-e-enhance-years");if(y&&y.value)this.onEnhanceYears();   // 起算日改了，若是用「幾年」設定的，管控結束日跟著重算
+    else this.onEnhanceToggle(true);
+  },
+  /* 2026-11-05 加強稽核管控期間：可填「幾年」（從起算日算，結束日＝起算日＋N 年－1 天，例 2025/6/24 起 3 年 → 2028/6/23），
+     或直接填「管控至」日期；兩格互相換算，存成 enhancedUntil。 */
+  enhUntilFrom(since,years){
+    const s=this.normDate(since);const n=parseFloat(years);
+    if(!s||isNaN(n)||n<=0)return "";
+    const d=new Date(s+"T00:00:00");d.setMonth(d.getMonth()+Math.round(n*12));d.setDate(d.getDate()-1);
+    return this.toLocalISO(d);
+  },
+  enhUntilInput(){const u=$("#ic-e-enhance-until");return u?(this.normDate((u.value||"").trim())||""):"";},
+  onEnhanceYears(){
+    const y=$("#ic-e-enhance-years"),u=$("#ic-e-enhance-until");if(!y||!u)return;
+    const until=this.enhUntilFrom(this._enhanceSinceEdit||todayStr(),y.value);
+    u.value=until?until.replace(/-/g,"/"):"";
+    this.onEnhanceToggle(true);
+  },
+  onEnhanceUntil(){
+    const y=$("#ic-e-enhance-years");
+    const until=this.enhUntilInput(),s=this.normDate(this._enhanceSinceEdit||"");
+    if(y){
+      if(until&&s){const m=(new Date(until+"T00:00:00")-new Date(s+"T00:00:00"))/86400000/365.25;y.value=m>0?String(Math.round(m*10)/10):"";}
+      else y.value="";
+    }
     this.onEnhanceToggle(true);
   },
   refreshOwnerShipHint(){
@@ -22697,6 +22827,8 @@ const InspCtrl={
     rec.enhancedAudit=enhanceOn;
     rec.enhancedReason=enhanceOn?g("#ic-e-enhance-reason"):"";
     rec.enhancedSince=enhanceOn?(($("#ic-e-enhance-since")&&$("#ic-e-enhance-since").value.trim())||this._enhanceSinceEdit||todayStr()):"";
+    rec.enhancedUntil=enhanceOn?this.enhUntilInput():"";   // 2026-11-05 管控期間結束日（空白＝依規則至少一年）
+    rec.enhancedFirstMonths=enhanceOn?(($("#ic-e-enhance-first")&&$("#ic-e-enhance-first").value.trim())||"3"):"";   // 列入後 N 個月內完成首次稽核
     // LRIT「固定週期」：勾選且填妥 MM-DD 才生效，否則清空（退回完全手動維護到期日）。
     const isLrit=this.normItype(itype)==="LRIT";
     const lritOn=isLrit&&$("#ic-e-lritfixed")&&$("#ic-e-lritfixed").checked;
@@ -24605,7 +24737,7 @@ const AuditDash={
       if(ic.schedDate&&ic.schedPort)row.plannedPort=ic.schedPort;
       if(!row.auditor&&ic.auditor)row.auditor=ic.auditor;
     }
-    return {...row,auditorText:[row.auditor,row.auditor2].filter(Boolean).join("、"),vesselName:s.name||row.ship,zh:s.zh||"",cso:s.cso||"",plannedDate,enhanced,enhancedReason:ic?ic.enhancedReason:"",defCount,
+    return {...row,auditorText:[row.auditor,row.auditor2].filter(Boolean).join("、"),vesselName:s.name||row.ship,zh:s.zh||"",cso:s.cso||"",plannedDate,enhanced,enhancedReason:ic?ic.enhancedReason:"",enhancedSince:ic?ic.enhancedSince||"":"",enhancedUntil:ic?ic.enhancedUntil||"":"",defCount,
       dueDate:icRow?icRow.dueDateCalc||"":"",daysLeft:icRow&&icRow.dueDateCalc&&icRow.daysLeft!=null&&!isNaN(icRow.daysLeft)?icRow.daysLeft:null,icStatus:icRow?icRow.status:"",icOwner:ic?ic.owner||"":""};
   },
   /* 排程狀態四分類，供篩選／分區檢視／列印勾選共用：
@@ -24735,6 +24867,7 @@ const AuditDash={
           <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:600"><input type="checkbox" id="ad-enh-on"> 列為加強稽核</label>
           <label style="display:block;margin-bottom:8px">原因（必填）<input type="text" id="ad-enh-reason" style="width:100%;margin-top:4px"></label>
           <label style="display:block">起算日<input type="date" id="ad-enh-since" style="margin-top:4px"></label>
+          <label style="display:block;margin-top:8px">管控至（選填；空白＝依規則至少一年）<input type="date" id="ad-enh-until" style="margin-top:4px"></label>
         </div>
         <div class="mf"><button class="btn" onclick="AuditDash.closeEnhance()">取消</button><button class="btn primary" id="ad-enh-save" onclick="AuditDash.saveEnhance()">💾 儲存</button></div></div>`;
       document.body.appendChild(m);
@@ -24744,7 +24877,8 @@ const AuditDash={
     $("#ad-enh-on").checked=!!ic.enhancedAudit;
     $("#ad-enh-reason").value=ic.enhancedReason||"";
     $("#ad-enh-since").value=ic.enhancedSince?InspCtrl.normDate(ic.enhancedSince):todayStr();
-    ["ad-enh-on","ad-enh-reason","ad-enh-since"].forEach(i=>$("#"+i).disabled=!canEdit);
+    $("#ad-enh-until").value=ic.enhancedUntil?InspCtrl.normDate(ic.enhancedUntil):"";
+    ["ad-enh-on","ad-enh-reason","ad-enh-since","ad-enh-until"].forEach(i=>$("#"+i).disabled=!canEdit);
     $("#ad-enh-save").style.display=canEdit?"":"none";
     m.classList.add("show");
   },
@@ -24757,6 +24891,7 @@ const AuditDash={
     const ic=this.icRowEnsure(ship);
     const was=!!ic.enhancedAudit,wasSince=ic.enhancedSince||"";
     ic.enhancedAudit=on;ic.enhancedReason=on?reason:"";ic.enhancedSince=on?since:"";
+    ic.enhancedUntil=on?($("#ad-enh-until").value||""):"";
     if(typeof EnhAuditLog!=="undefined"){
       if(!was&&on)EnhAuditLog.record(ship,ic.itype,"start",since,reason);
       else if(was&&!on){const days=wasSince?Math.round((new Date(todayStr())-new Date(InspCtrl.normDate(wasSince)+"T00:00:00"))/86400000):null;
