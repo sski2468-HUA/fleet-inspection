@@ -4447,6 +4447,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           :is(#ig-page-plan2,#ig-page-audit2) .ic2-pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;white-space:nowrap}
           :is(#ig-page-plan2,#ig-page-audit2) table.ic2-list{width:100%;border-collapse:collapse}
           :is(#ig-page-plan2,#ig-page-audit2) .ic2-list td,:is(#ig-page-plan2,#ig-page-audit2) .ic2-list th{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;font-size:13px;vertical-align:top}
+          #ig-page-audit2 .ic2-list th.ad2-sort{cursor:pointer;user-select:none;white-space:nowrap}
+          #ig-page-audit2 .ic2-list th.ad2-sort:hover{background:#eef4fb;color:var(--navy)}
+          #ig-page-audit2 .ic2-list th.ad2-sort.on{color:var(--navy);background:#e3edf8}
+          #ig-page-audit2 .ad2-sarr{font-size:11px;opacity:.55}
+          #ig-page-audit2 th.on .ad2-sarr{opacity:1}
+          #ig-page-audit2 .ad2-slbl{font-size:10.5px;font-weight:400;color:#2c64a0}
           :is(#ig-page-plan2,#ig-page-audit2) .ic2-list thead th{color:var(--ink-3);font-weight:500;font-size:12px;position:sticky;top:0;background:#fff;cursor:pointer}
           :is(#ig-page-plan2,#ig-page-audit2) .ic2-list tbody tr{cursor:pointer} :is(#ig-page-plan2,#ig-page-audit2) .ic2-list tbody tr:hover{background:#f2f6fb}
           :is(#ig-page-plan2,#ig-page-audit2) .ic2-cal{display:grid;grid-template-columns:repeat(7,minmax(170px,1fr));gap:8px;overflow-x:auto;padding-bottom:6px;align-items:start}
@@ -20631,8 +20637,17 @@ const AuditDash2={
     // 清單：還沒完成的在上（依到期天數），已完成的在下
     const ord={need:0,scheduled:1,later:2,done_open:3,done_closed:4};
     rows.sort((a,b)=>ord[a.step]-ord[b.step]||((a.daysLeft??1e9)-(b.daysLeft??1e9))||a.ship.localeCompare(b.ship,undefined,{numeric:true}));
+    /* 2026-11-05 點欄位標題排序：第一次點＝A→Z／舊→新／少→多，再點一次反過來，第三次回到預設排序。空白一律排最後。 */
+    const S=this.S;
+    if(S&&S.k){
+      const col=this.SORT_COLS[S.k];
+      rows.sort((a,b)=>{const va=col.v(a),vb=col.v(b);const ea=va===""||va==null,eb=vb===""||vb==null;if(ea||eb)return ea===eb?0:(ea?1:-1);
+        const c=typeof va==="number"&&typeof vb==="number"?va-vb:String(va).localeCompare(String(vb),"zh-Hant",{numeric:true});return S.dir*c||a.ship.localeCompare(b.ship,undefined,{numeric:true});});
+    }
+    const th=(k,l)=>{const on=S&&S.k===k;const lbl=on?(this.SORT_COLS[k].date?(S.dir>0?"舊→新":"新→舊"):this.SORT_COLS[k].num?(S.dir>0?"少→多":"多→少"):(S.dir>0?"A→Z":"Z→A")):"";
+      return `<th data-adsort="${k}" class="ad2-sort${on?" on":""}" title="點一下排序（再點一次反向，第三次恢復預設）">${l}<span class="ad2-sarr">${on?(S.dir>0?" ▲":" ▼"):" ↕"}</span>${lbl?`<div class="ad2-slbl">${lbl}</div>`:""}</th>`;};
     const due=r=>r.actualAuditDate||!r.dueDate?"":`<span class="ic2-pill ${r.daysLeft<0?"s0":r.daysLeft<=30?"s1":r.daysLeft<=90?"s2":"s3"}">${r.daysLeft<0?"逾期 "+(-r.daysLeft)+" 天":"剩 "+r.daysLeft+" 天"}</span>`;
-    $("#ad2-list").innerHTML=`<thead><tr><th>船</th><th>流程</th><th>上次稽核</th><th>到期</th><th>計畫檢查日</th><th>實際檢查日</th><th>稽核員</th><th>缺失</th><th>結案</th><th>備註</th></tr></thead><tbody>`+
+    $("#ad2-list").innerHTML=`<thead><tr>${th("ship","船")}${th("step","流程")}${th("last","上次稽核")}${th("due","到期")}${th("plan","計畫檢查日")}${th("actual","實際檢查日")}${th("auditor","稽核員")}${th("def","缺失")}${th("closed","結案")}${th("remark","備註")}</tr></thead><tbody>`+
       rows.map(r=>`<tr data-adid="${r.id}">
         <td><b>${esc(r.ship)}</b>${r.enhanced?'<span class="ic2-tag enh">加強</span>':""}<div class="ic2-lbl">${esc(r.zh||"")}</div></td>
         <td><span class="ic2-pill ${this.STEP[r.step][1]}">${this.STEP[r.step][0]}</span></td>
@@ -20646,6 +20661,26 @@ const AuditDash2={
         <td style="max-width:260px;color:var(--ink-2);font-size:12px">${esc(r.remark||"")}</td></tr>`).join("")+
       (rows.length?"":`<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--ink-3)">沒有符合篩選的船</td></tr>`)+"</tbody>";
     if(this.cur&&$("#ic2-drawer").style.display!=="none"&&this.cur[0]==="ad")this.open(this.cur[1]);
+  },
+  S:null,
+  SORT_COLS:{
+    ship:{v:r=>r.ship},
+    step:{v:r=>({need:0,scheduled:1,later:2,done_open:3,done_closed:4})[r.step],num:true},
+    last:{v:r=>InspCtrl.normDate(r.lastAuditDate)||"",date:true},
+    due:{v:r=>r.actualAuditDate?"":(InspCtrl.normDate(r.dueDate)||""),date:true},
+    plan:{v:r=>InspCtrl.normDate(r.plannedDate)||"",date:true},
+    actual:{v:r=>InspCtrl.normDate(r.actualAuditDate)||"",date:true},
+    auditor:{v:r=>r.auditorText||""},
+    def:{v:r=>+r.defCount||0,num:true},
+    closed:{v:r=>r.closedOut?2:(r.actualAuditDate?1:0),num:true},
+    remark:{v:r=>r.remark||""}
+  },
+  sortBy(k){
+    const S=this.S;
+    if(!S||S.k!==k)this.S={k,dir:1};
+    else if(S.dir===1)this.S={k,dir:-1};
+    else this.S=null;
+    this.render();
   },
   /* 右側明細：每個欄位都直接呼叫 AuditDash 原本的儲存方法 */
   open(id){
@@ -20695,6 +20730,7 @@ const AuditDash2={
     page.addEventListener("click",e=>{
       const t=e.target;
       const st=t.closest("[data-adstep]");if(st){const v=st.dataset.adstep==="all"?null:st.dataset.adstep;F.step=F.step===v?null:v;this.render();return;}
+      const so=t.closest("[data-adsort]");if(so){this.sortBy(so.dataset.adsort);return;}
       if(t.closest("[data-adenh]")){F.enh=!F.enh;this.render();return;}
       const uf=t.closest("[data-adunf]");if(uf){const k=uf.dataset.adunf;if(k==="__all")Object.assign(F,{step:null,kw:"",auditor:"",year:"",enh:false});else F[k]=k==="enh"?false:(k==="step"?null:"");
         $("#ad2-f-kw").value=F.kw;$("#ad2-f-auditor").value=F.auditor;$("#ad2-f-year").value=F.year;this.render();return;}
