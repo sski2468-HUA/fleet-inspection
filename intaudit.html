@@ -1547,10 +1547,13 @@ function closureCount(r,defs){
 }
 function closureHtml(r){
   const c=closureCount(r);
-  if(!c.total)return `<span class="hint" style="flex-basis:100%;font-weight:400">結案進度：這張沒有需要系統追蹤的缺失（皆為 FLOW）</span>`;
+  // 2026-11-05 結案進度下面另列 FLOW 填單缺失件數（FLOW 由船上自行到 FLOW 系統辦理，不列入結案進度）
+  const flowN=(r.defs||[]).filter(d=>d.closeMode==="FLOW").length;
+  const flowLine=flowN?`<span style="flex-basis:100%;display:flex;gap:6px;align-items:center;font-size:12.5px;margin-top:2px"><b style="color:var(--navy)">FLOW 填單缺失：</b><span style="background:#e6ecf2;color:#34495e;border-radius:10px;padding:1px 9px;font-size:12px;font-weight:700">${flowN} 案</span><span class="hint" style="font-weight:400">（船上自行至 FLOW 系統填單 DMP-FM01，不列入上方結案進度）</span></span>`:"";
+  if(!c.total)return `<span class="hint" style="flex-basis:100%;font-weight:400">結案進度：這張沒有需要系統追蹤的缺失（皆為 FLOW）</span>${flowLine}`;
   const chip=(t,bg,fg)=>`<span style="background:${bg};color:${fg};border-radius:10px;padding:1px 9px;font-size:12px;font-weight:700">${t}</span>`;
   const all=c.closed===c.total;
-  return `<span style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px"><b style="color:var(--navy)">結案進度：</b>${chip(`已結案 ${c.closed}／${c.total}`,"#dff2e6","#20703f")}${all?chip("✓ 全部結案","#dff2e6","#20703f"):chip(`未結案 ${c.open}`,"#fde8e6","#c0392b")}${c.submitted?chip(`待督導審核 ${c.submitted}`,"#e3ecf1","#1c3a5e"):""}${c.returned?chip(`已退回 ${c.returned}`,"#fff1dc","#a05a00"):""}${c.wait?chip(`待船上改善 ${c.wait}`,"#eef1f3","#4a5a66"):""}</span>`;
+  return `<span style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px"><b style="color:var(--navy)">結案進度：</b>${chip(`已結案 ${c.closed}／${c.total}`,"#dff2e6","#20703f")}${all?chip("✓ 全部結案","#dff2e6","#20703f"):chip(`未結案 ${c.open}`,"#fde8e6","#c0392b")}${c.submitted?chip(`待督導審核 ${c.submitted}`,"#e3ecf1","#1c3a5e"):""}${c.returned?chip(`已退回 ${c.returned}`,"#fff1dc","#a05a00"):""}${c.wait?chip(`待船上改善 ${c.wait}`,"#eef1f3","#4a5a66"):""}</span>${flowLine}`;
 }
 function renderList(){
   if(listView==="table"){renderStatTable();updateReviewBadge();return;}
