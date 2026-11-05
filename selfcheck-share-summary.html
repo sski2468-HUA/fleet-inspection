@@ -104,6 +104,21 @@ tr.done td{background:#eaf5ee}
 .scfile{display:inline-flex;gap:4px;align-items:center;background:#eef3f8;border-radius:12px;padding:2px 9px;font-size:12px;margin:0 6px 6px 0}
 .scrow{display:flex;gap:12px;align-items:flex-start;padding:10px 4px;border-bottom:1px solid var(--line)}
 .scrow:last-child{border-bottom:0}
+/* 2026-11-05 活動清單：操作鍵三個一排；涉及船舶 */
+.opsgrid{display:grid;grid-template-columns:repeat(3,auto);gap:4px;justify-content:start}
+.opsgrid .btn{white-space:nowrap;padding:4px 8px}
+.scopetx{font-size:12px;font-weight:700;color:var(--navy);line-height:1.5;word-break:break-word}
+.scopetx.pick{font-weight:600;color:var(--ink-2)}
+/* 數據彙總 */
+.stgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.stbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}
+.stbar select,.stbar input{width:auto;padding:5px 8px;font-size:13px}
+.sttab{display:flex;gap:6px;margin:6px 0 8px}
+.sttab button{border:1px solid var(--line);background:#fff;border-radius:16px;padding:4px 14px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink-2)}
+.sttab button.on.open{background:#fbe9e5;border-color:var(--bad);color:var(--bad)}
+.sttab button.on.closed{background:#eaf5ee;border-color:var(--ok);color:var(--ok)}
+.trk{display:inline-block;border-radius:10px;padding:1px 8px;font-size:11.5px;font-weight:700;margin:0 4px 2px 0;background:#eaf1f9;color:#1d4e80}
+.trk.none{background:#eef0f4;color:var(--ink-3);font-weight:600}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -134,7 +149,7 @@ tr.done td{background:#eaf5ee}
         <div class="dfg"><span class="dfl">建立者</span><select id="fBy" onchange="renderDash()"></select></div>
         <div class="dfg"><span class="dfl">狀態</span><select id="fState" onchange="renderDash()"><option value="active">進行中</option><option value="ended">已結束</option><option value="">全部</option></select></div>
         <div class="dfg"><span class="dfl">建立超過</span><select id="fAge" onchange="renderDash()"><option value="0">不限</option><option value="7">7 天</option><option value="14">14 天</option><option value="30">30 天</option><option value="60">60 天</option></select></div>
-        <div class="dfg"><span class="dfl">關鍵字</span><input type="text" id="fKw" placeholder="活動名稱…" oninput="renderDash()" style="width:150px;padding:6px 8px;font-size:13px"></div>
+        <div class="dfg"><span class="dfl">關鍵字</span><input type="text" id="fKw" placeholder="主題…" oninput="renderDash()" style="width:150px;padding:6px 8px;font-size:13px"></div>
         <button class="btn sm" onclick="clearDashFilters()">✕ 清除篩選</button>
       </div>
       <div class="kpis" id="dashKpis" style="margin-top:12px"></div>
@@ -144,6 +159,21 @@ tr.done td{background:#eaf5ee}
       <button type="button" data-t="list" class="on" onclick="setSubTab('list')">📋 活動清單 <span class="hint" id="campaignCountTab"></span></button>
       <button type="button" data-t="pend" onclick="setSubTab('pend')">🔔 未完成／需追蹤的船舶</button>
       <button type="button" data-t="case" onclick="setSubTab('case')">📝 新建自訂自查 <span class="hint" id="scDraftCountTab"></span></button>
+      <button type="button" data-t="stat" onclick="setSubTab('stat')">📈 數據彙總</button>
+    </div>
+    <!-- 2026-11-05 數據彙總：篩選後活動裡，船上回「有，需處理」的每一項，分未結案／已結案，列出追蹤方式（FLOW 單號） -->
+    <div class="card" id="statCard" style="display:none">
+      <div class="toolbar" style="margin-bottom:6px"><b style="color:var(--navy);font-size:14px">📈 數據彙總：需處理項目追蹤</b><span class="hint">依上方篩選的活動計算；船上回答「有，需處理／未完成」的每一項</span><span style="flex:1"></span>
+        <button class="btn sm" onclick="Stat.exportExcel()">⬇ 匯出 Excel</button></div>
+      <div class="stgrid" id="statKpis"></div>
+      <div class="stbar">
+        <span class="hint" style="font-weight:700">篩選</span>
+        <select id="stShip" onchange="Stat.render()"></select>
+        <select id="stTrack" onchange="Stat.render()"><option value="">全部追蹤方式</option><option>FLOW</option><option>內控</option><option>物料配件</option><option value="__none">未選追蹤方式</option></select>
+        <input type="text" id="stKw" placeholder="主題／內容關鍵字…" oninput="Stat.render()" style="width:180px">
+      </div>
+      <div class="sttab"><button type="button" class="open on" data-s="open" onclick="Stat.setSide('open')">未結案 <span id="stOpenN"></span></button><button type="button" class="closed" data-s="closed" onclick="Stat.setSide('closed')">已結案 <span id="stClosedN"></span></button></div>
+      <div style="overflow-x:auto" id="statList"></div>
     </div>
     <!-- 2026-11-04 自訂自查：自己出題發給船隊（原本在主系統，改到這裡做）。草稿存雲端 app_db（sharecase_draft_<id>），
          跟主系統同一份；發佈＝新增一筆分享自查活動。 -->
@@ -153,7 +183,7 @@ tr.done td{background:#eaf5ee}
         <button type="button" data-ct="drafts" onclick="SC.ctab('drafts')">💾 草稿 <span class="hint" id="scDraftCount"></span></button>
       </div>
       <div id="scPageNew">
-        <div class="toolbar" style="margin-bottom:6px"><b id="scFormHead" style="color:var(--navy)">📝 新增自訂自查</b><span style="flex:1"></span><button class="btn sm" onclick="if(confirm('清空表單、開始一則新的？（已存的草稿不受影響）'))SC.mount(null)">＋ 開新的一則</button></div>
+        <div class="toolbar" style="margin-bottom:6px"><b id="scFormHead" style="color:var(--navy)">📝 新增自訂自查</b><span style="flex:1"></span><button class="btn sm" onclick="SC.newOne()">＋ 開新的一則</button></div>
         <p class="hint" style="margin:0 0 10px">依某個案例自己出題（例：其他公司事故、訪船發現的共通問題），一條連結發給船隊自查；可附照片、程序書。還沒寫完可先「儲存草稿」。</p>
         <div id="scForm"></div>
       </div>
@@ -164,8 +194,8 @@ tr.done td{background:#eaf5ee}
         <b style="color:var(--navy);font-size:14px">🔔 未完成／需追蹤的船舶</b>
         <select id="fPendMode" onchange="renderDash()" style="width:auto;padding:5px 8px;font-size:13px">
           <option value="both">未送出＋有需追蹤（全部）</option>
-          <option value="unsub">只看未送出（未開始＋填答中）</option>
-          <option value="track">只看已送出但有未結案項目</option>
+          <option value="unsub">只看未完成（未開始＋填答中）</option>
+          <option value="track">只看已完成但有未結案項目</option>
         </select>
         <span class="hint" id="pendCount"></span>
         <span style="flex:1"></span>
@@ -177,7 +207,8 @@ tr.done td{background:#eaf5ee}
       <div class="toolbar">
         <span style="font-weight:700;color:var(--ink-3);font-size:12px">共 <span id="campaignCount">0</span> 個活動</span>
         <button class="btn sm" onclick="loadCampaignList()">🔄 重新整理</button>
-        <button class="btn sm" onclick="exportAllCampaigns()" title="彙整所有活動、所有船舶的檢查結果與明細成一份 Excel，供督導長期追蹤">⬇ 匯出全部活動明細</button>
+        <button class="btn sm" onclick="exportAllCampaigns()" title="依上方篩選，彙整每個主題發給哪些船、各船是否完成／結案，成一份 Excel">⬇ 匯出篩選結果 Excel</button>
+        <button class="btn sm" onclick="exportFilteredPdf()" title="依上方篩選，產出「主題 × 船舶」完成／結案報表，列印選「另存為 PDF」">🖨 匯出篩選結果 PDF</button>
         <span style="flex:1"></span>
         <button class="btn sm" onclick="setSubTab('case');SC.ctab('new')" style="background:#e8842c;border-color:#e8842c;color:#fff;font-weight:700">📝 新建自訂自查清單</button>
       </div>
@@ -209,8 +240,8 @@ tr.done td{background:#eaf5ee}
         <select id="filterSel" onchange="renderTable()">
           <option value="all">全部船舶</option>
           <option value="track">⚠ 有需追蹤項目（未結案）</option>
-          <option value="unsubmitted">未送出</option>
-          <option value="submitted">已送出</option>
+          <option value="unsubmitted">未完成</option>
+          <option value="submitted">完成</option>
         </select>
         <input type="text" id="shipSearch" placeholder="輸入船名快速查找…" style="max-width:200px" oninput="renderTable()">
       </div>
@@ -220,6 +251,13 @@ tr.done td{background:#eaf5ee}
           <tbody id="tbody"></tbody>
         </table>
       </div>
+    </div>
+    <!-- 2026-11-04 細目回覆彙整：每一題、每一條「請確認」細目，全部船的勾選數＋各船補充說明（統計用） -->
+    <div class="card" id="ckCard" style="display:none">
+      <div class="toolbar" style="margin-bottom:6px"><b style="color:var(--navy);font-size:14px">📋 細目回覆彙整</b><span class="hint">每一條細目：幾艘船已勾、各船填的補充說明</span><span style="flex:1"></span>
+        <label class="hint" style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="ckOnlyNote" onchange="renderCkSummary()" style="width:auto"> 只看有補充說明的船</label>
+        <button class="btn sm" onclick="exportExcel()" title="Excel 裡的「細目回覆」分頁＝每船每條細目一列，可再篩選／加總">⬇ 下載 Excel</button></div>
+      <div id="ckBody"></div>
     </div>
   </div>
 </div>
@@ -343,7 +381,8 @@ async function loadCampaignList(){
   await loadShipOpts();
   try{
     campaigns=await api(`${CAMPAIGN_TABLE}?order=created_at.desc&limit=200`);
-    allResponses=await api(`${RESPONSE_TABLE}?select=id,campaign_id,ship,items,submitted_at&limit=5000`);
+    allResponses=await api(`${RESPONSE_TABLE}?select=id,campaign_id,ship,items,submitted_at,checker_name,checker_title&limit=5000`);
+    try{await SC.fleet();}catch(e){} // 船型（油輪／散裝）判斷「涉及船舶」用
   }catch(e){
     notify("⚠ 活動清單讀取失敗："+e.message,"err");
     return;
@@ -396,13 +435,29 @@ function showListView(){
    不影響資料本身；每次重新整理（loadCampaignList）沿用上次選的排序條件。 */
 let listSort={key:"created_at",dir:-1};
 const LIST_SORT_COLS={
-  title:{label:"活動",get:(c,st)=>c.title||("活動 #"+c.id)},
+  title:{label:"主題",get:(c,st)=>c.title||("活動 #"+c.id)},
   created_at:{label:"建立",get:(c,st)=>c.created_at||0},
   active:{label:"狀態",get:(c,st)=>c.active===false?0:1},
-  started:{label:"已開始/應填",get:(c,st)=>st.total?st.started/st.total:st.started},
-  submitted:{label:"已送出",get:(c,st)=>st.submitted},
-  track:{label:"需追蹤",get:(c,st)=>st.track}
+  submitted:{label:"完成/應填",get:(c,st)=>st.total?st.submitted/st.total:st.submitted},
+  track:{label:"需追蹤",get:(c,st)=>st.track},
+  scope:{label:"涉及船舶",get:(c,st)=>scopeText(c)}
 };
+/* 2026-11-05 涉及船舶：沒指定＝All fleet；剛好是全部油輪／散裝＝All tanker／All bulker；其餘列船代碼（F27、F28…） */
+function scopeText(c){
+  const sc=Array.isArray(c&&c.ship_scope)?c.ship_scope.filter(Boolean):[];
+  if(!sc.length)return "All fleet";
+  const fleet=(SC&&SC._fleet)||[];
+  if(fleet.length){
+    const set=new Set(sc),known=fleet.filter(s=>set.has(s.code));
+    if(fleet.every(s=>set.has(s.code)))return "All fleet";
+    for(const [t,lb] of [["tanker","All tanker"],["bulk","All bulker"]]){
+      const of=fleet.filter(s=>s.vtype===t);
+      if(of.length&&known.length&&known.every(s=>s.vtype===t)&&of.every(s=>set.has(s.code)))return lb;
+    }
+  }
+  return sc.slice().sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true})).join("、");
+}
+function shortDate(t){if(!t)return "";const d=new Date(t);return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;}
 function sortListBy(key){
   if(listSort.key===key)listSort.dir=-listSort.dir;
   else listSort={key,dir:key==="title"?1:-1}; // 文字欄位預設 A→Z，數字／日期欄位預設由大到小
@@ -479,9 +534,9 @@ function renderDash(){
   const k=(v,l,style)=>`<div class="kpi"><div class="v" style="${style||""}">${v}</div><div class="l">${l}</div></div>`;
   document.getElementById("dashKpis").innerHTML=
     k(list.length,`篩選後活動數（全部 ${campaigns.length}）`)+
-    k(tot?Math.round(sub/tot*100)+"%":"—",`送出率（${sub} / ${tot} 船次）`,"color:var(--ok)")+
-    k(unsubN,"未送出船次",unsubN?"color:var(--bad)":"")+
-    k(unsubShips.length,"有未送出活動的船舶",unsubShips.length?"color:var(--bad)":"")+
+    k(tot?Math.round(sub/tot*100)+"%":"—",`完成率（${sub} / ${tot} 船次）`,"color:var(--ok)")+
+    k(unsubN,"未完成船次",unsubN?"color:var(--bad)":"")+
+    k(unsubShips.length,"有未完成活動的船舶",unsubShips.length?"color:var(--bad)":"")+
     k(track,"未結案需追蹤項目",track?"color:#a05a10":"");
   const mode=document.getElementById("fPendMode").value;
   const rows=pendingByShip(list,mode);
@@ -493,6 +548,7 @@ function renderDash(){
       <div><button class="btn sm" onclick="openShipReminder('${esc(x.code)}')">🔔 提醒文字</button></div>
     </div>`).join(""):`<p class="hint" style="text-align:center;padding:12px">🎉 篩選條件下沒有需要提醒的船舶</p>`;
   renderListView(true);
+  if(document.getElementById("statCard").style.display!=="none")Stat.render();
 }
 /* 一艘船跨多個活動的提醒文字：每個活動一段（名稱＋專屬連結），已送出但未結案的再列出未結案項目 */
 function buildShipReminder(code){
@@ -508,7 +564,7 @@ function buildShipReminder(code){
     s+=`\n以下活動已送出，但仍有「有，需處理」項目尚未結案，若已改善請回到連結勾選「已完成改善（結案）」再送出：\n`;
     tk.forEach((p,i)=>{
       const open=((p.r&&p.r.items)||[]).map((it,j)=>({it,j})).filter(o=>o.it.status==="similar"&&!o.it.closed);
-      s+=`\n${i+1}. ${p.c.title||("活動 #"+p.c.id)}\n${open.map(o=>`   #${o.j+1} ${o.it.code?"CODE "+o.it.code+"　":""}${String(o.it.detail||"").slice(0,80)}${(o.it.track||[]).length?"（已在追蹤："+o.it.track.join("、")+"）":""}`).join("\n")}\n   連結：${base}submit-selfcheck-share.html?cid=${p.c.id}&ship=${encodeURIComponent(code)}\n`;
+      s+=`\n${i+1}. ${p.c.title||("活動 #"+p.c.id)}\n${open.map(o=>`   #${o.j+1} ${o.it.code?"CODE "+o.it.code+"　":""}${String(o.it.detail||"").slice(0,80)}${(o.it.track||[]).length?"（已在追蹤："+trackStr(o.it)+"）":""}`).join("\n")}\n   連結：${base}submit-selfcheck-share.html?cid=${p.c.id}&ship=${encodeURIComponent(code)}\n`;
     });
   }
   return s+`\n謝謝配合！`;
@@ -533,13 +589,17 @@ function exportPending(){
 }
 /* 子標籤切換：需提醒的船舶／活動清單（記住上次停留的分頁） */
 function setSubTab(t){
-  if(t!=="pend"&&t!=="case")t="list"; // 2026-11-04 預設＝活動清單
+  if(t!=="pend"&&t!=="case"&&t!=="stat")t="list"; // 2026-11-04 預設＝活動清單
+  // 新建自訂自查還沒儲存就要切走：先提醒（存成草稿或留下）
+  if(t!=="case"&&typeof SC!=="undefined"&&SC._dirty&&document.getElementById("caseCard").style.display!=="none"){SC.guardLeave().then(ok=>{if(ok)setSubTab(t);});return;}
   document.querySelectorAll("#subTabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
   document.getElementById("pendCard").style.display=t==="pend"?"":"none";
   document.getElementById("listCard").style.display=t==="list"?"":"none";
   document.getElementById("caseCard").style.display=t==="case"?"":"none";
+  document.getElementById("statCard").style.display=t==="stat"?"":"none";
   document.getElementById("dashCard").style.display=t==="case"?"none":""; // 新建時上方篩選／統計用不到，先收起來
   if(t==="case"&&typeof SC!=="undefined")SC.enter();
+  if(t==="stat"&&typeof Stat!=="undefined")Stat.render();
   try{localStorage.setItem("scs_subtab",t);}catch(e){}
 }
 document.addEventListener("DOMContentLoaded",()=>{let t="list";try{t=localStorage.getItem("scs_subtab")||"list";}catch(e){}setSubTab(t);});
@@ -559,25 +619,25 @@ function renderListView(fromDash){
     return cmp*listSort.dir;
   });
   const th=(key,label,style)=>{const on=listSort.key===key;return `<th${style?` style="${style}"`:""} class="sortable${on?" sorted":""}" onclick="sortListBy('${key}')">${label}${on?(listSort.dir>0?" ▲":" ▼"):""}</th>`;};
-  box.innerHTML=`<table><thead><tr>${th("title","活動")}${th("created_at","建立","width:150px")}${th("active","狀態","width:74px")}${th("started","已開始/應填","width:100px")}${th("submitted","已送出","width:64px")}${th("track","需追蹤","width:110px")}<th style="width:380px">操作</th></tr></thead><tbody>
+  box.innerHTML=`<table style="table-layout:fixed;min-width:860px"><thead><tr>${th("title","主題")}${th("created_at","建立","width:96px")}${th("active","狀態","width:72px")}${th("submitted","完成/應填","width:84px")}${th("track","需追蹤","width:76px")}${th("scope","涉及船舶","width:130px")}<th style="width:236px">操作</th></tr></thead><tbody>
     ${withStats.map(({c,st})=>{
-      const ended=c.active===false;
+      const ended=c.active===false,sc=scopeText(c),allSub=st.total&&st.submitted>=st.total;
       return `<tr class="${st.track?'track':''}">
         <td><b>${esc(c.title||("活動 #"+c.id))}</b><div class="hint">共 ${(c.items||[]).length} 項查核項目</div></td>
-        <td class="hint">${c.created_at?esc(new Date(c.created_at).toLocaleString("zh-TW",{hour12:false})):""}${c.created_by?"<br>"+esc(c.created_by):""}</td>
+        <td class="hint">${esc(shortDate(c.created_at))}${c.created_by?"<br>"+esc(creatorOf(c)):""}</td>
         <td>${ended?'<span class="pill na">已結束</span>':'<span class="pill ok">進行中</span>'}</td>
-        <td>${st.started} / ${st.total}</td>
-        <td>${st.submitted}</td>
+        <td style="font-weight:700;${allSub?"color:var(--ok)":""}">${st.submitted} / ${st.total}</td>
         <td>${st.track?`<span class="pill bad">⚠ ${st.track} 項</span>`:'<span class="pill na">—</span>'}</td>
-        <td style="white-space:nowrap">
+        <td><div class="scopetx${/^All /.test(sc)?"":" pick"}">${esc(sc)}</div></td>
+        <td><div class="opsgrid">
           <button class="btn sm" onclick="openDetail(${c.id})">📊 進度</button>
-          ${(c.items||[]).some(it=>it&&it.src==="自訂案例")&&!(allResponses||[]).some(r=>String(r.campaign_id)===String(c.id))?`<button class="btn sm" style="color:#a05a10;border-color:#e8842c" onclick="SC.editCampaign(${c.id})" title="還沒有船開始填，可以修改題目／說明／附件／發給哪些船（連結不變）">✏ 編輯</button>`:""}
           <button class="btn sm" onclick="previewFill(${c.id})" title="開新分頁，看船上填答畫面長怎樣（不會存檔、不會送出）">👁 預覽</button>
           <button class="btn sm" onclick="copyMailText(${c.id})" title="複製「自查項目＋連結」（上下兩行），貼入郵件發給船隊">✉ MAIL船</button>
           <button class="btn sm" onclick="copyFillLink(${c.id})">📋 連結</button>
           <button class="btn sm" onclick="toggleActive(${c.id})">${ended?"▶ 重啟":"⏸ 結束"}</button>
           <button class="btn sm" style="color:var(--bad);border-color:var(--bad)" onclick="deleteCampaign(${c.id})">🗑 刪除</button>
-        </td>
+          ${(c.items||[]).some(it=>it&&it.src==="自訂案例")&&!(allResponses||[]).some(r=>String(r.campaign_id)===String(c.id))?`<button class="btn sm" style="color:#a05a10;border-color:#e8842c" onclick="SC.editCampaign(${c.id})" title="還沒有船開始填，可以修改題目／說明／附件／發給哪些船（連結不變）">✏ 編輯</button>`:""}
+        </div></td>
       </tr>`;
     }).join("")}
   </tbody></table>`;
@@ -656,6 +716,32 @@ async function loadCampaign(id){
   }
   document.getElementById("statsCard").style.display="";
   renderTable();
+  renderCkSummary();
+}
+/* 細目回覆彙整：題目 → 細目 → 已勾 n／填答船數，下面列各船補充說明（點船名展開該船明細） */
+function renderCkSummary(){
+  const card=document.getElementById("ckCard"),box=document.getElementById("ckBody");if(!card||!box||!curCampaign)return;
+  const items=curCampaign.items||[];
+  if(!items.some(it=>(it.checks||[]).length)){card.style.display="none";return;}
+  card.style.display="";
+  const only=document.getElementById("ckOnlyNote").checked;
+  const resp=(responses||[]).filter(r=>targetShips().some(s=>s.code===r.ship));
+  const STL=st=>(curCampaign.items.some(x=>x.src==="自訂案例")?ST_LABEL_CASE:ST_LABEL)[st||"pending"];
+  box.innerHTML=items.map((it,i)=>{
+    const cs=it.checks||[];if(!cs.length)return "";
+    const answered=resp.filter(r=>((r.items||[])[i]||{}).status&&((r.items||[])[i]||{}).status!=="pending");
+    const stCnt={};answered.forEach(r=>{const s=r.items[i].status;stCnt[s]=(stCnt[s]||0)+1;});
+    return `<div style="border-top:1px solid var(--line);padding:10px 0">
+      <div><b>#${i+1} ${esc(it.topic||it.code||"")}</b> <span class="hint">已作答 ${answered.length}／${resp.length} 艘：${Object.entries(stCnt).map(([s,n])=>`${STL(s).replace(/^[^一-龥（]+/,"")} ${n}`).join("、")||"—"}</span></div>
+      ${cs.map((c,j)=>{
+        const ticked=resp.filter(r=>(((r.items||[])[i]||{}).checkDone||[])[j]);
+        const notes=resp.map(r=>({r,n:((((r.items||[])[i]||{}).checkNote)||[])[j]})).filter(x=>x.n&&String(x.n).trim());
+        const rows=(only?notes:resp.map(r=>({r,n:((((r.items||[])[i]||{}).checkNote)||[])[j]}))).filter(x=>only||x.n||(((x.r.items||[])[i]||{}).checkDone||[])[j]);
+        return `<div style="margin:6px 0 0 14px">
+          <div>☑ <b>${ticked.length}</b>／${resp.length} 艘已勾　${esc(c)}${notes.length?`<span class="hint">（${notes.length} 艘有補充說明）</span>`:""}</div>
+          ${rows.length?`<div style="margin:3px 0 0 20px;display:grid;grid-template-columns:minmax(140px,max-content) 1fr;gap:2px 12px;font-size:12.5px">${rows.map(x=>`<span style="white-space:nowrap">${(((x.r.items||[])[i]||{}).checkDone||[])[j]?"☑":"☐"} <a href="javascript:void 0" onclick="toggleDetail('${esc(x.r.ship)}')">${esc(shipLabel(x.r.ship))}</a></span><span style="color:#1e7f8c">${x.n?esc(x.n):'<span class="hint">—</span>'}</span>`).join("")}</div>`:""}
+        </div>`;}).join("")}
+    </div>`;}).join("")||`<div class="hint">這個活動沒有「請確認」細目。</div>`;
 }
 
 /* 這個活動的「應填船舶清單」：有限定就用限定清單，沒限定就用全船舶清單
@@ -719,8 +805,8 @@ function renderTable(){
   });
   tbody.innerHTML=rowsHtml.join("")||`<tr><td colspan="7" class="hint" style="text-align:center;padding:20px">找不到符合條件的船舶</td></tr>`;
   document.getElementById("kpis").innerHTML=`
-    <div class="kpi"><div class="v">${responses.filter(r=>targetShips().some(s=>s.code===r.ship)).length} / ${targetShips().length}</div><div class="l">已開始填答／應填船數</div></div>
-    <div class="kpi"><div class="v">${nSubmitted}</div><div class="l">已送出</div></div>
+    <div class="kpi"><div class="v">${nSubmitted} / ${targetShips().length}</div><div class="l">完成／應填船數</div></div>
+    <div class="kpi"><div class="v">${responses.filter(r=>targetShips().some(s=>s.code===r.ship)).length}</div><div class="l">已開始填答</div></div>
     <div class="kpi"><div class="v">${nDone}</div><div class="l">全部題目已作答</div></div>
     <div class="kpi" style="${nTrackOpen?'border-color:var(--bad)':''}"><div class="v" style="${nTrackOpen?'color:var(--bad)':''}">${nTrackOpen}</div><div class="l">艘船有未結案追蹤項目</div></div>
   `;
@@ -750,15 +836,17 @@ function collectReport(){
     const similar=resp?(resp.items||[]).filter(it=>it.status==="similar"):[];
     status.push({code:s.code,name:s.label||s.name||"",checker:resp?(resp.checker_name||""):"",title:resp?(resp.checker_title||""):"",
       progress:resp?`${st.done} / ${st.total}`:`0 / ${(curCampaign.items||[]).length}`,
-      state:!resp?"尚未開始":(resp.submitted_at?"已送出":"填答中"),
+      state:!resp?"尚未開始":(resp.submitted_at?"完成":"填答中"),
       submitCount:resp?(resp.submit_count||0):0,submittedAt:resp?fmt(resp.submitted_at):"",
       needN:similar.length,openN:similar.filter(it=>!it.closed).length});
     similar.forEach(it=>issues.push({code:s.code,name:s.label||s.name||"",checker:resp.checker_name||"",title:resp.checker_title||"",
-      itemCode:it.code||"",src:it.src||"",detail:it.detail||"",actual2:it.actual2||"",note:it.note||"",handle:it.actual||"",phB:(it.photosBefore||[]).map(x=>x.url).join("\n"),phA:(it.photosAfter||[]).map(x=>x.url).join("\n"),
-      closed:it.closed?"已結案":"未結案",tracking:it.closed?"":(it.track||[]).join("、"),closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
+      itemCode:it.code||"",src:it.src||"",detail:it.detail||[it.topic,it.key].filter(Boolean).join("：")||"",actual2:it.actual2||"",note:it.note||"",handle:it.actual||"",phB:(it.photosBefore||[]).map(x=>x.url).join("\n"),phA:(it.photosAfter||[]).map(x=>x.url).join("\n"),
+      closed:it.closed?"已結案":"未結案",tracking:trackStr(it),closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
   });
   return {status,issues};
 }
+/* 追蹤方式文字：FLOW 附單號（2026-11-05 船上選 FLOW 可填單號，結案時必填） */
+function trackStr(it){return (it.track||[]).filter(Boolean).map(t=>t==="FLOW"&&it.flowNo?`FLOW（${it.flowNo}）`:t).join("、");}
 /* 目標船舶清單（可指定活動，用於跨活動彙整；不傳則用目前活動） */
 function targetShipsFor(c,resp){
   const scope=(c.ship_scope&&c.ship_scope.length)?c.ship_scope:null;
@@ -788,40 +876,164 @@ function collectReportFor(c){
     const similar=r?(r.items||[]).filter(it=>it.status==="similar"):[];
     status.push({campaign:label,code:s.code,name:s.label||s.name||"",checker:r?(r.checker_name||""):"",title:r?(r.checker_title||""):"",
       progress:r?`${st.done} / ${st.total}`:`0 / ${totalItems}`,
-      state:!r?"尚未開始":(r.submitted_at?"已送出":"填答中"),
+      state:!r?"尚未開始":(r.submitted_at?"完成":"填答中"),
       submitCount:r?(r.submit_count||0):0,submittedAt:r?fmt(r.submitted_at):"",
       needN:similar.length,openN:similar.filter(it=>!it.closed).length});
     similar.forEach(it=>issues.push({campaign:label,code:s.code,name:s.label||s.name||"",checker:r.checker_name||"",title:r.checker_title||"",
-      itemCode:it.code||"",src:it.src||"",detail:it.detail||"",actual2:it.actual2||"",note:it.note||"",handle:it.actual||"",phB:(it.photosBefore||[]).map(x=>x.url).join("\n"),phA:(it.photosAfter||[]).map(x=>x.url).join("\n"),
-      closed:it.closed?"已結案":"未結案",tracking:it.closed?"":(it.track||[]).join("、"),closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
+      itemCode:it.code||"",src:it.src||"",detail:it.detail||[it.topic,it.key].filter(Boolean).join("：")||"",actual2:it.actual2||"",note:it.note||"",handle:it.actual||"",phB:(it.photosBefore||[]).map(x=>x.url).join("\n"),phA:(it.photosAfter||[]).map(x=>x.url).join("\n"),
+      closed:it.closed?"已結案":"未結案",tracking:trackStr(it),closeNote:it.closeNote||"",closedAt:it.closedAt||"",trackDue:it.trackDue||""}));
   });
   return {status,issues};
 }
 /* 匯出全部活動明細：一次把所有活動、所有船舶的檢查結果與需處理明細彙整成一份 Excel，
    供督導不用一個個活動點進去看，直接在這份總表上長期追蹤。 */
+/* 2026-11-05 依上方篩選匯出：每個主題發給哪些船、各船是否完成、需處理項目是否都已結案 */
+function shipCell(c,r){
+  if(!r)return {txt:"未開始",k:"no",need:0,open:0,closed:0};
+  const sim=(r.items||[]).filter(it=>it.status==="similar"),open=sim.filter(it=>!it.closed).length,closed=sim.length-open;
+  if(!r.submitted_at)return {txt:"填答中",k:"ing",need:sim.length,open,closed};
+  if(open)return {txt:`完成・未結案 ${open}`,k:"open",need:sim.length,open,closed};
+  return {txt:sim.length?`完成・已結案 ${closed}`:"完成",k:"ok",need:sim.length,open,closed};
+}
+function campOverview(c){
+  const resp=allResponses.filter(r=>String(r.campaign_id)===String(c.id)),byShip=new Map(resp.map(r=>[r.ship,r]));
+  const ships=targetShipsFor(c,resp).map(s=>({code:s.code,r:byShip.get(s.code)})).map(x=>Object.assign(x,shipCell(c,x.r)));
+  const total=ships.length,done=ships.filter(x=>x.r&&x.r.submitted_at).length;
+  const need=ships.reduce((n,x)=>n+x.need,0),open=ships.reduce((n,x)=>n+x.open,0);
+  const result=!total?"—":(done<total?`未完成 ${total-done} 船`:(open?`未結案 ${open} 項`:"✓ 全部完成結案"));
+  return {c,ships,total,done,need,open,closed:need-open,result,allOk:!!total&&done>=total&&!open};
+}
+function filterDesc(){
+  const p=[];if(fSrc.size)p.push("檢查來源："+[...fSrc].join("、"));
+  const by=document.getElementById("fBy").value;if(by)p.push("建立者："+by);
+  const st=document.getElementById("fState");p.push("狀態："+st.options[st.selectedIndex].text);
+  const age=document.getElementById("fAge").value;if(+age)p.push(`建立超過 ${age} 天`);
+  const kw=(document.getElementById("fKw").value||"").trim();if(kw)p.push("關鍵字："+kw);
+  return p.join("　");
+}
+function sortedFiltered(){return dashFiltered().slice().sort((a,b)=>(b.created_at||0)-(a.created_at||0));}
 function exportAllCampaigns(){
   if(typeof XLSX==="undefined"){notify("⚠ Excel 元件載入失敗，請確認網路後重新整理頁面","err");return;}
-  if(!campaigns.length){notify("⚠ 目前沒有任何活動","err");return;}
-  const allStatus=[],allIssues=[];
-  campaigns.forEach(c=>{
-    const {status,issues}=collectReportFor(c);
-    allStatus.push(...status);
-    allIssues.push(...issues);
-  });
+  const list=sortedFiltered();
+  if(!list.length){notify("⚠ 篩選條件下沒有活動","err");return;}
+  const ov=list.map(campOverview),allIssues=[];
+  list.forEach(c=>allIssues.push(...collectReportFor(c).issues));
+  const T=c=>c.title||("活動 #"+c.id);
   const wb=XLSX.utils.book_new();
-  const allItems=[];campaigns.forEach(c=>(c.items||[]).forEach((it,i)=>allItems.push({"活動":c.title||("活動 #"+c.id),"編號":i+1,"CODE":it.code||"","來源檢查":fmtSrc(it.src),"缺失內容":it.detail||"","來源實際情況":it.actual2||""})));
-  const wsItems=XLSX.utils.json_to_sheet(allItems.length?allItems:[{"（無資料）":""}]);
-  wsItems["!cols"]=[22,6,10,30,60,50].map(w=>({wch:w}));
-  XLSX.utils.book_append_sheet(wb,wsItems,"各活動自查項目");
-  const ws1=XLSX.utils.json_to_sheet(allStatus.map(r=>({"活動":r.campaign,"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"填答進度":r.progress,"狀態":r.state,"送出次數":r.submitCount,"最後送出":r.submittedAt,"需處理項數":r.needN,"未結案數":r.openN})));
-  ws1["!cols"]=[22,8,14,12,12,10,9,8,20,10,9].map(w=>({wch:w}));
-  XLSX.utils.book_append_sheet(wb,ws1,"各活動船隊狀況");
-  const ws2=XLSX.utils.json_to_sheet(allIssues.map(r=>({"活動":r.campaign,"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"職稱":r.title,"CODE":r.itemCode,"來源檢查":fmtSrc(r.src),"缺失內容":r.detail,"來源實際情況":r.actual2,"本船實際狀況":r.note,"處理情況":r.handle,"結案狀態":r.closed,"已在追蹤（FLOW／內控／物料配件）":r.tracking,"改善情形說明":r.closeNote,"結案日期":r.closedAt,"追蹤期限":r.trackDue,"現況照片":r.phB||"","改善後照片":r.phA||""})));
-  ws2["!cols"]=[22,8,14,12,12,10,20,40,36,36,36,9,36,12,12].map(w=>({wch:w}));
-  XLSX.utils.book_append_sheet(wb,ws2,"各活動需處理明細");
-  XLSX.writeFile(wb,`分享自查_全部活動彙整_${new Date().toISOString().slice(0,10)}.xlsx`);
-  notify(`✓ 已下載 Excel（共 ${campaigns.length} 個活動、${allIssues.length} 項需處理）`,"ok2");
+  const ws0=XLSX.utils.json_to_sheet(ov.map(o=>({"主題":T(o.c),"檢查來源":campaignSources(o.c).join("、"),"建立日期":shortDate(o.c.created_at),"建立者":creatorOf(o.c),"狀態":o.c.active===false?"已結束":"進行中","涉及船舶":scopeText(o.c),"應填船數":o.total,"完成船數":o.done,"未完成船數":o.total-o.done,"需處理項數":o.need,"已結案":o.closed,"未結案":o.open,"結案狀況":o.result})));
+  ws0["!cols"]=[40,12,11,10,8,24,8,8,9,9,7,7,16].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws0,"主題總覽");
+  // 船舶 × 主題矩陣：一眼看出哪些船做了哪些專項、是否結案
+  const shipSet=new Set();ov.forEach(o=>o.ships.forEach(x=>shipSet.add(x.code)));
+  const shipsSorted=[...shipSet].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  const mx=shipsSorted.map(code=>{const row={"船舶代碼":code,"船名":shipLabel(code)};ov.forEach((o,i)=>{const x=o.ships.find(s=>s.code===code);row[`${i+1}. ${T(o.c)}`.slice(0,60)]=x?x.txt:"（不適用）";});return row;});
+  const ws1=XLSX.utils.json_to_sheet(mx.length?mx:[{"（無資料）":""}]);
+  ws1["!cols"]=[{wch:8},{wch:24}].concat(ov.map(()=>({wch:18})));
+  XLSX.utils.book_append_sheet(wb,ws1,"船舶×主題");
+  const rows=[];ov.forEach(o=>o.ships.forEach(x=>rows.push({"主題":T(o.c),"船舶代碼":x.code,"船名":shipLabel(x.code),"填寫人":x.r?(x.r.checker_name||""):"","狀態":x.txt,"完成日期":x.r&&x.r.submitted_at?shortDate(x.r.submitted_at):"","需處理":x.need,"已結案":x.closed,"未結案":x.open})));
+  const ws2=XLSX.utils.json_to_sheet(rows.length?rows:[{"（無資料）":""}]);
+  ws2["!cols"]=[40,8,24,12,16,11,7,7,7].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws2,"各船完成狀況");
+  const ws3=XLSX.utils.json_to_sheet(allIssues.length?allIssues.map(r=>({"主題":r.campaign,"船舶代碼":r.code,"船名":r.name,"填寫人":r.checker,"CODE":r.itemCode,"來源檢查":fmtSrc(r.src),"題目／缺失內容":r.detail,"本船實際狀況":r.note,"結案狀態":r.closed,"追蹤方式":r.tracking,"改善情形說明":r.closeNote,"結案日期":r.closedAt,"追蹤期限":r.trackDue,"現況照片":r.phB||"","改善後照片":r.phA||""})):[{"（沒有需處理項目）":""}]);
+  ws3["!cols"]=[30,8,20,12,10,20,44,40,9,22,36,12,12,30,30].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws3,"需處理明細");
+  const ws4=XLSX.utils.aoa_to_sheet([["篩選條件",filterDesc()],["匯出時間",new Date().toLocaleString("zh-TW",{hour12:false})],["主題數",list.length],["需處理項數",allIssues.length]]);
+  ws4["!cols"]=[{wch:12},{wch:80}];XLSX.utils.book_append_sheet(wb,ws4,"篩選條件");
+  XLSX.writeFile(wb,`分享自查_篩選結果_${new Date().toISOString().slice(0,10)}.xlsx`);
+  notify(`✓ 已下載 Excel（${list.length} 個主題、${allIssues.length} 項需處理）`,"ok2");
 }
+function exportFilteredPdf(){
+  const list=sortedFiltered();
+  if(!list.length){notify("⚠ 篩選條件下沒有活動","err");return;}
+  const ov=list.map(campOverview),T=c=>c.title||("活動 #"+c.id),e=s=>esc(s==null?"":String(s)).replace(/\n/g,"<br>");
+  const shipSet=new Set();ov.forEach(o=>o.ships.forEach(x=>shipSet.add(x.code)));
+  const ships=[...shipSet].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  const CLR={no:"#fbe9e5",ing:"#fff4e8",open:"#fbe9e5",ok:"#eaf5ee"};
+  const issues=[];list.forEach(c=>issues.push(...collectReportFor(c).issues));
+  const openI=issues.filter(r=>r.closed==="未結案"),tot=ov.reduce((n,o)=>n+o.total,0),done=ov.reduce((n,o)=>n+o.done,0);
+  document.getElementById("printArea").innerHTML=`<style>@page{size:A4 landscape;margin:10mm}#printArea .mx td{text-align:center;font-size:9.5px;padding:3px}#printArea .mx th{font-size:9.5px;padding:3px}#printArea td.c{-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>
+    <h1>分享自查專項執行報表</h1>
+    <div>匯出時間：${new Date().toLocaleString("zh-TW",{hour12:false})}　篩選：${e(filterDesc())}</div>
+    <div style="margin-top:4px"><b>主題 ${list.length} 個　船次完成 ${done} / ${tot}　需處理 ${issues.length} 項（已結案 ${issues.length-openI.length}、未結案 ${openI.length}）　全部完成結案的主題 ${ov.filter(o=>o.allOk).length} / ${list.length}</b></div>
+    <h2>一、主題總覽</h2>
+    <table><thead><tr><th style="width:3%">#</th><th style="width:31%">主題</th><th style="width:8%">建立</th><th style="width:7%">狀態</th><th style="width:17%">涉及船舶</th><th style="width:8%">完成/應填</th><th style="width:8%">需處理</th><th style="width:7%">未結案</th><th style="width:11%">結案狀況</th></tr></thead><tbody>
+    ${ov.map((o,i)=>`<tr><td>${i+1}</td><td>${e(T(o.c))}</td><td>${e(shortDate(o.c.created_at))}<br>${e(creatorOf(o.c))}</td><td>${o.c.active===false?"已結束":"進行中"}</td><td>${e(scopeText(o.c))}</td><td>${o.done} / ${o.total}</td><td>${o.need}</td><td>${o.open}</td><td class="c" style="background:${o.allOk?CLR.ok:CLR.open}">${e(o.result)}</td></tr>`).join("")}</tbody></table>
+    <h2>二、船舶 × 主題（各船執行與結案情形）</h2>
+    <div style="font-size:10px;margin-bottom:4px">表頭數字＝上方主題編號。完成＝已送出；「完成・未結案 n」＝有 n 項需處理尚未結案；空白＝該主題未發給這艘船。</div>
+    <table class="mx"><thead><tr><th style="width:110px">船舶</th>${ov.map((o,i)=>`<th title="${esc(T(o.c))}">${i+1}</th>`).join("")}</tr></thead><tbody>
+    ${ships.map(code=>`<tr><td style="text-align:left">${e(shipLabel(code))}</td>${ov.map(o=>{const x=o.ships.find(s=>s.code===code);return x?`<td class="c" style="background:${CLR[x.k]}">${e(x.txt)}</td>`:"<td></td>";}).join("")}</tr>`).join("")}</tbody></table>
+    <h2>三、未結案項目（${openI.length} 項）</h2>
+    ${openI.length?`<table><thead><tr><th style="width:20%">主題</th><th style="width:11%">船舶</th><th style="width:27%">題目／缺失內容</th><th style="width:24%">本船實際狀況</th><th style="width:12%">追蹤方式</th><th style="width:6%">期限</th></tr></thead><tbody>
+    ${openI.map(r=>`<tr><td>${e(r.campaign)}</td><td>${e(r.name)}</td><td>${e(r.detail)}</td><td>${e(r.note)}</td><td>${e(r.tracking||"—")}</td><td>${e(r.trackDue)}</td></tr>`).join("")}</tbody></table>`:"<div>沒有未結案項目。</div>"}`;
+  window.print();
+}
+/* ══════════ 數據彙總（2026-11-05）══════════
+   依上方篩選的活動，把各船回「有，需處理／未完成」的每一項攤平，分未結案／已結案，列出追蹤方式（含 FLOW 單號）。 */
+const Stat={
+  side:"open",
+  rows(){
+    const out=[];
+    dashFiltered().forEach(c=>{
+      allResponses.filter(r=>String(r.campaign_id)===String(c.id)).forEach(r=>(r.items||[]).forEach((it,i)=>{
+        if(it.status!=="similar")return;
+        out.push({c,r,it,i,ship:r.ship,closed:!!it.closed,track:(it.track||[]).filter(Boolean)});
+      }));
+    });
+    return out.sort((a,b)=>(b.c.created_at||0)-(a.c.created_at||0)||a.ship.localeCompare(b.ship,undefined,{numeric:true})||a.i-b.i);
+  },
+  setSide(s){this.side=s;document.querySelectorAll("#statCard .sttab button").forEach(b=>b.classList.toggle("on",b.dataset.s===s));this.render();},
+  filtered(all){
+    const sh=document.getElementById("stShip").value,tk=document.getElementById("stTrack").value,kw=(document.getElementById("stKw").value||"").trim().toLowerCase();
+    return all.filter(x=>{
+      if(sh&&x.ship!==sh)return false;
+      if(tk==="__none"&&x.track.length)return false;
+      if(tk&&tk!=="__none"&&!x.track.includes(tk))return false;
+      if(kw&&![x.c.title,x.it.topic,x.it.key,x.it.detail,x.it.note,x.it.closeNote,x.it.flowNo].join(" ").toLowerCase().includes(kw))return false;
+      return true;
+    });
+  },
+  render(){
+    const all=this.rows(),f=this.filtered(all);
+    const sel=document.getElementById("stShip"),cur=sel.value;
+    const ships=[...new Set(all.map(x=>x.ship))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+    sel.innerHTML=`<option value="">全部船舶</option>`+ships.map(s=>`<option value="${esc(s)}" ${s===cur?"selected":""}>${esc(shipLabel(s))}</option>`).join("");
+    const open=f.filter(x=>!x.closed),closed=f.filter(x=>x.closed);
+    const cnt=t=>open.filter(x=>x.track.includes(t)).length;
+    const none=open.filter(x=>!x.track.length).length;
+    const flowNoMissing=f.filter(x=>x.track.includes("FLOW")&&!x.it.flowNo).length;
+    const k=(v,l,st)=>`<div class="kpi"><div class="v" style="${st||""}">${v}</div><div class="l">${l}</div></div>`;
+    document.getElementById("statKpis").innerHTML=
+      k(f.length,`需處理項目（${new Set(f.map(x=>x.ship)).size} 艘船、${new Set(f.map(x=>x.c.id)).size} 個主題）`)+
+      k(open.length,`未結案（${new Set(open.map(x=>x.ship)).size} 艘船）`,open.length?"color:var(--bad)":"")+
+      k(closed.length,"已結案","color:var(--ok)")+
+      k(f.length?Math.round(closed.length/f.length*100)+"%":"—","結案率","color:var(--ok)")+
+      k(`${cnt("FLOW")}／${cnt("內控")}／${cnt("物料配件")}`,"未結案追蹤方式：FLOW／內控／物料配件")+
+      k(none,"未結案但未選追蹤方式",none?"color:#a05a10":"")+
+      (flowNoMissing?k(flowNoMissing,"選了 FLOW 但還沒填單號","color:#a05a10"):"");
+    document.getElementById("stOpenN").textContent=`(${open.length})`;
+    document.getElementById("stClosedN").textContent=`(${closed.length})`;
+    const list=this.side==="closed"?closed:open;
+    const trk=x=>x.track.length?x.track.map(t=>`<span class="trk">${esc(t)}${t==="FLOW"?(x.it.flowNo?"："+esc(x.it.flowNo):'<span style="color:#a05a10">（未填單號）</span>'):""}</span>`).join(""):'<span class="trk none">未選</span>';
+    const q=x=>`<b>${esc(x.it.topic||x.it.code||("#"+(x.i+1)))}</b>${(x.it.key||x.it.detail)?`<div class="hint" style="max-height:4.6em;overflow:hidden">${esc(x.it.key||x.it.detail)}</div>`:""}`;
+    document.getElementById("statList").innerHTML=list.length?`<table style="min-width:980px"><thead><tr><th style="width:150px">主題</th><th style="width:120px">船舶</th><th>題目／缺失</th><th style="width:22%">本船實際狀況</th><th style="width:150px">追蹤方式</th>${this.side==="closed"?'<th style="width:20%">改善情形</th><th style="width:88px">結案日期</th>':'<th style="width:88px">追蹤期限</th>'}<th style="width:90px">填寫人</th></tr></thead><tbody>
+      ${list.map(x=>`<tr><td style="font-size:12px">${esc(x.c.title||("活動 #"+x.c.id))}</td><td><b>${esc(x.ship)}</b><div class="hint">${esc(shipLabel(x.ship)===x.ship?"":shipLabel(x.ship))}</div></td><td>${q(x)}</td><td style="font-size:12.5px;white-space:pre-wrap">${esc(x.it.note||x.it.actual||"")}</td><td>${trk(x)}</td>${this.side==="closed"?`<td style="font-size:12.5px;white-space:pre-wrap">${esc(x.it.closeNote||"")}</td><td>${esc(x.it.closedAt||"")}</td>`:`<td>${esc(x.it.trackDue||"")}</td>`}<td class="hint">${esc(x.r.checker_name||x.it.checkedBy||"")}</td></tr>`).join("")}
+      </tbody></table>`:`<p class="hint" style="text-align:center;padding:16px">${this.side==="closed"?"沒有已結案項目":"🎉 沒有未結案項目"}</p>`;
+    this._last={open,closed};
+  },
+  exportExcel(){
+    if(typeof XLSX==="undefined"){notify("⚠ Excel 元件尚未載入","err");return;}
+    this.render();const {open,closed}=this._last||{open:[],closed:[]};
+    const map=x=>({"主題":x.c.title||("活動 #"+x.c.id),"船舶代碼":x.ship,"船名":shipLabel(x.ship),"題號":x.i+1,"題目／缺失":[x.it.topic||x.it.code,x.it.key||x.it.detail].filter(Boolean).join("："),"本船實際狀況":x.it.note||x.it.actual||"","追蹤方式":x.track.join("、"),"FLOW 單號":x.it.flowNo||"","追蹤期限":x.it.trackDue||"","改善情形":x.it.closeNote||"","結案日期":x.it.closedAt||"","填寫人":x.r.checker_name||x.it.checkedBy||""});
+    const wb=XLSX.utils.book_new(),cols=[30,8,22,6,50,40,16,14,11,36,11,12].map(w=>({wch:w}));
+    const w1=XLSX.utils.json_to_sheet(open.length?open.map(map):[{"（沒有未結案項目）":""}]);w1["!cols"]=cols;XLSX.utils.book_append_sheet(wb,w1,"未結案");
+    const w2=XLSX.utils.json_to_sheet(closed.length?closed.map(map):[{"（沒有已結案項目）":""}]);w2["!cols"]=cols;XLSX.utils.book_append_sheet(wb,w2,"已結案");
+    const byT=["FLOW","內控","物料配件"].map(t=>[t,open.filter(x=>x.track.includes(t)).length,closed.filter(x=>x.track.includes(t)).length]);
+    const w3=XLSX.utils.aoa_to_sheet([["篩選條件",filterDesc()],[],["","未結案","已結案"],["合計",open.length,closed.length],...byT,["未選追蹤方式",open.filter(x=>!x.track.length).length,closed.filter(x=>!x.track.length).length]]);
+    w3["!cols"]=[{wch:16},{wch:10},{wch:10}];XLSX.utils.book_append_sheet(wb,w3,"統計");
+    XLSX.writeFile(wb,`分享自查_數據彙總_${new Date().toISOString().slice(0,10)}.xlsx`);
+    notify(`✓ 已下載（未結案 ${open.length}、已結案 ${closed.length}）`,"ok2");
+  }
+};
 function exportExcel(){
   if(!curCampaign){notify("⚠ 請先進入某個活動","err");return;}
   if(typeof XLSX==="undefined"){notify("⚠ Excel 元件載入失敗，請確認網路後重新整理頁面","err");return;}
@@ -850,7 +1062,7 @@ function exportPdf(){
   const c=s=>esc(s||"").replace(/\n/g,"<br>");
   document.getElementById("printArea").innerHTML=`
     <h1>${esc(curCampaign.title||"分享自查")}</h1>
-    <div>產出日期：${new Date().toLocaleString("zh-TW",{hour12:false})}　查核項目 ${(curCampaign.items||[]).length} 項　已送出 ${status.filter(r=>r.state==="已送出").length} / ${status.length} 艘　需處理 ${issues.length} 項（未結案 ${issues.filter(r=>r.closed==="未結案").length}）</div>
+    <div>產出日期：${new Date().toLocaleString("zh-TW",{hour12:false})}　查核項目 ${(curCampaign.items||[]).length} 項　完成 ${status.filter(r=>r.state==="完成").length} / ${status.length} 艘　需處理 ${issues.length} 項（未結案 ${issues.filter(r=>r.closed==="未結案").length}）</div>
     <h2>一、本次自查項目（共 ${(curCampaign.items||[]).length} 項）</h2>
     <table><thead><tr><th style="width:5%">#</th><th style="width:9%">CODE</th><th style="width:16%">來源檢查</th><th style="width:40%">缺失內容</th><th style="width:30%">來源實際情況</th></tr></thead><tbody>
     ${(curCampaign.items||[]).map((it,i)=>`<tr><td>${i+1}</td><td>${c(it.code)}</td><td>${c(fmtSrc(it.src))}</td><td>${c(it.detail)}</td><td>${c(it.actual2)}${it.supp?"<br><b>公司補充說明：</b>"+c(it.supp):""}</td></tr>`).join("")||`<tr><td colspan="5">（無）</td></tr>`}</tbody></table>
@@ -899,7 +1111,7 @@ function toggleDetail(ship){
       ${actions}
       ${items.map((it,i)=>`
         <div class="itemline">
-          <b>#${i+1}</b> ${esc(it.topic?("📌 "+it.topic):(it.code?("CODE "+it.code):""))}${it.topic?"":srcTag(it)} <span class="stbadge ${it.status||'pending'}">${(it.src==="自訂案例"?ST_LABEL_CASE:ST_LABEL)[it.status||"pending"]}</span>${(it.checks||[]).length?`<span class="stbadge" style="background:#eef3f8;color:var(--navy)">細目 ${(it.checks||[]).filter((c,j)=>(it.checkDone||[])[j]).length}／${it.checks.length}</span>`:""}${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'+((it.track||[]).length?'<span class="stbadge" style="background:#eaf1f9;color:#1d4e80">已在追蹤：'+esc(it.track.join("、"))+'</span>':'')):""}
+          <b>#${i+1}</b> ${esc(it.topic?("📌 "+it.topic):(it.code?("CODE "+it.code):""))}${it.topic?"":srcTag(it)} <span class="stbadge ${it.status||'pending'}">${(it.src==="自訂案例"?ST_LABEL_CASE:ST_LABEL)[it.status||"pending"]}</span>${(it.checks||[]).length?`<span class="stbadge" style="background:#eef3f8;color:var(--navy)">細目 ${(it.checks||[]).filter((c,j)=>(it.checkDone||[])[j]).length}／${it.checks.length}</span>`:""}${it.status==="similar"?(it.closed?'<span class="stbadge ok">已結案</span>':'<span class="stbadge similar">未結案</span>'+((it.track||[]).length?'<span class="stbadge" style="background:#eaf1f9;color:#1d4e80">已在追蹤：'+esc(trackStr(it))+'</span>':'')):""}
           ${it.topic&&(it.checks||[]).length?`<div class="hint">${esc(it.key||"")}</div><div style="font-size:12.5px;margin:2px 0">${it.checks.map((c,j)=>{const nt=(it.checkNote||[])[j];const ns=nt?`<span style="color:#1e7f8c;font-weight:700">　➜ ${esc(nt)}</span>`:"";return (it.checkDone||[])[j]?`<div style="color:var(--ok)">☑ ${esc(c)}${ns}</div>`:`<div style="color:var(--ink-3)">☐ ${esc(c)}${ns}</div>`;}).join("")}</div>`:`<div class="hint">${esc(it.detail||"")}</div>`}
           ${it.actual2?`<div class="hint">實際情況：${esc(it.actual2)}</div>`:""}
           ${it.supp?`<div class="hint" style="color:#8a5a00">💬 公司補充說明：${esc(it.supp)}</div>`:""}
@@ -1004,12 +1216,14 @@ const SC={
   },
   async mount(d){
     d=d||{};this._editCid=d._editCid||null;this._draftId=this._editCid?null:(d.id||null);this._savedAt=d.updatedAt||0;
+    this._dirty=false;this._autoPaused=false;clearTimeout(this._autoT);
+    {const f=document.getElementById("scForm");if(f&&!f._scBound){f._scBound=1;const h=e=>{if(e.target&&e.target.type==="file")return;SC.markDirty();};f.addEventListener("input",h);f.addEventListener("change",h);}}
     this._q=(d.q&&d.q.length?d.q:[{topic:"",key:"",checks:"",ex:"",files:[]}]).map(q=>({topic:q.topic||"",key:q.key||"",checks:q.checks||"",ex:q.ex||"",files:(q.files||[]).slice()}));
     this._files=(d.files||[]).slice();
     const fleet=await this.fleet(),now=new Date();
     document.getElementById("scForm").innerHTML=`
       <label class="f">建立者（先選部門，再選人）</label>${await this.byPickerHtml()}
-      <label class="f">活動名稱</label><input type="text" id="scTitle" value="${esc(d.title||"")}" placeholder="例：SCBA 呼吸器鋼瓶充氣壓力自查（${now.getFullYear()}/${now.getMonth()+1}）">
+      <label class="f">主題</label><input type="text" id="scTitle" value="${esc(d.title||"")}" placeholder="例：SCBA 呼吸器鋼瓶充氣壓力自查（${now.getFullYear()}/${now.getMonth()+1}）">
       <label class="f">自查說明（為什麼要做這項自查；顯示在船上填答頁最上方，只出現一次）</label>
       <textarea id="scBg" rows="6" placeholder="例：近期上船訪查發現…；依 CDI 要求…；請各輪排查並回覆。">${esc(d.bg||"")}</textarea>
       <div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px"><b style="font-size:13px">題目</b><span class="hint">一題一個要船上確認的重點；細目一行一條</span></div>
@@ -1048,11 +1262,11 @@ const SC={
       <span class="sl">案例說明（選填：這一題的來源缺失或實例；船上點開才看得到）</span><textarea id="scEx-${i}" rows="2" placeholder="可留空">${esc(q.ex||"")}</textarea>
       <span class="sl">本題附件（選填：只會顯示在這一題）</span>
       <div><label class="btn sm" style="cursor:pointer">📎 本題附件<input type="file" multiple style="display:none" onchange="SC.addFiles(this,${i})"></label>
-        ${(q.files||[]).map((f,j)=>`<span class="scfile">📎 <a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a><a href="#" title="移除" onclick="event.preventDefault();SC.syncQ();SC._q[${i}].files.splice(${j},1);SC.renderQ()" style="color:var(--bad);text-decoration:none">✕</a></span>`).join("")}${q._up?`<span class="hint">上傳中…</span>`:""}</div>
+        ${(q.files||[]).map((f,j)=>`<span class="scfile">📎 <a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a><a href="#" title="移除" onclick="event.preventDefault();SC.syncQ();SC._q[${i}].files.splice(${j},1);SC.renderQ();SC.markDirty()" style="color:var(--bad);text-decoration:none">✕</a></span>`).join("")}${q._up?`<span class="hint">上傳中…</span>`:""}</div>
     </div>`).join("");
   },
-  addQ(){this.syncQ();this._q.push({topic:"",key:"",checks:"",ex:"",files:[]});this.renderQ();const t=document.getElementById(`scTopic-${this._q.length-1}`);if(t){t.scrollIntoView({behavior:"smooth",block:"center"});t.focus();}},
-  delQ(i){this.syncQ();this._q.splice(i,1);this.renderQ();},
+  addQ(){this.syncQ();this._q.push({topic:"",key:"",checks:"",ex:"",files:[]});this.markDirty();this.renderQ();const t=document.getElementById(`scTopic-${this._q.length-1}`);if(t){t.scrollIntoView({behavior:"smooth",block:"center"});t.focus();}},
+  delQ(i){this.syncQ();this._q.splice(i,1);this.renderQ();this.markDirty();},
   async uploadFile(file){
     if(file.size>20*1024*1024)throw new Error(`超過 20MB（${(file.size/1024/1024).toFixed(1)}MB）`);
     const buf=await file.arrayBuffer();
@@ -1072,12 +1286,12 @@ const SC={
       this._uploading++;if(q)q._up=(q._up||0)+1;redraw();
       try{notify(`「${f.name}」上傳中…`);const p=await this.uploadFile(f);const arr=q?q.files:this._files;if(!arr.some(x=>x.path===p.path))arr.push(p);notify(`✓「${f.name}」已上傳`,"ok2");}
       catch(e){notify(`⚠「${f.name}」沒有上傳：${e.message||e}`,"err");}
-      finally{this._uploading--;if(q)q._up--;this.syncQ();redraw();}
+      finally{this._uploading--;if(q)q._up--;this.syncQ();redraw();this.markDirty();}
     }
   },
   renderFiles(){
     const el=document.getElementById("scFiles");if(!el)return;
-    el.innerHTML=this._files.map((f,i)=>`<span class="scfile">📎 <a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a><a href="#" title="移除" onclick="event.preventDefault();SC._files.splice(${i},1);SC.renderFiles()" style="color:var(--bad);text-decoration:none">✕</a></span>`).join("")
+    el.innerHTML=this._files.map((f,i)=>`<span class="scfile">📎 <a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)}</a><a href="#" title="移除" onclick="event.preventDefault();SC._files.splice(${i},1);SC.renderFiles();SC.markDirty()" style="color:var(--bad);text-decoration:none">✕</a></span>`).join("")
       +(this._uploading?`<span class="hint">上傳中…</span>`:"")+(!this._files.length&&!this._uploading?`<span class="hint">尚未加入附件</span>`:"");
   },
   mode(){return (document.querySelector('input[name="scTo"]:checked')||{}).value||"all";},
@@ -1103,11 +1317,41 @@ const SC={
       ships:m==="pick"?[...document.querySelectorAll("#scShips input:checked")].map(x=>x.value):[]};
   },
   needBy(){const v=(document.getElementById("scBy").value||"").trim();if(!v){notify("⚠ 請先選「建立者」（部門→人員）","err");document.getElementById("scBy").focus();return "";}try{localStorage.setItem(this.BYKEY,v);}catch(e){}return v;},
-  async saveDraft(){
-    if(this._uploading){notify("⚠ 附件還在上傳，請稍候","err");return;}
-    const by=this.needBy();if(!by)return;
+  /* 2026-11-04 自動儲存：表單有變動 3 秒後自動存成草稿（要先選好建立者；編輯「已發佈的活動」時不自動存，只在離開時提醒）。
+     離開本頁（關分頁／重新整理）或切到別的分頁、開新的一則、打開別的草稿前，還沒存的內容會先提醒。 */
+  _dirty:false,_autoT:null,_autoPaused:false,
+  autoSt(t){const el=document.getElementById("scDraftSt");if(el)el.textContent=t;},
+  markDirty(){
+    this._dirty=true;clearTimeout(this._autoT);
+    if(this._editCid){this.autoSt("");return;}
+    this.autoSt(this._autoPaused?"⚠ 已暫停自動儲存，請手動按「儲存草稿」":"✎ 編輯中…（停 3 秒自動儲存）");
+    if(!this._autoPaused)this._autoT=setTimeout(()=>this.autoSave(),3000);
+  },
+  async autoSave(){
+    if(!this._dirty||this._editCid||this._autoPaused)return;
+    if(this._uploading){this._autoT=setTimeout(()=>this.autoSave(),3000);return;}
+    await this.saveDraft({auto:true});
+  },
+  async guardLeave(){
+    if(!this._dirty)return true;
+    if(this._editCid){if(confirm("對已發佈活動的修改還沒按「更新」，確定要離開嗎？（修改不會保存）")){this._dirty=false;return true;}return false;}
+    if(!confirm("新建的內容還沒儲存。\n\n按「確定」＝先儲存為草稿再離開\n按「取消」＝留在這頁繼續編輯"))return false;
+    return (await this.saveDraft({}))===true;
+  },
+  async newOne(){if(await this.guardLeave())await this.mount(null);},
+  async saveDraft(opts){
+    opts=opts||{};const auto=!!opts.auto;
+    if(this._uploading){if(!auto)notify("⚠ 附件還在上傳，請稍候","err");return false;}
+    let by;
+    if(auto){by=((document.getElementById("scBy")||{}).value||"").trim();if(!by){this.autoSt("⚠ 選好「建立者」後才會自動儲存");return false;}}
+    else{by=this.needBy();if(!by)return false;}
     const st=this.state();
-    if(!st.title&&!st.bg.trim()&&!st.q.some(q=>q.topic||q.key)){notify("⚠ 還沒填任何內容","err");return;}
+    if(!st.title&&!st.bg.trim()&&!st.q.some(q=>q.topic||q.key)){if(!auto)notify("⚠ 還沒填任何內容","err");else this.autoSt("");return false;}
+    if(auto&&this._draftId){ // 自動儲存遇到別人改過／已刪除：不跳視窗，暫停自動儲存並提示
+      try{const cur=(await api(`app_db?select=payload&k=eq.${this.DRAFT_PREFIX}${this._draftId}`)||[])[0],p=cur&&cur.payload;
+        if(p&&(p.deleted||(p.updatedAt&&this._savedAt&&p.updatedAt>this._savedAt))){this._autoPaused=true;this.autoSt(p.deleted?"⚠ 這則草稿已被刪除或發佈，已暫停自動儲存；按「儲存草稿」可另存一則":`⚠ 「${p.by||"其他人"}」也改過這則草稿，已暫停自動儲存；請手動按「儲存草稿」決定是否覆蓋`);return false;}
+      }catch(e){this.autoSt("⚠ 連不上雲端，稍後自動再試");this._autoT=setTimeout(()=>this.autoSave(),15000);return false;}
+    }
     // 2026-11-04 多人同時使用的保護：
     // ① 新草稿：編號＝時間＋亂數，存之前先確認雲端沒有同編號，避免兩人同一瞬間新建互相蓋掉
     // ② 編輯既有草稿：存之前看雲端版本，若別人在我打開之後存過，先提醒再決定要不要覆蓋
@@ -1120,16 +1364,21 @@ const SC={
       }else{
         const cur=(await api(`app_db?select=payload&k=eq.${this.DRAFT_PREFIX}${id}`)||[])[0];
         const p=cur&&cur.payload;
-        if(p&&p.deleted){if(!confirm("這則草稿已經被刪除或發佈了。\n要另存成一則新草稿嗎？"))return;id=null;this._draftId=null;return this.saveDraft();}
-        if(p&&p.updatedAt&&this._savedAt&&p.updatedAt>this._savedAt&&!confirm(`這則草稿在你打開之後，已被「${p.by||"其他人"}」於 ${new Date(p.updatedAt).toLocaleString("zh-TW",{hour12:false})} 修改過。\n\n按「確定」用你的內容覆蓋；按「取消」不存（可先到草稿重新開啟看對方改了什麼）。`))return;
+        if(p&&p.deleted){if(!confirm("這則草稿已經被刪除或發佈了。\n要另存成一則新草稿嗎？"))return false;id=null;this._draftId=null;this._autoPaused=false;return this.saveDraft();}
+        if(p&&p.updatedAt&&this._savedAt&&p.updatedAt>this._savedAt&&!confirm(`這則草稿在你打開之後，已被「${p.by||"其他人"}」於 ${new Date(p.updatedAt).toLocaleString("zh-TW",{hour12:false})} 修改過。\n\n按「確定」用你的內容覆蓋；按「取消」不存（可先到草稿重新開啟看對方改了什麼）。`))return false;
       }
-    }catch(e){notify("⚠ 草稿儲存失敗："+e.message,"err");return;}
+    }catch(e){if(auto){this.autoSt("⚠ 連不上雲端，稍後自動再試");this._autoT=setTimeout(()=>this.autoSave(),15000);}else notify("⚠ 草稿儲存失敗："+e.message,"err");return false;}
     const now=Date.now();
     try{await api("app_db?on_conflict=k",{method:"POST",headers:authHeaders({"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.DRAFT_PREFIX+id,updated:now,payload:{id,...st,by,updatedAt:now}}])});}
-    catch(e){notify("⚠ 草稿儲存失敗："+e.message,"err");return;}
-    SLog.log(this._draftId?"修改":"新增","自訂自查草稿",`「${st.title||"（未命名）"}」`,by);
-    this._draftId=id;this._savedAt=now;this.draftSt();document.getElementById("scFormHead").textContent="✏ 編輯草稿";
-    notify("✓ 草稿已儲存","ok2");this.loadDrafts(true);
+    catch(e){if(auto){this.autoSt("⚠ 自動儲存失敗（網路？），稍後再試");this._autoT=setTimeout(()=>this.autoSave(),15000);}else notify("⚠ 草稿儲存失敗："+e.message,"err");return false;}
+    const isNew=!this._draftId;
+    if(!auto||isNew)SLog.log(isNew?"新增":"修改","自訂自查草稿",`「${st.title||"（未命名）"}」${auto?"（自動儲存）":""}`,by); // 自動儲存只記第一次建立，不每 3 秒記一筆
+    this._draftId=id;this._savedAt=now;this._dirty=false;this._autoPaused=false;
+    document.getElementById("scFormHead").textContent="✏ 編輯草稿";
+    if(auto)this.autoSt(`✓ 已自動儲存為草稿 ${new Date(now).toLocaleTimeString("zh-TW",{hour12:false,hour:"2-digit",minute:"2-digit"})}`);
+    else{this.draftSt();notify("✓ 草稿已儲存","ok2");}
+    this.loadDrafts(true);
+    return true;
   },
   async loadDrafts(force){
     const box=document.getElementById("scDrafts");
@@ -1146,7 +1395,7 @@ const SC={
         <button class="btn sm" onclick="SC.editDraft(${d.id})">✏ 繼續編輯</button><button class="btn sm" style="color:var(--bad)" onclick="SC.delDraft(${d.id})">🗑</button></div>`;}).join("")
       :`<span class="hint">目前沒有草稿。</span>`;
   },
-  async editDraft(id){await this.loadDrafts(true);const d=(this._drafts||[]).find(x=>String(x.id)===String(id));if(!d){notify("⚠ 找不到這則草稿（可能已發佈或刪除）","err");return;}await this.mount(d);this.ctab("new");window.scrollTo({top:0,behavior:"smooth"});},
+  async editDraft(id){if(String(id)!==String(this._draftId)&&!await this.guardLeave())return;await this.loadDrafts(true);const d=(this._drafts||[]).find(x=>String(x.id)===String(id));if(!d){notify("⚠ 找不到這則草稿（可能已發佈或刪除）","err");return;}await this.mount(d);this.ctab("new");window.scrollTo({top:0,behavior:"smooth"});},
   async delDraft(id,silent){
     if(!silent&&!confirm("刪除這則草稿？"))return;
     try{await api("app_db?on_conflict=k",{method:"POST",headers:authHeaders({"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:this.DRAFT_PREFIX+id,updated:Date.now(),payload:{id,deleted:true,deletedAt:Date.now(),by:this.by()}}])});}
@@ -1157,7 +1406,7 @@ const SC={
   build(){
     if(this._uploading){notify("⚠ 附件還在上傳，請稍候","err");return null;}
     const st=this.state();
-    if(!st.title){notify("⚠ 請填活動名稱","err");return null;}
+    if(!st.title){notify("⚠ 請填主題","err");return null;}
     const scope=this.targets();if(scope&&!scope.length){notify("⚠ 請至少選一艘船","err");return null;}
     const qs=st.q.filter(q=>q.topic.trim()||q.key.trim());
     if(!qs.length){notify("⚠ 請至少出一題","err");return null;}
@@ -1208,6 +1457,7 @@ const SC={
   async noResponses(id){const r=await api(`${RESPONSE_TABLE}?select=id&campaign_id=eq.${id}&limit=1`)||[];return !r.length;},
   async editCampaign(id){
     const c=campaigns.find(x=>String(x.id)===String(id));if(!c)return;
+    if(!await this.guardLeave())return;
     try{if(!await this.noResponses(id)){notify("⚠ 已經有船開始填答，不能再修改內容（可結束後重新建立一則）","err");return;}}
     catch(e){notify("⚠ 讀取失敗："+e.message,"err");return;}
     const its=c.items||[];
@@ -1254,10 +1504,10 @@ const SC={
     SLog.log("發佈","自訂自查",`「${P.title}」${P.items.length} 題，${P.scope?"發給 "+P.scope.length+" 艘船":"全船隊"}（活動 #${id}）`,by);
     const link=`${SHIP_SITE}submit-selfcheck-share.html?cid=${id}`;
     const text=`${P.title}\n填答連結：${link}\n\n各輪也可從「船舶檢查填報平台」→ 上方選單「🔍 分享缺失自查」，查看本船各項自查的填單情形（是否已送出、需追蹤未結案項目）：\n${SHIP_SITE}`;
-    safeCopyText(text,"✓ 已複製活動名稱＋填答連結");
+    safeCopyText(text,"✓ 已複製主題＋填答連結");
     if(this._draftId)await this.delDraft(this._draftId,true);
     await this.mount(null);
-    alert(`✓ 已發佈分享自查（${P.items.length} 題）。\n\n活動名稱＋填答連結已複製，請貼給船隊：\n${text}`);
+    alert(`✓ 已發佈分享自查（${P.items.length} 題）。\n\n主題＋填答連結已複製，請貼給船隊：\n${text}`);
     await loadCampaignList();setSubTab("list");
   }
 };
@@ -1295,6 +1545,8 @@ const SLog={
   }
 };
 SLog.initBtn();
+// 關分頁／重新整理／按「回主系統」時，新建自訂自查還有沒存的內容 → 瀏覽器跳「確定要離開？」提示
+window.addEventListener("beforeunload",e=>{if(SC._dirty){e.preventDefault();e.returnValue="";}});
 if(/^#new$/.test(location.hash||"")){setHash("");setTimeout(()=>{setSubTab("case");SC.ctab("new");},0);}
 loadCampaignList();
 /* 打開頁面時已自動整理一次；之後只在「離開又回到這個分頁」且距上次整理超過 60 秒時才自動再整理，
