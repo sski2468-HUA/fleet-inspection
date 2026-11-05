@@ -7908,14 +7908,35 @@ const DefsGrid={
   missingRootCount(){return App.defs.filter(d=>!ncFactorSplit(d.ncRoot).length).length;},
 
   /* ── 復原堆疊 ── */
-  snapshot(){
-    this.undo.push(JSON.stringify(App.defs.map(d=>({id:d.id,...this.pickFields(d)}))));
+  /* rows：只記這幾筆（單格點選時用，避免每點一下就把 2,700 筆全部序列化一次）；不給＝全部 */
+  snapshot(rows){
+    const src=rows||App.defs;
+    this.undo.push(JSON.stringify(src.map(d=>({id:d.id,...this.pickFields(d)}))));
     if(this.undo.length>30)this.undo.shift();
-    this.refreshBar();
+    if(!rows)this.refreshBar();
+  },
+  /* 2026-11-05 點選卡頓修正：
+     原本每點一下就 ①全表序列化存復原點 ②App.saveAll()（把十幾個資料集全部序列化比對、寫本機）
+     ③Defs.render() 整張表重畫，所以每點一次都要停頓一下。
+     改成：只重畫這一列的分類格子，存檔延後到停手 0.8 秒後一次做（離開快速分類或關閉頁面時會立刻補存）。 */
+  _saveT:null,
+  saveSoon(){
+    clearTimeout(this._saveT);
+    this._saveT=setTimeout(()=>{this._saveT=null;App.saveAll();this.refreshBar();},800);
+  },
+  flushSave(){
+    if(this._saveT){clearTimeout(this._saveT);this._saveT=null;App.saveAll();}
+  },
+  repaintRow(d){
+    this.COLS.forEach(c=>{
+      const td=document.querySelector(`td.cls-col[data-id="${d.id}"][data-k="${c.k}"]`);
+      if(td)td.outerHTML=this.cell(d,c.k);
+    });
   },
   pickFields(d){const o={};this.COLS.forEach(c=>o[c.k]=d[c.k]);o.ncMethod=d.ncMethod;return o;},
   doUndo(){
     if(!this.undo.length){toast("沒有可復原的步驟");return;}
+    this.flushSave();
     const prev=JSON.parse(this.undo.pop());
     const map=new Map(prev.map(p=>[String(p.id),p]));
     App.defs.forEach(d=>{const p=map.get(String(d.id));if(p)Object.assign(d,p);});
@@ -7927,6 +7948,7 @@ const DefsGrid={
     if(!this.on&&!this.canEdit()){
       toast("⚠ 快速分類僅限 Owner／管理員，或 Owner 指定的督導使用");return;
     }
+    this.flushSave();
     this.on=!this.on;
     this.closeEd();
     document.body.classList.toggle("dg-on",this.on);
@@ -8174,7 +8196,7 @@ const DefsGrid={
   pick(j){
     const d=App.defs.find(x=>String(x.id)===String(this.ar));if(!d)return;
     const col=this.COLS[this.ac], opts=col.opts(d);
-    this.snapshot();
+    this.snapshot([d]);
     d[col.k]= j<0 ? "" : opts[j];
     /* 連動：上層改變時清空下層，避免出現不合法的組合 */
     if(col.k==="ncProb"){d.ncMain="";d.ncLeaf="";}
@@ -8192,10 +8214,11 @@ const DefsGrid={
     if(d.ncMethod&&d.ncMethod.includes("自動"))d.ncMethod="人工";
     if(this.sug[d.id]){delete this.sug[d.id][col.k];
       if(!Object.keys(this.sug[d.id]).length)delete this.sug[d.id];}
-    App.saveAll();
+    this.saveSoon();
     const nc=this.ac<this.COLS.length-1?this.ac+1:-1;
-    Defs.render();
-    if(nc>=0)setTimeout(()=>this.openEd(this.ar,this.COLS[nc].k),30);   // 自動跳下一欄
+    this.closeEd();
+    this.repaintRow(d);
+    if(nc>=0)this.openEd(this.ar,this.COLS[nc].k);   // 自動跳下一欄
   },
   /* 多選欄位（目前僅三要素）：點一下切換勾選狀態，編輯窗保持開啟，方便一次勾多項 */
   toggleMulti(j){
@@ -8205,7 +8228,7 @@ const DefsGrid={
     const cur=new Set(this.vals(col,d));
     const adding=!cur.has(val);
     if(adding)cur.add(val);else cur.delete(val);
-    this.snapshot();
+    this.snapshot([d]);
     d[col.k]=[...cur].join(col.sep||"、");
     if(col.k==="ncProb"||col.k==="ncMain")this.pruneNc(d);
     /* 反推：勾具體名稱時，若它所屬的問題別／大類還沒勾，自動補勾（不必照順序選） */
@@ -8223,10 +8246,13 @@ const DefsGrid={
     if(d.ncMethod&&d.ncMethod.includes("自動"))d.ncMethod="人工";
     if(this.sug[d.id]){delete this.sug[d.id][col.k];
       if(!Object.keys(this.sug[d.id]).length)delete this.sug[d.id];}
-    App.saveAll();
+    this.saveSoon();
     this.edHi=j;
-    Defs.render();
-    setTimeout(()=>this.openEd(this.ar,col.k),30);   // 重新開啟同一欄，維持可繼續勾選
+    const keepScroll=this.ed?this.ed.scrollTop:0;
+    this.closeEd();
+    this.repaintRow(d);
+    this.openEd(this.ar,col.k);   // 重新開啟同一欄，維持可繼續勾選
+    if(this.ed)this.ed.scrollTop=keepScroll;   // 選單捲軸停在原位，不會跳回最上面
   },
   move(dr,dc){
     const rows=this.visibleIds();
@@ -8383,6 +8409,9 @@ document.addEventListener("keydown",e=>DefsGrid.key(e));
    真正該關閉它的是「點到別處」與 Esc。 */
 window.addEventListener("scroll",e=>DefsGrid.onScroll(e),true);
 window.addEventListener("resize",()=>DefsGrid.placeEd());
+/* 快速分類的延後存檔：關閉／重新整理頁面、切到別的分頁時立刻補存，不會漏掉最後幾下點選 */
+window.addEventListener("pagehide",()=>DefsGrid.flushSave());
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")DefsGrid.flushSave();});
 document.addEventListener("mousedown",e=>{
   if(!DefsGrid.ed)return;
   if(DefsGrid.ed.contains(e.target))return;                 // 點在選單內
