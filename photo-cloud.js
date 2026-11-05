@@ -16,7 +16,7 @@ const PhotoCloud=(()=>{
   const isEmbedded=p=>p&&typeof p==="object"&&!Array.isArray(p)&&typeof p.dataUrl==="string"&&p.dataUrl.startsWith("data:image");
   /* PDF 附件（2026-10-27）：選檔當下直接上傳（不轉 base64），資料存 {name,url,path,type:"application/pdf",size}。
      縮圖位置顯示 PDF 圖示；圖示網址後面帶「#pdf=真正網址」，openLightbox 看到就改成另開 PDF。 */
-  const PDF_MAX=10*1024*1024;
+  const PDF_MAX=5*1024*1024;   // 2026-11-05 PDF 統一每檔 5MB（節省雲端空間）
   const PDF_ICON="data:image/svg+xml;utf8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="#fdecea"/><path d="M18 8h20l10 10v38H18z" fill="#fff" stroke="#c0392b" stroke-width="3"/><path d="M38 8v10h10" fill="none" stroke="#c0392b" stroke-width="3"/><text x="33" y="46" font-family="Arial" font-size="13" font-weight="700" fill="#c0392b" text-anchor="middle">PDF</text></svg>');
   const isPdf=p=>!!p&&typeof p==="object"&&(p.type==="application/pdf"||/\.pdf$/i.test(p.name||"")||/\.pdf(\?|#|$)/i.test(p.url||""));
   const isPdfFile=f=>!!f&&(f.type==="application/pdf"||/\.pdf$/i.test(f.name||""));
@@ -24,7 +24,7 @@ const PhotoCloud=(()=>{
   function pdfUrlFromSrc(s){const m=/#pdf=(.*)$/.exec(String(s||""));return m?decodeURIComponent(m[1]):"";}
   async function uploadPdf(file){
     if(!cfg)throw new Error("PhotoCloud 尚未設定雲端連線");
-    if(file.size>PDF_MAX)throw new Error(`超過 10MB（${(file.size/1024/1024).toFixed(1)}MB），請壓縮或拆檔`);
+    if(file.size>PDF_MAX)throw new Error(`超過 5MB（${(file.size/1024/1024).toFixed(1)}MB），請壓縮或拆檔`);
     if(navigator.onLine===false)throw new Error("PDF 需連網上傳，請連上網路後再選一次");
     const hash=await sha256Hex(await file.arrayBuffer());
     const path=`p/${hash.slice(0,2)}/${hash}.pdf`;

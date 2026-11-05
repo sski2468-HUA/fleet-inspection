@@ -60,6 +60,9 @@ tr.done td{background:#eaf5ee}
 .kpi.kgo:hover,.kpi.kgo:focus-visible{border-color:#2c64a0;box-shadow:0 2px 8px rgba(30,58,95,.15);transform:translateY(-1px);outline:none}
 .kpi .kgo-t{font-size:10.5px;color:#2c64a0;margin-top:3px;opacity:.75}
 .kpi.kgo:hover .kgo-t{opacity:1;font-weight:700}
+.kpi.kon{border-color:#2c64a0;background:#eef4fb;box-shadow:inset 0 0 0 1px #2c64a0}
+.kpi .kln{color:inherit;text-decoration:underline;text-decoration-color:#9fb6cf;text-underline-offset:3px;padding:0 2px;border-radius:4px}
+.kpi .kln:hover,.kpi .kln.on{background:#e3edf8;color:#1d4e80;text-decoration-color:#1d4e80}
 .modal-bg{position:fixed;inset:0;background:rgba(15,30,45,.45);display:none;align-items:center;justify-content:center;z-index:200;padding:16px}
 .modal-bg.show{display:flex}
 .modal-box{background:#fff;border-radius:10px;max-width:560px;width:100%;padding:18px;max-height:86vh;display:flex;flex-direction:column}
@@ -73,7 +76,7 @@ tr.done td{background:#eaf5ee}
 .chip small{font-weight:400;margin-left:3px;opacity:.75}
 .chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .pendhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;margin-bottom:8px}
-.pship{display:grid;grid-template-columns:200px 1fr auto;gap:12px;align-items:start;padding:9px 6px;border-bottom:1px solid var(--line)}
+.pship{display:grid;grid-template-columns:200px 1fr;gap:12px;align-items:start;padding:9px 6px;border-bottom:1px solid var(--line)}
 .pship:last-child{border-bottom:none}
 .pship .nm b{font-size:13.5px}
 .pship .cnt{display:inline-block;margin-top:3px;background:#fbe9e5;color:var(--bad);border-radius:12px;padding:0 9px;font-size:12px;font-weight:700}
@@ -82,6 +85,20 @@ tr.done td{background:#eaf5ee}
 .pcamp .st.no{background:#fbe9e5;color:var(--bad)}
 .pcamp .st.ing{background:#fff4e8;color:#a05a10}
 .pcamp .st.trk{background:#eaf1f9;color:#1d4e80}
+/* 三區塊：未開始／填答中／需追蹤 */
+.pship .p3{display:grid;grid-template-columns:repeat(var(--pc,3),minmax(0,1fr));gap:10px}
+.pship .pcol{border-radius:8px;padding:6px;min-height:34px}
+.pship .pcol.no{background:#fdf3f1}.pship .pcol.ing{background:#fff8ef}.pship .pcol.trk{background:#f1f6fb}
+.pship .pcol .pcamp{display:flex;margin:0 0 5px;background:#fff;align-items:flex-start}
+.pship .pcol .pcamp:last-child{margin-bottom:0}
+.pship .pcol .pcamp .pt{flex:1;min-width:0;line-height:1.4}
+.pship .pcol .pcamp .hint{white-space:nowrap}
+.pship .pcl{display:none;font-size:11.5px;font-weight:700;margin-bottom:4px}
+.pship .pnone{display:block;text-align:center;color:var(--ink-3);font-size:12px;padding:4px 0}
+.pship.phead{padding:4px 6px;border-bottom:2px solid var(--line);font-size:12.5px;font-weight:700;color:var(--ink-2)}
+.pship.phead .ph{padding:2px 6px;border-radius:6px}
+.pship.phead .ph.no{color:var(--bad)}.pship.phead .ph.ing{color:#a05a10}.pship.phead .ph.trk{color:#1d4e80}
+@media(max-width:900px){.pship .p3{grid-template-columns:1fr}.pship .pcl{display:block}.pship.phead{display:none}}
 @media(max-width:700px){.pship{grid-template-columns:1fr}}
 #printArea{display:none}
 @media print{
@@ -199,10 +216,10 @@ tr.done td{background:#eaf5ee}
       <div class="stbar">
         <span class="hint" style="font-weight:700">篩選</span>
         <select id="stShip" onchange="Stat.render()"></select>
-        <select id="stTrack" onchange="Stat.render()"><option value="">全部追蹤方式</option><option>FLOW</option><option>內控</option><option>物料配件</option><option>其他</option><option value="__none">未選追蹤方式</option></select>
+        <select id="stTrack" onchange="Stat.render()"><option value="">全部追蹤方式</option><option>FLOW</option><option>內控</option><option>物料配件</option><option>其他</option><option value="__none">未選追蹤方式</option><option value="__flowmiss">FLOW 未填單號</option></select>
         <input type="text" id="stKw" placeholder="主題／內容關鍵字…" oninput="Stat.render()" style="width:180px">
       </div>
-      <div class="sttab"><button type="button" class="open on" data-s="open" onclick="Stat.setSide('open')">未結案 <span id="stOpenN"></span></button><button type="button" class="closed" data-s="closed" onclick="Stat.setSide('closed')">已結案 <span id="stClosedN"></span></button></div>
+      <div class="sttab"><button type="button" class="open on" data-s="open" onclick="Stat.setSide('open')">未結案 <span id="stOpenN"></span></button><button type="button" class="closed" data-s="closed" onclick="Stat.setSide('closed')">已結案 <span id="stClosedN"></span></button><button type="button" data-s="all" onclick="Stat.setSide('all')">全部 <span id="stAllN"></span></button></div>
       <div style="overflow-x:auto" id="statList"></div>
     </div>
     <!-- 2026-11-04 自訂自查：自己出題發給船隊（原本在主系統，改到這裡做）。草稿存雲端 app_db（sharecase_draft_<id>），
@@ -590,10 +607,14 @@ function renderDash(){
   const rows=pendingByShip(list,mode);
   window._pendRows=rows;
   document.getElementById("pendCount").textContent=rows.length?`共 ${rows.length} 艘船、${rows.reduce((n,x)=>n+x.arr.length,0)} 個活動`:"";
-  document.getElementById("pendList").innerHTML=rows.length?rows.map(x=>`<div class="pship">
+  /* 2026-11-05 每艘船的活動分成「未開始／填答中／需追蹤」三個區塊（欄）並排列出；只看未完成時只顯示前兩欄 */
+  const PCOLS=[["no","🔴 未開始"],["ing","🟠 填答中"],["trk","🔵 需追蹤（已送出、有未結案）"]].filter(([k])=>mode==="unsub"?k!=="trk":mode==="track"?k==="trk":true);
+  const tot3={};PCOLS.forEach(([k])=>tot3[k]=rows.reduce((n,x)=>n+x.arr.filter(p=>p.kind===k).length,0));
+  const chip=p=>`<div class="pcamp" title="建立於 ${p.c.created_at?new Date(p.c.created_at).toLocaleDateString("zh-TW"):""}">${p.kind!=="no"?`<span class="st ${p.kind}">${esc(p.kind==="ing"?p.info.replace("填答中 ",""):p.info)}</span>`:""}<span class="pt">${esc(p.c.title||("活動 #"+p.c.id))}</span><span class="hint">${daysSince(p.c.created_at)} 天</span></div>`;
+  document.getElementById("pendList").innerHTML=rows.length?`<div class="pship phead" style="--pc:${PCOLS.length}"><div>船舶</div><div class="p3">${PCOLS.map(([k,l])=>`<div class="ph ${k}">${l}<span class="hint">　${tot3[k]} 個</span></div>`).join("")}</div></div>`+
+    rows.map(x=>`<div class="pship" style="--pc:${PCOLS.length}">
       <div class="nm"><b>${esc(shipLabel(x.code))}</b><br><span class="cnt">${x.arr.length} 個活動</span></div>
-      <div>${x.arr.map(p=>`<span class="pcamp" title="建立於 ${p.c.created_at?new Date(p.c.created_at).toLocaleDateString("zh-TW"):""}"><span class="st ${p.kind}">${esc(p.info)}</span>${esc(p.c.title||("活動 #"+p.c.id))}<span class="hint">（${daysSince(p.c.created_at)} 天）</span></span>`).join("")}</div>
-      <div><button class="btn sm" onclick="openShipReminder('${esc(x.code)}')">🔔 提醒文字</button></div>
+      <div class="p3">${PCOLS.map(([k,l])=>{const a=x.arr.filter(p=>p.kind===k);return `<div class="pcol ${k}"><div class="pcl">${l}　${a.length}</div>${a.length?a.map(chip).join(""):`<span class="pnone">—</span>`}</div>`;}).join("")}</div>
     </div>`).join(""):`<p class="hint" style="text-align:center;padding:12px">🎉 篩選條件下沒有需要提醒的船舶</p>`;
   renderListView(true);
   if(document.getElementById("statCard").style.display!=="none")Stat.render();
@@ -1050,13 +1071,25 @@ const Stat={
     });
     return out.sort((a,b)=>(b.c.created_at||0)-(a.c.created_at||0)||a.ship.localeCompare(b.ship,undefined,{numeric:true})||a.i-b.i);
   },
-  setSide(s){this.side=s;document.querySelectorAll("#statCard .sttab button").forEach(b=>b.classList.toggle("on",b.dataset.s===s));this.render();},
+  setSide(s){this.side=s;this._go=null;document.querySelectorAll("#statCard .sttab button").forEach(b=>b.classList.toggle("on",b.dataset.s===s));this.render();},
+  /* 點統計卡：all＝全部、open／closed＝未結案／已結案、none＝未選追蹤方式、flowmiss＝FLOW 未填單號、t:FLOW 等＝某追蹤方式 */
+  go(g){
+    const tk=document.getElementById("stTrack");
+    let side="open",tv="";
+    if(g==="all")side="all";else if(g==="closed")side="closed";
+    else if(g==="none")tv="__none";else if(g==="flowmiss"){tv="__flowmiss";side="all";}
+    else if(g.startsWith("t:"))tv=g.slice(2);
+    tk.value=tv;
+    this.setSide(side);this._go=g;this.render();
+    const l=document.getElementById("statList");if(l)l.scrollIntoView({behavior:"smooth",block:"start"});
+  },
   filtered(all){
     const sh=document.getElementById("stShip").value,tk=document.getElementById("stTrack").value,kw=(document.getElementById("stKw").value||"").trim().toLowerCase();
     return all.filter(x=>{
       if(sh&&x.ship!==sh)return false;
       if(tk==="__none"&&x.track.length)return false;
-      if(tk&&tk!=="__none"&&!x.track.includes(tk))return false;
+      if(tk==="__flowmiss"&&!(x.track.includes("FLOW")&&!x.it.flowNo))return false;
+      if(tk&&tk!=="__none"&&tk!=="__flowmiss"&&!x.track.includes(tk))return false;
       if(kw&&![x.c.title,x.it.topic,x.it.key,x.it.detail,x.it.note,x.it.closeNote,x.it.flowNo].join(" ").toLowerCase().includes(kw))return false;
       return true;
     });
@@ -1070,25 +1103,30 @@ const Stat={
     const cnt=t=>open.filter(x=>x.track.includes(t)).length;
     const none=open.filter(x=>!x.track.length).length;
     const flowNoMissing=f.filter(x=>x.track.includes("FLOW")&&!x.it.flowNo).length;
-    const k=(v,l,st)=>`<div class="kpi"><div class="v" style="${st||""}">${v}</div><div class="l">${l}</div></div>`;
+    /* 2026-11-05 卡片可點：有清單可看（數字>0）才可點，點了切換下方清單／篩選；結案率沒有對應清單，不可點 */
+    const tkNow=document.getElementById("stTrack").value;
+    const k=(v,l,st,go,n)=>{const can=go&&n>0;return `<div class="kpi${can?" kgo":""}${can&&this._go===go?" kon":""}" ${can?`role="button" tabindex="0" onclick="Stat.go('${go}')" onkeydown="if(event.key==='Enter')Stat.go('${go}')" title="點選列出清單"`:""}><div class="v" style="${st||""}">${v}</div><div class="l">${l}</div>${can?`<div class="kgo-t">查看清單 ›</div>`:""}</div>`;};
+    const tkLink=t=>{const n=cnt(t);return n?`<a href="javascript:void(0)" class="kln${tkNow===t&&this.side==="open"?" on":""}" onclick="event.stopPropagation();Stat.go('t:${t}')" title="列出 ${t} 追蹤中的未結案項目">${n}</a>`:`<span style="opacity:.45">0</span>`;};
     document.getElementById("statKpis").innerHTML=
-      k(f.length,`需處理項目（${new Set(f.map(x=>x.ship)).size} 艘船、${new Set(f.map(x=>x.c.id)).size} 個主題）`)+
-      k(open.length,`未結案（${new Set(open.map(x=>x.ship)).size} 艘船）`,open.length?"color:var(--bad)":"")+
-      k(closed.length,"已結案","color:var(--ok)")+
+      k(f.length,`需處理項目（${new Set(f.map(x=>x.ship)).size} 艘船、${new Set(f.map(x=>x.c.id)).size} 個主題）`,"","all",f.length)+
+      k(open.length,`未結案（${new Set(open.map(x=>x.ship)).size} 艘船）`,open.length?"color:var(--bad)":"","open",open.length)+
+      k(closed.length,"已結案","color:var(--ok)","closed",closed.length)+
       k(f.length?Math.round(closed.length/f.length*100)+"%":"—","結案率","color:var(--ok)")+
-      k(`${cnt("FLOW")}／${cnt("內控")}／${cnt("物料配件")}`,"未結案追蹤方式：FLOW／內控／物料配件")+
-      k(none,"未結案但未選追蹤方式",none?"color:#a05a10":"")+
-      (flowNoMissing?k(flowNoMissing,"選了 FLOW 但還沒填單號","color:#a05a10"):"");
+      `<div class="kpi"><div class="v">${tkLink("FLOW")}／${tkLink("內控")}／${tkLink("物料配件")}</div><div class="l">未結案追蹤方式：FLOW／內控／物料配件<br><span style="color:#2c64a0">點數字列出清單</span></div></div>`+
+      k(none,"未結案但未選追蹤方式",none?"color:#a05a10":"","none",none)+
+      (flowNoMissing?k(flowNoMissing,"選了 FLOW 但還沒填單號","color:#a05a10","flowmiss",flowNoMissing):"");
     document.getElementById("stOpenN").textContent=`(${open.length})`;
     document.getElementById("stClosedN").textContent=`(${closed.length})`;
-    const list=this.side==="closed"?closed:open;
+    {const a=document.getElementById("stAllN");if(a)a.textContent=`(${f.length})`;}
+    const list=this.side==="closed"?closed:this.side==="all"?f:open;
+    const cl=this.side!=="open";   // 已結案／全部：顯示「改善情形＋結案日期」欄
     const trk=x=>x.track.length?x.track.map(t=>`<span class="trk">${esc(t)}${t==="FLOW"?(x.it.flowNo?"："+esc(x.it.flowNo):'<span style="color:#a05a10">（未填單號）</span>'):""}${t==="其他"&&x.it.trackOther?"："+esc(x.it.trackOther):""}</span>`).join(""):'<span class="trk none">未選</span>';
     /* 2026-11-05 缺失內容完整顯示（不再截斷）；追蹤方式／期限／填寫人等短欄位縮窄，空間讓給缺失內容 */
     const q=x=>`<b>${esc(x.it.topic||x.it.code||("#"+(x.i+1)))}</b>${(x.it.key||x.it.detail)?`<div class="hint" style="white-space:pre-wrap;word-break:break-word">${esc(x.it.key||x.it.detail)}</div>`:""}`;
     const today=new Date().toISOString().slice(0,10);
-    document.getElementById("statList").innerHTML=list.length?`<table style="min-width:860px;table-layout:fixed"><thead><tr><th style="width:110px">主題</th><th style="width:84px">船舶</th><th>題目／缺失</th><th style="width:24%">本船實際狀況</th><th style="width:84px">追蹤方式</th>${this.side==="closed"?'<th style="width:20%">改善情形</th><th style="width:74px">結案日期</th>':'<th style="width:74px">追蹤期限</th>'}<th style="width:62px">填寫人</th></tr></thead><tbody>
-      ${list.map(x=>`<tr><td style="font-size:11.5px;word-break:break-word">${esc(x.c.title||("活動 #"+x.c.id))}</td><td style="word-break:break-word"><b>${esc(x.ship)}</b><div class="hint" style="font-size:11px">${esc(shipLabel(x.ship)===x.ship?"":shipLabel(x.ship))}</div></td><td>${q(x)}</td><td style="font-size:12.5px;white-space:pre-wrap;word-break:break-word">${esc(x.it.note||x.it.actual||"")}</td><td style="word-break:break-word">${trk(x)}</td>${this.side==="closed"?`<td style="font-size:12.5px;white-space:pre-wrap;word-break:break-word">${esc(x.it.closeNote||"")}</td><td style="font-size:12px">${esc(x.it.closedAt||"")}</td>`:`<td style="font-size:12px;${x.it.trackDue&&x.it.trackDue<today?"color:var(--bad);font-weight:700":""}">${esc(x.it.trackDue||"—")}</td>`}<td class="hint" style="font-size:11.5px;word-break:break-word">${esc(x.r.checker_name||x.it.checkedBy||"")}</td></tr>`).join("")}
-      </tbody></table>`:`<p class="hint" style="text-align:center;padding:16px">${this.side==="closed"?"沒有已結案項目":"🎉 沒有未結案項目"}</p>`;
+    document.getElementById("statList").innerHTML=list.length?`<table style="min-width:860px;table-layout:fixed"><thead><tr><th style="width:80px">主題</th><th style="width:70px">船舶</th><th>題目／缺失</th><th style="width:${cl?15:22}%">本船實際狀況</th><th style="width:70px">追蹤方式</th>${cl?'<th style="width:15%">改善情形</th><th style="width:84px">結案日期</th>':'<th style="width:84px">追蹤期限</th>'}<th style="width:58px">填寫人</th></tr></thead><tbody>
+      ${list.map(x=>`<tr><td style="font-size:11.5px;word-break:break-word">${esc(x.c.title||("活動 #"+x.c.id))}</td><td style="word-break:break-word"><b>${esc(x.ship)}</b><div class="hint" style="font-size:11px">${esc(shipLabel(x.ship)===x.ship?"":shipLabel(x.ship))}</div></td><td>${q(x)}</td><td style="font-size:12.5px;white-space:pre-wrap;word-break:break-word">${esc(x.it.note||x.it.actual||"")}</td><td style="word-break:break-word">${trk(x)}</td>${cl?`<td style="font-size:12.5px;white-space:pre-wrap;word-break:break-word">${esc(x.it.closeNote||"")}</td><td style="font-size:12px;white-space:nowrap">${x.closed?esc(x.it.closedAt||"✓"):'<b style="color:var(--bad)">未結案</b>'}</td>`:`<td style="font-size:12px;white-space:nowrap;${x.it.trackDue&&x.it.trackDue<today?"color:var(--bad);font-weight:700":""}">${esc(x.it.trackDue||"—")}</td>`}<td class="hint" style="font-size:11.5px;word-break:break-word">${esc(x.r.checker_name||x.it.checkedBy||"")}</td></tr>`).join("")}
+      </tbody></table>`:`<p class="hint" style="text-align:center;padding:16px">${this.side==="closed"?"沒有已結案項目":this.side==="all"?"沒有符合的項目":"🎉 沒有未結案項目"}</p>`;
     this._last={open,closed};
   },
   /* 2026-11-05 數據彙總 PDF：A4 橫式、每頁都有公司 Logo 標頭（外層 table 的 thead 會在每頁重複），
