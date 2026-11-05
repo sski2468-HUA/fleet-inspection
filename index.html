@@ -22625,6 +22625,11 @@ const InspCtrl={
     }
     if(this.editId==null){rec.id=this.nextId();App.inspCtrl.push(rec);toast("✓ 已新增");if(typeof Audit!=="undefined")Audit.log("新增","檢查管控",`${rec.ship} ${rec.itype}`);}
     else{const d=App.inspCtrl.find(x=>x.id===this.editId);Object.assign(d,rec);toast("✓ 已更新");if(typeof Audit!=="undefined")Audit.log("編輯","檢查管控",`#${this.editId} ${rec.ship} ${rec.itype}${enhanceOn?"（加強稽核）":""}${rec.schedDate?`；預排 ${rec.schedDate}${rec.schedPort?"（"+rec.schedPort+"）":""}`:""}`);}
+    // 2026-11-05 內部稽核：排程填的港口／稽核員同步到內稽動態尚未完成的那一輪（計畫檢查日本來就直接讀這裡的預排日）
+    if(this.normItype(itype)==="INTERNALAUDIT"&&typeof AuditDash!=="undefined"&&Array.isArray(App.auditDash)){
+      const ar=App.auditDash.filter(r=>r.ship===rec.ship&&!r.actualAuditDate).sort((a,b)=>(b.id||0)-(a.id||0))[0];
+      if(ar){if(rec.schedDate)ar.plannedPort=rec.schedPort||"";if(rec.auditor!==undefined&&rec.auditor!==ar.auditor){ar.auditor=rec.auditor||"";if(!ar.auditor||ar.auditor2===ar.auditor)ar.auditor2="";}}
+    }
     if(rec.schedDate&&alsoIds.length){
       const done=[];
       alsoIds.forEach(id=>{const o=App.inspCtrl.find(x=>x.id===id);if(!o||o.ship!==rec.ship||!this.canEditRow(o))return;
@@ -24501,6 +24506,13 @@ const AuditDash={
     const plannedDate=ic&&ic.schedDate?InspCtrl.normDate(ic.schedDate):"";
     const enhanced=!!(icRow&&icRow.isEnhancedAudit);
     const defCount=this.defsFor(row.ship,row.actualAuditDate).length;
+    // 2026-11-05 計畫檢查日本來就取自檢查管控的預排日；港口／稽核員也一樣要帶過來（檢查管控編輯視窗右半邊排程填的）。
+    // 尚未完成的這一輪才帶：預排港口以檢查管控為準（兩邊編輯都會互相同步），稽核員內稽這邊沒填才用檢查管控的。
+    if(ic&&!row.actualAuditDate){
+      row={...row};
+      if(ic.schedDate&&ic.schedPort)row.plannedPort=ic.schedPort;
+      if(!row.auditor&&ic.auditor)row.auditor=ic.auditor;
+    }
     return {...row,auditorText:[row.auditor,row.auditor2].filter(Boolean).join("、"),vesselName:s.name||row.ship,zh:s.zh||"",cso:s.cso||"",plannedDate,enhanced,enhancedReason:ic?ic.enhancedReason:"",defCount,
       dueDate:icRow?icRow.dueDateCalc||"":"",daysLeft:icRow&&icRow.dueDateCalc&&icRow.daysLeft!=null&&!isNaN(icRow.daysLeft)?icRow.daysLeft:null,icStatus:icRow?icRow.status:"",icOwner:ic?ic.owner||"":""};
   },
@@ -24557,6 +24569,12 @@ const AuditDash={
     if(!this.requireEdit())return;
     const row=this.rowsRaw().find(r=>r.id===id);if(!row)return;
     row[field]=val;
+    // 2026-11-05 尚未完成的這一輪：預計港口／第 1 位稽核員同步回檢查管控（跟計畫檢查日一樣兩邊一致）
+    if(!row.actualAuditDate&&(field==="plannedPort"||field==="auditor")){
+      const ic=this.inspCtrlRow(row.ship);
+      if(ic){if(field==="plannedPort"&&ic.schedDate)ic.schedPort=val;if(field==="auditor")ic.auditor=val;
+        if(typeof Cloud!=="undefined"&&Cloud.queueAutoPublish)Cloud.queueAutoPublish("inspctrl");}
+    }
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
     if(typeof Audit!=="undefined")Audit.log("編輯","內稽動態",`${row.ship} ${field}=${val}`);
     if(field==="auditor"){ // 第 1 位選好才會出現第 2 位的下拉；清掉第 1 位時一併清第 2 位，並避免兩位選到同一人
