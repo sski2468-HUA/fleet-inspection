@@ -98,7 +98,11 @@ tr.done td{background:#eaf5ee}
 #caseCard label.f{display:block;font-weight:700;font-size:13px;margin:10px 0 4px}
 #caseCard textarea{width:100%;font-family:var(--sans);font-size:13px;padding:8px 10px;border:1px solid var(--line-2);border-radius:8px;resize:vertical;line-height:1.6}
 .scq{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:#fbfcfd}
-.scq .sl{display:block;font-size:11.5px;color:var(--ink-3);margin:6px 0 2px}
+.scq .sl{display:block;font-size:14.5px;font-weight:700;color:var(--ink-2);margin:12px 0 4px}
+/* 2026-11-05 新建自訂自查：說明字放大（年長同仁使用） */
+#caseCard .hint{font-size:13.5px}
+#caseCard label.f{font-size:15px}
+#caseCard .scq input,#caseCard .scq textarea,#caseCard .scck select{font-size:14.5px}
 .scships{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:3px 12px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:8px;margin-top:6px}
 .scships label{display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}
 .scfile{display:inline-flex;gap:4px;align-items:center;background:#eef3f8;border-radius:12px;padding:2px 9px;font-size:12px;margin:0 6px 6px 0}
@@ -111,9 +115,12 @@ tr.done td{background:#eaf5ee}
 .scsteps span.on{background:var(--navy);color:#fff}
 .scsteps span.done{background:#eaf5ee;color:var(--ok)}
 .scck{display:grid;grid-template-columns:1fr 190px 74px 30px;gap:6px;align-items:center;margin-bottom:6px}
-.scck input,.scck select{padding:6px 8px;font-size:13px}
+.scck input,.scck select{padding:7px 9px;font-size:14.5px}
 .scck .del{border:0;background:none;color:var(--bad);cursor:pointer;font-size:16px}
-.scck .eg{grid-column:1/-1;margin:-2px 0 2px;font-size:11.5px;color:#1e7f8c}
+.scck .ckparts{grid-column:1/-1;gap:8px;align-items:center;font-size:14px;color:var(--ink-2)}
+.scck .ckparts b{white-space:nowrap}
+.scck .ckparts input{flex:1}
+.scck .eg{grid-column:1/-1;margin:-2px 0 4px;font-size:13.5px;color:#1e7f8c}
 @media(max-width:640px){.scck{grid-template-columns:1fr 1fr}.scck .del{justify-self:end}}
 .pvck{border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin:5px 0;background:#fff}
 .pvck .chip{display:inline-block;border:1.5px solid #cfd8de;border-radius:16px;padding:3px 14px;margin:4px 6px 0 0;font-weight:700;font-size:13px;color:#33444f}
@@ -743,7 +750,10 @@ async function loadCampaign(id){
 /* 2026-11-05 細目回答方式（checkTypes 跟題目一起存在活動 items；回應裡的 items 也有一份） */
 const CK_LABEL={tick:"打勾確認",yn:"是／否",ynna:"是／否／本輪無此情形",num:"數量",date:"日期",text:"文字"};
 function ckTypeS(it,j){const t=(it.checkTypes||[])[j];return (t&&t.type)?t:{type:"tick"};}
-function ckAnsText(it,j,v){const t=ckTypeS(it,j);if(v==null||v==="")return "";return t.type==="num"&&t.unit?`${v} ${t.unit}`:String(v);}
+const ckHas=v=>Array.isArray(v)?v.some(x=>String(x==null?"":x).trim()!==""):String(v==null?"":v).trim()!=="";
+function ckAnsText(it,j,v){const t=ckTypeS(it,j);if(!ckHas(v))return "";
+  if(Array.isArray(v)){const ps=t.parts||[];return v.map((x,k)=>String(x==null?"":x).trim()===""?"":`${ps[k]||""} ${x}${t.unit?" "+t.unit:""}`.trim()).filter(Boolean).join("、");}
+  return t.type==="num"&&t.unit?`${v} ${t.unit}`:String(v);}
 /* 細目回覆彙整：題目 → 細目 → 已勾 n／填答船數，下面列各船補充說明（點船名展開該船明細） */
 function renderCkSummary(){
   const card=document.getElementById("ckCard"),box=document.getElementById("ckBody");if(!card||!box||!curCampaign)return;
@@ -762,9 +772,10 @@ function renderCkSummary(){
       ${cs.map((c,j)=>{
         const ty=ckTypeS(it,j);
         if(ty.type!=="tick"){ // 2026-11-05 有回答方式的細目：自動統計（是／否次數、數量加總、日期範圍）＋各船答案
-          const ans=resp.map(r=>{const ri=(r.items||[])[i]||{};return {r,v:(ri.checkVal||[])[j],n:(ri.checkNote||[])[j]};}).filter(x=>x.v!=null&&String(x.v).trim()!=="");
+          const ans=resp.map(r=>{const ri=(r.items||[])[i]||{};return {r,v:(ri.checkVal||[])[j],n:(ri.checkNote||[])[j]};}).filter(x=>ckHas(x.v));
           let sum="";
           if(ty.type==="yn"||ty.type==="ynna"){const cnt={};ans.forEach(x=>cnt[x.v]=(cnt[x.v]||0)+1);sum=(ty.type==="yn"?["是","否"]:["是","否","本輪無此情形"]).map(o=>`${o} <b style="color:${o==="否"?"var(--bad)":o==="是"?"var(--ok)":"var(--ink-2)"}">${cnt[o]||0}</b>`).join("　");}
+          else if(ty.type==="num"&&(ty.parts||[]).length){sum=ty.parts.map((p,k)=>{const ns=ans.map(x=>parseFloat(Array.isArray(x.v)?x.v[k]:NaN)).filter(v=>!isNaN(v));return `${esc(p)} 合計 <b>${+ns.reduce((a,b)=>a+b,0).toFixed(2)}</b> ${esc(ty.unit||"")}<span class="hint">（${ns.length} 艘有填）</span>`;}).join("　");}
           else if(ty.type==="num"){const ns=ans.map(x=>parseFloat(x.v)).filter(v=>!isNaN(v));sum=ns.length?`合計 <b>${+ns.reduce((a,b)=>a+b,0).toFixed(2)}</b> ${esc(ty.unit||"")}　平均 ${+(ns.reduce((a,b)=>a+b,0)/ns.length).toFixed(2)}　最少 ${Math.min(...ns)}　最多 ${Math.max(...ns)}`:"";}
           else if(ty.type==="date"){const ds=ans.map(x=>String(x.v)).sort();sum=ds.length?`最早 <b>${esc(ds[0])}</b>　最晚 <b>${esc(ds[ds.length-1])}</b>`:"";}
           const shown=only?ans.filter(x=>x.n&&String(x.n).trim()):ans;
@@ -1279,6 +1290,10 @@ const SC={
         <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="scTo" value="tanker" onchange="SC.targetUI()"> 油輪</label>
         <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="scTo" value="pick" onchange="SC.targetUI()"> 自行勾選</label>
       </div>
+      <div id="scPickBar" style="display:none;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn sm" onclick="SC.pickAll(false)" style="color:var(--bad);border-color:var(--bad);font-size:14px;padding:6px 14px">✕ 清除全部勾選</button>
+        <button type="button" class="btn sm" onclick="SC.pickAll(true)" style="font-size:14px;padding:6px 14px">✓ 全部勾選</button>
+        <span class="hint">先清除，再一艘一艘勾要發的船</span></div>
       <div class="scships" id="scShips" style="display:none">${fleet.map(s=>`<label><input type="checkbox" value="${esc(s.code)}" onchange="SC.targetUI(true)"> ${esc(this.label(s))}</label>`).join("")}</div>
       <div class="hint" id="scCount" style="margin-top:6px;font-weight:700"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--line)">
@@ -1297,26 +1312,39 @@ const SC={
   /* 2026-11-05 細目回答方式：每條細目一格＋「船上怎麼回答」下拉；存成 q.cks=[{t,type,unit}]，發佈時轉成 checks[]＋checkTypes[] */
   CKT:[["tick","☑ 打勾確認"],["yn","是／否"],["ynna","是／否／本輪無此情形"],["num","填數量"],["date","填日期"],["text","填文字"]],
   CKEG:{tick:"船上看到：☐ 打勾，可另寫補充說明",yn:"船上看到：［是］［否］兩個按鈕；選「否」一定要寫原因",ynna:"船上看到：［是］［否］［本輪無此情形］；選「否」一定要寫原因",num:"船上看到：填一個數字＋右邊的單位（例：6 支）；彙整會自動加總",date:"船上看到：選一個日期（例：最近一次測試日期）",text:"船上看到：一格文字框，自由填寫"},
+  /* 填數量可加「分項」：例 細目「SCBA 鋼瓶數量」、分項「200bar、300bar」、單位「支」→ 船上看到 200bar [ ] 支　300bar [ ] 支 */
+  splitParts(s){return String(s||"").split(/[、,，\/／;；]+/).map(x=>x.trim()).filter(Boolean);},
+  egText(type,unit,parts){
+    if(type!=="num")return this.CKEG[type]||"";
+    const u=unit?" "+unit:"";
+    return parts&&parts.length?`船上看到：${parts.map(p=>`${p} ［　］${u}`).join("　")}（每一格填數字，彙整會分項加總）`:`船上看到：［　］${u||" （單位）"}（填一個數字，彙整會自動加總；要分 200bar／300bar 請在「分項」填）`;
+  },
   toCks(q){
-    if(Array.isArray(q.cks))return q.cks.map(c=>({t:c.t||"",type:c.type||"tick",unit:c.unit||""}));
+    if(Array.isArray(q.cks))return q.cks.map(c=>({t:c.t||"",type:c.type||"tick",unit:c.unit||"",parts:Array.isArray(c.parts)?c.parts:this.splitParts(c.parts)}));
     return String(q.checks||"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(t=>({t,type:"tick",unit:""}));
   },
   ckRow(i,j,c){
     return `<div class="scck"><input type="text" id="scCk-${i}-${j}" value="${esc(c.t)}" placeholder="細目，例：本輪 SCBA 鋼瓶共幾支">
       <select id="scCkT-${i}-${j}" onchange="SC.ckTypeChange(${i},${j})" title="船上怎麼回答">${this.CKT.map(([v,l])=>`<option value="${v}" ${c.type===v?"selected":""}>${l}</option>`).join("")}</select>
-      <input type="text" id="scCkU-${i}-${j}" value="${esc(c.unit||"")}" placeholder="單位" title="數量的單位，例：支、個、bar" style="visibility:${c.type==="num"?"visible":"hidden"}">
+      <input type="text" id="scCkU-${i}-${j}" value="${esc(c.unit||"")}" placeholder="單位" title="數量的單位，例：支、個" oninput="SC.ckEg(${i},${j})" style="visibility:${c.type==="num"?"visible":"hidden"}">
       <button type="button" class="del" onclick="SC.delCk(${i},${j})" title="刪除這條細目">✕</button>
-      <div class="eg" id="scCkE-${i}-${j}">${this.CKEG[c.type]||""}</div></div>`;
+      <div class="ckparts" id="scCkPW-${i}-${j}" style="display:${c.type==="num"?"flex":"none"}"><b>分項（可不填）</b><input type="text" id="scCkP-${i}-${j}" value="${esc((c.parts||[]).join("、"))}" placeholder="要分開填才寫，用頓號隔開，例：200bar、300bar" oninput="SC.ckEg(${i},${j})"></div>
+      <div class="eg" id="scCkE-${i}-${j}">${esc(this.egText(c.type,c.unit,c.parts))}</div></div>`;
+  },
+  ckEg(i,j){
+    const g=k=>document.getElementById(`${k}-${i}-${j}`);
+    g("scCkE").textContent=this.egText(g("scCkT").value,g("scCkU").value.trim(),this.splitParts(g("scCkP").value));
   },
   ckTypeChange(i,j){
     const v=document.getElementById(`scCkT-${i}-${j}`).value,u=document.getElementById(`scCkU-${i}-${j}`);
-    u.style.visibility=v==="num"?"visible":"hidden";document.getElementById(`scCkE-${i}-${j}`).textContent=this.CKEG[v]||"";
+    u.style.visibility=v==="num"?"visible":"hidden";document.getElementById(`scCkPW-${i}-${j}`).style.display=v==="num"?"flex":"none";
+    this.ckEg(i,j);
     if(v==="num"&&!u.value)u.focus();
   },
   addCk(i){this.syncQ();this._q[i].cks.push({t:"",type:"tick",unit:""});this.renderQ();this.markDirty();const e=document.getElementById(`scCk-${i}-${this._q[i].cks.length-1}`);if(e)e.focus();},
   delCk(i,j){this.syncQ();this._q[i].cks.splice(j,1);this.renderQ();this.markDirty();},
   syncQ(){if(!document.getElementById("scQs"))return;this._q.forEach((q,i)=>{const g=id=>{const e=document.getElementById(`${id}-${i}`);return e?e.value:"";};q.topic=g("scTopic");q.key=g("scKey");q.ex=g("scEx");
-    q.cks=(q.cks||[]).map((c,j)=>{const e=document.getElementById(`scCk-${i}-${j}`);if(!e)return c;return {t:e.value,type:document.getElementById(`scCkT-${i}-${j}`).value,unit:document.getElementById(`scCkU-${i}-${j}`).value};});
+    q.cks=(q.cks||[]).map((c,j)=>{const e=document.getElementById(`scCk-${i}-${j}`);if(!e)return c;return {t:e.value,type:document.getElementById(`scCkT-${i}-${j}`).value,unit:document.getElementById(`scCkU-${i}-${j}`).value,parts:this.splitParts(document.getElementById(`scCkP-${i}-${j}`).value)};});
     q.checks=q.cks.map(c=>c.t.trim()).filter(Boolean).join("\n");});},
   renderQ(){
     document.getElementById("scQs").innerHTML=this._q.map((q,i)=>`<div class="scq">
@@ -1372,13 +1400,19 @@ const SC={
     if((m==="bulk"||m==="tanker")&&!fromGrid){const set=new Set(this.targets());grid.querySelectorAll("input").forEach(x=>x.checked=set.has(x.value));}
     if(fromGrid&&m!=="pick"){const r=document.querySelector('input[name="scTo"][value="pick"]');if(r)r.checked=true;}
     grid.style.display=this.mode()==="all"?"none":"";
+    {const pb=document.getElementById("scPickBar");if(pb)pb.style.display=this.mode()==="all"?"none":"flex";}
     const t=this.targets();
     document.getElementById("scCount").textContent=t===null?`將發給全船隊 ${(this._fleet||[]).length} 艘船`:`將發給 ${t.length} 艘船${t.length?"："+t.join("、"):""}`;
+  },
+  pickAll(on){
+    document.querySelectorAll("#scShips input").forEach(x=>x.checked=on);
+    const r=document.querySelector('input[name="scTo"][value="pick"]');if(r)r.checked=true;
+    this.targetUI(true);this.markDirty();
   },
   draftSt(){const el=document.getElementById("scDraftSt");if(el)el.textContent=this._draftId?`草稿已儲存 ${this._savedAt?new Date(this._savedAt).toLocaleString("zh-TW",{hour12:false}).replace(/:\d\d$/,""):""}`:"尚未儲存草稿";},
   state(){
     this.syncQ();const m=this.mode();
-    return {title:(document.getElementById("scTitle").value||"").trim(),bg:document.getElementById("scBg").value||"",q:this._q.map(q=>({topic:q.topic,key:q.key,checks:q.checks,cks:(q.cks||[]).map(c=>({t:c.t,type:c.type,unit:c.unit})),ex:q.ex,files:(q.files||[]).map(f=>({name:f.name,url:f.url,path:f.path,type:f.type,size:f.size}))})),
+    return {title:(document.getElementById("scTitle").value||"").trim(),bg:document.getElementById("scBg").value||"",q:this._q.map(q=>({topic:q.topic,key:q.key,checks:q.checks,cks:(q.cks||[]).map(c=>({t:c.t,type:c.type,unit:c.unit,parts:c.parts||[]})),ex:q.ex,files:(q.files||[]).map(f=>({name:f.name,url:f.url,path:f.path,type:f.type,size:f.size}))})),
       files:this._files.map(f=>({name:f.name,url:f.url,path:f.path,type:f.type,size:f.size})),to:m,
       ships:m==="pick"?[...document.querySelectorAll("#scShips input:checked")].map(x=>x.value):[]};
   },
@@ -1500,11 +1534,11 @@ const SC={
     const TL=Object.fromEntries(this.CKT);
     const items=qs.map((q,i)=>{
       const topic=q.topic.trim(),key=q.key.trim(),ex=(q.ex||"").trim();
-      const ck=(q.cks||this.toCks(q)).map(c=>({t:String(c.t||"").replace(/^[-*•□\s]+/,"").trim(),type:c.type||"tick",unit:c.type==="num"?String(c.unit||"").trim():""})).filter(c=>c.t);
+      const ck=(q.cks||this.toCks(q)).map(c=>({t:String(c.t||"").replace(/^[-*•□\s]+/,"").trim(),type:c.type||"tick",unit:c.type==="num"?String(c.unit||"").trim():"",parts:c.type==="num"?(Array.isArray(c.parts)?c.parts:this.splitParts(c.parts)):[]})).filter(c=>c.t);
       const checks=ck.map(c=>c.t),typed=ck.some(c=>c.type!=="tick");
       const it={topic,main:"自訂案例",key,checks,examples:ex?[{label:"案例說明",detail:ex}]:[],refs:[...refs,...(q.files||[]).map(ref)],stat:"",code:"",ncMain:"",ncLeaf:topic,src:"自訂案例",
-        detail:`【${topic}】${key}${checks.length?"\n請確認：\n"+ck.map(c=>"□ "+c.t+(c.type!=="tick"?`（回答：${TL[c.type].replace(/^☑ /,"")}${c.unit?"，單位 "+c.unit:""}）`:"")).join("\n"):""}`,actual2:ex};
-      if(typed)it.checkTypes=ck.map(c=>({type:c.type,unit:c.unit}));
+        detail:`【${topic}】${key}${checks.length?"\n請確認：\n"+ck.map(c=>"□ "+c.t+(c.type!=="tick"?`（回答：${TL[c.type].replace(/^☑ /,"")}${c.parts&&c.parts.length?"，分項 "+c.parts.join("／"):""}${c.unit?"，單位 "+c.unit:""}）`:"")).join("\n"):""}`,actual2:ex};
+      if(typed)it.checkTypes=ck.map(c=>c.parts&&c.parts.length?{type:c.type,unit:c.unit,parts:c.parts}:{type:c.type,unit:c.unit});
       if(i===0&&bg)it.campIntro=bg;return it;});
     return {title:st.title,bg,scope,refs,items};
   },
@@ -1523,7 +1557,7 @@ const SC={
     const body={tick:`<div style="margin-top:3px;color:var(--ink-3);font-size:12.5px">（打勾）＋ 補充說明</div>`,
       yn:chips(["是","否"])+`<div class="hint" style="font-size:12px">選「否」要寫原因</div>`,
       ynna:chips(["是","否","本輪無此情形"])+`<div class="hint" style="font-size:12px">選「否」要寫原因</div>`,
-      num:`<span class="fake">填數字</span> <b>${esc(t.unit||"")}</b>`,date:`<span class="fake">年／月／日</span>`,text:`<span class="fake" style="min-width:60%">填文字</span>`}[t.type]||"";
+      num:(t.parts&&t.parts.length?t.parts:[""]).map(p=>`${p?`<b>${esc(p)}</b> `:""}<span class="fake" style="min-width:70px">填數字</span> <b>${esc(t.unit||"")}</b>`).join("　"),date:`<span class="fake">年／月／日</span>`,text:`<span class="fake" style="min-width:60%">填文字</span>`}[t.type]||"";
     return `<div class="pvck">${t.type==="tick"?"☐":"⬜"} <b>${esc(c)}</b><div>${body}</div></div>`;
   },
   preview(){
@@ -1594,7 +1628,7 @@ const SC={
     const scope=Array.isArray(c.ship_scope)&&c.ship_scope.length?c.ship_scope:null;
     const d={_editCid:c.id,title:c.title||"",bg:(its[0]&&its[0].campIntro)||"",files:shared.map(toFile),
       q:its.map(it=>({topic:it.topic||"",key:it.key||"",checks:(it.checks||[]).join("\n"),
-        cks:(it.checks||[]).map((t,j)=>{const ty=(it.checkTypes||[])[j]||{};return {t,type:ty.type||"tick",unit:ty.unit||""};}),ex:(it.examples&&it.examples[0]&&it.examples[0].detail)||"",
+        cks:(it.checks||[]).map((t,j)=>{const ty=(it.checkTypes||[])[j]||{};return {t,type:ty.type||"tick",unit:ty.unit||"",parts:ty.parts||[]};}),ex:(it.examples&&it.examples[0]&&it.examples[0].detail)||"",
         files:(it.refs||[]).filter(f=>!sharedKeys.has(keyOf(f))).map(toFile)})),
       to:scope?"pick":"all",ships:scope||[]};
     setSubTab("case");this.ctab("new");await this.mount(d);window.scrollTo({top:0,behavior:"smooth"});
