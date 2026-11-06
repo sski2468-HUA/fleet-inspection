@@ -4733,6 +4733,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
       <!-- ════ 內稽動態2（新版試用）：清單＋右側明細，資料與寫入沿用 AuditDash；舊版「內稽動態」保留 ════ -->
       <div id="ig-page-audit2" class="ig-subpage" style="display:none">
+        <!-- 2026-11-06 子頁：計畫與進度／內稽紀錄（內稽紀錄沿用舊版同一個區塊，切過來時搬進這裡） -->
+        <div class="toolbar" style="margin-bottom:10px">
+          <button class="btn sm ad2-subbtn dark" data-t="plan" onclick="AuditDash2.setSub('plan')">📊 計畫與進度</button>
+          <button class="btn sm ad2-subbtn" data-t="history" onclick="AuditDash2.setSub('history')">📖 內稽紀錄</button>
+          <span class="hint" style="margin-left:10px">「計畫與進度」處理當年度排程、查核與結案；「內稽紀錄」以船舶為單位，橫向比對歷年稽核記錄。</span>
+        </div>
+        <div id="ad2-sub-hist" style="display:none"></div>
+        <div id="ad2-sub-plan">
         <div class="card" style="margin-bottom:12px"><div class="ic2-row" id="ad2-kpis"></div></div>
         <div class="card" style="margin-bottom:12px">
           <div class="ic2-row">
@@ -4757,6 +4765,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             </ul></details>
         </div>
         <div class="card ic2-scroll" style="padding:0"><table class="ic2-list" id="ad2-list"></table></div>
+        </div>
       </div>
 
       <div id="ig-page-annual" class="ig-subpage" style="display:none">
@@ -20757,14 +20766,33 @@ const AuditDash2={
         <td style="font-family:var(--mono)">${r.actualAuditDate?'<span class="ic2-lbl">—</span>':this.fmt(r.dueDate)+"<div>"+due(r)+"</div>"}</td>
         <td style="font-family:var(--mono);white-space:nowrap">${r.schedMonth&&!r.actualAuditDate?esc(AuditDash.monthDisplay(r.schedMonth)):'<span class="ic2-lbl">—</span>'}</td>
         <td style="font-family:var(--mono);white-space:nowrap">${r.plannedDate?this.fmt(r.plannedDate):(r.actualAuditDate?'<span class="ic2-lbl">—</span>':`<button class="btn sm" data-adsched="${r.id}">📅 排程</button>`)}</td>
-        <td style="font-size:12.5px">${r.plannedDate&&r.plannedPort?esc(r.plannedPort):'<span class="ic2-lbl">—</span>'}</td>
-        <td style="font-family:var(--mono)">${r.actualAuditDate?`<b style="color:#2e7d4f">${this.fmt(r.actualAuditDate)}</b><div class="ic2-lbl" style="font-family:var(--sans)">${esc(AuditDash.actualPortFor(r)||"")}</div>`:'<span class="ic2-lbl">尚未完成</span>'}</td>
+        <td style="font-size:12.5px">${(r.plannedDate||r.actualAuditDate)&&r.plannedPort?esc(r.plannedPort):'<span class="ic2-lbl">—</span>'}</td>
+        <td style="font-family:var(--mono)">${r.actualAuditDate?(()=>{const ap=AuditDash.actualPortFor(r);
+          // 實際港口抓不到（手動填日期、稽核員填單還沒匯入）→ 先顯示這一輪的計畫港口，標「依計畫」
+          return `<b style="color:#2e7d4f">${this.fmt(r.actualAuditDate)}</b><div class="ic2-lbl" style="font-family:var(--sans)">${ap?esc(ap):(r.plannedPort?`${esc(r.plannedPort)} <span style="opacity:.7">（依計畫港口）</span>`:"")}</div>`;})():'<span class="ic2-lbl">尚未完成</span>'}</td>
         <td>${esc(r.auditorText||"")||'<span class="ic2-lbl">未指派</span>'}</td>
         <td style="text-align:center">${r.defCount||"-"}</td>
         <td style="text-align:center">${r.closedOut?'<span class="ic2-pill s3">✓</span>':(r.actualAuditDate?'<span class="ic2-pill s2">未結案</span>':"")}</td>
         <td style="width:150px;max-width:150px;color:var(--ink-2);font-size:12px;word-break:break-word">${esc(r.remark||"")}</td></tr>`).join("")+
       (rows.length?"":`<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--ink-3)">沒有符合篩選的船</td></tr>`)+"</tbody>";
     if(this.cur&&$("#ic2-drawer").style.display!=="none"&&this.cur[0]==="ad")this.open(this.cur[1]);
+  },
+  /* 2026-11-06 子頁切換：內稽紀錄沿用舊版「內稽動態」的同一個區塊（同一套功能／匯出），切過來時把它搬進來顯示 */
+  sub:"plan",
+  setSub(t){
+    this.sub=t;
+    document.querySelectorAll(".ad2-subbtn").forEach(b=>b.classList.toggle("dark",b.dataset.t===t));
+    const plan=$("#ad2-sub-plan"),hw=$("#ad2-sub-hist"),h=$("#ad-subtab-history");
+    if(plan)plan.style.display=t==="plan"?"":"none";
+    if(hw)hw.style.display=t==="history"?"":"none";
+    if(t==="history"&&h&&hw){
+      const dr=$("#ic2-drawer");if(dr)dr.style.display="none";   // 右側明細是計畫與進度用的，切到內稽紀錄先收起
+      if(h.parentElement!==hw)hw.appendChild(h);
+      h.style.display="";
+      AuditDash.renderHistory();
+    }else{
+      this.render();
+    }
   },
   S:null,
   SORT_COLS:{
@@ -20774,7 +20802,7 @@ const AuditDash2={
     due:{v:r=>r.actualAuditDate?"":(InspCtrl.normDate(r.dueDate)||""),date:true},
     month:{v:r=>r.actualAuditDate?"":(r.schedMonth||""),date:true},
     plan:{v:r=>InspCtrl.normDate(r.plannedDate)||"",date:true},
-    port:{v:r=>r.plannedDate?(r.plannedPort||""):""},
+    port:{v:r=>(r.plannedDate||r.actualAuditDate)?(r.plannedPort||""):""},
     actual:{v:r=>InspCtrl.normDate(r.actualAuditDate)||"",date:true},
     auditor:{v:r=>r.auditorText||""},
     def:{v:r=>+r.defCount||0,num:true},
@@ -24626,7 +24654,7 @@ const AuditDash={
   actualPortFor(row){
     if(row.actualAuditId){
       const rec=App.insp.find(x=>x.id===row.actualAuditId);
-      if(rec&&rec.loc)return rec.loc;
+      if(rec&&(rec.loc||rec.place))return rec.loc||rec.place;
     }
     // 「實際檢查日」如果是手動輸入日期（不是從清單裡點選），系統當初沒有記住要連結哪一筆
     // 檢查紀錄，這裡改用「船名＋日期」做備援配對，才抓得到後來補填的地點。
@@ -24869,6 +24897,8 @@ const AuditDash={
   subTab:"plan",
   setSubTab(t){
     this.subTab=t;
+    // 內稽紀錄區塊可能被搬到「內稽動態2」，回到舊版時搬回原位
+    {const h=$("#ad-subtab-history"),p=$("#ad-subtab-plan");if(h&&p&&h.parentElement!==p.parentElement)p.parentElement.insertBefore(h,p.nextSibling);}
     $("#ad-subtab-plan").style.display=t==="plan"?"":"none";
     $("#ad-subtab-history").style.display=t==="history"?"":"none";
     document.querySelectorAll(".ad-subtabbtn").forEach(b=>b.classList.toggle("dark",b.dataset.t===t));
