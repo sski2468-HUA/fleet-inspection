@@ -4556,7 +4556,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             <button class="btn" id="ic2-unsched">只看未排程</button>
             <span class="ic2-sep"></span>
             <span class="ic2-lbl">船排序</span>
-            <select id="ic2-f-sort" aria-label="船排序"><option value="worst">最急迫的船在上</option><option value="code">依船名代碼</option></select>
+            <select id="ic2-f-sort" aria-label="船排序"><option value="code" selected>依船名代碼</option><option value="worst">最急迫的船在上</option></select>
           </div>
           <div class="ic2-active" id="ic2-active"></div>
         </div>
@@ -19939,7 +19939,7 @@ const ExecOverview={
    船×項目矩陣／清單／排程月曆、側邊明細與排程表單、海技管理證書（cat:"cert" 的列，舊版不顯示）。
    督導訪船間隔改成「看甲板／機艙類別，不看人名」，輪替人員（例：康華）也算得到。 */
 const InspCtrl2={
-  F:{st:null,scope:"insp",view:"mx",type:"",sup:"",owner:"",mineSup:false,mineOwn:false,unsched:false,sort:"worst",items:new Set()},
+  F:{st:null,scope:"insp",view:"mx",type:"",sup:"",owner:"",mineSup:false,mineOwn:false,unsched:false,sort:"code",items:new Set()},   // 2026-11-06 預設依船名代碼排列
   LSORT:"days",_bound:false,cur:null,
   INSP_COLS:[["ONBOARDVISIT","訪船","onboard visit"],["CROSSSHIPVISIT","交叉訪船","Cross ship"],["INTERNALAUDIT","內稽","Internal audit"],["SIRE","SIRE","OCIMF"],["CDI","CDI",""],["RIGHTSHIP","RightShip",""],["ASI","ASI","船旗國"],["SMC","SMC","5年證書"],["ISSC","ISSC","5年證書"],["MLC","MLC","5年證書"],["LRIT","LRIT","年度"],["IHM","IHM",""]],
   /* 海技管理證書（依海技組證書管控表 01～08 欄）：[key, 顯示名, 副標, 存檔用 itype] */
@@ -20647,19 +20647,21 @@ const AuditDash2={
     const th=(k,l)=>{const on=S&&S.k===k;const lbl=on?(this.SORT_COLS[k].date?(S.dir>0?"舊→新":"新→舊"):this.SORT_COLS[k].num?(S.dir>0?"少→多":"多→少"):(S.dir>0?"A→Z":"Z→A")):"";
       return `<th data-adsort="${k}" class="ad2-sort${on?" on":""}" title="點一下排序（再點一次反向，第三次恢復預設）">${l}<span class="ad2-sarr">${on?(S.dir>0?" ▲":" ▼"):" ↕"}</span>${lbl?`<div class="ad2-slbl">${lbl}</div>`:""}</th>`;};
     const due=r=>r.actualAuditDate||!r.dueDate?"":`<span class="ic2-pill ${r.daysLeft<0?"s0":r.daysLeft<=30?"s1":r.daysLeft<=90?"s2":"s3"}">${r.daysLeft<0?"逾期 "+(-r.daysLeft)+" 天":"剩 "+r.daysLeft+" 天"}</span>`;
-    $("#ad2-list").innerHTML=`<thead><tr>${th("ship","船")}${th("step","流程")}${th("last","上次稽核")}${th("due","到期")}${th("plan","計畫檢查日")}${th("actual","實際檢查日")}${th("auditor","稽核員")}${th("def","缺失")}${th("closed","結案")}${th("remark","備註")}</tr></thead><tbody>`+
+    $("#ad2-list").innerHTML=`<thead><tr>${th("ship","船")}${th("step","流程")}${th("last","上次稽核")}${th("due","到期")}${th("month","預計月")}${th("plan","計畫檢查日")}${th("port","預計港口")}${th("actual","實際檢查日")}${th("auditor","稽核員")}${th("def","缺失")}${th("closed","結案")}${th("remark","備註")}</tr></thead><tbody>`+
       rows.map(r=>`<tr data-adid="${r.id}">
         <td><b>${esc(r.ship)}</b>${r.enhanced?'<span class="ic2-tag enh">加強</span>':""}<div class="ic2-lbl">${esc(r.zh||"")}</div></td>
         <td><span class="ic2-pill ${this.STEP[r.step][1]}">${this.STEP[r.step][0]}</span></td>
         <td style="font-family:var(--mono)">${this.fmt(r.lastAuditDate)}</td>
         <td style="font-family:var(--mono)">${r.actualAuditDate?'<span class="ic2-lbl">—</span>':this.fmt(r.dueDate)+"<div>"+due(r)+"</div>"}</td>
-        <td style="font-family:var(--mono)">${r.plannedDate?this.fmt(r.plannedDate)+(r.plannedPort?`<div class="ic2-lbl" style="font-family:var(--sans)">${esc(r.plannedPort)}</div>`:""):(r.actualAuditDate?'<span class="ic2-lbl">—</span>':`<button class="btn sm" data-adsched="${r.id}">📅 排程</button>`)}${r.schedMonth&&!r.actualAuditDate?`<div class="ic2-lbl" style="font-family:var(--sans)">預計月 ${esc(AuditDash.monthDisplay(r.schedMonth))}</div>`:""}</td>
+        <td style="font-family:var(--mono);white-space:nowrap">${r.schedMonth&&!r.actualAuditDate?esc(AuditDash.monthDisplay(r.schedMonth)):'<span class="ic2-lbl">—</span>'}</td>
+        <td style="font-family:var(--mono);white-space:nowrap">${r.plannedDate?this.fmt(r.plannedDate):(r.actualAuditDate?'<span class="ic2-lbl">—</span>':`<button class="btn sm" data-adsched="${r.id}">📅 排程</button>`)}</td>
+        <td style="font-size:12.5px">${r.plannedDate&&r.plannedPort?esc(r.plannedPort):'<span class="ic2-lbl">—</span>'}</td>
         <td style="font-family:var(--mono)">${r.actualAuditDate?`<b style="color:#2e7d4f">${this.fmt(r.actualAuditDate)}</b><div class="ic2-lbl" style="font-family:var(--sans)">${esc(AuditDash.actualPortFor(r)||"")}</div>`:'<span class="ic2-lbl">尚未完成</span>'}</td>
         <td>${esc(r.auditorText||"")||'<span class="ic2-lbl">未指派</span>'}</td>
         <td style="text-align:center">${r.defCount||"-"}</td>
         <td style="text-align:center">${r.closedOut?'<span class="ic2-pill s3">✓</span>':(r.actualAuditDate?'<span class="ic2-pill s2">未結案</span>':"")}</td>
-        <td style="max-width:260px;color:var(--ink-2);font-size:12px">${esc(r.remark||"")}</td></tr>`).join("")+
-      (rows.length?"":`<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--ink-3)">沒有符合篩選的船</td></tr>`)+"</tbody>";
+        <td style="width:150px;max-width:150px;color:var(--ink-2);font-size:12px;word-break:break-word">${esc(r.remark||"")}</td></tr>`).join("")+
+      (rows.length?"":`<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--ink-3)">沒有符合篩選的船</td></tr>`)+"</tbody>";
     if(this.cur&&$("#ic2-drawer").style.display!=="none"&&this.cur[0]==="ad")this.open(this.cur[1]);
   },
   S:null,
@@ -20668,7 +20670,9 @@ const AuditDash2={
     step:{v:r=>({need:0,scheduled:1,later:2,done_open:3,done_closed:4})[r.step],num:true},
     last:{v:r=>InspCtrl.normDate(r.lastAuditDate)||"",date:true},
     due:{v:r=>r.actualAuditDate?"":(InspCtrl.normDate(r.dueDate)||""),date:true},
+    month:{v:r=>r.actualAuditDate?"":(r.schedMonth||""),date:true},
     plan:{v:r=>InspCtrl.normDate(r.plannedDate)||"",date:true},
+    port:{v:r=>r.plannedDate?(r.plannedPort||""):""},
     actual:{v:r=>InspCtrl.normDate(r.actualAuditDate)||"",date:true},
     auditor:{v:r=>r.auditorText||""},
     def:{v:r=>+r.defCount||0,num:true},
@@ -24762,7 +24766,9 @@ const AuditDash={
   enrich(row){
     const s=SHIPINFO.find(x=>x.code===row.ship)||{};
     const ic=this.inspCtrlRow(row.ship);
-    const icRow=ic?InspCtrl.computeRow(ic):null;
+    let icRow=ic?InspCtrl.computeRow(ic):null;
+    // 內稽動態手動填的日期比檢查管控抓到的還新（例如還沒同步過的舊資料）→ 到期日用較新的那天重算（只算、不寫入）
+    if(ic&&icRow){const best=this.latestAuditDateFor(row.ship);if(best&&best>(icRow.lastDateCalc||""))icRow=InspCtrl.computeRow({...ic,lastDate:best});}
     const plannedDate=ic&&ic.schedDate?InspCtrl.normDate(ic.schedDate):"";
     const enhanced=!!(icRow&&icRow.isEnhancedAudit);
     const defCount=this.defsFor(row.ship,row.actualAuditDate).length;
@@ -24823,6 +24829,23 @@ const AuditDash={
     const row=this.rowsRaw().find(r=>r.id===id);
     if(row&&row.auditor2)this.setField(id,"auditor2","");
     this.render();
+  },
+  /* 2026-11-06 內稽動態手動填的實際檢查日／上次稽核日，同步到檢查管控的「最近一次檢查日」：
+     到期日是檢查管控算的（只看檢查紀錄＋最近一次檢查日），不同步的話手動填了實際檢查日，下一輪的到期日不會跟著變。
+     只會往後推、不會往前改，避免蓋掉檢查管控裡較新的日期。 */
+  latestAuditDateFor(ship){
+    let best="";
+    this.rowsRaw().filter(r=>r.ship===ship).forEach(r=>{[r.actualAuditDate,r.lastAuditDate].forEach(d=>{const n=InspCtrl.normDate(d||"");if(n&&n>best)best=n;});});
+    return best;
+  },
+  syncIcLast(ship){
+    const ic=this.inspCtrlRow(ship);if(!ic)return;
+    const best=this.latestAuditDateFor(ship);
+    if(best&&best>(InspCtrl.normDate(ic.lastDate||"")||"")){
+      ic.lastDate=best;
+      if(typeof Cloud!=="undefined"&&Cloud.queueAutoPublish)Cloud.queueAutoPublish("inspctrl");
+      if(typeof Audit!=="undefined")Audit.log("同步","檢查管控",`${ship} Internal audit 最近一次檢查日 → ${best}（來自內稽動態手動填的日期）`);
+    }
   },
   setField(id,field,val){
     if(typeof EditLock!=="undefined"&&!EditLock.guard("auditDash"))return;
@@ -24999,6 +25022,7 @@ const AuditDash={
     const f=this._dateField;
     row[f+"Id"]=recId;row[f+"Date"]=dateStr;row[f+"Manual"]=true;
     if(!row.schedManual)row.schedMonth=this.computeSchedMonth(row);
+    this.syncIcLast(row.ship);
     App.saveAll();
     this.closeDatePick();this.render();
   },
@@ -25013,6 +25037,7 @@ const AuditDash={
     const matched=this.auditRecordsFor(row.ship).filter(r=>r.date===v);
     row[f+"Id"]=matched.length?matched[matched.length-1].id:null;row[f+"Date"]=v;row[f+"Manual"]=true;
     if(!row.schedManual)row.schedMonth=this.computeSchedMonth(row);
+    this.syncIcLast(row.ship);
     App.saveAll();
     this.closeDatePick();this.render();
   },
@@ -28447,7 +28472,23 @@ const Air={
     const who=String(d.createdBy||"").replace(/[（(].*?[)）]/g,"").trim();
     const when=d.createdAt?new Date(d.createdAt).toLocaleString("zh-TW",{hour12:false}):"";
     const tip=[String(d.createdBy||""),when].filter(Boolean).join(" · ");
-    return `<span title="${esc(tip)}">${esc(M[d.importSource]||"")}${who?`<div class="hint" style="font-size:10.5px">${esc(who)}</div>`:""}</span>`;
+    /* 2026-11-06 姓名下面加匯入年月日時間。線上填單轉入的舊資料沒記 createdAt，改用審核佇列的匯入時間（只讀來顯示，不寫回） */
+    let at=d.createdAt||null;
+    if(!at&&d.importSource==="queue"){const q=(this._qImpAt||{})[d.importedFromQueueId];if(q)at=q;else this.loadQueueImpAt();}
+    const ts=at?(()=>{const x=new Date(at);const p=n=>String(n).padStart(2,"0");return `${x.getFullYear()}/${p(x.getMonth()+1)}/${p(x.getDate())} ${p(x.getHours())}:${p(x.getMinutes())}`;})():"";
+    return `<span title="${esc(tip)}">${esc(M[d.importSource]||"")}${who?`<div class="hint" style="font-size:10.5px">${esc(who)}</div>`:""}${ts?`<div class="hint" style="font-size:10px;font-family:var(--mono);white-space:nowrap">${ts}</div>`:""}</span>`;
+  },
+  /* 舊的線上填單轉入紀錄補顯示匯入時間：一次讀回審核佇列各筆的 imported_at（只讀），讀完重畫一次清單 */
+  _qImpAt:null,_qImpLoading:false,
+  async loadQueueImpAt(){
+    if(this._qImpAt||this._qImpLoading||typeof Cloud==="undefined"||!Cloud.enabled())return;
+    this._qImpLoading=true;
+    try{
+      const rows=await Cloud.api("air_submissions?select=id,imported_at&status=eq.imported&limit=5000")||[];
+      this._qImpAt={};rows.forEach(r=>{if(r.imported_at)this._qImpAt[r.id]=r.imported_at;});
+      if(typeof this.renderList==="function")this.renderList();else if(typeof this.render==="function")this.render();
+    }catch(e){this._qImpAt={};}
+    this._qImpLoading=false;
   },
   /* 2026-11-04「轉入系統後常忘了分享自查」：有缺失、已轉缺失紀錄、近 90 天的檢查、還沒分享過、也沒標「不需分享」→ 提醒。
      _shareIds（雲端活動清單）還沒載入前不判斷，避免一打開整排誤報。 */
@@ -30478,6 +30519,10 @@ const AirQueue={
     try{
       const status=this.view==="rejected"?"rejected":this.view==="imported"?"imported":"pending";
       this.rows=await Cloud.api(`${this.TABLE}?status=eq.${status}&order=created_at.desc`)||[];
+      // 2026-11-06 修訂版：一併讀回各修訂版對應的「原送出」狀態，決定是「取代」還是「比對套用」
+      const ids=[...new Set(this.rows.map(r=>(r.payload||{}).revOf).filter(Boolean))];
+      this.origMap={};
+      if(ids.length){const o=await Cloud.api(`${this.TABLE}?id=in.(${ids.join(",")})&select=id,status,imported_at,payload`)||[];o.forEach(x=>this.origMap[x.id]=x);}
     }catch(e){
       box.innerHTML=`<p class="hint">⚠ 讀取失敗：${esc(e.message)}</p>`;return;
     }
@@ -30518,15 +30563,22 @@ const AirQueue={
     box.innerHTML=this.rows.map(r=>{
       const p=r.payload||{};const b=p.basic||{};const defs=p.defects||[];const pos=p.posComments||[];
       const open=this.expandedId===r.id;
-      const actionBtns=this.view==="rejected"
+      const rev=p.revOf?(this.origMap||{})[p.revOf]||{id:p.revOf,status:"?"}:null;
+      const revBtns=rev&&this.view==="pending"?(rev.status==="imported"
+          ?`<button class="btn sm dark" onclick="AirQueue.openRevision(${r.id})">🔍 比對並套用修訂</button><button class="btn sm" onclick="AirQueue.rejectRow(${r.id})">✕ 拒絕</button>`
+          :rev.status==="pending"
+          ?`<button class="btn sm" onclick="AirQueue.openRevision(${r.id})">🔍 比對差異</button><button class="btn sm dark" onclick="AirQueue.supersedeAndImport(${r.id})">✓ 取代原送出並匯入</button><button class="btn sm" onclick="AirQueue.rejectRow(${r.id})">✕ 拒絕</button>`
+          :`<button class="btn sm dark" onclick="AirQueue.importRow(${r.id})">✓ 匯入</button><button class="btn sm" onclick="AirQueue.rejectRow(${r.id})">✕ 拒絕</button>`):"";
+      const actionBtns=revBtns||(this.view==="rejected"
         ?`<button class="btn sm dark" onclick="AirQueue.restoreRow(${r.id})">↩ 恢復為待審核</button>`
         :this.view==="imported"
         ?`<button class="btn sm dark" onclick="AirQueue.reimportRow(${r.id})">🔁 重新匯入</button>`
         :`<button class="btn sm dark" onclick="AirQueue.importRow(${r.id})">✓ 匯入</button>
-          <button class="btn sm" onclick="AirQueue.rejectRow(${r.id})">✕ 拒絕</button>`;
-      return `<div class="card" style="margin-bottom:10px;background:#fafbfc">
+          <button class="btn sm" onclick="AirQueue.rejectRow(${r.id})">✕ 拒絕</button>`);
+      return `<div class="card" style="margin-bottom:10px;background:${rev?"#fffaf0":"#fafbfc"};${rev?"border-left:4px solid #e0a020":""}">
+        ${rev?`<div style="margin-bottom:6px;font-size:13px;color:#7a5200"><b>✎ 修訂版</b>（原送出 #${rev.id}，${rev.status==="imported"?"已收錄":rev.status==="pending"?"尚在審核中":"狀態："+esc(rev.status)}）　<b>修改原因：</b>${esc(p.revReason||"（未填）")}</div>`:""}
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          ${this.view==="pending"?`<input type="checkbox" title="勾選要合併匯入成同一筆的填單" style="width:17px;height:17px;cursor:pointer" ${this.mergeSel.has(r.id)?"checked":""} onchange="AirQueue.toggleMerge(${r.id},this.checked)">`:""}
+          ${this.view==="pending"&&!rev?`<input type="checkbox" title="勾選要合併匯入成同一筆的填單" style="width:17px;height:17px;cursor:pointer" ${this.mergeSel.has(r.id)?"checked":""} onchange="AirQueue.toggleMerge(${r.id},this.checked)">`:""}
           <b>${esc(b.ship?shipFullLabel(b.ship):"（未填船名）")}</b>
           ${this.view==="imported"&&App.air.some(a=>(a.mergedQueueIds||[]).includes(r.id))?`<span class="hint" style="color:#b5610f;font-weight:700">（已合併匯入至 #${App.air.find(a=>(a.mergedQueueIds||[]).includes(r.id)).id}）</span>`:""}
           <span class="hint">${esc(b.itype||"")} ・ ${esc(b.date||"")} ・ ${esc(b.place||"")}</span>
@@ -30555,6 +30607,165 @@ const AirQueue={
       </div>`).join("")}
     </div>`;
   },
+  /* ══ 2026-11-06 船上「修改後重送」的修訂版 ══
+     修訂版是一份新的送出（payload.revOf＝原送出編號、revReason＝修改原因），原送出不動。
+     ‧ 原送出還在審核中 → 「取代原送出並匯入」：原送出標成 superseded（已由修訂版取代），修訂版照一般流程匯入。
+     ‧ 原送出已收錄 → 「比對並套用」：只比對「船上原送出 vs 修訂版」有改的欄位，勾選套用到填單記錄；
+       該筆缺失若已轉入缺失紀錄總表，同一欄位一起更新。系統裡目前的值若已被海技改過（跟原送出不同），
+       標「⚠ 海技改過」且預設不勾，避免蓋掉海技的修改。新增的缺失可勾選加入；刪掉的缺失只提示，不自動刪除。 */
+  REV_BASIC:[["itype","檢查來源"],["flagType","FLAG項目"],["date","檢查日期"],["place","檢查地點"],["oilco","單位／油公司"],["inspector","檢查員"],["vtype","船型"]],
+  REV_DEF:[["code","CODE"],["psc","PSC Action Taken"],["detail","缺失詳情"],["actual","實際情況"],["opComment","Initial Operator Comment"],["immediateCause","直接原因"],["corrective","改善措施"],["rootCause","根本原因"],["preventive","預防措施"],["rank","責任人職位"],["person","責任人姓名"],["ncProb","問題別"],["ncMain","大類"],["ncLeaf","具體名稱"],["ncRoot","根因"],["ncFactor","三要素"],["ncImp","重要程度"],["ncFocus","重點關注"],["ncOpinion","缺失性質判定"],["risk","風險"],["internalControl","需內控"],["photosBefore","矯正前照片"],["photosAfter","矯正後照片"]],
+  REV_POS:[["code","CODE"],["item","項目"],["comment","評論內容"],["people","相關人員"]],
+  revNorm(k,v){
+    if(k==="date")return normDateSlash(v||"");
+    if(k==="internalControl")return v?"是":"否";
+    if(k==="photosBefore"||k==="photosAfter")return JSON.stringify((v||[]).map(x=>x.url||x.path||x.name||""));
+    if(k==="people")return (v||[]).filter(x=>x.rank||x.person).map(x=>[x.rank,x.person].filter(Boolean).join(" ")).join("、");
+    return String(v==null?"":v).trim();
+  },
+  revShow(k,v){
+    const s=this.revNorm(k,v);
+    if(k==="photosBefore"||k==="photosAfter")return `${(v||[]).length} 張`;
+    if(k==="ncProb"||k==="ncMain"||k==="ncLeaf")return s.split("‖").filter(Boolean).map(x=>x==="设备问题"?"設備問題":x==="作业问题"?"作業問題":x).join("、");
+    return s;
+  },
+  /* 找出原送出被匯入成哪一筆填單記錄，以及這份送出的缺失／正評在那筆記錄裡從第幾筆開始（合併匯入時會有位移） */
+  async revTarget(orig){
+    let rec=App.air.find(a=>String(a.importedFromQueueId)===String(orig.id)||(a.mergedQueueIds||[]).some(x=>String(x)===String(orig.id)));
+    let dOff=0,pOff=0,how="";
+    // 修訂的修訂：原送出本身就是一份「已套用到某筆填單記錄」的修訂版 → 沿用當時記下的位置
+    if(!rec){
+      for(const a of App.air){const e=(a.revisions||[]).find(x=>String(x.queueId)===String(orig.id));if(e){rec=a;dOff=e.dOff||0;pOff=e.pOff||0;how=`#${a.id}（前一次修訂已套用至此）`;break;}}
+      if(rec)return {rec,dOff,pOff,how};
+    }
+    if(rec&&(rec.mergedQueueIds||[]).length>1){
+      const ids=rec.mergedQueueIds;
+      const rows=await Cloud.api(`${this.TABLE}?id=in.(${ids.join(",")})&select=id,payload`)||[];
+      const by={};rows.forEach(x=>by[x.id]=x.payload||{});
+      for(const id of ids){if(String(id)===String(orig.id))break;dOff+=((by[id]||{}).defects||[]).length;pOff+=((by[id]||{}).posComments||[]).length;}
+      how=`合併匯入的 #${rec.id}（從第 ${dOff+1} 筆缺失開始）`;
+    }else if(rec)how=`#${rec.id}`;
+    if(!rec){
+      const b=(orig.payload||{}).basic||{};
+      const c=App.air.filter(a=>a.ship===b.ship&&normDateSlash(a.date)===normDateSlash(b.date)&&String(a.itype||"").toUpperCase()===String(b.itype||"").toUpperCase());
+      if(c.length===1){rec=c[0];how=`#${rec.id}（依船名＋日期＋檢查來源比對）`;}
+    }
+    return {rec,dOff,pOff,how};
+  },
+  async openRevision(id){
+    const r=this.rows.find(x=>x.id===id);if(!r)return;
+    const p=r.payload||{};
+    let orig=(this.origMap||{})[p.revOf];
+    if(!orig||!orig.payload){try{orig=(await Cloud.api(`${this.TABLE}?id=eq.${p.revOf}&select=id,status,imported_at,payload`)||[])[0];}catch(e){}}
+    if(!orig){toast("⚠ 讀不到原送出 #"+p.revOf);return;}
+    const op=orig.payload||{},ob=op.basic||{},nb=p.basic||{};
+    const isImp=orig.status==="imported";
+    const T=isImp?await this.revTarget(orig):{rec:null,dOff:0,pOff:0,how:""};
+    if(isImp&&!T.rec){toast("⚠ 找不到原送出匯入後的填單記錄，請手動比對修改");}
+    const rec=T.rec;
+    const changes=[];
+    const N=(k,v)=>this.revNorm(k,v);
+    this.REV_BASIC.forEach(([k,l])=>{if(N(k,ob[k])!==N(k,nb[k])){const cur=rec?rec[k]:undefined;changes.push({scope:"basic",k,l,i:-1,o:ob[k],n:nb[k],cur,conflict:rec?N(k,cur)!==N(k,ob[k]):false});}});
+    const od=op.defects||[],nd=p.defects||[];
+    for(let i=0;i<Math.min(od.length,nd.length);i++){
+      const rd=rec?(rec.defects||[])[T.dOff+i]:null;
+      const def=rd&&rd.pushedDefId!=null?App.defs.find(x=>String(x.id)===String(rd.pushedDefId)):null;
+      this.REV_DEF.forEach(([k,l])=>{if(N(k,od[i][k])!==N(k,nd[i][k])){
+        const cur=rd?rd[k]:undefined,dcur=def?def[k]:undefined;
+        changes.push({scope:"def",k,l,i,o:od[i][k],n:nd[i][k],cur,def:def?def.id:null,dcur,
+          conflict:(rd&&N(k,cur)!==N(k,od[i][k]))||(def&&!["photosBefore","photosAfter"].includes(k)&&N(k,dcur)!==N(k,od[i][k])&&N(k,dcur)!==N(k,cur))});
+      }});
+    }
+    const added=nd.slice(od.length),removed=od.length>nd.length?od.slice(nd.length):[];
+    const opos=op.posComments||[],npos=p.posComments||[];
+    for(let i=0;i<Math.min(opos.length,npos.length);i++)this.REV_POS.forEach(([k,l])=>{if(N(k,opos[i][k])!==N(k,npos[i][k]))changes.push({scope:"pos",k,l,i,o:opos[i][k],n:npos[i][k],cur:rec?((rec.posComments||[])[T.pOff+i]||{})[k]:undefined,conflict:false});});
+    const addedPos=npos.slice(opos.length);
+    this._rev={row:r,orig,T,changes,added,addedPos};
+    const sv=(k,v)=>esc(this.revShow(k,v)||"（空）");
+    const where=c=>c.scope==="basic"?"基本資料":c.scope==="def"?`缺失 #${c.i+1}${(od[c.i]||{}).code?" ("+esc(od[c.i].code)+")":""}`:`正面評論 #${c.i+1}`;
+    let ov=document.getElementById("airq-rev-modal");
+    if(!ov){ov=document.createElement("div");ov.id="airq-rev-modal";ov.style.cssText="position:fixed;inset:0;background:rgba(20,30,40,.45);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow:auto";document.body.appendChild(ov);}
+    ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:1100px;width:100%;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+      <h3 style="margin:0 0 4px;color:var(--navy)">✎ 修訂版比對：#${r.id}（原送出 #${orig.id}）</h3>
+      <p class="hint" style="margin:0 0 6px">${esc(shipFullLabel(nb.ship||""))}　${esc(nb.itype||"")} ${esc(nb.date||"")}　｜　修改原因：<b style="color:#7a5200">${esc(p.revReason||"（未填）")}</b></p>
+      ${isImp?`<p class="hint" style="margin:0 0 10px">原送出已收錄為填單記錄 ${esc(T.how||"（找不到）")}。<b>只會套用下面勾選的欄位</b>，其他內容不動；該筆缺失已轉入缺失紀錄總表的，同一欄位一起更新。</p>`:`<p class="hint" style="margin:0 0 10px">原送出還在審核中：確認差異後，按清單上的「取代原送出並匯入」即可。</p>`}
+      ${changes.length?`<table style="width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed">
+        <thead><tr style="background:#eef3f8">${isImp?'<th style="width:34px;padding:6px">套用</th>':""}<th style="width:120px;padding:6px;text-align:left">項目</th><th style="width:110px;padding:6px;text-align:left">欄位</th><th style="padding:6px;text-align:left">原送出</th><th style="padding:6px;text-align:left">修訂後</th>${isImp?'<th style="padding:6px;text-align:left">系統目前（填單／總表）</th>':""}</tr></thead>
+        <tbody>${changes.map((c,j)=>`<tr style="border-top:1px solid var(--line);vertical-align:top;${c.conflict?"background:#fff6e0":""}">
+          ${isImp?`<td style="padding:6px;text-align:center"><input type="checkbox" class="airq-rev-cb" data-j="${j}" ${c.conflict?"":"checked"} ${rec?"":"disabled"}></td>`:""}
+          <td style="padding:6px">${where(c)}</td><td style="padding:6px;font-weight:700">${esc(c.l)}</td>
+          <td style="padding:6px;color:#8a1c12;white-space:pre-wrap;word-break:break-word">${sv(c.k,c.o)}</td>
+          <td style="padding:6px;color:#1b6b3a;white-space:pre-wrap;word-break:break-word;font-weight:600">${sv(c.k,c.n)}</td>
+          ${isImp?`<td style="padding:6px;white-space:pre-wrap;word-break:break-word;color:var(--ink-2)">${rec?sv(c.k,c.cur):"—"}${c.def?`<div class="hint">總表 #${c.def}：${sv(c.k,c.dcur)}</div>`:""}${c.conflict?'<div style="color:#b5610f;font-weight:700">⚠ 海技改過，預設不套用</div>':""}</td>`:""}
+        </tr>`).join("")}</tbody></table>`:`<p class="hint">既有的欄位沒有差異。</p>`}
+      ${added.length?`<div style="margin-top:12px;padding:8px 12px;background:#eef7f0;border:1px solid #c6e3cf;border-radius:8px;font-size:13px">＋ 修訂版<b>新增 ${added.length} 筆缺失</b>：${added.map((d,i)=>`#${od.length+i+1} ${esc(d.code||"")} ${esc(String(d.detail||"").slice(0,40))}`).join("；")}${isImp?`<label style="display:block;margin-top:4px"><input type="checkbox" id="airq-rev-add" checked ${rec?"":"disabled"}> 加入填單記錄（之後請再按「轉入缺失紀錄總表」）</label>`:""}</div>`:""}
+      ${addedPos.length&&isImp?`<div style="margin-top:8px;padding:8px 12px;background:#eef7f0;border:1px solid #c6e3cf;border-radius:8px;font-size:13px"><label><input type="checkbox" id="airq-rev-addpos" checked ${rec?"":"disabled"}> 加入修訂版新增的 ${addedPos.length} 則正面評論</label></div>`:""}
+      ${removed.length?`<div style="margin-top:8px;padding:8px 12px;background:#fdecea;border:1px solid #f1c3bd;border-radius:8px;font-size:13px;color:#8a1c12">⚠ 修訂版<b>少了 ${removed.length} 筆缺失</b>（${removed.map((d,i)=>`#${nd.length+i+1} ${esc(d.code||"")}`).join("、")}）。系統<b>不會自動刪除</b>，如確定要刪，請到填單記錄／缺失紀錄總表手動處理。</div>`:""}
+      ${(isImp&&changes.some(c=>c.scope==="basic"))?`<p class="hint" style="margin-top:8px">ℹ 基本資料的修改會更新填單記錄與已轉入總表的缺失；「檢查紀錄」那一筆請再確認是否需要調整。</p>`:""}
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+        <button class="btn" onclick="document.getElementById('airq-rev-modal').remove()">關閉</button>
+        ${isImp&&rec?`<button class="btn dark" onclick="AirQueue.applyRevision()">✓ 套用勾選的修改</button>`:""}
+      </div></div>`;
+  },
+  async applyRevision(){
+    if(!await Guard.require()){toast("⚠ 套用修訂僅限維護者操作");return;}
+    const R=this._rev;if(!R||!R.T.rec)return;
+    const rec=R.T.rec,picked=[...document.querySelectorAll(".airq-rev-cb:checked")].map(x=>R.changes[+x.dataset.j]);
+    const addDefs=!!(document.getElementById("airq-rev-add")||{}).checked&&R.added.length;
+    const addPos=!!(document.getElementById("airq-rev-addpos")||{}).checked&&R.addedPos.length;
+    if(!picked.length&&!addDefs&&!addPos){toast("⚠ 沒有勾選要套用的修改");return;}
+    const clone=v=>Array.isArray(v)?JSON.parse(JSON.stringify(v)):v;
+    const myDefs=(rec.defects||[]).slice(R.T.dOff,R.T.dOff+((R.orig.payload||{}).defects||[]).length);
+    const touchedDefs=new Set();
+    let nDef=0,nTotal=0;
+    picked.forEach(c=>{
+      if(c.scope==="basic"){
+        const v=c.k==="date"?normDateSlash(c.n||""):(c.n||"");
+        rec[c.k]=v;
+        // 已轉入總表的缺失，基本資料（日期／地點／單位／檢查員／來源／船型）同步
+        if(c.k!=="flagType")myDefs.forEach(rd=>{const def=rd.pushedDefId!=null?App.defs.find(x=>String(x.id)===String(rd.pushedDefId)):null;if(def){def[c.k]=v;if(c.k==="date")def.ym=ymOf(v);touchedDefs.add(def.id);}});
+      }else if(c.scope==="def"){
+        const rd=(rec.defects||[])[R.T.dOff+c.i];if(!rd)return;
+        const v=c.k==="internalControl"?!!c.n:clone(c.n==null?"":c.n);
+        rd[c.k]=v;if(c.k==="internalControl")rd.needControl=v;nDef++;
+        const def=rd.pushedDefId!=null?App.defs.find(x=>String(x.id)===String(rd.pushedDefId)):null;
+        if(def){def[c.k]=clone(v);if(c.k==="internalControl")def.needControl=v;def._revAt=Date.now();touchedDefs.add(def.id);nTotal++;}
+      }else{
+        const rp=(rec.posComments||[])[R.T.pOff+c.i];if(rp)rp[c.k]=clone(c.n==null?"":c.n);
+      }
+    });
+    if(addDefs){
+      const built=this.buildAirRecFromQueueRow({id:R.row.id,payload:{basic:{},defects:R.added,posComments:[]}}).defects;
+      rec.defects.splice(R.T.dOff+myDefs.length,0,...built);
+      rec.ndef=rec.defects.length;
+    }
+    if(addPos){
+      const built=this.buildAirRecFromQueueRow({id:R.row.id,payload:{basic:{},defects:[],posComments:R.addedPos}}).posComments;
+      rec.posComments=rec.posComments||[];rec.posComments.splice(R.T.pOff+((R.orig.payload||{}).posComments||[]).length,0,...built);
+      rec.npos=rec.posComments.length;
+    }
+    rec.updatedAt=Date.now();
+    rec.revisions=(rec.revisions||[]).concat([{queueId:R.row.id,revOf:R.orig.id,dOff:R.T.dOff,pOff:R.T.pOff,reason:(R.row.payload||{}).revReason||"",at:Date.now(),by:(typeof Audit!=="undefined"?Audit.user():""),fields:picked.length,added:addDefs?R.added.length:0}]);
+    App.saveAll();if(App.refreshMeta)App.refreshMeta();
+    try{await this.ensureUploaded(rec);}catch(e){}
+    try{await Cloud.api(`${this.TABLE}?id=eq.${R.row.id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+      body:JSON.stringify({status:"imported",imported_at:new Date().toISOString(),imported_by:"套用修訂至 #"+rec.id})});}catch(e){console.warn("AirQueue rev mark failed",e);}
+    if(typeof Audit!=="undefined")Audit.log("套用修訂","AIR審核佇列",`#${rec.id} ${rec.ship} ${rec.date}：船上修訂 #${R.row.id}（原 #${R.orig.id}），套用 ${picked.length} 個欄位${addDefs?`、新增 ${R.added.length} 筆缺失`:""}；同步更新缺失紀錄總表 ${touchedDefs.size} 筆。原因：${(R.row.payload||{}).revReason||""}`);
+    const ov=document.getElementById("airq-rev-modal");if(ov)ov.remove();
+    this.rows=this.rows.filter(x=>x.id!==R.row.id);this.updateBadge();this.render();this._rev=null;
+    toast(`✓ 已套用修訂：${picked.length} 個欄位${addDefs?`、新增 ${R.added.length} 筆缺失（請再轉入缺失紀錄總表）`:""}；缺失紀錄總表同步更新 ${touchedDefs.size} 筆`);
+  },
+  async supersedeAndImport(id){
+    const r=this.rows.find(x=>x.id===id);if(!r)return;
+    const origId=(r.payload||{}).revOf;
+    if(!confirm(`用修訂版 #${id} 取代原送出 #${origId}？\n原送出會標成「已由修訂版取代」（不刪除），修訂版照一般流程匯入。`))return;
+    if(!await Guard.require()){toast("⚠ 匯入僅限維護者操作");return;}
+    try{await Cloud.api(`${this.TABLE}?id=eq.${origId}&status=eq.pending`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
+      body:JSON.stringify({status:"superseded",imported_by:"由修訂版 #"+id+" 取代"})});}catch(e){toast("⚠ 標記原送出失敗："+e.message);return;}
+    this.rows=this.rows.filter(x=>String(x.id)!==String(origId));
+    if(typeof Audit!=="undefined")Audit.log("取代","AIR審核佇列",`原送出 #${origId} 由修訂版 #${id} 取代`);
+    await this.importRow(id);
+  },
   buildAirRecFromQueueRow(r){
     const p=r.payload||{};const b=p.basic||{};
     return {
@@ -30574,7 +30785,7 @@ const AirQueue={
         pushedDefId:null,followUp:{on:false,assignee:"",status:"open",log:[],closedAt:0}})),
       posComments:(p.posComments||[]).map(pc=>({code:pc.code||"",item:pc.item||"",comment:pc.comment||"",
         people:Array.isArray(pc.people)?pc.people.filter(x=>x.rank||x.person):[],pushedPosIds:null})),
-      updatedAt:Date.now(),importedFromQueueId:r.id,
+      updatedAt:Date.now(),createdAt:Date.now(),importedFromQueueId:r.id,
       importSource:"queue",createdBy:(typeof Audit!=="undefined")?Audit.user():""
     };
   },
