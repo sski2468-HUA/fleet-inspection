@@ -4712,6 +4712,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <label style="display:block;margin-bottom:6px">只列印指定 Sched. Month（不選＝全部月份都印，勾越少頁數越少）</label>
               <div class="msel" id="ms-print-schedmonth"></div>
               <label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input type="checkbox" id="ad-print-compact" checked> 壓縮版面（縮小行距／留白，盡量塞進較少頁數，字體維持可讀大小）</label>
+              <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+                <b style="font-size:13px">版面</b>
+                <label style="display:flex;align-items:center;gap:6px"><input type="radio" name="ad-print-layout" value="land"> 版面1：A4 橫式（原本）</label>
+                <label style="display:flex;align-items:center;gap:6px"><input type="radio" name="ad-print-layout" value="port" checked> 版面2：A4 直式（字較大，未排程一列 3 艘，盡量一張）</label>
+              </div>
             </div>
 
             <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
@@ -20698,6 +20703,156 @@ const InspCtrl2={
     const shp=t.closest("th[data-ship]");if(shp){this.openShip(shp.dataset.ship);return;}
   }
 };
+/* ════ 📨 內稽通知單 CAEM-FM02（2026-11-06）════
+   從內稽動態某一輪按「📨 發內稽通知」：依計畫帶出發文編號、日期、船名、預定稽查日、港口、稽查員、稽查日程，
+   畫面就是通知單本身（A4 直式，跟公司 Word 版同格式），每一格都可以直接改（例如船長姓名），
+   「💾 儲存」存回這一輪（下次打開還在），「🖨 匯出 PDF」列印／另存 PDF。頁首沿用 CAEM-FM01 的 Logo＋表單編號框。 */
+const AuditNotice={
+  CAT:"CAEM-FM02",REV:"2025.01.31",ED:"Jan 2025",ROWS:12,
+  _row:null,
+  fmtD(d){const n=InspCtrl.normDate(d||"");return n?n.replace(/-/g,"/"):"";},
+  /* 發文編號：FPMC-船代碼-年份＋這艘船該年第幾次內稽（兩位數），例 FPMC-F36-202602 */
+  refNo(row){
+    const d=InspCtrl.normDate(row.plannedDate||"")||todayStr(),y=d.slice(0,4);
+    const n=AuditDash.rowsRaw().filter(r=>r.ship===row.ship&&r.id!==row.id&&String(r.actualAuditDate||"").slice(0,4)===y).length+1;
+    return `FPMC-${row.ship}-${y}${String(n).padStart(2,"0")}`;
+  },
+  defaults(row){
+    const e=AuditDash.enrich(row),s=SHIPINFO.find(x=>x.code===row.ship)||{};
+    const pd=this.fmtD(e.plannedDate);
+    const sched=Array.from({length:this.ROWS},()=>({d:"",t:"",s:"",r:""}));
+    sched[0]={d:pd?pd.slice(5):"",t:"0830-1730",s:"ISM、MLC、ISPS、ISO",r:""};
+    return {ref:this.refNo(row),date:this.fmtD(todayStr()),vessel:s.name||row.ship,auditDate:pd,head:"",port:e.plannedPort||"",
+      auditor:row.auditor2||"-",lead:row.auditor||"",type:"",sched,dpa:"",cso:"",prep:""};
+  },
+  async open(id){
+    const row=AuditDash.rowsRaw().find(r=>r.id===id);if(!row)return;
+    this._row=row;
+    // 已存過的通知沿用；船長姓名等沒存過的，帶這艘船上一次通知填過的
+    const prev=AuditDash.rowsRaw().filter(r=>r.ship===row.ship&&r.notice&&r.id!==row.id).sort((a,b)=>(b.notice.savedAt||0)-(a.notice.savedAt||0))[0];
+    const d=row.notice?JSON.parse(JSON.stringify(row.notice)):Object.assign(this.defaults(row),prev?{head:prev.notice.head||"",dpa:prev.notice.dpa||"",cso:prev.notice.cso||""}:{});
+    if(!Array.isArray(d.sched)||d.sched.length<this.ROWS){d.sched=(d.sched||[]).concat(Array.from({length:this.ROWS-(d.sched||[]).length},()=>({d:"",t:"",s:"",r:""})));}
+    const logo=await CaemFm01.logoData();
+    let m=$("#adNoticeModal");
+    if(!m){m=document.createElement("div");m.className="modal-bg";m.id="adNoticeModal";document.body.appendChild(m);}
+    const I=(k,v,cls)=>`<input class="fm2-in ${cls||""}" data-k="${k}" value="${esc(v||"")}">`;
+    const T=(k,v)=>`<textarea class="fm2-in fm2-ta" data-k="${k}">${esc(v||"")}</textarea>`;
+    const lab=(zh,en)=>`<span class="fm2-zh">${zh}</span><br><span class="fm2-en">${en}</span>`;
+    m.innerHTML=`<div class="modal" style="max-width:860px;width:96%">
+      <div class="mh"><h3>📨 內稽通知單 CAEM-FM02 － ${esc(shipFullLabel(row.ship))}</h3><button class="x" onclick="AuditNotice.close()">✕</button></div>
+      <div class="mb" style="background:#e9edf1">
+        <p class="hint" style="margin:0 0 8px">下面就是通知單本身：<b>每一格都可以直接點進去修改</b>（例如受稽單位主管＝船長姓名）。資料依內稽計畫帶出，改完按「💾 儲存」存到這一輪，按「🖨 匯出 PDF」列印或另存 PDF。</p>
+        <div class="fm2-page" id="fm2-form">
+          <div class="fm2-hd"><img src="${logo}" class="fm2-logo"><div class="fm2-cat"><div>Cat.: ${this.CAT}</div><div><i>Office use</i></div><div>Rev.: ${this.REV}</div></div></div>
+          <div class="fm2-title"><span class="fm2-tzh">安全管理制度內部稽查通知</span><br><b>NOTIFICATION OF INTERNAL SMS AUDIT</b></div>
+          <table class="fm2-tbl fm2-info">
+            <colgroup><col style="width:25%"><col style="width:25%"><col style="width:21%"><col style="width:29%"></colgroup>
+            <tr><td colspan="2" class="fm2-l v">${lab("發文編號：","Ref. No.:")} ${I("ref",d.ref,"fm2-inl")}</td><td class="fm2-l">${lab("日期：","Date:")}</td><td class="v">${I("date",d.date)}</td></tr>
+            <tr><td class="fm2-l">${lab("受稽單位／船名：","Dept. / Vessel Audited:")}</td><td class="v">${I("vessel",d.vessel)}</td><td class="fm2-l">${lab("預定稽查日期：","Date to be Audited")}</td><td class="v">${I("auditDate",d.auditDate)}</td></tr>
+            <tr><td class="fm2-l">${lab("受稽單位主管：","Head of Auditee:")}</td><td class="v">${I("head",d.head)}</td><td class="fm2-l">${lab("港口：","Port:")}</td><td class="v">${I("port",d.port)}</td></tr>
+            <tr><td class="fm2-l">${lab("稽查員：","Auditor:")}</td><td class="v">${I("auditor",d.auditor)}</td><td class="fm2-l">${lab("主導稽查員：","Lead Auditor:")}</td><td class="v">${I("lead",d.lead)}</td></tr>
+          </table>
+          <table class="fm2-tbl fm2-sch">
+            <colgroup><col style="width:9%"><col style="width:17%"><col style="width:52%"><col style="width:22%"></colgroup><tr class="fm2-gap"><td colspan="4"></td></tr>
+            <tr><td colspan="2" class="fm2-c">${lab("稽查類別","Type of Audit")}</td><td colspan="2">${I("type",d.type)}</td></tr>
+            <tr class="fm2-h"><td class="fm2-c">${lab("日期","Date")}</td><td class="fm2-c">${lab("預訂時間","Scheduled Time")}</td><td class="fm2-c">${lab("稽查範圍","Scope of Audit")}</td><td class="fm2-c">${lab("備註","Remarks")}</td></tr>
+            ${d.sched.map((x,i)=>`<tr class="fm2-r"><td class="v">${I("sd"+i,x.d,"fm2-ctr")}</td><td class="v">${I("st"+i,x.t,"fm2-ctr")}</td><td class="v">${I("ss"+i,x.s)}</td><td class="v">${I("sr"+i,x.r)}</td></tr>`).join("")}
+          </table>
+          <table class="fm2-tbl fm2-sign">
+            <colgroup><col style="width:50%"><col style="width:25%"><col style="width:25%"></colgroup><tr class="fm2-gap"><td colspan="3"></td></tr>
+            <tr class="fm2-sl"><td class="fm2-l">${lab("岸上指派人員／日期","D.P.A. / Date")}</td><td class="fm2-l">${lab("公司保全官","Company Security officer")}</td><td class="fm2-l">${lab("主辦者／日期","Prepared by / Date")}</td></tr>
+            <tr class="fm2-sg"><td>${T("dpa",d.dpa)}</td><td>${T("cso",d.cso)}</td><td>${T("prep",d.prep)}</td></tr>
+          </table>
+          <div class="fm2-ft">Ed.: ${this.ED}</div>
+        </div>
+      </div>
+      <div class="mf"><span class="hint" style="margin-right:auto">${row.notice&&row.notice.savedAt?"上次儲存："+esc(new Date(row.notice.savedAt).toLocaleString("zh-TW",{hour12:false}))+(row.notice.savedBy?"（"+esc(row.notice.savedBy)+"）":""):"尚未儲存過"}</span>
+        <button class="btn" onclick="AuditNotice.reset()" title="依目前計畫重新帶出（會清掉手動修改）">↺ 依計畫重新帶出</button>
+        <button class="btn" onclick="AuditNotice.close()">取消</button>
+        <button class="btn" onclick="AuditNotice.save()">💾 儲存</button>
+        <button class="btn primary" onclick="AuditNotice.print()">🖨 匯出 PDF</button></div></div>`;
+    m.classList.add("show");
+  },
+  close(){const m=$("#adNoticeModal");if(m)m.classList.remove("show");},
+  collect(){
+    const v={};$$("#fm2-form .fm2-in").forEach(el=>v[el.dataset.k]=el.value);
+    const sched=Array.from({length:this.ROWS},(_,i)=>({d:v["sd"+i]||"",t:v["st"+i]||"",s:v["ss"+i]||"",r:v["sr"+i]||""}));
+    return {ref:v.ref,date:v.date,vessel:v.vessel,auditDate:v.auditDate,head:v.head,port:v.port,auditor:v.auditor,lead:v.lead,type:v.type,sched,dpa:v.dpa,cso:v.cso,prep:v.prep};
+  },
+  save(silent){
+    const row=this._row;if(!row)return;
+    if(!AuditDash.canEdit()){if(!silent)toast("⚠ 僅內稽動態編輯者可儲存通知單（仍可匯出 PDF）");return false;}
+    row.notice=Object.assign(this.collect(),{savedAt:Date.now(),savedBy:(typeof Audit!=="undefined"?Audit.user():"")});
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
+    if(!silent){toast("✓ 通知單已儲存到這一輪");if(typeof Audit!=="undefined")Audit.log("儲存","內稽通知單",`${row.ship} ${row.notice.ref}（預定 ${row.notice.auditDate}）`);}
+    return true;
+  },
+  reset(){
+    if(!this._row||!confirm("依目前內稽計畫重新帶出？畫面上手動修改的內容會被清掉（船長姓名等會保留上次通知填過的）。"))return;
+    const keep=this._row.notice;this._row.notice=null;this.open(this._row.id).then(()=>{this._row.notice=keep;});
+  },
+  async print(){
+    const row=this._row;if(!row)return;
+    const d=this.collect();
+    if(AuditDash.canEdit())this.save(true);   // 匯出時順便存，下次打開是同一份
+    const logo=await CaemFm01.logoData();
+    const t=s=>esc(s||"").replace(/\n/g,"<br>")||"&nbsp;";
+    const lab=(zh,en)=>`<span class="fm2-zh">${zh}</span><br><span class="fm2-en">${en}</span>`;
+    $("#printArea").innerHTML=`<style>${this.CSS.replace(/(^|\})\s*\.fm2/g,"$1 #printArea .fm2")}
+      #printArea .fm2-page{box-shadow:none;margin:0;width:auto}</style>
+      <div class="fm2-page">
+        <div class="fm2-hd"><img src="${logo}" class="fm2-logo"><div class="fm2-cat"><div>Cat.: ${this.CAT}</div><div><i>Office use</i></div><div>Rev.: ${this.REV}</div></div></div>
+        <div class="fm2-title"><span class="fm2-tzh">安全管理制度內部稽查通知</span><br><b>NOTIFICATION OF INTERNAL SMS AUDIT</b></div>
+        <table class="fm2-tbl fm2-info"><colgroup><col style="width:25%"><col style="width:25%"><col style="width:21%"><col style="width:29%"></colgroup>
+          <tr><td colspan="2" class="fm2-l v">${lab("發文編號：","Ref. No.:")} <span class="fm2-v">${t(d.ref)}</span></td><td class="fm2-l">${lab("日期：","Date:")}</td><td class="fm2-v">${t(d.date)}</td></tr>
+          <tr><td class="fm2-l">${lab("受稽單位／船名：","Dept. / Vessel Audited:")}</td><td class="fm2-v">${t(d.vessel)}</td><td class="fm2-l">${lab("預定稽查日期：","Date to be Audited")}</td><td class="fm2-v">${t(d.auditDate)}</td></tr>
+          <tr><td class="fm2-l">${lab("受稽單位主管：","Head of Auditee:")}</td><td class="fm2-v">${t(d.head)}</td><td class="fm2-l">${lab("港口：","Port:")}</td><td class="fm2-v">${t(d.port)}</td></tr>
+          <tr><td class="fm2-l">${lab("稽查員：","Auditor:")}</td><td class="fm2-v">${t(d.auditor)}</td><td class="fm2-l">${lab("主導稽查員：","Lead Auditor:")}</td><td class="fm2-v">${t(d.lead)}</td></tr>
+        </table>
+        <table class="fm2-tbl fm2-sch"><colgroup><col style="width:9%"><col style="width:17%"><col style="width:52%"><col style="width:22%"></colgroup><tr class="fm2-gap"><td colspan="4"></td></tr>
+          <tr><td colspan="2" class="fm2-c">${lab("稽查類別","Type of Audit")}</td><td colspan="2" class="fm2-v">${t(d.type)}</td></tr>
+          <tr class="fm2-h"><td class="fm2-c">${lab("日期","Date")}</td><td class="fm2-c">${lab("預訂時間","Scheduled Time")}</td><td class="fm2-c">${lab("稽查範圍","Scope of Audit")}</td><td class="fm2-c">${lab("備註","Remarks")}</td></tr>
+          ${d.sched.map(x=>`<tr class="fm2-r"><td class="fm2-v fm2-ctr">${t(x.d)}</td><td class="fm2-v fm2-ctr">${t(x.t)}</td><td class="fm2-v">${t(x.s)}</td><td class="fm2-v">${t(x.r)}</td></tr>`).join("")}
+        </table>
+        <table class="fm2-tbl fm2-sign"><colgroup><col style="width:50%"><col style="width:25%"><col style="width:25%"></colgroup><tr class="fm2-gap"><td colspan="3"></td></tr>
+          <tr class="fm2-sl"><td class="fm2-l">${lab("岸上指派人員／日期","D.P.A. / Date")}</td><td class="fm2-l">${lab("公司保全官","Company Security officer")}</td><td class="fm2-l">${lab("主辦者／日期","Prepared by / Date")}</td></tr>
+          <tr class="fm2-sg"><td class="fm2-v">${t(d.dpa)}</td><td class="fm2-v">${t(d.cso)}</td><td class="fm2-v">${t(d.prep)}</td></tr>
+        </table>
+        <div class="fm2-ft">Ed.: ${this.ED}</div>
+      </div>`;
+    if(typeof Audit!=="undefined")Audit.log("匯出","內稽通知單",`${row.ship} ${d.ref} PDF`);
+    doPrint(false,"margin:12mm 16mm 12mm 16mm",`${d.ref||"CAEM-FM02"}_${row.ship}_內稽通知`);
+  },
+  CSS:`.fm2-page{background:#fff;width:178mm;margin:0 auto;padding:6mm 6mm 4mm;box-shadow:0 2px 10px rgba(0,0,0,.15);color:#000;font-family:Arial,"DFKai-SB","BiauKai","標楷體",serif}
+    .fm2-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3mm}
+    .fm2-logo{height:13mm}
+    .fm2-cat{border:3px double #000;padding:.8mm 5mm .8mm 3mm;font-family:"Times New Roman",serif;font-size:11px;line-height:1.25;outline:1px solid #000;outline-offset:1.5px;margin-right:1mm}
+    .fm2-title{text-align:center;margin:2mm 0 3mm;font-size:15px;line-height:1.35}.fm2-tzh{font-family:"DFKai-SB","BiauKai","標楷體",serif;font-size:17px}
+    .fm2-tbl{width:100%;border-collapse:collapse;table-layout:fixed;border:1.5pt solid #000}
+    .fm2-tbl+.fm2-tbl{border-top:none}
+    .fm2-tbl td{border:.75pt solid #000;padding:1mm 1.2mm;vertical-align:middle;font-size:12px;background:none}
+    .fm2-zh{font-family:"DFKai-SB","BiauKai","標楷體",serif;font-size:12px}.fm2-en{font-size:11px}
+    .fm2-l{line-height:1.25}.fm2-c{text-align:center;line-height:1.25}
+    .fm2-sch tr.fm2-r td{border-top:.75pt dashed #000;border-bottom:.75pt dashed #000;height:7.2mm;padding:0 1.2mm}
+    .fm2-sign tr.fm2-sg td{height:20mm;vertical-align:top}
+    .fm2-ft{text-align:right;font-size:11px;margin-top:3mm}
+    .fm2-in{width:100%;border:0;border-bottom:1px dashed #9fb6cf;background:#f6fbff;font:inherit;font-size:13px;padding:2px 3px;box-sizing:border-box;color:#0b2a4a}
+    .fm2-in:focus{outline:2px solid #2c64a0;background:#fff}
+    .fm2-inl{width:58%;display:inline-block}
+    .fm2-ctr{text-align:center}
+    .fm2-ta{height:18mm;resize:vertical;border:1px dashed #9fb6cf}
+    .fm2-v{font-size:13px}
+    /* 跟 Word 原檔一樣的框線：基本資料「標題格｜填寫格」之間沒有直線、最後一列下方沒橫線；
+       基本資料↔稽查類別、日程↔簽名欄之間是「粗線＋一點空隙＋粗線」；簽名欄標題列與簽名格之間沒橫線 */
+    .fm2-info td{border-left:0!important;border-right:0!important}
+    .fm2-info td.v,.fm2-info td.fm2-v{border-right:.75pt solid #000!important}
+    .fm2-info tr:last-child td{border-bottom:0!important}
+    .fm2-gap td{height:3px;padding:0!important;border-top:0!important;border-left:1.5pt solid #000!important;border-right:1.5pt solid #000!important;border-bottom:1.5pt solid #000!important}
+    .fm2-sl td{border-bottom:0!important}
+    .fm2-sg td{border-top:0!important}`,
+  injectCss(){if($("#fm2-css"))return;const s=document.createElement("style");s.id="fm2-css";s.textContent=this.CSS;document.head.appendChild(s);}
+};
+AuditNotice.injectCss();
 /* ════ 內稽動態2（新版試用，2026-11-03）════
    同一份資料 App.auditDash，所有寫入都走 AuditDash 原本的方法（權限、同步檢查管控／年度計畫都不變），
    只換成「清單＋右側明細」版面，跟檢查管控2 一樣：上方流程數字可點、目前篩選看得到、點列開明細。 */
@@ -20848,6 +21003,11 @@ const AuditDash2={
       </dl>
       <h3>備註</h3>
       <div class="note">${r.remark?esc(r.remark):'<span class="lbl">未填寫</span>'}${r.flagNotified?`<div class="lbl">🚩 船籍國通報：${esc(AuditDash.FLAG_NOTIFIED_LABEL[r.flagNotified]||r.flagNotified)}</div>`:""}${r.exemptionStatus?`<div class="lbl">📄 豁免：${esc(AuditDash.EXEMPTION_LABEL[r.exemptionStatus]||r.exemptionStatus)}</div>`:""}</div>
+      <h3>內稽通知單</h3>
+      <div class="btnrow" style="margin-bottom:6px">
+        <button class="btn primary" data-adnotice="1">📨 ${r.notice?"開啟內稽通知單":"發內稽通知"}</button>
+        <span class="lbl" style="align-self:center">${r.notice&&r.notice.savedAt?`已存 ${esc(r.notice.ref||"")}・${esc(new Date(r.notice.savedAt).toLocaleDateString("zh-TW"))}`:"依計畫帶出 CAEM-FM02，可修改後匯出 PDF"}</span>
+      </div>
       <div class="btnrow">
         <button class="btn" data-adremark="1">${can?"✎ 編輯備註／通報／豁免":"👁 看完整備註"}</button>
         <button class="btn" data-adenhance="1">⭐ ${r.enhanced?"加強稽核設定":"列為加強稽核"}</button>
@@ -20881,6 +21041,7 @@ const AuditDash2={
       if(t.closest("[data-adreset]")){AuditDash.resetSchedAuto(id);return;}
       const pk=t.closest("[data-adpick]");if(pk){AuditDash.openDatePick(id,pk.dataset.adpick);return;}
       if(t.closest("[data-adremark]")){AuditDash.openRemark(id);return;}
+      if(t.closest("[data-adnotice]")){AuditNotice.open(id);return;}
       if(t.closest("[data-adenhance]")){const r=AuditDash.rowsRaw().find(x=>x.id===id);if(r)AuditDash.openEnhance(r.ship);return;}
       if(t.closest("[data-adnext]")){const r=AuditDash.rowsRaw().find(x=>x.id===id);if(r)AuditDash.addRowCopy(r.ship,id);return;}
       if(t.closest("[data-addel]")){const before=AuditDash.rowsRaw().length;AuditDash.delRow(id);if(AuditDash.rowsRaw().length<before){this.cur=null;dr.style.display="none";}return;}
@@ -25814,6 +25975,7 @@ Principles for assigning ISM auditors are as follows:
   },
   msPrint:{},
   openPrintModal(){
+    {let lay="port";try{lay=localStorage.getItem("vsm_ad_print_layout")||"port";}catch(e){}const rb=document.querySelector(`input[name="ad-print-layout"][value="${lay}"]`);if(rb)rb.checked=true;}
     const yEl=$("#ad-print-year");if(yEl)yEl.value=this.loadPrintYear();
     const nEl=$("#ad-print-note");if(nEl)nEl.value=this.loadPrintNote();
     // 只在第一次打開列印視窗時建立這幾個篩選器（MSel 每次呼叫都會重畫整個按鈕+清空已選，
@@ -25841,9 +26003,12 @@ Principles for assigning ISM auditors are as follows:
     const note=$("#ad-print-note").value||"";
     const includeSchedMonth=false; // 已固定不列印這欄，直接看 Last Audit 就好，不再開放勾選
     const compact=$("#ad-print-compact")?$("#ad-print-compact").checked:true;
+    const lay=(document.querySelector('input[name="ad-print-layout"]:checked')||{}).value||"port";
+    try{localStorage.setItem("vsm_ad_print_layout",lay);}catch(e){}
     this.savePrintYear(year);this.savePrintNote(note);
     this.closePrintModal();
-    this.exportPdf(sel,year,note,includeSchedMonth,compact);
+    if(lay==="port")this.exportPdfPortrait(sel,year,note);
+    else this.exportPdf(sel,year,note,includeSchedMonth,compact);
   },
   exportPdf(sectionSet,year,note,includeSchedMonth,compact){
     year=year||this.loadPrintYear();
@@ -25945,6 +26110,67 @@ Principles for assigning ISM auditors are as follows:
     doPrint(true,PrintLetterhead.PAGE_MARGIN_CSS); // 欄位多，橫式版面比較不會擠；上下邊距留給每頁重複的頁首/頁尾
     setTimeout(()=>{document.title=prevTitle;},1000);
     if(typeof Audit!=="undefined")Audit.log("匯出","內稽動態",`列印/PDF（${year}年，${sectionSet.size}區塊）`);
+  },
+  /* 2026-11-06 版面2：A4 直式、字 12px、欄位縮窄；「未排程」只留 Vessel／Last Audit／CSO，一列放 3 艘（先往下再換欄，
+     由舊到新），整份盡量一張 A4。資料與排序跟版面1 同一套。 */
+  exportPdfPortrait(sectionSet,year,note){
+    year=year||this.loadPrintYear();note=note!=null?note:this.loadPrintNote();
+    let rows=this.filteredRows();
+    if(this.msPrint.schedMonth&&this.msPrint.schedMonth.sel&&this.msPrint.schedMonth.sel.size)rows=rows.filter(r=>this.msPrint.schedMonth.pass(this.monthDisplay(r.schedMonth)));
+    if(this.msPrint.ship&&this.msPrint.ship.sel&&this.msPrint.ship.sel.size)rows=rows.filter(r=>this.msPrint.ship.pass(r.ship));
+    const G={scheduled:[],unscheduled:[],done_open:[],done_closed:[]};
+    rows.forEach(r=>{const k=this.schedStatus(r);if(sectionSet.has(k))G[k].push(r);});
+    G.scheduled.sort(this.groupByDateCmp("plannedDate",this.schedAsc));
+    G.unscheduled.sort(this.groupByDateCmp("lastAuditDate",this.unschedAsc));
+    const v=s=>esc(s)||"-";
+    const nm=r=>`${r.enhanced?'<span class="p2-star">★</span> ':""}${esc(r.vesselName)}`;
+    const cg=w=>`<colgroup>${w.map(x=>`<col${x?` style="width:${x}"`:""}>`).join("")}</colgroup>`;
+    const sec=(title,n,body)=>`<h4 class="p2-h">${title} (${n})</h4>${body}`;
+    let html="";
+    if(sectionSet.has("scheduled")&&G.scheduled.length){
+      html+=sec("Scheduled",G.scheduled.length,`<table class="p2-t">${cg(["16%","11%","17%","11%","7.5%","10.5%",""])}
+        <tr><th>Vessel</th><th class="c">Last Audit</th><th>Planned Port</th><th class="c">Planned Date</th><th class="c">CSO</th><th class="c">Auditor</th><th>Remark</th></tr>
+        ${G.scheduled.map(r=>`<tr><td>${nm(r)}</td><td class="c">${v(r.lastAuditDate)}</td><td>${v(r.plannedPort)}</td><td class="c">${v(r.plannedDate)}</td><td class="c">${v(r.cso)}</td><td class="c">${v(r.auditorText||r.auditor)}</td><td class="rm">${esc(r.remark||"")}</td></tr>`).join("")}</table>`);
+    }
+    if(sectionSet.has("unscheduled")&&G.unscheduled.length){
+      const L=G.unscheduled,per=Math.ceil(L.length/3);let tr="";
+      for(let i=0;i<per;i++){tr+="<tr>";for(let c=0;c<3;c++){const r=L[c*per+i];const sep=c?' class="sep"':"";
+        tr+=r?`<td${sep}>${nm(r)}</td><td class="c">${v(r.lastAuditDate)}</td><td class="c">${v(r.cso)}</td>`:`<td${sep}></td><td></td><td></td>`;}tr+="</tr>";}
+      html+=sec("Not Yet Scheduled",L.length,`<table class="p2-t p2-ns">${cg(["16.6%","10.6%","6.1%","16.6%","10.6%","6.1%","16.6%","10.6%","6.2%"])}
+        <tr><th>Vessel</th><th class="c">Last Audit</th><th class="c">CSO</th><th class="sep">Vessel</th><th class="c">Last Audit</th><th class="c">CSO</th><th class="sep">Vessel</th><th class="c">Last Audit</th><th class="c">CSO</th></tr>${tr}</table>`);
+    }
+    [["done_open",`${esc(year)} — Audit Completed, Deficiencies Not Yet Closed`],["done_closed","Audit Completed and Closed for This Year"]].forEach(([k,t])=>{
+      if(!sectionSet.has(k)||!G[k].length)return;
+      html+=sec(t,G[k].length,`<table class="p2-t">${cg(["16%","11%","15%","11%","6%","6%","8%","10%",""])}
+        <tr><th>Vessel</th><th class="c">Last Audit</th><th>Port</th><th class="c">Actual Date</th><th class="c">Def.</th><th class="c">Closed</th><th class="c">CSO</th><th class="c">Auditor</th><th>Remark</th></tr>
+        ${G[k].map(r=>`<tr><td>${nm(r)}</td><td class="c">${v(r.lastAuditDate)}</td><td>${v(this.actualPortFor(r))}</td><td class="c">${v(r.actualAuditDate)}</td><td class="c">${r.defCount||"-"}</td><td class="c">${r.closedOut?"✓":"✗"}</td><td class="c">${v(r.cso)}</td><td class="c">${v(r.auditorText||r.auditor)}</td><td class="rm">${esc(r.remark||"")}</td></tr>`).join("")}</table>`);
+    });
+    const enh=this.enhancedShipsList();
+    if(enh.length)html+=`<h4 class="p2-h">Enhanced Management Vessels</h4><table class="p2-t p2-enh">${cg(["17%","","22%"])}
+      <tr><th>Vessel</th><th>Reason for Enhanced Management</th><th class="c">Control Period</th></tr>
+      ${enh.map(e=>`<tr><td>${esc(e.ship)}</td><td>${esc(e.reason)}</td><td class="c">${esc(e.period)}</td></tr>`).join("")}</table>`;
+    if(note.trim())html+=`<h4 class="p2-h">Remarks</h4><div class="p2-rmk">${esc(note)}</div>`;
+    $("#printArea").innerHTML=`<style>
+      #printArea .p2{font-family:Arial,"Microsoft JhengHei",sans-serif;color:#000;font-size:12px}
+      #printArea .p2-ttl{position:relative;text-align:center;margin:1mm 0 2mm}#printArea .p2-ttl b{font-size:16px}#printArea .p2-ttl span{position:absolute;right:0;top:3px;font-size:10.5px;color:#444}
+      #printArea .p2-h{margin:2.2mm 0 1mm;font-size:12.5px;border-left:3px solid #1e3a5f;padding-left:5px}
+      #printArea .p2-t{width:100%;border-collapse:collapse;table-layout:fixed}
+      #printArea .p2-t th,#printArea .p2-t td{border:.6pt solid #888;padding:1.1px 3px;font-size:12px;line-height:1.25;vertical-align:middle;white-space:normal;word-break:break-word;background:none}
+      #printArea .p2-t th{background:#e8edf2!important;font-weight:700;font-size:11.5px;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      #printArea .p2-t .c{text-align:center;white-space:nowrap}#printArea .p2-t td.rm{font-size:11px}
+      #printArea .p2-ns td{border-color:#bbb}#printArea .p2-ns .sep{border-left:1.6pt solid #555}
+      #printArea .p2-star{color:#c08a00}
+      #printArea .p2-rmk{font-size:11px;line-height:1.45;white-space:pre-wrap}
+      #printArea .p2-sign{display:grid;grid-template-columns:1fr 1fr 1fr;margin-top:3mm;border-top:1.4pt solid #000;text-align:center;font-weight:700;font-size:11.5px}
+      #printArea .p2-sign div{padding:2mm 0 9mm;border-right:.6pt solid #aaa}#printArea .p2-sign div:last-child{border-right:0}
+    </style>
+    <table class="print-page-wrap"><thead><tr><td>${PrintLetterhead.headerHtml()}</td></tr></thead><tbody><tr><td><div class="p2">
+      <div class="p2-ttl"><b>${esc(year)} ISM/MLC/ISO Internal Audit Status Table</b><span>Issue Date: ${esc(todayStr())}</span></div>
+      ${html}
+      <div class="p2-sign"><div>DPA</div><div>Manager of QMS &amp; Vetting Unit</div><div>Prepared by</div></div>
+    </div></td></tr></tbody><tfoot><tr><td>${PrintLetterhead.footerHtml()}</td></tr></tfoot></table>`;
+    doPrint(false,PrintLetterhead.PAGE_MARGIN_CSS,`內稽動態_${todayStr().replace(/-/g,"")}`);
+    if(typeof Audit!=="undefined")Audit.log("匯出","內稽動態",`列印/PDF 版面2直式（${year}年，${sectionSet.size}區塊）`);
   }
 };
 
@@ -31453,6 +31679,17 @@ const IntAuditQueue={
     });
     // 缺失紀錄：每筆缺失一筆，檢查來源＝該缺失所屬的檢查種類；FLOW／內控／系統內結案的缺失都要留紀錄
     let dAdd=0,dUpd=0;
+    // 防重複：對應編號遺失、或指到的那筆已不在主系統時，改用「同船＋同日＋同檢查來源＋缺失內容相同」
+    // 找既有紀錄來更新（2026/11/06 BF Cross ship visit 9/10 因對應失效被重新匯入新增成兩份）
+    const usedDef=new Set();
+    const normTxt=s=>String(s||"").replace(/\s+/g," ").trim();
+    const findSame=(itype,finding)=>{
+      const f=normTxt(finding);if(!f)return null;
+      const c=App.defs.filter(x=>!usedDef.has(String(x.id))&&pushTargetMatches(x,r.ship,date)&&x.itype===itype&&normTxt(x.detail)===f);
+      if(!c.length)return null;
+      const mine=c.filter(x=>String(x.intAuditId||"")===String(r.id));
+      return (mine.length?mine:c).sort((a,b)=>(+b.id||0)-(+a.id||0))[0];
+    };
     (r.defs||[]).forEach(d=>{
       const ic=d.closeMode==="內控";
       const payload=Object.assign({ship:r.ship,vtype:vt,itype:effItype(d.type),date,ym,place:r.psn||"",oilco:"",inspector:r.inspector||"",psc:"",
@@ -31463,14 +31700,17 @@ const IntAuditQueue={
         intAuditTopic:d.topic||"",intAuditCloseMode:d.closeMode||""},meta);
       let ex=d.importedDefId!=null?App.defs.find(x=>String(x.id)===String(d.importedDefId)):null;
       if(ex&&!pushTargetMatches(ex,r.ship,date))ex=null; // 對應編號指到別船／別天的紀錄 → 不覆蓋，改新增
+      if(ex&&usedDef.has(String(ex.id)))ex=null;
+      if(!ex){ex=findSame(payload.itype,payload.detail);if(ex)d.importedDefId=ex.id;}
       if(ex){
+        usedDef.add(String(ex.id));
         const safe=Object.assign({},payload);
         ["ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","rank","person"].forEach(k=>delete safe[k]); // 重新匯入不要洗掉海技已經補好的分類
         if(!safe.photosBefore.length)delete safe.photosBefore;
         Object.assign(ex,safe);dUpd++;
       }else{
         const rec=Object.assign({id:App.nextId(),attn:false},payload);
-        App.defs.push(rec);d.importedDefId=rec.id;dAdd++;
+        App.defs.push(rec);d.importedDefId=rec.id;usedDef.add(String(rec.id));dAdd++;
       }
     });
     // 正面評價：每筆優良案例一筆
