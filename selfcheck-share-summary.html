@@ -811,7 +811,7 @@ function renderCkSummary(){
   card.style.display="";
   const only=document.getElementById("ckOnlyNote").checked;
   const resp=(responses||[]).filter(r=>targetShips().some(s=>s.code===r.ship));
-  const STL=st=>(curCampaign.items.some(x=>x.src==="自訂案例")?ST_LABEL_CASE:ST_LABEL)[st||"pending"];
+  const STL=st=>ST_LABEL[st||"pending"];   // 2026-11-06 自訂自查也用同樣四個選項
   box.innerHTML=items.map((it,i)=>{
     const cs=it.checks||[];if(!cs.length)return "";
     const answered=resp.filter(r=>((r.items||[])[i]||{}).status&&((r.items||[])[i]||{}).status!=="pending");
@@ -1257,7 +1257,7 @@ function exportExcel(){
   XLSX.utils.book_append_sheet(wb,ws2,"需處理項目");
   // 2026-11-04 細目回覆：每艘船每一條「請確認」細目有沒有勾、補充說明（例：鋼瓶支數），方便督導彙整
   const ckRows=[];
-  (responses||[]).forEach(r=>(r.items||[]).forEach((it,i)=>(it.checks||[]).forEach((c,j)=>ckRows.push({"船舶代碼":r.ship,"船名":shipLabel(r.ship),"題號":i+1,"題目":it.topic||it.code||"","細目":c,"回答方式":CK_LABEL[ckTypeS(((curCampaign.items||[])[i])||it,j).type],"已勾／已答":(it.checkDone||[])[j]?"✓":"","回答":ckAnsText(((curCampaign.items||[])[i])||it,j,(it.checkVal||[])[j]),"補充說明":(it.checkNote||[])[j]||"","本題回答":(it.src==="自訂案例"?ST_LABEL_CASE:ST_LABEL)[it.status||"pending"].replace(/^[^一-龥（]+/,"")}))));
+  (responses||[]).forEach(r=>(r.items||[]).forEach((it,i)=>(it.checks||[]).forEach((c,j)=>ckRows.push({"船舶代碼":r.ship,"船名":shipLabel(r.ship),"題號":i+1,"題目":it.topic||it.code||"","細目":c,"回答方式":CK_LABEL[ckTypeS(((curCampaign.items||[])[i])||it,j).type],"已勾／已答":(it.checkDone||[])[j]?"✓":"","回答":ckAnsText(((curCampaign.items||[])[i])||it,j,(it.checkVal||[])[j]),"補充說明":(it.checkNote||[])[j]||"","本題回答":stLabelIt(it).replace(/^[^一-龥（]+/,"")}))));
   if(ckRows.length){const ws3=XLSX.utils.json_to_sheet(ckRows);ws3["!cols"]=[8,22,6,26,40,14,8,18,36,16].map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws3,"細目回覆");}
   XLSX.writeFile(wb,`分享自查彙整_${(curCampaign.title||curCampaign.id).replace(/[\\/:*?"<>|]/g,"_")}_${new Date().toISOString().slice(0,10)}.xlsx`);
   notify(`✓ 已下載 Excel（${status.length} 艘船、${issues.length} 項需處理）`,"ok2");
@@ -1294,7 +1294,6 @@ function copyShipLink(ship){
 const ST_LABEL={ok:"✅ 本輪無類似情形",similar:"⚠️ 有類似問題",self:"🚩 當事船",na:"➖ 本船型不適用",pending:"（未作答）"};
 function stLabelIt(it){
   const st=(it&&it.status)||"pending";
-  if(it&&it.src==="自訂案例")return ST_LABEL_CASE[st]||st;
   if(st==="similar")return it.simKind==="fixed"?"🔧 有類似問題，已解決":"⚠️ 有類似問題，需後續追蹤";
   return ST_LABEL[st]||st;
 }
@@ -1740,9 +1739,9 @@ const SC={
         ${it.refs.length?`<div style="margin-top:6px"><b>附件：</b>${it.refs.map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener" style="margin-right:10px">📎 ${esc(f.name)}</a>`).join("")}</div>`:""}
         ${it.examples.length?`<details style="margin-top:6px"><summary style="cursor:pointer">案例說明（1）</summary><div style="margin-top:4px;font-size:13px">${nl(it.examples[0].detail)}</div></details>`:""}
       </div>
-      <div style="margin-top:8px;font-weight:700;font-size:13.5px">❓ 本船是否已完成本項確認／整改？</div>
+      <div style="margin-top:8px;font-weight:700;font-size:13.5px">❓ 本船目前有同樣或類似的情形嗎？</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;opacity:.8">
-        <span class="btn sm" style="pointer-events:none">✅ 已完成</span><span class="btn sm" style="pointer-events:none">⚠️ 未完成，需處理</span><span class="btn sm" style="pointer-events:none">➖ 不適用</span>
+        <span class="btn sm" style="pointer-events:none">✅ 本輪無類似情形</span><span class="btn sm" style="pointer-events:none">🔧 有類似問題，已解決</span><span class="btn sm" style="pointer-events:none">⚠️ 有類似問題，需後續追蹤</span><span class="btn sm" style="pointer-events:none">➖ 本船型不適用</span>
         <span class="hint" style="align-self:center">← 船上在這裡作答</span>
       </div></div>`;
     const imgs=this._files.filter(f=>/image/i.test(f.type||"")||/\.(jpe?g|png|gif|webp)$/i.test(f.name||""));
