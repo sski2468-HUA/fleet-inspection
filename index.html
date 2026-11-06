@@ -31486,14 +31486,34 @@ const IntAuditQueue={
      待督導審核（status=submitted，唯讀，告訴海技去等督導）、待套用（督導已 reviewed 但還沒把
      內容寫進缺失紀錄總表）、近期已套用（參考用，只列最近 30 筆避免清單無限長）。 ── */
   replySel:new Set(),
+  /* 2026-11-06 船上改善回報：可依船名、檢查種類篩選（篩選時「近期已套用」不限 30 筆） */
+  replyFlt:{ship:"",type:"",imp:""},
+  _replyRD(x){const r=(this.all||[]).find(a=>String(a.id)===String(x.record_id))||{};return {r,d:(r.defs||[]).find(dd=>dd.uid===x.def_uid)||{}};},
+  replyMatch(x){const f=this.replyFlt;if(!f.ship&&!f.type&&!f.imp)return true;const {r,d}=this._replyRD(x);
+    if(f.ship&&r.ship!==f.ship)return false;if(f.type&&this.tl(d.type)!==f.type)return false;
+    const imp=d.importedDefId!=null; // 這筆缺失已匯入主系統（缺失紀錄總表有對應）
+    if(f.imp==="yes"&&!imp)return false;if(f.imp==="no"&&imp)return false;return true;},
+  setReplyFlt(k,v){this.replyFlt[k]=v;this.renderReplies();},
   renderReplies(){
     const box=$("#air-ia-list");if(!box)return;
-    const all=this.replyAll||[];
+    const allRaw=this.replyAll||[];
+    const all=allRaw.filter(x=>this.replyMatch(x));
+    const fOn=!!(this.replyFlt.ship||this.replyFlt.type||this.replyFlt.imp);
     const pending=all.filter(x=>x.status==="submitted");
     const toApply=all.filter(x=>x.status==="reviewed"&&!(x.payload&&x.payload.appliedAt));
-    const applied=all.filter(x=>x.status==="reviewed"&&x.payload&&x.payload.appliedAt).slice(0,30);
+    const appliedAll=all.filter(x=>x.status==="reviewed"&&x.payload&&x.payload.appliedAt);
+    const applied=fOn?appliedAll:appliedAll.slice(0,30);
+    // 篩選選項：從所有回報對應的登錄單取船名、檢查種類
+    const shipOpts=[...new Set(allRaw.map(x=>this._replyRD(x).r.ship).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)));
+    const typeOpts=[...new Set(allRaw.map(x=>this.tl(this._replyRD(x).d.type)).filter(Boolean))].sort();
+    const fltBar=`<span style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <select id="ia-rf-ship" onchange="IntAuditQueue.setReplyFlt('ship',this.value)" style="width:auto"><option value="">全部船舶</option>${shipOpts.map(c=>`<option value="${esc(c)}" ${c===this.replyFlt.ship?"selected":""}>${esc(shipFullLabel(c))}</option>`).join("")}</select>
+      <select id="ia-rf-type" onchange="IntAuditQueue.setReplyFlt('type',this.value)" style="width:auto"><option value="">全部檢查種類</option>${typeOpts.map(t=>`<option value="${esc(t)}" ${t===this.replyFlt.type?"selected":""}>${esc(t)}</option>`).join("")}</select>
+      <select id="ia-rf-imp" onchange="IntAuditQueue.setReplyFlt('imp',this.value)" style="width:auto"><option value="">已／未匯入主系統</option><option value="yes" ${this.replyFlt.imp==="yes"?"selected":""}>已匯入主系統</option><option value="no" ${this.replyFlt.imp==="no"?"selected":""}>未匯入主系統</option></select>
+      ${fOn?`<button class="btn sm" onclick="IntAuditQueue.replyFlt={ship:'',type:'',imp:''};IntAuditQueue.renderReplies()">✕ 清除篩選</button>`:""}</span>`;
+    this._fltBar=fltBar;
     this.replySel=new Set([...this.replySel].filter(id=>toApply.some(x=>x.id===id))); // 清掉重新整理後已不在待套用清單裡的勾選
-    if(!pending.length&&!toApply.length&&!applied.length){box.innerHTML=`<p class="hint">目前沒有船上回報的改善內容。</p>`;return;}
+    if(!pending.length&&!toApply.length&&!applied.length){box.innerHTML=(allRaw.length?`<div style="margin:0 0 10px">${fltBar}</div><p class="hint">沒有符合篩選條件的回報。</p>`:`<p class="hint">目前沒有船上回報的改善內容。</p>`);return;}
     const adm=this.isAdm();
     const n=this.replySel.size;
     const card=(x,mode)=>{
@@ -31521,7 +31541,7 @@ const IntAuditQueue={
       <span style="flex:1"></span>
       <button class="btn sm dark" ${n?"":"disabled"} onclick="IntAuditQueue.batchApplyReplies()">✓ 批量套用到缺失紀錄</button>
     </div>`:"";
-    const viewBar=`<div style="display:flex;align-items:center;gap:10px;margin:0 0 10px;flex-wrap:wrap"><span class="ial-viewbar"><button class="btn sm ${this.replyView==="list"?"primary":""}" onclick="IntAuditQueue.setReplyView('list')">▦ 清單檢視</button><button class="btn sm ${this.replyView==="cards"?"primary":""}" onclick="IntAuditQueue.setReplyView('cards')">▤ 卡片檢視</button></span><span class="hint">待套用 ${toApply.length}・等待督導審核 ${pending.length}・近期已套用 ${applied.length}</span></div>`;
+    const viewBar=`<div style="display:flex;align-items:center;gap:10px;margin:0 0 10px;flex-wrap:wrap"><span class="ial-viewbar"><button class="btn sm ${this.replyView==="list"?"primary":""}" onclick="IntAuditQueue.setReplyView('list')">▦ 清單檢視</button><button class="btn sm ${this.replyView==="cards"?"primary":""}" onclick="IntAuditQueue.setReplyView('cards')">▤ 卡片檢視</button></span>${fltBar}<span class="hint">待套用 ${toApply.length}・等待督導審核 ${pending.length}・${fOn?"已套用":"近期已套用"} ${applied.length}</span></div>`;
     if(this.replyView==="list"){box.innerHTML=viewBar+bar+this.replyTableHtml(toApply,pending,applied,adm);return;}
     let html=viewBar+bar;
     if(toApply.length)html+=`<div class="hint" style="margin:0 0 6px;font-weight:700;color:var(--navy)">待套用到缺失紀錄總表（督導已審核結案 ${toApply.length} 項）</div>`+toApply.map(x=>card(x,"toapply")).join("");
@@ -31568,7 +31588,7 @@ const IntAuditQueue={
   },
   toggleReplySel(id,on){if(on)this.replySel.add(id);else this.replySel.delete(id);this.renderReplies();},
   toggleAllReplySel(on){
-    const list=(this.replyAll||[]).filter(x=>x.status==="reviewed"&&!(x.payload&&x.payload.appliedAt));
+    const list=(this.replyAll||[]).filter(x=>x.status==="reviewed"&&!(x.payload&&x.payload.appliedAt)&&this.replyMatch(x)); // 只全選篩選後看得到的
     this.replySel=on?new Set(list.map(x=>x.id)):new Set();
     this.renderReplies();
   },
