@@ -31709,6 +31709,8 @@ const IntAuditQueue={
         usedDef.add(String(ex.id));
         const safe=Object.assign({},payload);
         ["ncProb","ncMain","ncLeaf","ncRoot","ncFactor","ncImp","ncFocus","ncMethod","ncOpinion","rank","person"].forEach(k=>delete safe[k]); // 重新匯入不要洗掉海技已經補好的分類
+        // 2026-11-06 也不要洗掉已套用的改善內容（登錄單本來就沒有這些欄位，重新匯入時一律保留原值）
+        ["actual","preventive","corrective","rootCause","opComment","immediateCause","photosAfter"].forEach(k=>delete safe[k]);
         if(!safe.photosBefore.length)delete safe.photosBefore;
         Object.assign(ex,safe);dUpd++;
       }else{
@@ -31716,6 +31718,23 @@ const IntAuditQueue={
         App.defs.push(rec);d.importedDefId=rec.id;usedDef.add(String(rec.id));dAdd++;
       }
     });
+    // 2026-11-06 補回已審核／已套用過的改善內容：缺失紀錄若因重新匯入、同步遺失而少了改善內容，
+    // 依 intaudit_replies 裡督導已審核（reviewed）的回報重新寫回（跟「套用改善內容」寫的欄位相同）
+    let reFill=0;
+    try{
+      const reps=await Cloud.api(`intaudit_replies?record_id=eq.${encodeURIComponent(r.id)}&status=eq.reviewed&select=id,def_uid,payload&limit=5000`);
+      (reps||[]).forEach(x=>{
+        const p=x.payload||{};if(!p.appliedAt)return; // 還沒套用過的，照原本流程由海技按「套用」
+        const d=(r.defs||[]).find(dd=>dd.uid===x.def_uid);if(!d||d.importedDefId==null)return;
+        const rec=App.defs.find(z=>String(z.id)===String(d.importedDefId));if(!rec)return;
+        if(rec.intAuditStatus==="已結案"&&String(rec.corrective||"").trim())return; // 已經有了就不動
+        Object.assign(rec,{corrective:String(rec.corrective||"").trim()?rec.corrective:(p.action||""),
+          photosAfter:(rec.photosAfter&&rec.photosAfter.length)?rec.photosAfter:(Array.isArray(p.photos)?p.photos:[]),
+          intAuditStatus:"已結案",intAuditCorrectedDate:p.corrected||"",intAuditEvidence:p.evidence||"",intAuditClosedAt:p.appliedAt,
+          intAuditReplyBy:`${p.by||""}（${p.title||""}）`,intAuditReviewedBy:p.reviewedBy||""});
+        reFill++;
+      });
+    }catch(e){console.warn("補回改善內容失敗",e);}
     // 正面評價：每筆優良案例一筆
     let pAdd=0,pUpd=0;
     (r.best||[]).forEach(b=>{
@@ -31726,7 +31745,7 @@ const IntAuditQueue={
       else{const pid=(typeof SirePos!=="undefined")?SirePos.nextId():(App.sirePos.reduce((m,x)=>Math.max(m,+x.id||0),0)+1);
         App.sirePos.push(Object.assign({id:pid},payload));b.importedPosId=pid;pAdd++;}
     });
-    if(typeof Audit!=="undefined")Audit.log(again?"重新匯入":"匯入","內部檢查登錄",`${r.ship} ${r.dateFrom}：檢查紀錄 ${(r.types||[]).length} 筆、缺失 新增${dAdd}／更新${dUpd}、正面評價 新增${pAdd}／更新${pUpd}`);
+    if(typeof Audit!=="undefined")Audit.log(again?"重新匯入":"匯入","內部檢查登錄",`${r.ship} ${r.dateFrom}：檢查紀錄 ${(r.types||[]).length} 筆、缺失 新增${dAdd}／更新${dUpd}${reFill?`（補回改善內容 ${reFill} 筆）`:""}、正面評價 新增${pAdd}／更新${pUpd}`);
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
     try{if(typeof Ov!=="undefined"){Ov.init();Ov.render();}if(typeof InspCtrl!=="undefined")InspCtrl.render();
       if(typeof Defs!=="undefined"){Defs.init();Defs.render();}if(typeof SirePos!=="undefined")SirePos.init();}catch(e){}
@@ -31738,7 +31757,7 @@ const IntAuditQueue={
       alert("⚠ 已匯入主系統，但「已匯入」標記寫回雲端登錄單失敗："+e.message+"\n\n請不要重複按匯入（會多出重複紀錄），請聯絡維護者。");
       return;
     }
-    toast(`✓ 已匯入：檢查紀錄 ${(r.types||[]).length} 筆、缺失 ${dAdd+dUpd} 筆、正面評價 ${pAdd+pUpd} 筆`);
+    toast(`✓ 已匯入：檢查紀錄 ${(r.types||[]).length} 筆、缺失 ${dAdd+dUpd} 筆${reFill?`（補回改善內容 ${reFill} 筆）`:""}、正面評價 ${pAdd+pUpd} 筆`);
     this.refresh();
   }
 };
