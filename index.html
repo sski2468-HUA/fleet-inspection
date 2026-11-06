@@ -3623,6 +3623,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <button class="btn" id="air-tab-followup-btn" onclick="Air.showFollowUpList()">🔖 Follow Up</button>
         <button class="btn dark" id="air-tab-cloudqueue-btn" onclick="AirQueue.open()">☁ 線上填單審核佇列<span id="air-cq-badge" style="display:none;background:#e8842c;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 6px;margin-left:5px"></span></button>
         <button class="btn" onclick="Air.openIntakeSite()">🔗 外部檢查線上填單(船上用)</button>
+        <span style="flex:1"></span>
+        <button class="btn" onclick="AirDel.open()" title="所有人刪除的填單都在這裡，可查看、誤刪可恢復">🗑 已刪除的紀錄<span id="air-del-n"></span></button>
         <button class="btn" id="air-tab-new-btn" onclick="Air.newForm()" style="display:none">＋ 新增填單</button>
       </div>
 
@@ -11482,6 +11484,106 @@ const RecycleBin={
     }</tbody></table></div>`;
   },
   fmtDate(ts){try{return new Date(ts).toLocaleString("zh-TW",{hour12:false});}catch(e){return "—";}}
+};
+
+/* ════════ 🗑 填單「已刪除的紀錄」（雲端，2026-11-06）════════
+   問題：同事刪了填單，別台電腦上那筆因為跟同步記錄對不上被當成「本機有修改」，又被傳回雲端 → 刪了又出現。
+   做法：刪除時把整筆內容記到雲端 app_db「air_deleted」（所有人共用，誰刪的、何時刪的都在）。
+   ‧ 同步時：清單裡的 id 一律不准再上傳，並從本機移除；雲端如果又出現（被舊電腦傳回去）會自動再刪掉。
+   ‧ 「已刪除的紀錄」視窗：可查看內容、誤刪可恢復（恢復＝從清單移除並放回填單紀錄）。
+   ‧ 保留 180 天。寫入一律「先讀最新、再改、再寫」，兩個人同時刪也不會互相蓋掉。 */
+const AirDel={
+  KEY:"air_deleted",KEEP_DAYS:180,
+  list:[],_loaded:false,
+  ids(){return new Set(this.list.map(x=>String(x.id)));},
+  filter(arr){if(!this.list.length)return arr;const s=this.ids();return (arr||[]).filter(r=>!(r&&s.has(String(r.id))));},
+  _fresh(p){const cut=Date.now()-this.KEEP_DAYS*86400000;return (Array.isArray(p)?p:[]).filter(x=>x&&x.id!=null&&(x.deletedAt||0)>=cut);},
+  async _fetch(){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return null;
+    const rows=await Cloud.api(`app_db?select=payload&k=eq.${this.KEY}`);
+    return this._fresh(rows&&rows[0]&&rows[0].payload);
+  },
+  async _write(list){
+    await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates"}),
+      body:JSON.stringify([{k:this.KEY,updated:Date.now(),by:(typeof Audit!=="undefined"?Audit.user():""),payload:list}])});
+    this.list=list;
+  },
+  _at:0,
+  async load(){
+    this._at=Date.now();
+    try{const l=await this._fetch();if(l){this.list=l;this._loaded=true;}}catch(e){console.warn("AirDel.load",e);}
+    this.enforce();
+    this.badge();
+  },
+  /* 本機若還留著已刪除的填單 → 移除；同步快照裡還有（代表雲端可能被傳回去）→ 排一次同步把雲端那筆刪掉 */
+  enforce(){
+    if(!this.list.length)return;
+    const s=this.ids();
+    const before=(App.air||[]).length;
+    App.air=this.filter(App.air);
+    let needPush=before!==App.air.length;
+    try{const snap=RecordSync.loadSnap("airReviews")||{};if(Object.keys(snap).some(id=>s.has(id)))needPush=true;}catch(e){}
+    if(needPush){try{App.saveAll();}catch(e){} if(typeof RecordSync!=="undefined")RecordSync.queuePush("airReviews");
+      if(typeof Air!=="undefined"&&Air.renderList)try{Air.renderList();}catch(e){}}
+  },
+  async add(rec){
+    const item={id:rec.id,record:JSON.parse(JSON.stringify(rec)),label:`${shipFullLabel(rec.ship||"")} ${rec.date||""} ${rec.itype||""}`,
+      deletedAt:Date.now(),deletedBy:(typeof Audit!=="undefined"?Audit.user():"")};
+    this.list=this.list.filter(x=>String(x.id)!==String(rec.id)).concat([item]); // 先在本機生效，同步立即擋住
+    try{
+      const latest=await this._fetch();
+      if(latest){const merged=latest.filter(x=>String(x.id)!==String(rec.id)).concat([item]);await this._write(merged);}
+    }catch(e){console.warn("AirDel.add 雲端寫入失敗（本機已先擋住）",e);toast("⚠ 已刪除，但「已刪除的紀錄」雲端清單寫入失敗："+e.message);}
+    this.badge();
+  },
+  async restore(id){
+    if(typeof Guard!=="undefined"&&!await Guard.require())return;
+    const item=this.list.find(x=>String(x.id)===String(id));if(!item)return;
+    if(!confirm(`恢復這筆填單？\n${item.label}\n（刪除者：${item.deletedBy||"—"}，${new Date(item.deletedAt).toLocaleString("zh-TW",{hour12:false})}）`))return;
+    try{
+      const latest=await this._fetch()||this.list;
+      await this._write(latest.filter(x=>String(x.id)!==String(id)));
+    }catch(e){toast("⚠ 恢復失敗："+e.message);return;}
+    if(!(App.air||[]).some(x=>String(x.id)===String(id)))App.air.push(item.record);
+    App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
+    if(typeof AirQueue!=="undefined"&&AirQueue.syncSourceStatus)try{AirQueue.syncSourceStatus(item.record,"imported");}catch(e){}
+    if(typeof Audit!=="undefined")Audit.log("恢復","填單",`#${id} ${item.label}（原由 ${item.deletedBy||"—"} 刪除）`);
+    toast("✓ 已恢復到填單紀錄");
+    if(typeof Air!=="undefined"&&Air.renderList)Air.renderList();
+    this.render();this.badge();
+  },
+  badge(){const b=$("#air-del-n");if(b)b.textContent=this.list.length?`（${this.list.length}）`:"";},
+  async open(){
+    let m=$("#airDelModal");
+    if(!m){m=document.createElement("div");m.className="modal";m.id="airDelModal";
+      m.innerHTML=`<div class="box" style="max-width:1000px;width:96%"><div class="mh"><h3>🗑 已刪除的填單紀錄</h3><button class="x" onclick="$('#airDelModal').classList.remove('show')">✕</button></div>
+        <div class="mb"><p class="hint" style="margin:0 0 10px">所有人刪除的填單都會留在這裡 ${this.KEEP_DAYS} 天（雲端共用）。誤刪可以按「↺ 恢復」放回填單紀錄；恢復僅限維護者。</p><div id="airDelBody"></div></div></div>`;
+      document.body.appendChild(m);}
+    m.classList.add("show");
+    $("#airDelBody").innerHTML='<p class="hint">讀取中…</p>';
+    await this.load();this.render();
+  },
+  render(){
+    const box=$("#airDelBody");if(!box)return;
+    const L=this.list.slice().sort((a,b)=>b.deletedAt-a.deletedAt);
+    if(!L.length){box.innerHTML='<p class="hint" style="text-align:center;padding:16px">目前沒有已刪除的填單。</p>';return;}
+    const f=t=>new Date(t).toLocaleString("zh-TW",{hour12:false});
+    box.innerHTML=`<div class="tblwrap"><table class="tbl"><thead><tr><th>船名</th><th>日期</th><th>檢查來源</th><th>缺失數</th><th>刪除者</th><th>刪除時間</th><th style="width:160px"></th></tr></thead><tbody>${L.map(it=>{const r=it.record||{};return `<tr>
+      <td><b>${esc(shipFullLabel(r.ship||""))}</b></td><td style="font-family:var(--mono)">${esc(r.date||"")}</td><td>${esc(r.itype||"")}</td><td style="text-align:center">${(r.defects||[]).length||r.ndef||0}</td>
+      <td>${esc(it.deletedBy||"—")}</td><td style="white-space:nowrap;font-size:12px">${esc(f(it.deletedAt))}</td>
+      <td style="white-space:nowrap"><button class="btn sm" onclick="AirDel.view('${esc(String(it.id))}')">👁 查看</button> <button class="btn sm dark" onclick="AirDel.restore('${esc(String(it.id))}')">↺ 恢復</button></td></tr>
+      <tr id="airdel-v-${esc(String(it.id))}" style="display:none"><td colspan="7"></td></tr>`;}).join("")}</tbody></table></div>`;
+  },
+  view(id){
+    const tr=document.getElementById("airdel-v-"+id);if(!tr)return;
+    if(tr.style.display!=="none"){tr.style.display="none";return;}
+    const it=this.list.find(x=>String(x.id)===String(id));if(!it)return;const r=it.record||{};
+    tr.firstElementChild.innerHTML=`<div style="background:#f7f9fb;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7">
+      <div><b>地點：</b>${esc(r.place||"")}　<b>單位：</b>${esc(r.oilco||"")}　<b>檢查員：</b>${esc(r.inspector||"")}　<b>建立：</b>${esc(r.createdBy||"")}</div>
+      ${(r.defects||[]).map((d,i)=>`<div style="margin-top:6px;padding:6px 8px;background:#fff;border:1px solid var(--line);border-radius:6px"><b>缺失 #${i+1}${d.code?" CODE "+esc(d.code):""}</b>　${esc(d.detail||"")}${d.actual?`<div class="hint">實際情況：${esc(d.actual)}</div>`:""}${d.corrective?`<div class="hint">改善措施：${esc(d.corrective)}</div>`:""}</div>`).join("")||'<div class="hint">（沒有缺失）</div>'}
+      ${(r.posComments||[]).length?`<div style="margin-top:6px" class="hint">正面評論 ${(r.posComments||[]).length} 則</div>`:""}</div>`;
+    tr.style.display="";
+  }
 };
 
 /* ════════ 🩺 資料健檢 ════════
@@ -24661,7 +24763,43 @@ const AuditDash={
     if(added)App.saveAll();
     return added;
   },
+  /* 2026-11-06 手動填了實際檢查日、之後稽核員的填單才匯入成「檢查紀錄」：自動對上。
+     條件：這艘船最近一筆已完成的列是「手動填的日期、還沒連到任何檢查紀錄」，而檢查紀錄裡有一筆
+     還沒被任何一列用到的內部稽核、日期在手動日期 ±30 天內 → 改用那筆紀錄的日期並連結；
+     下一輪的「上次稽核日」、檢查管控的最近一次檢查日也一起改。這樣日期不同天也不會被誤判成「下一輪也完成了」。 */
+  LINK_DAYS:30,
+  linkManualActuals(){
+    let n=0;const logs=[];
+    this.fpmcShips().forEach(s=>{
+      const rows=this.rowsRaw().filter(r=>r.ship===s.code);
+      const done=rows.filter(r=>r.actualAuditDate).sort((a,b)=>String(b.actualAuditDate).localeCompare(String(a.actualAuditDate)));
+      const row=done[0];
+      if(!row||!row.actualAuditManual||row.actualAuditId)return;
+      const used=new Set();rows.forEach(r=>{if(r.actualAuditId!=null)used.add(String(r.actualAuditId));if(r.lastAuditId!=null)used.add(String(r.lastAuditId));});
+      const md=InspCtrl.normDate(row.actualAuditDate);if(!md)return;
+      const prevBase=InspCtrl.normDate(row.lastAuditDate||"")||"";
+      const dd=d=>Math.abs((new Date(d+"T00:00:00")-new Date(md+"T00:00:00"))/86400000);
+      const cand=this.auditRecordsFor(s.code).filter(r=>!used.has(String(r.id))&&r.date&&(!prevBase||r.date>prevBase)&&dd(r.date)<=this.LINK_DAYS)
+        .sort((a,b)=>dd(a.date)-dd(b.date));
+      const rec=cand[0];if(!rec)return;
+      const old=row.actualAuditDate;
+      row.actualAuditId=rec.id;row.actualAuditDate=rec.date;row.actualAuditManual=false;
+      // 下一輪（尚未完成）原本以手動日期為基準 → 改成這筆紀錄
+      rows.filter(r=>!r.actualAuditDate&&InspCtrl.normDate(r.lastAuditDate||"")===md).forEach(r=>{r.lastAuditId=rec.id;r.lastAuditDate=rec.date;if(!r.schedManual)r.schedMonth=this.computeSchedMonth(r);});
+      // 檢查管控的最近一次檢查日若是當初同步過去的手動日期 → 一起改
+      const ic=this.inspCtrlRow(s.code);
+      if(ic&&InspCtrl.normDate(ic.lastDate||"")===md&&rec.date!==md){ic.lastDate=rec.date;if(typeof Cloud!=="undefined"&&Cloud.queueAutoPublish)Cloud.queueAutoPublish("inspctrl");}
+      n++;logs.push(`${s.code}：手動 ${old} → 檢查紀錄 ${rec.date}`);
+    });
+    if(n){
+      if(typeof Audit!=="undefined")Audit.log("自動對應","內稽動態",`匯入的內部稽核紀錄已對上手動填的實際檢查日（${logs.join("；")}）`);
+      try{App.saveAll();}catch(e){}
+      toast(`✓ 內稽動態：${n} 艘船手動填的實際檢查日已自動對上匯入的檢查紀錄`);
+    }
+    return n;
+  },
   refreshAutoFields(){
+    this.linkManualActuals(); // 先對上手動日期，才不會把稽核員晚一點匯入的紀錄誤當成下一輪
     // 只針對「目前進行中」的那一列做自動比對更新，已完成的列不會再被自動覆蓋（維持歷史紀錄）
     this.fpmcShips().forEach(s=>{
       const row=this.openRowFor(s.code);
@@ -28526,6 +28664,9 @@ const Air={
     if(!confirm("確定刪除此筆填單？"))return;
     const _delAir=App.air.find(x=>x.id===id);
     if(_delAir&&typeof RecycleBin!=="undefined")RecycleBin.add("air",_delAir,`${_delAir.ship||""} ${_delAir.date||""}`);
+    // 2026-11-06 記到雲端「已刪除的紀錄」：所有人都看得到、可恢復，也防止別台電腦把它傳回雲端
+    if(_delAir&&typeof AirDel!=="undefined")AirDel.add(_delAir);
+    if(_delAir&&typeof Audit!=="undefined")Audit.log("刪除","填單",`#${_delAir.id} ${_delAir.ship||""} ${_delAir.date||""} ${_delAir.itype||""}（缺失 ${(_delAir.defects||[]).length} 筆）`);
     App.air=App.air.filter(x=>x.id!==id);this.selected.delete(id);
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();this.renderList();toast("已刪除");
     if(_delAir&&typeof AirQueue!=="undefined")AirQueue.syncSourceStatus(_delAir,"rejected");
@@ -38216,7 +38357,9 @@ grant select, insert, update, delete on public.sync_insp, public.sync_defs, publ
   TABLES:{
     inspections:{table:"sync_insp",arr:()=>App.insp,setArr:(a)=>{App.insp=a;}},
     deficiencies:{table:"sync_defs",arr:()=>App.defs,setArr:(a)=>{App.defs=a;}},
-    airReviews:{table:"sync_air",arr:()=>App.air,setArr:(a)=>{App.air=a;}},
+    // 2026-11-06 已刪除的填單（AirDel）一律濾掉：從雲端拉下來也不放回本機，下次同步會把雲端那筆刪掉
+    airReviews:{table:"sync_air",arr:()=>App.air,setArr:(a)=>{const f=(typeof AirDel!=="undefined")?AirDel.filter(a):a;App.air=f;
+      if(f.length!==(a||[]).length)setTimeout(()=>{try{AirDel.enforce();}catch(e){}},2000);}},
     inspctrl:{table:"sync_inspctrl",arr:()=>App.inspCtrl,setArr:(a)=>{App.inspCtrl=a;}},
     annualPlan:{table:"sync_annualplan",arr:()=>App.annualPlan,setArr:(a)=>{App.annualPlan=a;}},
     auditDash:{table:"sync_auditdash",arr:()=>App.auditDash,setArr:(a)=>{App.auditDash=a;}},
@@ -38239,7 +38382,8 @@ grant select, insert, update, delete on public.sync_insp, public.sync_defs, publ
   diff(key){
     const cfg=this.TABLES[key];
     const idField=cfg.idField||"id";
-    const arr=cfg.arr()||[];
+    let arr=cfg.arr()||[];
+    if(key==="airReviews"&&typeof AirDel!=="undefined")arr=AirDel.filter(arr); // 已刪除的填單絕不再上傳（快照裡有的會變成刪除）
     const snap=this.loadSnap(key);
     const curMap={};const upserts=[];
     arr.forEach(r=>{
@@ -38342,6 +38486,8 @@ grant select, insert, update, delete on public.sync_insp, public.sync_defs, publ
         if(typeof Cloud!=="undefined")Cloud.showSyncFail(`「${(typeof EditLock!=="undefined"&&EditLock.LABELS[key])||key}」尚未成功載入雲端資料，已暫停上傳以保護雲端紀錄。請檢查網路後點「載入最新資料」。`);
         return;
       }
+      // 2026-11-06 上傳填單前，「已刪除的紀錄」清單超過 2 分鐘沒更新就先重讀一次（別人剛刪的也擋得住）
+      if(key==="airReviews"&&typeof AirDel!=="undefined"&&Date.now()-AirDel._at>120000){try{await AirDel.load();}catch(e){}}
       const {curMap,upserts,deletes}=this.diff(key);
       // ⚠ 大量刪除保險絲：正常操作一次不會刪掉幾十筆。若 diff 算出要刪除的筆數異常龐大
       // （超過 20 筆、且佔雲端既有紀錄一成以上），極可能是本機資料異常（例如載入不完整、
@@ -38620,6 +38766,8 @@ const Cloud={
            使用者就會看到「刪掉的任務每次登入又出現」。 */
         try{if(typeof TaskTomb!=="undefined")await TaskTomb.pullCloud();}catch(e){console.warn("startup tombstone pull",e);}
         try{if(typeof TaskTomb!=="undefined")await TaskTomb.purgeCloud();}catch(e){console.warn("startup tombstone purge",e);}
+        // 已刪除的填單清單要在第一次同步「之前」讀到，否則舊電腦會先把被刪的填單又傳回雲端
+        try{if(typeof AirDel!=="undefined")await AirDel.load();}catch(e){console.warn("startup AirDel load",e);}
         try{await this.syncNow(true);}catch(e){console.warn("startup syncNow",e);}
       }else{
         if(typeof App!=="undefined"){try{App.migrateCsoData();App.migrateOperatorData();App.migrateRootCauseDelimiterFix();}catch(e){}}
@@ -38647,6 +38795,7 @@ const Cloud={
       ()=>typeof EditorList!=="undefined"&&EditorList.pullCloud(),
       ()=>typeof Perms!=="undefined"&&Perms.pullCloud(),
       ()=>typeof ReadOnlyMode!=="undefined"&&ReadOnlyMode.loadCloud(),
+      ()=>typeof AirDel!=="undefined"&&AirDel.load(),   // 2026-11-06 已刪除的填單清單（擋住被刪的紀錄再被傳回雲端）
       ()=>typeof EvidenceUpload!=="undefined"&&EvidenceUpload.loadCloud(),
       ()=>typeof PhotoUpload!=="undefined"&&PhotoUpload.loadCloud(),
       ()=>typeof Trend!=="undefined"&&Trend.pullPresetsCloud().then(()=>{if($("#trend-section"))Trend.render();}),
