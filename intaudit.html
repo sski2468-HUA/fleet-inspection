@@ -475,7 +475,8 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
     <div class="card sec" data-sec="overall">
       <h3>② 總體評價 <span class="hint" style="font-weight:400">Overall Assessment</span></h3>
       <div class="fgrid">
-        <label class="fw">總體評價（船上總體氣氛、TOP4 配合程度、管理效果、船副管輪表現、乙級船員表現、船舶保養與機器狀況等）<textarea id="fOverall" style="min-height:130px"></textarea></label>
+        <label class="fw">總體評價（船上總體氣氛、TOP4 配合程度、管理效果、船副管輪表現、乙級船員表現、船舶保養與機器狀況等）<textarea id="fOverall" style="min-height:130px" oninput="overallInput(this.value)"></textarea></label>
+        <div class="fw" id="overallLinkBox" style="display:none"><div class="checks"><label><input type="checkbox" id="overallLink" onchange="toggleOverallLink(this.checked,this)"> 連動 CAEM-FM06 主導稽核員評語 Lead Auditor Comments</label></div><div class="hint" style="margin-top:4px">勾選時，這裡和 CAEM-FM06 的評語內容相同，改任一邊都會同步；不想連動請取消勾選。</div></div>
         <div class="fld fw">TOP 4 合照<div id="top4Ph"></div></div>
         <label class="fw">照片說明（例：左後：船長 ○○　右後：大管輪 ○○　左前：大副 ○○　右前：輪機長 ○○）<input type="text" id="fTop4Cap"></label>
         <div class="fld fw">表現亮眼船員 Good Performance Crew &amp; Brief <div id="goodCrew"></div>
@@ -2334,6 +2335,7 @@ function duplicateRec(id){
   delete c.issuedAt;delete c.imported;delete c.icJsonDlAt;delete c.icJsonDlBy;delete c.wordDlAt;delete c.wordDlBy;
   delete c.createdAt;delete c.createdBy;delete c.updatedAt;delete c.creator;delete c.creatorAt; // 複製出來的新單，建檔人是複製的人
   delete c.fm06; // CAEM-FM06 報告編號／評語／簽名屬於原本那次稽核，不帶到新單
+  delete c.overallLink;
   (c.defs||[]).forEach(d=>{d.uid=newUid();delete d.importedDefId;delete d.fm06;});
   (c.best||[]).forEach(b=>{delete b.importedPosId;});
   cur=c;curSrv=null;activeTab=(cur.types||[])[0]||null;bestOpen=[];defOpen=[];
@@ -2342,7 +2344,7 @@ function duplicateRec(id){
 }
 
 /* ══════ ⑤ CAEM-FM06 內部稽查綜合報告（檢查種類有勾「內稽」才出現）══════
-   版面照範本 CAEM-FM06（Rev.: 2025.01.31）；明細＝④缺失明細「內稽」分頁的缺失。
+   版面照範本 CAEM-FM06（Rev.: 2025.01.31）；明細＝④缺失明細中內稽／ISPS 結案方式為 FLOW 的缺失。
    每筆的等級／負責部門／更正期限／結案日期／結案單位存在該筆缺失的 d.fm06，法規章程＝d.regRef（跟④同一欄）；
    報告編號、日期、評語、簽名存在 cur.fm06。沒動過的欄位不寫入、畫面顯示自動帶入值，按列印時才固定下來。
    列印：隱藏 iframe，公司 MARK＋Cat. 框每頁重複，頁尾「CAEM-FM06 - 頁/總頁」用 @page 邊框。 */
@@ -2373,9 +2375,9 @@ async function fm06HfSave(){
   finally{btn.disabled=false;}
 }
 const cssStr=s=>'"'+String(s||"").replace(/[<>]/g,"").replace(/\\/g,"\\\\").replace(/"/g,'\\"')+'"';
-/* 進 CAEM-FM06 的缺失：內稽全部＋ISPS Internal Audit 中結案方式為 FLOW（要入 FLOW 系統）的缺失；這些缺失的法規章程來源必填 */
+/* 進 CAEM-FM06 的缺失：內稽、ISPS Internal Audit 中結案方式為 FLOW（要入 FLOW 系統）的缺失；內控／系統內結案不進報告。這些缺失的法規章程來源必填 */
 const ISPS_KEY="ISPS Audit";
-const fm06Inc=d=>!!d&&(d.type===IA_KEY||(d.type===ISPS_KEY&&d.closeMode==="FLOW"));
+const fm06Inc=d=>!!d&&(d.type===IA_KEY||d.type===ISPS_KEY)&&d.closeMode==="FLOW";
 function hasIA(){return !!cur&&((cur.types||[]).includes(IA_KEY)||(cur.defs||[]).some(fm06Inc));}
 function fm06Defs(){return cur?cur.defs.map((d,i)=>({d,i})).filter(x=>fm06Inc(x.d)):[];}
 const fm06Date=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||"");return m?`${m[3]} ${FM06_MON[+m[2]-1]} ${m[1]}`:(iso||"");};
@@ -2428,6 +2430,38 @@ function fm06LimCell(i,d){
   return sel+inp;
 }
 function fm06SetReg(i,v){cur.defs[i].regRef=v;fm06Refresh();}
+/* 內稽：② 總體評價 ↔ ⑤ 主導稽核員評語 連動（預設勾選）。cur.overallLink===false 表示不連動；
+   舊單兩邊都有內容且不同時視為不連動，不動到已寫好的文字。 */
+const overallLinkable=()=>!!cur&&(cur.types||[]).includes(IA_KEY);
+const overallLinked=()=>overallLinkable()&&cur.overallLink!==false;
+const fm06Comment=()=>(cur.fm06&&cur.fm06.comment)||"";
+function fm06PutComment(v){cur.fm06=cur.fm06||{};cur.fm06.comment=v;const t=$("#fm6-comment");if(t&&t.value!==v)t.value=v;}
+function overallLinkSync(){
+  if(!cur)return;
+  const box=$("#overallLinkBox"),chk=$("#overallLink"),ta=$("#fOverall"),ok=overallLinkable();
+  if(ok&&ta){
+    const ov=ta.value.trim(),cm=fm06Comment().trim();
+    if(cur.overallLink==null&&ov&&cm&&ov!==cm)cur.overallLink=false;
+    if(cur.overallLink!==false){
+      if(cm&&!ov)ta.value=fm06Comment();
+      else if(ov&&!cm)fm06PutComment(ta.value);
+    }
+  }
+  if(box)box.style.display=ok?"":"none";
+  if(chk)chk.checked=overallLinked();
+}
+function overallInput(v){if(overallLinked()){fm06PutComment(v);fm06Refresh();}}
+function fm06CommentInput(v){fm06Set("comment",v);if(overallLinked()){const ta=$("#fOverall");if(ta)ta.value=v;}}
+function toggleOverallLink(on,el){
+  collect();
+  if(!on){cur.overallLink=false;renderFm06IfOpen();return;}
+  const ov=cur.overall,cm=fm06Comment().trim();
+  if(ov&&cm&&ov!==cm&&!confirm("總體評價和 CAEM-FM06 主導稽核員評語目前內容不同。\n\n按「確定」：總體評價改成 CAEM-FM06 主導稽核員評語的內容，之後兩邊連動。\n按「取消」：維持不連動，兩邊內容都不變。")){el.checked=false;return;}
+  cur.overallLink=true;
+  if(cm)$("#fOverall").value=fm06Comment();
+  overallLinkSync();collect();renderFm06IfOpen();
+}
+function renderFm06IfOpen(){if(secTab==="fm06")renderFm06();}
 function renderFm06(){
   const box=$("#fm06Body");if(!box||!cur)return;
   $("#fm6HfBtn").style.display=IAAuth.canDelete()?"":"none";
@@ -2445,7 +2479,7 @@ function renderFm06(){
       ${inp("unit","稽核單位 Audit Unit")}
       <label style="grid-column:1/-1">主導稽核員/稽核員 Lead Auditor / Auditor<input type="text" id="fm6-lead" value="${esc(fm06V("lead"))}" oninput="fm06Set('lead',this.value)"></label>
     </div>
-    <h4 style="margin:18px 0 4px;color:var(--navy)">稽核發現 Findings <span class="hint" style="font-weight:400">共 ${rows.length} 筆，取自④缺失明細：內稽全部＋ISPS 結案方式為 FLOW 的缺失；內容請回④修改，法規章程（必填）跟④是同一欄</span></h4>
+    <h4 style="margin:18px 0 4px;color:var(--navy)">稽核發現 Findings <span class="hint" style="font-weight:400">共 ${rows.length} 筆，取自④缺失明細：內稽、ISPS 結案方式為 FLOW 的缺失（內控、系統內結案不列入）；內容請回④修改，法規章程（必填）跟④是同一欄</span></h4>
     ${rows.length?`<div class="fm6wrap"><table class="fm6t"><thead><tr><th>No</th><th>等級 NC,O</th><th>法規章程 Regulation ref</th><th>內容 Detail</th><th>負責部門 Dept in Charge</th><th>更正期限 Limit Date</th><th>結案日期 Cleared date</th><th>結案單位 Cleared by</th></tr></thead><tbody>
       ${rows.map(({d,i},n)=>`<tr><td style="text-align:center">${n+1}</td>
         <td><select onchange="fm06SetRow(${i},'lvl',this.value)">${["O","NC"].map(v=>`<option ${fm06R(d,"lvl")===v?"selected":""}>${v}</option>`).join("")}</select></td>
@@ -2457,11 +2491,11 @@ function renderFm06(){
         <td>${cell(i,d,"by",120,"fm6By")}</td></tr>`).join("")}
     </tbody></table></div>
     <div class="hint" style="margin-top:4px">更正期限先選類型：「日期」用日曆挑、「Before departure」直接帶入、「其他」自由輸入（會記住這台電腦寫過的內容，下次可直接點選）；尚未結案的，結案日期／結案單位留空即可。</div>`
-    :`<div class="hint">④缺失明細目前沒有內稽缺失（或 ISPS 入 FLOW 的缺失），報告明細會是空白列。</div>`}
+    :`<div class="hint">④缺失明細目前沒有結案方式為 FLOW 的內稽／ISPS 缺失，報告明細會是空白列。</div>`}
     <datalist id="fm6Dept"><option>Deck dept</option><option>Engine dept</option><option>Deck &amp; Engine dept</option></datalist>
     <datalist id="fm6LimHist">${fm06LimHist().map(v=>`<option>${esc(v)}</option>`).join("")}</datalist>
     <datalist id="fm6By">${byOpts.map(v=>`<option>${esc(v)}</option>`).join("")}</datalist>
-    <label style="display:block;margin-top:16px">主導稽核員評語 Lead Auditor Comments<textarea id="fm6-comment" style="min-height:120px" placeholder="例：During the audit, safety rounds of the deck and engine room were conducted…" oninput="fm06Set('comment',this.value)">${esc(fm06V("comment"))}</textarea></label>
+    <label style="display:block;margin-top:16px">主導稽核員評語 Lead Auditor Comments${overallLinked()?'<span class="hint" style="font-weight:400">（已連動②總體評價，改這裡兩邊都會更新；不想連動請到②取消勾選）</span>':""}<textarea id="fm6-comment" style="min-height:120px" placeholder="例：During the audit, safety rounds of the deck and engine room were conducted…" oninput="fm06CommentInput(this.value)">${esc(fm06V("comment"))}</textarea></label>
     <div class="fld" style="margin-top:12px">主導稽核員簽名 Sign <span class="hint" style="font-weight:400">用滑鼠／觸控筆在框內簽名，或按「📤 上傳簽名檔」；不簽也可以，列印後再手簽</span>
       <div class="fm6sig"><canvas id="fm6Pad" width="840" height="260"></canvas>
         <div style="display:flex;flex-direction:column;gap:8px"><label>簽名日期<input type="date" value="${esc(fm06V("signDate"))}" oninput="fm06Set('signDate',this.value)"></label><button class="btn sm" type="button" onclick="$('#fm6SigFile').click()">📤 上傳簽名檔</button><input type="file" id="fm6SigFile" accept="image/*" style="display:none" onchange="fm06UploadSig(this)"><button class="btn sm" type="button" onclick="fm06ClearSig()">清除簽名</button></div></div></div>
@@ -2832,6 +2866,7 @@ function renderTypes(){
     <div style="margin-top:6px">${chips}<button type="button" class="btn sm" onclick="openSpecialSarModal()">＋ 新增專項檢查</button></div>
   </div>`;
   $("#typeBox").innerHTML=baseHtml+specialHtml;
+  overallLinkSync();
 }
 const SPECIAL_SAR_OPTS=["SAR-FM20 靜態航行檢查評估表","SAR-FM21 動態航行檢查評估表","SAR-FM22 機艙管理檢查評估表","SAR-FM23 貨物操作檢查評估表","SAR-FM24 燃油加裝專項檢查表","SAR-FM25 主甲板、艏樓和繫泊檢查評估表","SAR-FM26 貨物機器間、貨泵艙、壓載泵艙和/或燃油泵艙檢查表","SAR-FM27 救生消防及住艙內外檢查表"];
 function toggleType(k,on){
@@ -3056,7 +3091,7 @@ const CLOSE_MODE_NOTE={
 };
 const cmNoteHtml=k=>k?`<div class="cmnote">${CLOSE_MODE_NOTE[k]}</div>`
   :`<div class="cmnote hint">尚未選擇：${Object.entries(CLOSE_MODE_NOTE).map(([k,v])=>`<div style="margin-top:4px">${v}</div>`).join("")}</div>`;
-function regReqHtml(d){return fm06Inc(d)?` <span class="req">*</span>`:d.type===ISPS_KEY?`<span class="hint" style="font-weight:400">（選 FLOW 時必填）</span>`:"（選填）";}
+function regReqHtml(d){return fm06Inc(d)?` <span class="req">*</span>`:(d.type===ISPS_KEY||d.type===IA_KEY)?`<span class="hint" style="font-weight:400">（選 FLOW 時必填）</span>`:"（選填）";}
 function setMode(i,k){
   setTimeout(renderDefNav,0);
   cur.defs[i].closeMode=k;
@@ -3164,7 +3199,7 @@ function openBatch(){
   for(let i=0;i<5;i++)batch.rows.push(blankBatchRow());
   $("#batchTitle").textContent=`批量新增${td.label}缺失`;
   $("#bThTopic").textContent=td.topicLabel||"主題（選填）";
-  $("#bThReg").textContent=activeTab===IA_KEY?"法規章程來源 *":activeTab===ISPS_KEY?"法規章程來源（FLOW 必填）":"法規章程來源（選填）";
+  $("#bThReg").textContent=(activeTab===IA_KEY||activeTab===ISPS_KEY)?"法規章程來源（FLOW 必填）":"法規章程來源（選填）";
   $("#bDefRisk").innerHTML='<option value="">風險等級…</option>'+RISKS.map(s=>`<option>${s}</option>`).join("");
   $("#bDefMode").innerHTML='<option value="">結案方式…</option>'+MODES.map(m=>`<option value="${m.k}">${esc(m.label)}</option>`).join("");
   // 主題有固定選項的種類（內稽／專項檢查）用下拉套用；沒有固定選項的（訪船／隨船／交叉訪船）主題是自由輸入，改用文字＋按鈕套用
@@ -3542,7 +3577,7 @@ function validate(){
     ds.forEach((i,seq)=>{
       const d=cur.defs[i],n=`【${(typeDef(k)||{label:k}).label}】第 ${seq+1} 筆缺失`,q=f=>`#def-${i} [data-f="${f}"]`;
       [["category","分類 Category"],["risk","風險等級"],["reported","Reported @（發現日期）"],["finding","待改善描述"]].forEach(([f,l])=>{if(!String(d[f]||"").trim())errs.push({msg:`${n}：「${l}」未填`,sel:q(f),tab:k});});
-      if(fm06Inc(d)&&!String(d.regRef||"").trim())errs.push({msg:`${n}：「法規章程來源」未填（${k===IA_KEY?"內稽缺失":"ISPS 入 FLOW 的缺失"}必填，會帶到 CAEM-FM06 報告）`,sel:q("regRef"),tab:k});
+      if(fm06Inc(d)&&!String(d.regRef||"").trim())errs.push({msg:`${n}：「法規章程來源」未填（結案方式為 FLOW 的${k===IA_KEY?"內稽":"ISPS"}缺失必填，會帶到 CAEM-FM06 報告）`,sel:q("regRef"),tab:k});
       if(!d.closeMode)errs.push({msg:`${n}：「結案方式」未選擇（FLOW／內控／系統內結案，須擇一）`,sel:q("closeMode"),tab:k});
       // 內控異常登錄資料（關注程度／事件分類／涉及部門）不在這裡強制要求：
       // 這邊只需要把「內控」缺失標記出來、匯出內控缺失清單即可，詳細分類等缺失實際匯入
