@@ -1553,6 +1553,44 @@ table.ap-xl td.ap-selm{box-shadow:inset 2px 0 0 #1b6ec2,inset -2px 0 0 #1b6ec2}
    畫面整個蓋住，使用者什麼都看不到、以為卡住了——這裡讓它們蓋在鎖定畫面之上。 */
 #airPushDefsModal,#airPushPosModal,#importDiffModal{z-index:10000}
 .modal-bg.show{display:flex}
+#photoboxModal{z-index:10050}
+/* 檢查紀錄列表：點缺失數／正評數的大視窗 */
+#inspPeekModal{padding:1.5vh 1.2vw;background:rgba(12,36,51,.6)}
+.ipk-n{font:inherit;font-weight:700;border-radius:6px;padding:1px 12px;cursor:pointer;border:1px solid}
+.ipk-n.defs{color:var(--bad);background:#fdeeec;border-color:#f3c6c0}
+.ipk-n.defs.hi,.ipk-n.defs:hover,.ipk-n.defs:focus-visible{background:var(--bad);color:#fff;border-color:var(--bad);outline:none}
+.ipk-n.pos{color:var(--ok);background:#e9f6ee;border-color:#bfe3cc}
+.ipk-n.pos:hover,.ipk-n.pos:focus-visible{background:var(--ok);color:#fff;border-color:var(--ok);outline:none}
+.ipk{background:#fff;border-radius:8px;width:100%;max-width:1760px;height:97vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden}
+.ipk-h{background:var(--navy);color:#fff;padding:12px 20px;display:flex;align-items:flex-start;gap:16px;flex:none}
+.ipk-t{font-size:18px;font-weight:700;line-height:1.35}
+.ipk-s{font-size:13.5px;color:#cfdbe6;margin-top:2px}
+.ipk-x{margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:6px;font-size:16px;width:34px;height:34px;cursor:pointer;flex:none}
+.ipk-j{display:flex;flex-wrap:wrap;gap:6px;padding:8px 20px;border-bottom:1px solid var(--line);background:#fafbfc;flex:none;align-items:center;font-size:13px;color:var(--ink-2)}
+.ipk-j button{font:inherit;border:1px solid var(--line-2);background:#fff;border-radius:5px;padding:1px 10px;color:var(--navy);font-weight:700;cursor:pointer}
+.ipk-j button:hover{background:var(--navy);color:#fff}
+.ipk-b{flex:1;overflow-y:auto;padding:14px 20px;background:var(--paper);display:flex;flex-direction:column;gap:12px}
+.ipk-d{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 16px;scroll-margin-top:6px;flex:none}
+.ipk-dh{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:6px}
+.ipk-no{background:var(--navy);color:#fff;border-radius:5px;padding:0 10px;font-weight:700}
+.ipk-c{border:1px solid var(--line-2);border-radius:5px;padding:0 8px;font-size:12.5px;color:var(--ink-2);background:#fff}
+.ipk-c b{color:var(--ink);font-weight:700}
+.ipk-c.warn{background:#fff3e2;border-color:#f1d3ad;color:#8a5208;font-weight:700}
+.ipk-main{font-size:16px;font-weight:600;line-height:1.6;white-space:pre-line;overflow-wrap:anywhere}
+.ipk-cls{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:13px}
+.ipk-cls span{color:var(--ink-3)}
+.ipk-cls b{font-weight:600;color:var(--ink)}
+.ipk-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px;margin-top:10px}
+.ipk-f h4{margin:0 0 2px;font-size:12.5px;color:var(--teal)}
+.ipk-f p{margin:0;font-size:14px;line-height:1.6;white-space:pre-line;overflow-wrap:anywhere}
+.ipk-ph{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12.5px;color:var(--ink-2)}
+.ipk-ph img{display:inline-block;height:130px;border-radius:5px;border:1px solid var(--line);margin:2px 6px 0 0;cursor:pointer}
+.ipk-none{color:var(--ink-3);font-size:13.5px;margin-top:8px}
+.ipk-f2{flex:none;display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 20px;border-top:1px solid var(--line);background:#fff}
+.ipk-cnt{font-size:13.5px;color:var(--ink-2)}
+.ipk-cnt.bad{color:#a4570c;font-weight:700}
+.ipk-act{margin-left:auto;display:flex;gap:8px}
+@media(max-width:900px){.ipk-g{grid-template-columns:1fr}#inspPeekModal{padding:0}.ipk{height:100vh;border-radius:0}.ipk-act{margin-left:0;width:100%}.ipk-act .btn{flex:1}}
 .modal{background:#fff;border-radius:8px;max-width:880px;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .modal .mh{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
 .modal .mh h3{font-size:15px;font-weight:700;color:var(--navy)}
@@ -12493,6 +12531,116 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
 
 
 /* ════════ 1.5 檢查一覽表 ════════ */
+/* 檢查紀錄列表：點缺失數／正評數，用大視窗看這次檢查的明細，看完再決定要不要跳到總表 */
+const InspPeek={
+  r:null,kind:"",items:[],photos:[],last:null,
+  cell(r,kind){
+    const raw=kind==="defs"?r.ndef:r.npos,n=+raw||0;
+    if(!n)return esc(raw||"0");
+    return `<button type="button" class="ipk-n ${kind}${kind==="defs"&&n>=4?" hi":""}" title="查看這次的${kind==="defs"?"缺失":"正面評價"}內容" onclick="InspPeek.open('${kind}','${r.id}',this)">${esc(raw)}</button>`;
+  },
+  sameType(a,b){a=String(a||"").trim();b=String(b||"").trim();return a===b||(!!normItype(a)&&normItype(a)===normItype(b));},
+  sameInsp(x,r){
+    if(String(x.ship||"")!==String(r.ship||"")||normDateSlash(x.date)!==normDateSlash(r.date))return false;
+    return !(x.intAuditId&&r.intAuditId&&String(x.intAuditId)!==String(r.intAuditId));
+  },
+  itemsOf(kind,r){
+    const list=kind==="defs"
+      ?App.defs.filter(d=>this.sameInsp(d,r)&&this.sameType(d.itype,r.itype))
+      :App.sirePos.filter(d=>this.sameInsp(d,r)&&SirePos.itypeOf(d).split("、").some(t=>this.sameType(t,r.itype)));
+    return list.sort((a,b)=>(+a.id||0)-(+b.id||0));
+  },
+  el(){
+    let m=$("#inspPeekModal");
+    if(m)return m;
+    m=document.createElement("div");m.className="modal-bg";m.id="inspPeekModal";m.setAttribute("role","dialog");m.setAttribute("aria-modal","true");m.setAttribute("aria-labelledby","ipk-title");
+    m.innerHTML=`<div class="ipk"><div class="ipk-h"><div><div class="ipk-t" id="ipk-title"></div><div class="ipk-s" id="ipk-sub"></div></div><button type="button" class="ipk-x" title="關閉（Esc）" aria-label="關閉" onclick="InspPeek.close()">✕</button></div>
+      <div class="ipk-j" id="ipk-jump"></div><div class="ipk-b" id="ipk-body"></div>
+      <div class="ipk-f2"><span class="ipk-cnt" id="ipk-count"></span><div class="ipk-act"><button type="button" class="btn" id="ipk-close" onclick="InspPeek.close()">關閉</button><button type="button" class="btn primary" id="ipk-go" onclick="InspPeek.go()"></button></div></div></div>`;
+    document.body.appendChild(m);
+    m.addEventListener("click",e=>{if(e.target===m)this.close();});
+    document.addEventListener("keydown",e=>{
+      if(e.key!=="Escape"||!m.classList.contains("show"))return;
+      if($("#photoboxModal").classList.contains("show"))Photobox.close();else this.close();
+    });
+    return m;
+  },
+  fld(label,val){const v=String(val||"").trim();return v?`<div class="ipk-f"><h4>${label}</h4><p>${esc(v)}</p></div>`:"";},
+  tag(label,val){const v=String(val||"").trim();return v?`<div><span>${label}：</span><b>${esc(v.replace(/‖/g,"、"))}</b></div>`:"";},
+  photoRow(label,list){
+    if(!Array.isArray(list)||!list.length)return "";
+    return `<div>${label}<br>${list.map(p=>{const url=p&&(p.url||p.dataUrl);if(!url)return "";this.photos.push({url,label:`${label}：${p.name||""}`});return `<img src="${esc(url)}" alt="${esc(p.name||label)}" loading="lazy" onclick="InspPeek.photo(${this.photos.length-1})">`;}).join("")}</div>`;
+  },
+  photo(i){const p=this.photos[i];if(p)Photobox.open(p.url,p.label);},
+  defCard(d,i){
+    const psc=pscArr(d.psc).map(c=>{const f=PSC_ACTION_CODES.find(x=>x[0]===c);return `<span class="ipk-c"><b>${esc(c)}</b> ${esc(f?f[1]:"")}</span>`;}).join("");
+    const cls=this.tag("問題別",d.ncProb)+this.tag("大類",d.ncMain)+this.tag("具體名稱",d.ncLeaf)+this.tag("三要素",d.ncFactor)+this.tag("根因",d.ncRoot)+this.tag("重要程度",d.ncImp)+this.tag("職級",d.rank)+this.tag("人員",d.person);
+    const same=(a,b)=>String(a||"").trim()===String(b||"").trim();
+    const reply=(label,rep,orig)=>same(rep,orig)?"":this.fld(label,rep);
+    const body=this.fld("實際情況",d.actual)+this.fld("Operator's Comments 操作人員說明",d.opComment)+this.fld("直接原因",d.immediateCause)+this.fld("Root Cause 根本原因",d.rootCause)+this.fld("Corrective Action 改善措施",d.corrective)+this.fld("Preventive Action 預防措施",d.preventive)
+      +reply("操作人員說明（對外回覆版）",d.opCommentReply,d.opComment)+reply("直接原因（對外回覆版）",d.immediateCauseReply,d.immediateCause)+reply("根本原因（對外回覆版）",d.rootCauseReply,d.rootCause)+reply("改善措施（對外回覆版）",d.correctiveReply,d.corrective)+reply("預防措施（對外回覆版）",d.preventiveReply,d.preventive);
+    const ph=this.photoRow("改善前",d.photosBefore)+this.photoRow("改善後",d.photosAfter);
+    return `<section class="ipk-d" id="ipk-i${i}"><div class="ipk-dh"><span class="ipk-no">No.${i+1}</span>${d.code?`<span class="ipk-c">CODE <b>${esc(d.code)}</b></span>`:""}${psc}${cls?"":`<span class="ipk-c warn">尚未分類</span>`}</div>
+      <div class="ipk-main">${esc(d.detail||"（未填寫缺失內容）")}</div>
+      ${cls?`<div class="ipk-cls">${cls}</div>`:""}
+      ${body?`<div class="ipk-g">${body}</div>`:`<div class="ipk-none">這筆尚未填寫原因與改善內容。</div>`}
+      ${ph?`<div class="ipk-ph">${ph}</div>`:""}</section>`;
+  },
+  posCard(d,i){
+    const who=this.tag("職級",d.rank)+this.tag("人員",d.person);
+    return `<section class="ipk-d" id="ipk-i${i}"><div class="ipk-dh"><span class="ipk-no">No.${i+1}</span>${d.item?`<span class="ipk-c">項目 <b>${esc(d.item)}</b></span>`:""}${d.code?`<span class="ipk-c">CODE <b>${esc(d.code)}</b></span>`:""}</div>
+      <div class="ipk-main">${esc(d.comment||"（未填寫評語）")}</div>
+      ${who?`<div class="ipk-cls">${who}</div>`:""}</section>`;
+  },
+  open(kind,id,btn){
+    const r=App.insp.find(x=>String(x.id)===String(id));if(!r)return;
+    const m=this.el(),isDefs=kind==="defs",word=isDefs?"缺失":"正面評價",items=this.itemsOf(kind,r);
+    this.r=r;this.kind=kind;this.items=items;this.photos=[];this.last=btn||null;
+    $("#ipk-title").textContent=`${shipFullLabel(r.ship)}　${r.itype||""}　${inspDateText(r)}`;
+    $("#ipk-sub").textContent=[r.loc,r.inspector?`檢查員：${r.inspector}`:"",r.unit,`共 ${items.length} 筆${word}`].filter(Boolean).join("　｜　");
+    const jump=$("#ipk-jump");jump.style.display=items.length>1?"":"none";
+    jump.innerHTML="跳到："+items.map((_,i)=>`<button type="button" onclick="document.getElementById('ipk-i${i}').scrollIntoView({behavior:'smooth',block:'start'})">No.${i+1}</button>`).join("");
+    const body=$("#ipk-body");
+    body.innerHTML=items.length?items.map((d,i)=>isDefs?this.defCard(d,i):this.posCard(d,i)).join(""):`<div class="ipk-none">${isDefs?"缺失紀錄總表":"正面評價/優秀案例"}找不到這次檢查的資料。</div>`;
+    body.scrollTop=0;
+    const n=+(isDefs?r.ndef:r.npos)||0,cnt=$("#ipk-count");
+    cnt.className="ipk-cnt"+(n===items.length?"":" bad");
+    cnt.textContent=n===items.length?`檢查紀錄 ${n} 筆，${word}紀錄 ${items.length} 筆，數量相符`:`⚠ 檢查紀錄寫 ${n} 筆，${word}紀錄實際找到 ${items.length} 筆，數量不符`;
+    $("#ipk-go").textContent=isDefs?"前往缺失紀錄總表 →":"前往正面評價/優秀案例 →";
+    m.classList.add("show");document.body.style.overflow="hidden";$("#ipk-close").focus();
+  },
+  close(){
+    const m=$("#inspPeekModal");if(m)m.classList.remove("show");
+    document.body.style.overflow="";
+    if(this.last&&this.last.isConnected)this.last.focus();
+    this.last=null;
+  },
+  go(){
+    const r=this.r,kind=this.kind,items=this.items,ym=ymOf(r.date);
+    this.last=null;this.close();
+    if(kind==="defs"){
+      const nav=document.querySelector('.nav-item[data-tab="defs"]');if(nav)nav.click();
+      Defs.clearFilters();
+      Defs.ms.ship.set([r.ship]);
+      Defs.ms.itype.set([...new Set(items.map(d=>d.itype).filter(Boolean))].concat(items.length?[]:[r.itype]));
+      $("#f-ymfrom").value=ym;$("#f-ymto").value=ym;
+      const dates=[...new Set(items.map(d=>String(d.date||"")))];
+      $("#f-kw").value=dates.length===1?dates[0]:"";
+      Defs.page=1;Defs.render();
+      toast("已帶入這次檢查的船名、檢查來源與日期");
+      return;
+    }
+    const nav=document.querySelector('.nav-item[data-tab="sirepos"]');if(nav)nav.click();
+    SirePos.clearFilters();
+    SirePos.setSubTab("list");
+    SirePos.ms.ship.set([r.ship]);
+    const types=[...new Set(items.flatMap(d=>SirePos.itypeOf(d).split("、")).filter(t=>this.sameType(t,r.itype)))];
+    SirePos.ms.itype.set(types.length?types:[r.itype]);
+    $("#sire-ymfrom").value=ym;$("#sire-ymto").value=ym;
+    SirePos.page=1;SirePos.render();
+    toast("已帶入這次檢查的船名、檢查來源與月份");
+  }
+};
 const Ov={
   ms:{},sel:new Set(),scope:"all",selRows:new Set(),
   subTab:"summary",
@@ -12726,8 +12874,8 @@ const Ov={
       <td>${cl(esc(r.loc),esc(r.loc))}</td>
       <td>${cl(esc(r.inspector),esc(r.inspector))}</td>
       <td>${cl(esc(r.unit),esc(r.unit))}</td>
-      <td style="text-align:center;font-family:var(--mono);${(+r.ndef||0)>=4?"color:var(--bad);font-weight:700":""}">${esc(r.ndef||"0")}${breakdown?`<div class="hint" style="font-weight:400;font-size:9.5px" title="${esc(breakdown)}">${cl(esc(breakdown))}</div>`:""}</td>
-      <td style="text-align:center;font-family:var(--mono);color:var(--ok)">${esc(r.npos||"0")}</td>
+      <td style="text-align:center;font-family:var(--mono)">${InspPeek.cell(r,"defs")}${breakdown?`<div class="hint" style="font-weight:400;font-size:9.5px" title="${esc(breakdown)}">${cl(esc(breakdown))}</div>`:""}</td>
+      <td style="text-align:center;font-family:var(--mono);color:var(--ok)">${InspPeek.cell(r,"pos")}</td>
       <td style="font-size:11px">${cl(esc(r.flagType),esc(r.flagType))}</td>
       <td>${(r.detain||"").toUpperCase().startsWith("Y")?'<span class="st st-solid">⚑</span>':'<span class="st st-none">—</span>'}</td>
       <td>${r._impAt?`<span title="轉入/匯入於 ${esc(new Date(r._impAt).toLocaleString("zh-TW",{hour12:false}))}${r._impBy?"，操作者："+esc(r._impBy):""}" style="cursor:help;color:var(--ink-3);font-size:12px">ℹ</span>`:""}<button class="btn sm" onclick="Ov.openEdit(${idx})">✎</button></td></tr>`;
