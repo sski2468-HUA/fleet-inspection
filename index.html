@@ -31312,7 +31312,9 @@ const AirQueue={
   expandedId:null,
   mergeSel:new Set(), // 待審核分頁勾選要「合併匯入」的筆數
   view:"pending", // "pending" 或 "imported" 或 "rejected"
-  setView(v){this.view=v;this.mergeSel.clear();this.refresh();},
+  mergeMode:false, // 2026-11-11：勾選框只在按「需要併案匯入」後才出現，平常一案一案點「匯入」，避免誤以為是全部勾選匯入
+  setView(v){this.view=v;this.mergeSel.clear();this.mergeMode=false;this.refresh();},
+  setMergeMode(on){this.mergeMode=!!on;if(!on)this.mergeSel.clear();this.render();},
   open(){
     if(typeof Role!=="undefined"&&!Role.isAdmin()){toast("⚠ 僅 Owner／維護者可使用線上填單審核佇列");return;}
     if(!$("#tab-air"))return;
@@ -31396,7 +31398,7 @@ const AirQueue={
       return `<div class="card" style="margin-bottom:10px;background:${rev?"#fffaf0":"#fafbfc"};${rev?"border-left:4px solid #e0a020":""}">
         ${rev?`<div style="margin-bottom:6px;font-size:13px;color:#7a5200"><b>✎ 修訂版</b>（原送出 #${rev.id}，${rev.status==="imported"?"已收錄":rev.status==="pending"?"尚在審核中":"狀態："+esc(rev.status)}）　<b>修改原因：</b>${esc(p.revReason||"（未填）")}</div>`:""}
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          ${this.view==="pending"&&!rev?`<input type="checkbox" title="勾選要合併匯入成同一筆的填單" style="width:17px;height:17px;cursor:pointer" ${this.mergeSel.has(r.id)?"checked":""} onchange="AirQueue.toggleMerge(${r.id},this.checked)">`:""}
+          ${this.view==="pending"&&this.mergeMode&&!rev?`<input type="checkbox" title="勾選要併案的填單" style="width:17px;height:17px;cursor:pointer" ${this.mergeSel.has(r.id)?"checked":""} onchange="AirQueue.toggleMerge(${r.id},this.checked)">`:""}
           <b>${esc(b.ship?shipFullLabel(b.ship):"（未填船名）")}</b>
           ${this.view==="imported"&&App.air.some(a=>(a.mergedQueueIds||[]).includes(r.id))?`<span class="hint" style="color:#b5610f;font-weight:700">（已合併匯入至 #${App.air.find(a=>(a.mergedQueueIds||[]).includes(r.id)).id}）</span>`:""}
           <span class="hint">${esc(b.itype||"")} ・ ${esc(b.date||"")} ・ ${esc(b.place||"")}</span>
@@ -31616,10 +31618,18 @@ const AirQueue={
     if(this.view!=="pending"||!this.rows.length){bar.style.display="none";return;}
     const n=this.mergeSel.size;
     bar.style.display="flex";
-    bar.innerHTML=`<b style="color:#8a4b0f">🔗 合併匯入</b><span class="hint">船上把同一次檢查拆成多張單送出時，勾選這幾張，合併成同一筆填單紀錄（之後轉入檢查紀錄也只會有一筆）。</span>
+    if(!this.mergeMode){
+      // 平常：只提示有這個功能，不顯示勾選框；一案一案按右邊的「✓ 匯入」
+      bar.style.background="#f6f8fa";bar.style.borderColor="var(--line)";
+      bar.innerHTML=`<span class="hint">一般請<b>一案一案</b>按右側「✓ 匯入」。若船上把<b>同一次檢查拆成多張單</b>送出，才需要併案。</span>
+        <span style="margin-left:auto"><button class="btn sm" onclick="AirQueue.setMergeMode(true)">🔗 需要併案匯入</button></span>`;
+      return;
+    }
+    bar.style.background="";bar.style.borderColor="";
+    bar.innerHTML=`<b style="color:#8a4b0f">🔗 併案匯入</b><span class="hint">請勾選<b>要併案的案件</b>（同一艘船、同一次檢查，至少 2 張），合併成同一筆填單紀錄；沒勾的不受影響。</span>
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center"><span class="hint">已勾選 <b>${n}</b> 張</span>
-      <button class="btn sm dark" ${n<2?"disabled":""} onclick="AirQueue.openMerge()">🔗 合併匯入（${n} 張）</button>
-      ${n?`<button class="btn sm" onclick="AirQueue.mergeSel.clear();AirQueue.render()">清除勾選</button>`:""}</span>`;
+      <button class="btn sm dark" ${n<2?"disabled":""} onclick="AirQueue.openMerge()">🔗 併案匯入（${n} 張）</button>
+      <button class="btn sm" onclick="AirQueue.setMergeMode(false)">取消併案</button></span>`;
   },
   openMerge(){
     const rows=this.rows.filter(r=>this.mergeSel.has(r.id)).sort((a,b)=>String(a.created_at||"").localeCompare(String(b.created_at||"")));
@@ -31674,7 +31684,7 @@ const AirQueue={
     }
     const ov=document.getElementById("airq-merge-modal");if(ov)ov.remove();
     const ids=new Set(rows.map(r=>r.id));
-    this.rows=this.rows.filter(x=>!ids.has(x.id));this.mergeSel.clear();this.updateBadge();this.render();
+    this.rows=this.rows.filter(x=>!ids.has(x.id));this.mergeSel.clear();this.mergeMode=false;this.updateBadge();this.render();
     toast(`✓ 已合併 ${rows.length} 張，匯入為線上填單記錄 #${rec.id}（共 ${rec.ndef} 筆缺失）`+(fail?`；⚠ 有 ${fail} 張標記已匯入失敗，請按重新整理確認`:""));
   },  async importRow(id){
     if(!await Guard.require()){toast("⚠ 匯入僅限維護者操作");return;}
