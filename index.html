@@ -6007,6 +6007,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             </div>
             <div class="toolbar" style="margin-top:8px">
               <button class="btn dark" id="roster-toggle-btn" onclick="RosterMgr.toggle()">📂 顯示／管理人員名單</button>
+              <button class="btn" onclick="RosterMgr.setManagerPass()" title="Manager 帳號（Owner 分身，給外部檢查展示用）登入時要輸入的密碼">🔑 設定 Manager 密碼</button>
             </div>
             <div id="roster-body" style="display:none;margin-top:10px">
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
@@ -10466,6 +10467,63 @@ function isInternal(t){
   const kws=(ck&&ck.length)?ck:["internal audit","isps","onboard visit","accompanying","cross ship visit","交叉訪船"]; // 設定尚未載入（空陣列）時用預設，避免全部被誤判成外部
   return kws.some(kw=>kw&&s.includes(String(kw).toLowerCase()));
 }
+/* ══════ Manager 帳號（2026-11-11）：Owner 的分身，給外部檢查展示系統用 ══════
+   權限跟 Owner 一樣（登入時 tier 存 "owner"，另加 mgr:true），但內部檢查（訪船、內稽、ISPS…）的缺失
+   只顯示結案方式為 FLOW 的；內控、系統內結案、沒有結案方式的舊內部缺失全部藏起來。
+   ⚠ 不能直接把 App.defs 濾掉：雲端同步是用「快照有、陣列沒有」判斷刪除，直接濾掉會把雲端資料刪掉。
+   做法：藏起來的缺失放在 MgrView.hidden 完整保留；存本機、上傳雲端時一律用 defsAll()（看得到的＋藏起來的）。
+   檢查紀錄的缺失數（ndef）：Manager 畫面上改顯示「看得到的缺失筆數」，但上傳／存本機時還原成原本的數字。 */
+const MgrView={
+  hidden:[],
+  _ndef:new WeakMap(), // 檢查紀錄 → {orig:原本缺失數, shown:畫面顯示的數}
+  on(){try{if(!Role.cur)Role.load();return !!(Role.cur&&Role.cur.mgr);}catch(e){return false;}},
+  /* 藏：從內部檢查登錄單匯入、結案方式不是 FLOW 的；或檢查來源屬內部檢查、又沒標 FLOW 的（舊資料） */
+  hideDef(d){if(!d)return false;const cm=String(d.intAuditCloseMode||"").toUpperCase();if(cm==="FLOW")return false;return !!cm||isInternal(d.itype)||/^(sar-fm|其他：|專項檢查)/i.test(String(d.itype||""));},
+  /* 把完整缺失陣列拆成「看得到的」與「藏起來的」，回傳看得到的（非 Manager 時原樣回傳） */
+  split(arr){
+    arr=arr||[];
+    if(!this.on()){this.hidden=[];return arr;}
+    const vis=[],hid=[];arr.forEach(d=>(this.hideDef(d)?hid:vis).push(d));
+    this.hidden=hid;return vis;
+  },
+  /* 完整缺失（存本機、上傳雲端、比對刪除都要用這個）；藏起來的若已不小心又出現在 App.defs 裡就不重複加 */
+  defsAll(){
+    const cur=(typeof App!=="undefined"&&App.defs)||[];
+    if(!this.hidden.length)return cur;
+    const have=new Set(cur.map(d=>String(d&&d.id)));
+    return cur.concat(this.hidden.filter(d=>!have.has(String(d&&d.id))));
+  },
+  /* 身份切換（登入／換人／過期）後重新拆分 */
+  resplit(){if(typeof App==="undefined"||!App.defs)return;App.defs=this.split(this.defsAll());this.applyInsp(App.insp);},
+  /* 內部檢查的檢查紀錄：畫面上的缺失數改成看得到的筆數 */
+  applyInsp(arr){
+    if(!Array.isArray(arr))return arr;
+    const on=this.on();
+    arr.forEach(r=>{const m=this._ndef.get(r);if(m){if(String(r.ndef)===String(m.shown))r.ndef=m.orig;this._ndef.delete(r);}});
+    if(!on)return arr;
+    const key=x=>`${x.ship}|${normDateSlash(x.date)}`;
+    const intT=t=>isInternal(t)||/^(sar-fm|其他：|專項檢查)/i.test(String(t||""));
+    const vis={};(App.defs||[]).forEach(d=>{if(intT(d.itype)){const k=key(d);(vis[k]=vis[k]||[]).push(d);}});
+    arr.forEach(r=>{
+      if(!r||!intT(r.itype))return;
+      const t=normItype(r.itype);
+      const n=(vis[key(r)]||[]).filter(d=>normItype(d.itype)===t&&!(d.intAuditId&&r.intAuditId&&String(d.intAuditId)!==String(r.intAuditId))).length;
+      if(String(r.ndef)===String(n))return;
+      this._ndef.set(r,{orig:r.ndef,shown:n});r.ndef=n;
+    });
+    return arr;
+  },
+  /* 檢查紀錄的「原始」版本（存本機、上傳雲端用）：畫面上改過的缺失數還原回去；使用者自己改過的就保留 */
+  inspAll(){
+    const arr=(typeof App!=="undefined"&&App.insp)||[];
+    if(!this.on())return arr;
+    return arr.map(r=>{const m=this._ndef.get(r);return m&&String(r.ndef)===String(m.shown)?Object.assign({},r,{ndef:m.orig}):r;});
+  },
+  /* 內部檢查缺失登錄單（intaudit_records）的缺失：Manager 只看 FLOW */
+  iaDefs(r){const ds=(r&&r.defs)||[];return this.on()?ds.filter(d=>d.closeMode==="FLOW"):ds;},
+  /* Manager 不能做的動作（會用到藏起來的缺失比對，做了可能產生重複） */
+  block(what){if(!this.on())return false;alert(`Manager 帳號不能${what}。\n\n這個動作需要比對全部內部缺失（含內控／系統內結案），請改用 Owner 帳號操作。`);return true;}
+};
 const ITYPE_COLORS={PSC:["#1e7f8c","#e3f1f3"],SIRE:["#7b4fa3","#f1eaf8"],FLAG:["#2e6db4","#e7f0fa"],CDI:["#b8860b","#faf3df"],RIGHTSHIP:["#c0392b","#fbeae7"],TERMINAL:["#5b7c3f","#eef4e7"],"Internal audit":["#777","#eee"],"P&I":["#9c5d2e","#f7ece2"]};
 function itypeChip(t){const c=ITYPE_COLORS[t]||["#52656f","#eef2f4"];return `<span class="itype-chip" style="color:${c[0]};background:${c[1]};border-color:${c[0]}44">${esc(t||"—")}</span>`;}
 /* 內稽（Internal audit）底下的區域／類別（甲板／機艙／ISM／MLC／其他，來自「內部檢查缺失登錄」
@@ -10576,6 +10634,7 @@ const Classify={
         if(Array.isArray(p.icatRules))this.icatRules=p.icatRules;
         this._ensureIcatDefaults();
         this._saveLocal();
+        try{if(typeof MgrView!=="undefined"&&MgrView.on())MgrView.resplit();}catch(e){} // 內部檢查關鍵字更新後，Manager 重新判斷哪些要藏
         this.render();
         this.refreshDependents();
       }
@@ -11007,6 +11066,7 @@ const App={
       const li=LZGet(this.LSK.i), ld=LZGet(this.LSK.d), ls=LZGet(this.LSK.s), lsp=LZGet(this.LSK.sp), lair=LZGet(this.LSK.air);
       this.insp=li?JSON.parse(li):built.inspections;
       this.defs=ld?JSON.parse(ld):built.deficiencies;
+      try{this.defs=MgrView.split(this.defs);MgrView.applyInsp(this.insp);}catch(e){} // Manager：藏起內控／系統內結案（完整資料仍保留在 MgrView.hidden）
       this.sirePos=lsp?JSON.parse(lsp):(built.sirePositive||[]);
       this.air=lair?JSON.parse(lair):(built.airReviews||[]);
       if(!ld){ // v4首次載入:沿用舊版(v3/v2)已勾選之「新缺失須注意」標記
@@ -11158,8 +11218,8 @@ const App={
       // ═ 差異儲存：各鍵先與上次寫入的內容比對，無變動就跳過（避免每次編輯都全量重寫 15 個資料集）═
       // [鍵, 序列化函式, 對應雲端自動發布 key（null 表示不自動發布）]
       const jobs=[
-        [this.LSK.i ,()=>JSON.stringify(this.insp),"inspections"],
-        [this.LSK.d ,()=>JSON.stringify(this.defs),"deficiencies"],
+        [this.LSK.i ,()=>JSON.stringify(MgrView.inspAll()),"inspections"],
+        [this.LSK.d ,()=>JSON.stringify(MgrView.defsAll()),"deficiencies"],
         [this.LSK.sp,()=>JSON.stringify(this.sirePos),"sirePositive"],
         [this.LSK.air,()=>JSON.stringify(this.air),"airReviews"],
         [this.LSK.s ,()=>JSON.stringify({tasks:this.tasks,cur:this.curTaskId}),null],
@@ -11325,8 +11385,8 @@ const Snap={
     if(typeof Air!=="undefined")await Air.syncAllReplyDrafts().catch(()=>{}); // 先同步雲端最新對外回覆內容，確保這份備份也是完整的
     const usr=(typeof Audit!=="undefined")?Audit.user():"";
     const snap={
-      insp:JSON.parse(JSON.stringify(App.insp)),
-      defs:JSON.parse(JSON.stringify(App.defs)),
+      insp:JSON.parse(JSON.stringify(MgrView.inspAll())),
+      defs:JSON.parse(JSON.stringify(MgrView.defsAll())),
       tasks:JSON.parse(JSON.stringify(App.tasks)),
       curTaskId:App.curTaskId,
       ships:JSON.parse(JSON.stringify(SHIPINFO)),
@@ -11391,7 +11451,7 @@ const Snap={
     }
     if(!confirm(`確定要還原為 ${this.fmtDate(snap.savedAt)} 設定的預設備份？\n\n內容：檢查紀錄 ${(snap.insp||[]).length} 筆、缺失紀錄 ${(snap.defs||[]).length} 筆、船舶資料 ${(snap.ships||[]).length} 艘、SIRE正向評論 ${(snap.sirePos||[]).length} 筆、自檢任務 ${(snap.tasks||[]).length} 個、檢查管控 ${(snap.inspCtrl||[]).length} 筆、年度計畫 ${(snap.annualPlan||[]).length} 筆、內稽動態 ${(snap.auditDash||[]).length} 筆、AIR ${(snap.air||[]).length} 筆${snap.ncTreeList?"；也會還原分類階層、根因分類與篩選標籤清單":"（此備份未含分類階層／根因／標籤，這幾項會維持目前狀態不變）"}。\n\n目前資料庫中，這個備份「之後」新增／修改的內容都會被取代覆蓋。此動作無法復原。`))return;
     App.insp=JSON.parse(JSON.stringify(snap.insp||[]));
-    App.defs=JSON.parse(JSON.stringify(snap.defs||[]));
+    App.defs=JSON.parse(JSON.stringify(snap.defs||[]));MgrView.hidden=[];MgrView.resplit();
     App.tasks=JSON.parse(JSON.stringify(snap.tasks||[]));
     App.curTaskId=snap.curTaskId||null;
     App.sirePos=JSON.parse(JSON.stringify(snap.sirePos||[]));
@@ -28885,6 +28945,7 @@ const Air={
     opts=opts||{};
     if(!await Guard.require())return;
     if(this.editId==null){toast("⚠ 請先儲存基本資料");return;}
+    {const d0=App.air.find(x=>x.id===this.editId);if(d0&&isInternal(d0.itype)&&typeof MgrView!=="undefined"&&MgrView.block("把內部檢查的填單轉入缺失紀錄總表"))return;}
     if(!opts.skipLock){this.showTransferLock();await this.refreshBeforeTransfer();}
     const d=App.air.find(x=>x.id===this.editId);
     if(!d){const m="找不到這筆填單資料，可能已被刪除，請重新整理頁面後再試。";if(!opts.skipLock)this.failTransferLock(m);else toast("⚠ "+m);return {ok:false,msg:null};}
@@ -31843,6 +31904,13 @@ const IntAuditQueue={
     }
     // 船上改善回報（intaudit_replies）：讀不到（資料表未建）時當作沒有，不影響其他分頁
     try{this.replyAll=await Cloud.api("intaudit_replies?select=id,record_id,def_uid,status,payload,updated_at&order=updated_at.desc&limit=2000")||[];}catch(e){this.replyAll=[];}
+    // Manager：登錄單只看 FLOW 缺失（顯示用副本，這頁不會把 this.all 寫回雲端；匯入動作對 Manager 是封鎖的）；
+    // 船上改善回報只留 FLOW 缺失的（船舶訴求 s_ 開頭的不在這頁顯示）
+    if(typeof MgrView!=="undefined"&&MgrView.on()){
+      this.all=this.all.map(r=>Object.assign({},r,{defs:MgrView.iaDefs(r)}));
+      const vis=new Set();this.all.forEach(r=>(r.defs||[]).forEach(d=>vis.add(`${r.id}|${d.uid}`)));
+      this.replyAll=this.replyAll.filter(x=>vis.has(`${x.record_id}|${x.def_uid}`));
+    }
     this.replyMap={};this.replyAll.forEach(x=>{this.replyMap[x.id]=x;});
     // 海技這邊真正需要動手的是「督導已審核、還沒套用進缺失紀錄總表」這批；「待督導審核」的
     // 只是顯示給海技知道進度，不需要、也不能在這裡處理（審核判斷搬到督導端 intaudit.html 做）。
@@ -32115,6 +32183,7 @@ const IntAuditQueue={
     </div>`;
   },
   async importRow(id){
+    if(typeof MgrView!=="undefined"&&MgrView.block("匯入／重新匯入內部檢查登錄單"))return;
     if(!await Guard.require()){toast("⚠ 匯入僅限維護者操作");return;}
     const r=this.rows.find(x=>x.id===id);if(!r||r.draft)return;
     const again=!!r.imported;
@@ -37420,7 +37489,7 @@ const DM={
       toast("⚠ 找不到還原前的安全備份");return;
     }
     if(!confirm(`確定要回復至上次「從完整備份還原」之前的狀態嗎？（備份時間：${new Date(s.savedAt).toLocaleString()}）`))return;
-    App.insp=s.insp||[];App.defs=s.defs||[];App.sirePos=s.sirePos||[];App.air=s.air||[];App.tasks=s.tasks||[];App.curTaskId=s.curTaskId||null;
+    App.insp=s.insp||[];App.defs=s.defs||[];MgrView.hidden=[];MgrView.resplit();App.sirePos=s.sirePos||[];App.air=s.air||[];App.tasks=s.tasks||[];App.curTaskId=s.curTaskId||null;
     App.chapterOverrides=s.chapterOverrides||{};App.chapterCustomCodes=s.chapterCustomCodes||{};App.chapterDeleted=s.chapterDeleted||{};App.chapterGroups=s.chapterGroups||[];App.inspCtrl=s.inspCtrl||[];App.refDocs=s.refDocs||[];App.refDocs2=s.refDocs2||[];
     App.drillRecords=s.drillRecords||[];App.drillRecordEditors=s.drillRecordEditors||[];App.annualPlan=s.annualPlan||[];
     App.auditDash=s.auditDash||[];App.defsProjects=s.defsProjects||[];App.projectMembers=s.projectMembers||[];App.intAuditInspectors=s.intAuditInspectors||[];
@@ -38156,7 +38225,9 @@ const Role={
   },
   set(obj){
     obj.exp=Date.now()+this.TTL;
+    const wasMgr=!!(this.cur&&this.cur.mgr);
     this.cur=obj;
+    if(wasMgr!==!!obj.mgr&&typeof MgrView!=="undefined"){try{MgrView.resplit();}catch(e){console.warn("MgrView.resplit",e);}}
     localStorage.setItem(this.SKEY,JSON.stringify(obj));
     localStorage.setItem("vsm_user_v1",obj.name);
     this.renderBadge();
@@ -38170,6 +38241,8 @@ const Role={
      用於自查任務記錄實際查核人是誰，而不是船舶帳號本身(如F27)。非op2帳號則直接沿用 name()。 */
   personName(){return this.cur?(this.cur.personName||this.cur.name):this.name();},
   isOwner(){return this.tier()==="owner";},
+  /* Manager：Owner 的分身（tier 存 owner，權限相同），只是內部檢查只看得到 FLOW 缺失（見 MgrView） */
+  isManager(){return !!(this.cur&&this.cur.mgr);},
   isAdmin(){return this.tier()==="owner"||this.tier()==="admin";},
   /* 各項細部權限判斷：owner/admin 永遠通過；op1 額外擁有 OP1_EXTRA 清單之權限；op2/op3 僅 BASELINE
      air_edit_content（線上填單缺失/正評內容編輯）已從 op1 預設移除，改為僅 owner/admin 可編輯，
@@ -38186,14 +38259,14 @@ const Role={
     if(t==="op1")return this.OP1_EXTRA.has(action)||this.BASELINE.has(action);
     return this.BASELINE.has(action);
   },
-  TIER_LABEL:{owner:"Owner",admin:"管理員",op1:"操作者1-督導",op2:"操作者2-船舶",op3:"操作者3-其他部門"},
+  TIER_LABEL:{owner:"Owner",manager:"Manager",admin:"管理員",op1:"操作者1-督導",op2:"操作者2-船舶",op3:"操作者3-其他部門"},
   renderBadge(){
     const box=document.querySelector(".role-box");if(!box)return;
     /* 無匯出權限時，在 <body> 標記，讓匯出類按鈕在視覺上就看得出不可用。
        真正的把關在 dl()／hasXLSX()／hasExcelJS()／doPrint()——這裡只是
        不要引誘使用者去點一個一定會被拒絕的按鈕。 */
     try{if(typeof Perms!=="undefined")Perms.refreshUI();}catch(e){}
-    const label=this.TIER_LABEL[this.tier()]||this.tier();
+    const label=this.isManager()?"Manager":(this.TIER_LABEL[this.tier()]||this.tier());
     // 身份卡片現在放在頂欄，空間有限，一律排成一列（角色標籤／姓名／部門／切換身份），
     // 不要再像以前放在深色側邊欄時分兩行顯示。
     box.innerHTML=`<div class="role-line" style="margin-bottom:0;white-space:nowrap">
@@ -38586,7 +38659,7 @@ const GateIdentity={
     if(dept===this.GUEST_DEPT){const w=$("#gi-passwrap");if(w)w.style.display="none";return;}
     const name=$("#gi-name")?$("#gi-name").value:"";
     const rec=r.find(x=>x.dept===dept&&x.name===name);
-    const needPass=!!(rec&&(rec.tier==="owner"||rec.tier==="admin"));
+    const needPass=!!(rec&&(rec.tier==="owner"||rec.tier==="admin"||rec.tier==="manager"));
     const w=$("#gi-passwrap");if(w)w.style.display=needPass?"":"none";
     const pw=$("#gi-personwrap");
     if(pw)pw.style.display=(rec&&rec.tier==="op2")?"":"none";
@@ -38614,8 +38687,21 @@ const GateIdentity={
         const ok=await this.verifyAdminPass(name,pass);
         if(!ok){if(errEl)errEl.textContent="❌ 密碼錯誤，或尚未於雲端 editors 資料表建立此帳號";return;}
       }
+      if(rec.tier==="manager"){
+        const pass=($("#gi-pass")?$("#gi-pass").value:"").trim();
+        if(!pass){if(errEl)errEl.textContent="⚠ 請輸入密碼";return;}
+        const ok=await this.verifyManagerPass(pass);
+        if(ok===null){if(errEl)errEl.textContent="⚠ Manager 密碼尚未設定，請 Owner 到「資料管理 → 人員名單」按「🔑 設定 Manager 密碼」";return;}
+        if(!ok){if(errEl)errEl.textContent="❌ 密碼錯誤";return;}
+      }
     }
     let personName=rec.name;
+    if(rec.tier==="manager"){ // Manager：權限同 Owner（tier 存 owner），另標記 mgr，內部檢查只看 FLOW
+      Role.set({name:rec.name,dept:rec.dept,tier:"owner",mgr:true,personName:rec.name});
+      GateSite.unlock();
+      if(typeof Audit!=="undefined")Audit.log("登入","系統",`${rec.name}（${rec.dept}／Manager）登入系統`);
+      return;
+    }
     if(rec.tier==="op2"){
       personName=($("#gi-person-name")?$("#gi-person-name").value:"").trim();
       if(!personName){if(errEl)errEl.textContent="⚠ 請輸入您的姓名（例：船長姓名），用於記錄實際查核／填寫人";return;}
@@ -38630,14 +38716,39 @@ const GateIdentity={
       const rows=await Cloud.api("editors?select=name&name=eq."+encodeURIComponent(name)+"&pass=eq."+encodeURIComponent(pass)+"&limit=1");
       return !!(rows&&rows.length);
     }catch(e){return false;}
+  },
+  /* Manager 密碼：Owner 在人員名單設定，存 app_db manager_pass（只存 SHA-256 雜湊）。回傳 true／false；尚未設定回傳 null */
+  async sha(s){try{const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(s)));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");}catch(e){return "plain:"+s;}},
+  async verifyManagerPass(pass){
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return false;
+    try{const rows=await Cloud.api("app_db?select=payload&k=eq.manager_pass"),p=rows&&rows[0]&&rows[0].payload;
+      if(!p||!p.hash)return null;
+      return p.hash===await this.sha(pass);
+    }catch(e){return false;}
   }
 };
 /* ════════ 👥 人員名單管理（僅 Owner／管理員）════════ */
 const RosterMgr={
   TEMPLATE_HDR:["部門名稱","姓名","系統管理階級"],
-  TIER_LABEL:{owner:"Owner",admin:"管理員",op1:"操作者1-督導",op2:"操作者2-船舶",op3:"操作者3-其他部門"},
+  TIER_LABEL:{owner:"Owner",manager:"Manager",admin:"管理員",op1:"操作者1-督導",op2:"操作者2-船舶",op3:"操作者3-其他部門"},
   open:false,
   refreshCount(){const el=$("#dm-rostern");if(el)el.textContent=GateIdentity.loadRoster().length;},
+  /* Manager 密碼：只有真正的 Owner 能設定（Manager 自己不能改） */
+  async setManagerPass(){
+    if(!Role.isOwner()||Role.isManager()){toast("⚠ 只有 Owner 能設定 Manager 密碼",true);return;}
+    if(typeof Cloud==="undefined"||!Cloud.enabled()){toast("⚠ 需要連上雲端才能設定",true);return;}
+    const p1=prompt("請輸入新的 Manager 密碼（至少 6 個字元）：");if(p1==null)return;
+    if(p1.trim().length<6){alert("密碼至少 6 個字元");return;}
+    const p2=prompt("請再輸入一次確認：");if(p2==null)return;
+    if(p1.trim()!==p2.trim()){alert("兩次輸入的密碼不一樣，請重新設定");return;}
+    const hash=await GateIdentity.sha(p1.trim()),now=Date.now();
+    try{
+      await Cloud.api("app_db?on_conflict=k",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify([{k:"manager_pass",payload:{hash,updatedBy:Role.name(),updatedAt:now},updated:now}])});
+      if(typeof Audit!=="undefined")Audit.log("修改","Manager 密碼","Owner 重新設定 Manager 密碼");
+      const has=GateIdentity.loadRoster().some(x=>x.tier==="manager");
+      alert("✓ 已設定 Manager 密碼。"+(has?"":"\n\n提醒：人員名單裡還沒有「Manager」階級的人員。請在人員名單新增一位（例：部門「海技組」、姓名「Manager」、階級選 Manager），登入時選這位並輸入剛才的密碼。"));
+    }catch(e){toast("⚠ 設定失敗："+e.message,true);}
+  },
   toggle(){
     if(!Role.isAdmin()){toast("⚠ 僅限 Owner／管理員操作");return;}
     this.open=!this.open;
@@ -38720,7 +38831,7 @@ const RosterMgr={
           const wb=XLSX.read(r.result,{type:"binary"});
           const ws=wb.Sheets[wb.SheetNames[0]];
           const rows=XLSX.utils.sheet_to_json(ws,{defval:""});
-          const tierMap={"Owner":"owner","owner":"owner","管理員":"admin","操作者1-督導":"op1","操作者2-船舶":"op2","操作者3-其他部門":"op3"};
+          const tierMap={"Owner":"owner","owner":"owner","Manager":"manager","manager":"manager","管理員":"admin","操作者1-督導":"op1","操作者2-船舶":"op2","操作者3-其他部門":"op3"};
           const list=rows.map(row=>{
             const dept=String(row["部門名稱"]||row["部門"]||"").trim();
             const name=String(row["姓名"]||row["名字"]||"").trim();
@@ -39111,8 +39222,8 @@ create policy "sync_ships anon all" on public.sync_ships for all to anon using (
 -- 2026-10-30 起 Supabase 新建的表不再自動開放 API 存取，需明確授權（網頁用 anon key 讀寫，所以 anon 要給完整權限）
 grant select, insert, update, delete on public.sync_insp, public.sync_defs, public.sync_air, public.sync_inspctrl, public.sync_annualplan, public.sync_auditdash, public.sync_sirepos, public.sync_defsprojects, public.sync_ships to anon, authenticated, service_role;`,
   TABLES:{
-    inspections:{table:"sync_insp",arr:()=>App.insp,setArr:(a)=>{App.insp=a;}},
-    deficiencies:{table:"sync_defs",arr:()=>App.defs,setArr:(a)=>{App.defs=a;}},
+    inspections:{table:"sync_insp",arr:()=>MgrView.inspAll(),setArr:(a)=>{App.insp=MgrView.applyInsp(a);}},
+    deficiencies:{table:"sync_defs",arr:()=>MgrView.defsAll(),setArr:(a)=>{App.defs=MgrView.split(a);MgrView.applyInsp(App.insp);}},
     // 2026-11-06 已刪除的填單（AirDel）一律濾掉：從雲端拉下來也不放回本機，下次同步會把雲端那筆刪掉
     airReviews:{table:"sync_air",arr:()=>App.air,setArr:(a)=>{const f=(typeof AirDel!=="undefined")?AirDel.filter(a):a;App.air=f;
       if(f.length!==(a||[]).length)setTimeout(()=>{try{AirDel.enforce();}catch(e){}},2000);}},
@@ -39911,7 +40022,7 @@ const Cloud={
       }
       if(!n)return;
       try{
-        LZSet(App.LSK.i,JSON.stringify(App.insp));LZSet(App.LSK.d,JSON.stringify(App.defs));
+        LZSet(App.LSK.i,JSON.stringify(MgrView.inspAll()));LZSet(App.LSK.d,JSON.stringify(MgrView.defsAll()));
         LZSet(App.LSK.sp,JSON.stringify(App.sirePos));LZSet(App.LSK.air,JSON.stringify(App.air));
         LZSet(App.LSK.ic,JSON.stringify(App.inspCtrl));LZSet(App.LSK.ap,JSON.stringify(App.annualPlan));
         LZSet(App.LSK.ad,JSON.stringify(App.auditDash));LZSet(App.LSK.dp,JSON.stringify(App.defsProjects));
@@ -39999,7 +40110,7 @@ const Cloud={
       // 3) 存本機、重繪
       // 只把「這次真的有變動」的資料表壓縮存回本機：原本每次都把 8 張表全部重新壓縮（缺失 4MB、填單 10MB），
       // 沒有變動也要花好幾秒，是「載入最新資料」要等一陣子的主因（2026-10-27）
-      const LS_OF={inspections:[App.LSK.i,()=>App.insp],deficiencies:[App.LSK.d,()=>App.defs],sirePositive:[App.LSK.sp,()=>App.sirePos],
+      const LS_OF={inspections:[App.LSK.i,()=>MgrView.inspAll()],deficiencies:[App.LSK.d,()=>MgrView.defsAll()],sirePositive:[App.LSK.sp,()=>App.sirePos],
         airReviews:[App.LSK.air,()=>App.air],inspctrl:[App.LSK.ic,()=>App.inspCtrl],annualPlan:[App.LSK.ap,()=>App.annualPlan],
         auditDash:[App.LSK.ad,()=>App.auditDash],defsProjects:[App.LSK.dp,()=>App.defsProjects]};
       changedKeys.forEach(k=>{const x=LS_OF[k];if(x){try{LZSet(x[0],JSON.stringify(x[1]()));}catch(e){}}});
@@ -40065,7 +40176,7 @@ const Cloud={
         const leg=await this.api(`app_db?select=k,updated,by,payload&k=in.(${needLegacy.join(",")})`)||[];
         leg.forEach(r=>{map[r.k]=r;rows.push(r);});
         if(map.inspections&&needLegacy.includes("inspections"))App.insp=map.inspections.payload||[];
-        if(map.deficiencies&&needLegacy.includes("deficiencies"))App.defs=map.deficiencies.payload||[];
+        if(map.deficiencies&&needLegacy.includes("deficiencies")){App.defs=map.deficiencies.payload||[];MgrView.hidden=[];MgrView.resplit();}
         if(map.sirePositive&&needLegacy.includes("sirePositive"))App.sirePos=map.sirePositive.payload||[];
         if(map.airReviews&&needLegacy.includes("airReviews"))App.air=map.airReviews.payload||[];
       }
@@ -40125,8 +40236,8 @@ const Cloud={
       rows.forEach(r=>this.markSeen(r.k,r.updated));
       this._conflictKeys.clear();this._failedKeys.clear();this._autoKeys.clear();
       this.hideSyncFail();
-      LZSet(App.LSK.i,JSON.stringify(App.insp));
-      LZSet(App.LSK.d,JSON.stringify(App.defs));
+      LZSet(App.LSK.i,JSON.stringify(MgrView.inspAll()));
+      LZSet(App.LSK.d,JSON.stringify(MgrView.defsAll()));
       LZSet(App.LSK.sp,JSON.stringify(App.sirePos));
       LZSet(App.LSK.air,JSON.stringify(App.air));
       LZSet(App.LSK.ic,JSON.stringify(App.inspCtrl));

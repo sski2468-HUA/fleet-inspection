@@ -164,8 +164,22 @@ tr.done td{background:#eaf5ee}
 .scopetx.pick{font-weight:600;color:var(--ink-2)}
 /* 數據彙總 */
 .stgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+/* 2026-11-11 數據彙總：統計改成一排精簡標籤（可點），不再用大方框 */
+.stsum{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 12px;padding:8px 10px;background:#f7f9fb;border:1px solid var(--line);border-radius:10px}
+.sc{display:inline-flex;align-items:baseline;gap:6px;border:1px solid var(--line);border-radius:8px;padding:5px 11px;background:#fff;font:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer;line-height:1.3;white-space:nowrap}
+.sc b{font-size:18px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.sc small{font-size:11px;color:var(--ink-3)}
+.sc:hover{border-color:var(--navy)}
+.sc.on{border-color:var(--navy);background:#e9f1f8;box-shadow:inset 0 0 0 1px var(--navy)}
+.sc.red b{color:var(--bad)}.sc.green b{color:var(--ok)}.sc.warn b{color:#a05a10}
+.sc.static{cursor:default}.sc.static:hover{border-color:var(--line)}
+.sc[disabled]{opacity:.5;cursor:default}
+.scbar{display:inline-block;width:54px;height:6px;border-radius:3px;background:#e3e8ec;overflow:hidden;align-self:center}
+.scbar i{display:block;height:100%;background:var(--ok)}
+.scsep{width:1px;align-self:stretch;background:var(--line);margin:0 2px}
+.scgl{font-size:12px;font-weight:700;color:var(--ink-2)}
 .stbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}
-.stbar select,.stbar input{width:auto;padding:5px 8px;font-size:13px}
+.stbar select,.stbar input{width:auto;max-width:230px;padding:5px 8px;font-size:13px}
 .sttab{display:flex;gap:6px;margin:6px 0 8px}
 .sttab button{border:1px solid var(--line);background:#fff;border-radius:16px;padding:4px 14px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink-2)}
 .sttab button.on.open{background:#fbe9e5;border-color:var(--bad);color:var(--bad)}
@@ -221,12 +235,16 @@ tr.done td{background:#eaf5ee}
       <div class="toolbar" style="margin-bottom:6px"><b style="color:var(--navy);font-size:14px">📈 數據彙總：需處理項目追蹤</b><span class="hint">依上方篩選的活動計算；船上回答「有，需處理／未完成」的每一項</span><span style="flex:1"></span>
         <button class="btn sm" onclick="Stat.exportExcel()">⬇ 匯出 Excel</button>
         <button class="btn sm" onclick="Stat.exportPdf()" title="依目前篩選產出有公司標頭的報表；列印視窗選「另存為 PDF」">🖨 匯出 PDF</button></div>
-      <div class="stgrid" id="statKpis"></div>
+      <div class="stsum" id="statKpis"></div>
       <div class="stbar">
         <span class="hint" style="font-weight:700">篩選</span>
+        <select id="stCamp" onchange="Stat.render()" title="只看某一個自查主題"></select>
         <select id="stShip" onchange="Stat.render()"></select>
         <select id="stTrack" onchange="Stat.render()"><option value="">全部追蹤方式</option><option>FLOW</option><option>內控</option><option>物料配件</option><option>其他</option><option value="__none">未選追蹤方式</option><option value="__flowmiss">FLOW 未填單號</option></select>
-        <input type="text" id="stKw" placeholder="主題／內容關鍵字…" oninput="Stat.render()" style="width:180px">
+        <select id="stDue" onchange="Stat.render()" title="依追蹤期限篩選（只看未結案）"><option value="">全部期限</option><option value="overdue">已逾期（未結案）</option><option value="soon">30 天內到期（未結案）</option><option value="nodue">未設追蹤期限</option></select>
+        <input type="text" id="stKw" placeholder="主題／內容／單號關鍵字…" oninput="Stat.render()" style="width:200px">
+        <button class="btn sm" type="button" onclick="Stat.clear()">✕ 清除篩選</button>
+        <span class="hint" id="stFltN"></span>
       </div>
       <div class="sttab"><button type="button" class="open on" data-s="open" onclick="Stat.setSide('open')">未結案 <span id="stOpenN"></span></button><button type="button" class="closed" data-s="closed" onclick="Stat.setSide('closed')">已結案 <span id="stClosedN"></span></button><button type="button" data-s="all" onclick="Stat.setSide('all')">全部 <span id="stAllN"></span></button></div>
       <div style="overflow-x:auto" id="statList"></div>
@@ -1094,9 +1112,16 @@ const Stat={
     this.setSide(side);this._go=g;this.render();
     const l=document.getElementById("statList");if(l)l.scrollIntoView({behavior:"smooth",block:"start"});
   },
+  clear(){["stCamp","stShip","stTrack","stDue","stKw"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});this._go=null;this.setSide("open");},
   filtered(all){
     const sh=document.getElementById("stShip").value,tk=document.getElementById("stTrack").value,kw=(document.getElementById("stKw").value||"").trim().toLowerCase();
+    const cp=(document.getElementById("stCamp")||{}).value||"",du=(document.getElementById("stDue")||{}).value||"";
+    const today=new Date().toISOString().slice(0,10),soon=new Date(Date.now()+30*864e5).toISOString().slice(0,10);
     return all.filter(x=>{
+      if(cp&&String(x.c.id)!==cp)return false;
+      if(du==="overdue"&&!(!x.closed&&x.it.trackDue&&x.it.trackDue<today))return false;
+      if(du==="soon"&&!(!x.closed&&x.it.trackDue&&x.it.trackDue>=today&&x.it.trackDue<=soon))return false;
+      if(du==="nodue"&&x.it.trackDue)return false;
       if(sh&&x.ship!==sh)return false;
       if(tk==="__none"&&x.track.length)return false;
       if(tk==="__flowmiss"&&!(x.track.includes("FLOW")&&!x.it.flowNo))return false;
@@ -1110,23 +1135,30 @@ const Stat={
     const sel=document.getElementById("stShip"),cur=sel.value;
     const ships=[...new Set(all.map(x=>x.ship))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
     sel.innerHTML=`<option value="">全部船舶</option>`+ships.map(s=>`<option value="${esc(s)}" ${s===cur?"selected":""}>${esc(shipLabel(s))}</option>`).join("");
+    {const cs=document.getElementById("stCamp"),cv=cs.value,camps=[];const seen=new Set();all.forEach(x=>{if(!seen.has(String(x.c.id))){seen.add(String(x.c.id));camps.push(x.c);}});
+      cs.innerHTML=`<option value="">全部主題（${camps.length}）</option>`+camps.map(c=>`<option value="${esc(String(c.id))}" ${String(c.id)===cv?"selected":""}>${esc(c.title||("活動 #"+c.id))}</option>`).join("");}
     const open=f.filter(x=>!x.closed),closed=f.filter(x=>x.closed);
     const cnt=t=>open.filter(x=>x.track.includes(t)).length;
     const none=open.filter(x=>!x.track.length).length;
     const flowNoMissing=f.filter(x=>x.track.includes("FLOW")&&!x.it.flowNo).length;
     /* 2026-11-05 卡片可點：有清單可看（數字>0）才可點，點了切換下方清單／篩選；結案率沒有對應清單，不可點 */
     const tkNow=document.getElementById("stTrack").value;
-    const k=(v,l,st,go,n)=>{const can=go&&n>0;return `<div class="kpi${can?" kgo":""}${can&&this._go===go?" kon":""}" ${can?`role="button" tabindex="0" onclick="Stat.go('${go}')" onkeydown="if(event.key==='Enter')Stat.go('${go}')" title="點選列出清單"`:""}><div class="v" style="${st||""}">${v}</div><div class="l">${l}</div>${can?`<div class="kgo-t">查看清單 ›</div>`:""}</div>`;};
-    /* 追蹤方式卡：每種方式一行「名稱 … 數字 ›」，整行可點（0 的不能點），不再擠成 4／4／10 */
-    const tkLink=t=>{const n=cnt(t);return n?`<button type="button" class="ktk${tkNow===t&&this.side==="open"?" on":""}" onclick="Stat.go('t:${t}')" title="列出 ${t} 追蹤中的未結案項目"><span>${t}</span><b>${n}</b><i>›</i></button>`:`<div class="ktk off"><span>${t}</span><b>0</b><i></i></div>`;};
+    /* 2026-11-11 統計改成一排精簡標籤：數字＋說明同一行，點了就篩下方清單（0 的不能點） */
+    const chip=(v,l,cls,go,n,tip)=>{const can=go&&n>0;return `<button type="button" class="sc ${cls||""}${can&&this._go===go?" on":""}" ${can?`onclick="Stat.go('${go}')"`:"disabled"} title="${esc(tip||"點選列出清單")}"><b>${v}</b>${l}</button>`;};
+    const rate=f.length?Math.round(closed.length/f.length*100):null;
+    const tkChip=t=>{const n=cnt(t);return `<button type="button" class="sc${tkNow===t&&this.side==="open"?" on":""}" ${n?`onclick="Stat.go('t:${t}')"`:"disabled"} title="列出 ${t} 追蹤中的未結案項目"><b>${n}</b>${t}</button>`;};
     document.getElementById("statKpis").innerHTML=
-      k(f.length,`需處理項目（${new Set(f.map(x=>x.ship)).size} 艘船、${new Set(f.map(x=>x.c.id)).size} 個主題）`,"","all",f.length)+
-      k(open.length,`未結案（${new Set(open.map(x=>x.ship)).size} 艘船）`,open.length?"color:var(--bad)":"","open",open.length)+
-      k(closed.length,"已結案","color:var(--ok)","closed",closed.length)+
-      k(f.length?Math.round(closed.length/f.length*100)+"%":"—","結案率","color:var(--ok)")+
-      `<div class="kpi ktkbox"><div class="l" style="margin-bottom:4px">未結案的追蹤方式</div>${tkLink("FLOW")}${tkLink("內控")}${tkLink("物料配件")}${cnt("其他")?tkLink("其他"):""}</div>`+
-      k(none,"未結案但未選追蹤方式",none?"color:#a05a10":"","none",none)+
-      (flowNoMissing?k(flowNoMissing,"選了 FLOW 但還沒填單號","color:#a05a10","flowmiss",flowNoMissing):"");
+      chip(f.length,`需處理 <small>${new Set(f.map(x=>x.ship)).size} 艘・${new Set(f.map(x=>x.c.id)).size} 主題</small>`,"","all",f.length)+
+      chip(open.length,`未結案 <small>${new Set(open.map(x=>x.ship)).size} 艘</small>`,open.length?"red":"","open",open.length)+
+      chip(closed.length,"已結案","green","closed",closed.length)+
+      `<span class="sc static green" title="已結案／需處理"><b>${rate==null?"—":rate+"%"}</b>結案率<span class="scbar"><i style="width:${rate||0}%"></i></span></span>`+
+      `<span class="scsep"></span><span class="scgl">未結案追蹤方式</span>`+
+      tkChip("FLOW")+tkChip("內控")+tkChip("物料配件")+(cnt("其他")?tkChip("其他"):"")+
+      ((none||flowNoMissing)?`<span class="scsep"></span><span class="scgl" style="color:#a05a10">⚠ 待補</span>`:"")+
+      (none?chip(none,"未選追蹤方式","warn","none",none,"未結案但還沒選追蹤方式"):"")+
+      (flowNoMissing?chip(flowNoMissing,"FLOW 未填單號","warn","flowmiss",flowNoMissing,"選了 FLOW 但還沒填 FLOW 單號"):"");
+    {const n=["stCamp","stShip","stTrack","stDue"].filter(id=>(document.getElementById(id)||{}).value).length+((document.getElementById("stKw").value||"").trim()?1:0);
+      document.getElementById("stFltN").textContent=n?`已套用 ${n} 個篩選`:"";}
     document.getElementById("stOpenN").textContent=`(${open.length})`;
     document.getElementById("stClosedN").textContent=`(${closed.length})`;
     {const a=document.getElementById("stAllN");if(a)a.textContent=`(${f.length})`;}
@@ -1157,7 +1189,9 @@ const Stat={
     const overdue=open.filter(x=>x.it.trackDue&&x.it.trackDue<today).length;
     const rate=all.length?Math.round(closed.length/all.length*100):0;
     const sh=document.getElementById("stShip").value,tk=document.getElementById("stTrack").value,kw=(document.getElementById("stKw").value||"").trim();
-    const fdesc=[filterDesc(),sh?"船舶："+shipLabel(sh):"",tk?"追蹤方式："+(tk==="__none"?"未選":tk):"",kw?"關鍵字："+kw:""].filter(Boolean).join("　");
+    const cpEl=document.getElementById("stCamp"),duEl=document.getElementById("stDue");
+    const cpTxt=cpEl&&cpEl.value?cpEl.options[cpEl.selectedIndex].text:"",duTxt=duEl&&duEl.value?duEl.options[duEl.selectedIndex].text:"";
+    const fdesc=[filterDesc(),cpTxt?"主題："+cpTxt:"",sh?"船舶："+shipLabel(sh):"",tk?"追蹤方式："+(tk==="__none"?"未選":tk==="__flowmiss"?"FLOW 未填單號":tk):"",duTxt?"期限："+duTxt:"",kw?"關鍵字："+kw:""].filter(Boolean).join("　");
     const trk=x=>x.track.length?x.track.map(t=>`<span class="tg">${e(t)}${t==="FLOW"?(x.it.flowNo?"："+e(x.it.flowNo):'<i class="warn">（未填單號）</i>'):""}${t==="其他"&&x.it.trackOther?"："+e(x.it.trackOther):""}</span>`).join(" "):'<span class="tg none">未選</span>';
     const qx=x=>`<b>${e(x.it.topic||x.it.code||("#"+(x.i+1)))}</b>${(x.it.key||x.it.detail)?`<div class="dt">${e(x.it.key||x.it.detail)}</div>`:""}`;
     const shipC=x=>`<b>${e(x.ship)}</b>${shipLabel(x.ship)!==x.ship?`<div class="sub">${e(shipLabel(x.ship))}</div>`:""}${(x.r.checker_name||x.it.checkedBy)?`<div class="sub">填寫：${e(x.r.checker_name||x.it.checkedBy)}</div>`:""}`;
