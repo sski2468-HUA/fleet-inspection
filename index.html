@@ -3623,6 +3623,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       </div>
     </div>
 
+    <div class="modal-bg" id="riskToolModal">
+      <div class="modal" style="max-width:720px">
+        <div class="mh"><h3>🧰 APCIS 一鍵查詢工具（Chrome 書籤）</h3><button class="x" onclick="$('#riskToolModal').classList.remove('show')">✕</button></div>
+        <div class="mb" style="line-height:1.8">
+          <ol style="margin:0 0 12px 20px;padding:0">
+            <li><b>第一次使用：</b>把下面這顆藍色按鈕<b>用滑鼠拖到 Chrome 的書籤列</b>（看不到書籤列請按 Ctrl+Shift+B）。船舶清單有新增或改 IMO 時，再拖一次新的。</li>
+            <li>開啟 <a href="https://apcis.tmou.org/public/" target="_blank" rel="noopener">APCIS</a>，<b>自己回答驗證題</b>，進到看得到 SHIP SEARCH 的搜尋畫面。</li>
+            <li>在同一個分頁按書籤列上的「FPMC 船隊風險查詢」，右上角會出現進度框，自動逐艘查詢 <b id="riskToolN"></b> 艘（約 5～10 分鐘），<b>查詢期間不要操作該分頁</b>。</li>
+            <li>完成後按「複製結果」，回到這裡按「✎ 更新風險清單」→「📋 貼上更新」貼上 →「帶入」→「💾 儲存」。</li>
+          </ol>
+          <div style="text-align:center;margin:14px 0"><a id="riskToolLink" href="#" onclick="event.preventDefault();toast('請用滑鼠把這顆按鈕「拖」到 Chrome 書籤列，不是直接點')" style="display:inline-block;background:#1c3a5e;color:#fff;font-weight:700;border-radius:8px;padding:10px 22px;text-decoration:none;cursor:grab">⚓ FPMC 船隊風險查詢</a></div>
+          <div class="hint">讀取的是 APCIS 各船詳細頁最上方的「目前風險等級、檢查優先級、檢查窗口」。驗證題一定要由您本人回答，工具不會代答。APCIS 條款註明資料不得轉載到其他網站或用於商業目的，本清單僅供公司內部管理使用。</div>
+        </div>
+      </div>
+    </div>
     <div class="modal-bg" id="riskPasteModal">
       <div class="modal" style="max-width:760px">
         <div class="mh"><h3>📋 貼上更新船隊風險清單</h3><button class="x" onclick="$('#riskPasteModal').classList.remove('show')">✕</button></div>
@@ -12781,6 +12796,59 @@ const ShipRisk={
     this.render();
     toast(`已帶入 ${n} 艘船（尚未儲存），確認後按「💾 儲存」`);
   },
+  /* APCIS 一鍵查詢書籤：使用者自己在 APCIS 答完驗證題進站後，在同一個分頁按書籤，
+     逐艘查詢（每艘間隔約 1.5 秒），讀詳細頁最上方「目前風險等級／優先級／檢查窗口」，
+     產生可直接「📋 貼上更新」的文字。本函式只當成書籤原始碼（toString），不在主系統執行。 */
+  _bmSrc:async function(IM){
+    const sl=m=>new Promise(r=>setTimeout(r,m));
+    const T=()=>{const t=document.querySelector("#tabs");return (t||document.body).innerText;};
+    const un=async(f,t)=>{const s=Date.now();while(Date.now()-s<(t||40000)){if(f())return true;await sl(500);}return false;};
+    const bt=x=>[...document.querySelectorAll("button,input[type=button]")].find(b=>(b.textContent||b.value||"").trim()===x);
+    if(!document.querySelector("#ships-search-value")&&!bt("Start new search")){alert("請先在 APCIS 自己答完驗證題、進入搜尋畫面（看得到 SHIP SEARCH），再按這個書籤。");return;}
+    if(document.getElementById("fpmcRiskBox")){alert("查詢已經在進行中。");return;}
+    const box=document.createElement("div");box.id="fpmcRiskBox";
+    box.style.cssText="position:fixed;top:10px;right:10px;z-index:99999;background:#fff;color:#15262f;border:2px solid #1c3a5e;border-radius:8px;padding:12px;width:480px;font:13px/1.5 sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3)";
+    box.innerHTML="<b style='font-size:15px'>FPMC 船隊風險查詢</b><div id='fpmcSt' style='margin:4px 0'>準備中…查詢期間請不要操作這個分頁</div><textarea id='fpmcOut' style='width:100%;height:230px;font-size:12px'></textarea><div style='margin-top:6px;display:flex;gap:6px'><button id='fpmcCp'>複製結果</button><button id='fpmcX'>關閉</button></div>";
+    document.body.appendChild(box);
+    const st=m=>{box.querySelector("#fpmcSt").textContent=m;},out=box.querySelector("#fpmcOut");
+    let stop=false;box.querySelector("#fpmcX").onclick=()=>{stop=true;box.remove();};
+    box.querySelector("#fpmcCp").onclick=()=>{out.select();document.execCommand("copy");st("已複製，請回到主系統「船隊風險清單 → ✎ 更新風險清單 → 📋 貼上更新」貼上");};
+    const toF=async()=>{for(let k=0;k<4;k++){if(document.querySelector("#ships-search-value")&&T().includes("SHIP SEARCH"))return true;const n=bt("Start new search");if(n)n.click();await un(()=>document.querySelector("#ships-search-value")&&T().includes("SHIP SEARCH"),15000);await sl(1500);}return !!document.querySelector("#ships-search-value");};
+    const one=async imo=>{
+      if(!await toF())return null;await sl(800);
+      document.querySelector("#ships-search-value").value=imo;document.querySelectorAll("#ships-search-button")[0].click();
+      if(!await un(()=>T().includes("SHIPS SEARCH RESULTS")&&T().includes(imo)))return null;await sl(800);
+      const row=[...document.querySelectorAll("tr")].find(r=>r.innerText.includes(imo)&&!r.querySelector("tr"));if(!row)return null;
+      for(let k=0;k<2;k++){row.click();if(await un(()=>T().includes("Ship data"),15000))break;}
+      if(!T().includes("Ship data"))return null;await sl(400);
+      const t=T();return t.slice(0,t.indexOf("Ship data")).replace(/MEMORANDUM[^\n]*/,"").replace(/\s+/g," ").trim();
+    };
+    const now=new Date(),stamp=now.getFullYear()+"/"+(now.getMonth()+1)+"/"+now.getDate()+" "+String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
+    const line=(code,imo,h)=>{
+      const lv=/High Risk/i.test(h)?"高風險 HRS":/Standard Risk/i.test(h)?"標準風險 SRS":/Low Risk/i.test(h)?"低風險 LRS":"";
+      const pm=h.match(/No Priority|Priority I{1,2}\b/i);
+      const ds=[...h.matchAll(/(\d{2})\.(\d{2})\.(\d{4})/g)].map(x=>x[3]+"-"+x[2]+"-"+x[1]);
+      return lv?[code,"IMO "+imo,lv,pm?pm[0]:"",ds.length>1?ds[0]+" ～ "+ds[1]:"（無窗口）",stamp].join("  "):null;
+    };
+    const lines=[],fail=[];let n=0;
+    const run=async list=>{for(const [code,imo] of list){if(stop)return;st("查詢中 "+(++n)+" / "+IM.length+(fail.length?"，暫時失敗 "+fail.length+" 艘（最後會重試）":"")+"…請不要操作這個分頁");
+      let h=null;try{h=await one(imo);}catch(e){h=null;}const l=h&&line(code,imo,h);
+      if(l){lines.push(l);out.value="Tokyo MOU APCIS 船隊風險查詢（"+stamp+"）\n"+lines.join("\n");}else fail.push([code,imo]);await sl(1500);}};
+    await run(IM);
+    if(fail.length&&!stop){const again=fail.splice(0);n=0;st("重試 "+again.length+" 艘…");await run(again);}
+    if(stop)return;
+    st("完成："+lines.length+" / "+IM.length+" 艘"+(fail.length?"；查不到："+fail.map(x=>x[0]).join("、")+"（可稍後再按一次書籤補查）":"")+"。請按「複製結果」。");
+  },
+  bookmarklet(){
+    const im=this.ships().filter(s=>s.imo&&/^\d{7}$/.test(String(s.imo).trim())).map(s=>[s.code,String(s.imo).trim()]);
+    return "javascript:"+encodeURIComponent("("+this._bmSrc.toString()+")("+JSON.stringify(im)+");void 0");
+  },
+  openTool(){
+    const m=$("#riskToolModal");
+    $("#riskToolLink").href=this.bookmarklet();
+    $("#riskToolN").textContent=this.ships().filter(s=>s.imo).length;
+    m.classList.add("show");
+  },
   lvHtml(v){const L=this.LV[v];return L?`<span class="rk-lv ${L.c}">${L.c==="hrs"?"▲":L.c==="srs"?"◆":"●"} ${L.t}</span>`:`<span class="hint">未登錄</span>`;},
   render(){
     const box=$("#risk-body"),tools=$("#risk-tools");if(!box)return;
@@ -12788,7 +12856,7 @@ const ShipRisk={
     const list=this.ships().map(s=>({s,v:src[s.code]||{}})).sort((a,b)=>{const oa=(this.LV[a.v.tmou]||{o:9}).o,ob=(this.LV[b.v.tmou]||{o:9}).o;return oa-ob||String(a.s.code).localeCompare(String(b.s.code));});
     const cnt=k=>list.filter(x=>x.v.tmou===k).length,none=list.filter(x=>!this.LV[x.v.tmou]).length;
     tools.innerHTML=ed?`<button class="btn sm" onclick="ShipRisk.openPaste()">📋 貼上更新</button><button class="btn sm" onclick="ShipRisk.cancelEdit()">取消</button><button class="btn sm primary" onclick="ShipRisk.save()">💾 儲存</button>`
-      :`<a class="btn sm" href="https://apcis.tmou.org/public/" target="_blank" rel="noopener">🔗 開啟 APCIS 查詢</a><button class="btn sm" onclick="ShipRisk.print()">🖨 列印／存 PDF</button>${can?`<button class="btn sm primary" onclick="ShipRisk.startEdit()">✎ 更新風險清單</button>`:""}`;
+      :`<a class="btn sm" href="https://apcis.tmou.org/public/" target="_blank" rel="noopener">🔗 開啟 APCIS 查詢</a>${can?`<button class="btn sm" onclick="ShipRisk.openTool()">🧰 APCIS 一鍵查詢工具</button>`:""}<button class="btn sm" onclick="ShipRisk.print()">🖨 列印／存 PDF</button>${can?`<button class="btn sm primary" onclick="ShipRisk.startEdit()">✎ 更新風險清單</button>`:""}`;
     const meta=this.data.updatedAt?`最後更新：${new Date(this.data.updatedAt).toLocaleString("zh-TW",{hour12:false})}${this.data.updatedBy?"，"+esc(this.data.updatedBy):""}`:"尚未建立風險清單";
     const inp=(code,k,v,type,w)=>`<input type="${type||"text"}" ${k==="checked"?`id="rk-ck-${code}"`:""} value="${esc(v||"")}" style="width:${w||120}px;padding:3px 6px" oninput="ShipRisk.setF('${code}','${k}',this.value)">`;
     box.innerHTML=`
