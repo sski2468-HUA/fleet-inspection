@@ -1590,6 +1590,39 @@ table.ap-xl td.ap-selm{box-shadow:inset 2px 0 0 #1b6ec2,inset -2px 0 0 #1b6ec2}
 .ipk-cnt{font-size:13.5px;color:var(--ink-2)}
 .ipk-cnt.bad{color:#a4570c;font-weight:700}
 .ipk-act{margin-left:auto;display:flex;gap:8px}
+.ipk-j button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.ipk-j .sep{width:1px;height:18px;background:var(--line-2);margin:0 6px}
+.ipk-tw{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:8px;flex:none}
+.ipk-tbl{width:100%;min-width:760px;border-collapse:collapse;table-layout:fixed}
+.ipk-tbl th{position:sticky;top:0;z-index:1;background:#eef2f5;color:var(--ink-2);font-size:12.5px;font-weight:700;text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+.ipk-tbl td{padding:7px 10px;border-top:1px solid var(--line);vertical-align:top;font-size:13.5px;line-height:1.45}
+.ipk-r:hover td{background:#f6fafb}
+.ipk-r td.no{font-weight:700;color:var(--navy);white-space:nowrap}
+.ipk-clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-line;overflow-wrap:anywhere}
+.ipk-r.on .ipk-clamp{display:block}
+.ipk-full{white-space:pre-line;overflow-wrap:anywhere}
+/* 視窗較窄時：表格改成一筆一塊，No／CODE／分類／填寫／照片排第一行，缺失內容整段放下一行，不會被擠成一字一行 */
+@media(max-width:1200px){
+  .ipk-tbl{min-width:0}
+  .ipk-tbl colgroup,.ipk-tbl thead{display:none}
+  .ipk-tbl,.ipk-tbl tbody{display:block}
+  .ipk-r{display:flex;flex-wrap:wrap;align-items:flex-start;gap:2px 10px;border-top:1px solid var(--line);padding:8px 10px}
+  .ipk-r td{display:block;border:0;padding:0;background:transparent!important}
+  .ipk-r td.det{order:9;flex-basis:100%;font-size:14px;margin-top:4px}
+  .ipk-r td.cls{max-width:360px}
+  .ipk-r.on{background:#eaf4f5}
+  .ipk-r:hover{background:#f6fafb}
+  .ipk-xr.on{display:block}
+  .ipk-xr>td{display:block}
+}
+.ipk-sm{font-size:12px;color:var(--ink-3)}
+.ipk-mk{display:inline-block;font-size:12px;border-radius:4px;padding:0 5px;margin:0 3px 2px 0;border:1px solid var(--line);color:var(--ink-3)}
+.ipk-mk.ok{color:var(--ok);border-color:#bfe3cc;background:#e9f6ee;font-weight:700}
+.ipk-th img{width:34px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--line);margin:0 3px 3px 0;cursor:pointer;vertical-align:top}
+.ipk-xr{display:none}
+.ipk-xr.on{display:table-row}
+.ipk-xr>td{background:#fafcfd;padding:8px 16px 14px}
+.ipk-xr .ipk-g{margin-top:4px}
 @media(max-width:900px){.ipk-g{grid-template-columns:1fr}#inspPeekModal{padding:0}.ipk{height:100vh;border-radius:0}.ipk-act{margin-left:0;width:100%}.ipk-act .btn{flex:1}}
 .modal{background:#fff;border-radius:8px;max-width:880px;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .modal .mh{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
@@ -12565,32 +12598,39 @@ const InspPeek={
     });
     return m;
   },
-  fld(label,val){const v=String(val||"").trim();return v?`<div class="ipk-f"><h4>${label}</h4><p>${esc(v)}</p></div>`:"";},
-  tag(label,val){const v=String(val||"").trim();return v?`<div><span>${label}：</span><b>${esc(v.replace(/‖/g,"、"))}</b></div>`:"";},
-  photoRow(label,list){
-    if(!Array.isArray(list)||!list.length)return "";
-    return `<div>${label}<br>${list.map(p=>{const url=p&&(p.url||p.dataUrl);if(!url)return "";this.photos.push({url,label:`${label}：${p.name||""}`});return `<img src="${esc(url)}" alt="${esc(p.name||label)}" loading="lazy" onclick="InspPeek.photo(${this.photos.length-1})">`;}).join("")}</div>`;
-  },
   photo(i){const p=this.photos[i];if(p)Photobox.open(p.url,p.label);},
-  defCard(d,i){
-    const psc=pscArr(d.psc).map(c=>{const f=PSC_ACTION_CODES.find(x=>x[0]===c);return `<span class="ipk-c"><b>${esc(c)}</b> ${esc(f?f[1]:"")}</span>`;}).join("");
-    const cls=this.tag("問題別",d.ncProb)+this.tag("大類",d.ncMain)+this.tag("具體名稱",d.ncLeaf)+this.tag("三要素",d.ncFactor)+this.tag("根因",d.ncRoot)+this.tag("重要程度",d.ncImp)+this.tag("職級",d.rank)+this.tag("人員",d.person);
-    const same=(a,b)=>String(a||"").trim()===String(b||"").trim();
-    const reply=(label,rep,orig)=>same(rep,orig)?"":this.fld(label,rep);
-    const body=this.fld("實際情況",d.actual)+this.fld("Operator's Comments 操作人員說明",d.opComment)+this.fld("直接原因",d.immediateCause)+this.fld("Root Cause 根本原因",d.rootCause)+this.fld("Corrective Action 改善措施",d.corrective)+this.fld("Preventive Action 預防措施",d.preventive)
-      +reply("操作人員說明（對外回覆版）",d.opCommentReply,d.opComment)+reply("直接原因（對外回覆版）",d.immediateCauseReply,d.immediateCause)+reply("根本原因（對外回覆版）",d.rootCauseReply,d.rootCause)+reply("改善措施（對外回覆版）",d.correctiveReply,d.corrective)+reply("預防措施（對外回覆版）",d.preventiveReply,d.preventive);
-    const ph=this.photoRow("改善前",d.photosBefore)+this.photoRow("改善後",d.photosAfter);
-    return `<section class="ipk-d" id="ipk-i${i}"><div class="ipk-dh"><span class="ipk-no">No.${i+1}</span>${d.code?`<span class="ipk-c">CODE <b>${esc(d.code)}</b></span>`:""}${psc}${cls?"":`<span class="ipk-c warn">尚未分類</span>`}</div>
-      <div class="ipk-main">${esc(d.detail||"（未填寫缺失內容）")}</div>
-      ${cls?`<div class="ipk-cls">${cls}</div>`:""}
-      ${body?`<div class="ipk-g">${body}</div>`:`<div class="ipk-none">這筆尚未填寫原因與改善內容。</div>`}
-      ${ph?`<div class="ipk-ph">${ph}</div>`:""}</section>`;
+  /* 列表：一列一筆缺失，全文顯示；照片點縮圖放大（列本身不展開） */
+  defRow(d,i){
+    const has=v=>!!String(v||"").trim();
+    const mk=(label,v)=>`<span class="ipk-mk${v?" ok":""}">${v?"✓":"－"} ${label}</span>`;
+    const path=[d.ncProb,d.ncMain,d.ncLeaf].filter(has).map(v=>String(v).replace(/‖/g,"、")).join(" › ");
+    const thumbs=[...(d.photosBefore||[]),...(d.photosAfter||[])].map((p,k)=>{const url=p&&(p.url||p.dataUrl);if(!url)return "";const before=k<(d.photosBefore||[]).length;this.photos.push({url,label:`${before?"改善前":"改善後"}：${p.name||""}`});return `<img src="${esc(url)}" alt="${before?"改善前":"改善後"}" title="${before?"改善前":"改善後"}（點一下放大）" loading="lazy" onclick="InspPeek.photo(${this.photos.length-1})">`;}).join("");
+    const pscTxt=pscArr(d.psc).join(", ");
+    return `<tr class="ipk-r">
+        <td class="no">No.${i+1}</td>
+        <td>${d.code?`<b>${esc(d.code)}</b>`:`<span class="ipk-sm">—</span>`}${pscTxt?`<div class="ipk-sm" title="PSC Action Taken">AT ${esc(pscTxt)}</div>`:""}</td>
+        <td class="det"><div class="ipk-full">${esc(d.detail||"（未填寫缺失內容）")}</div></td>
+        <td class="cls">${path?`<div class="ipk-full">${esc(path)}</div>`:`<span class="ipk-c warn">尚未分類</span>`}</td>
+        <td class="mks" style="white-space:nowrap">${mk("原因",has(d.rootCause)||has(d.immediateCause))}${mk("改善",has(d.corrective))}${mk("預防",has(d.preventive))}</td>
+        <td class="ipk-th">${thumbs||`<span class="ipk-sm">—</span>`}</td></tr>`;
   },
-  posCard(d,i){
-    const who=this.tag("職級",d.rank)+this.tag("人員",d.person);
-    return `<section class="ipk-d" id="ipk-i${i}"><div class="ipk-dh"><span class="ipk-no">No.${i+1}</span>${d.item?`<span class="ipk-c">項目 <b>${esc(d.item)}</b></span>`:""}${d.code?`<span class="ipk-c">CODE <b>${esc(d.code)}</b></span>`:""}</div>
-      <div class="ipk-main">${esc(d.comment||"（未填寫評語）")}</div>
-      ${who?`<div class="ipk-cls">${who}</div>`:""}</section>`;
+  defTable(items){
+    return `<div class="ipk-tw"><table class="ipk-tbl"><colgroup><col style="width:72px"><col style="width:118px"><col><col style="width:210px"><col style="width:200px"><col style="width:160px"></colgroup>
+      <thead><tr><th>No</th><th>CODE</th><th>缺失內容</th><th>分類</th><th>原因／改善填寫</th><th>照片</th></tr></thead>
+      <tbody>${items.map((d,i)=>this.defRow(d,i)).join("")}</tbody></table></div>`;
+  },
+  posTable(items){
+    return `<div class="ipk-tw"><table class="ipk-tbl"><colgroup><col style="width:64px"><col style="width:140px"><col><col style="width:130px"><col style="width:130px"></colgroup>
+      <thead><tr><th>No</th><th>項目</th><th>評語</th><th>職級</th><th>人員</th></tr></thead>
+      <tbody>${items.map((d,i)=>`<tr><td style="font-weight:700;color:var(--navy)">No.${i+1}</td><td>${esc(d.item||d.code||"")}</td><td style="white-space:pre-line;overflow-wrap:anywhere">${esc(d.comment||"（未填寫評語）")}</td><td>${esc(d.rank||"")}</td><td>${esc(d.person||"")}</td></tr>`).join("")}</tbody></table></div>`;
+  },
+  renderBody(){
+    const items=this.items,isDefs=this.kind==="defs",body=$("#ipk-body");
+    this.photos=[];
+    $("#ipk-jump").style.display="none";
+    body.innerHTML=!items.length?`<div class="ipk-none">${isDefs?"缺失紀錄總表":"正面評價/優秀案例"}找不到這次檢查的資料。</div>`
+      :isDefs?this.defTable(items):this.posTable(items);
+    body.scrollTop=0;
   },
   open(kind,id,btn){
     const r=App.insp.find(x=>String(x.id)===String(id));if(!r)return;
@@ -12598,11 +12638,7 @@ const InspPeek={
     this.r=r;this.kind=kind;this.items=items;this.photos=[];this.last=btn||null;
     $("#ipk-title").textContent=`${shipFullLabel(r.ship)}　${r.itype||""}　${inspDateText(r)}`;
     $("#ipk-sub").textContent=[r.loc,r.inspector?`檢查員：${r.inspector}`:"",r.unit,`共 ${items.length} 筆${word}`].filter(Boolean).join("　｜　");
-    const jump=$("#ipk-jump");jump.style.display=items.length>1?"":"none";
-    jump.innerHTML="跳到："+items.map((_,i)=>`<button type="button" onclick="document.getElementById('ipk-i${i}').scrollIntoView({behavior:'smooth',block:'start'})">No.${i+1}</button>`).join("");
-    const body=$("#ipk-body");
-    body.innerHTML=items.length?items.map((d,i)=>isDefs?this.defCard(d,i):this.posCard(d,i)).join(""):`<div class="ipk-none">${isDefs?"缺失紀錄總表":"正面評價/優秀案例"}找不到這次檢查的資料。</div>`;
-    body.scrollTop=0;
+    this.renderBody();
     const n=+(isDefs?r.ndef:r.npos)||0,cnt=$("#ipk-count");
     cnt.className="ipk-cnt"+(n===items.length?"":" bad");
     cnt.textContent=n===items.length?`檢查紀錄 ${n} 筆，${word}紀錄 ${items.length} 筆，數量相符`:`⚠ 檢查紀錄寫 ${n} 筆，${word}紀錄實際找到 ${items.length} 筆，數量不符`;
