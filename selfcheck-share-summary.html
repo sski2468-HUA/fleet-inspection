@@ -174,6 +174,8 @@ tr.done td{background:#eaf5ee}
 .trk.none{background:#eef0f4;color:var(--ink-3);font-weight:600}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="excel-style.js"></script>
 </head>
 <body>
 
@@ -663,7 +665,7 @@ function exportPending(){
   const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[{wch:8},{wch:26},{wch:40},{wch:14},{wch:10},{wch:12},{wch:8},{wch:14},{wch:60}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"需提醒船舶");
   const d=new Date(),fn=`分享自查_需提醒船舶_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.xlsx`;
-  XLSX.writeFile(wb,fn);notify("✓ 已下載 "+fn,"ok2");
+  (typeof XlsxPretty!=="undefined"?XlsxPretty.writeFile(wb,fn):Promise.resolve(XLSX.writeFile(wb,fn))).then(()=>notify("✓ 已下載 "+fn,"ok2"));
 }
 /* 子標籤切換：需提醒的船舶／活動清單（記住上次停留的分頁） */
 function setSubTab(t){
@@ -1038,7 +1040,7 @@ function exportAllCampaigns(){
   XLSX.utils.book_append_sheet(wb,ws3,"需處理明細");
   const ws4=XLSX.utils.aoa_to_sheet([["篩選條件",filterDesc()],["匯出時間",new Date().toLocaleString("zh-TW",{hour12:false})],["主題數",list.length],["需處理項數",allIssues.length]]);
   ws4["!cols"]=[{wch:12},{wch:80}];XLSX.utils.book_append_sheet(wb,ws4,"篩選條件");
-  XLSX.writeFile(wb,`分享自查_篩選結果_${new Date().toISOString().slice(0,10)}.xlsx`);
+  typeof XlsxPretty!=="undefined"?XlsxPretty.writeFile(wb,`分享自查_篩選結果_${new Date().toISOString().slice(0,10)}.xlsx`):XLSX.writeFile(wb,`分享自查_篩選結果_${new Date().toISOString().slice(0,10)}.xlsx`);
   notify(`✓ 已下載 Excel（${list.length} 個主題、${allIssues.length} 項需處理）`,"ok2");
 }
 function exportFilteredPdf(){
@@ -1236,7 +1238,7 @@ const Stat={
     const byT=["FLOW","內控","物料配件"].map(t=>[t,open.filter(x=>x.track.includes(t)).length,closed.filter(x=>x.track.includes(t)).length]);
     const w3=XLSX.utils.aoa_to_sheet([["篩選條件",filterDesc()],[],["","未結案","已結案"],["合計",open.length,closed.length],...byT,["未選追蹤方式",open.filter(x=>!x.track.length).length,closed.filter(x=>!x.track.length).length]]);
     w3["!cols"]=[{wch:16},{wch:10},{wch:10}];XLSX.utils.book_append_sheet(wb,w3,"統計");
-    XLSX.writeFile(wb,`分享自查_數據彙總_${new Date().toISOString().slice(0,10)}.xlsx`);
+    typeof XlsxPretty!=="undefined"?XlsxPretty.writeFile(wb,`分享自查_數據彙總_${new Date().toISOString().slice(0,10)}.xlsx`):XLSX.writeFile(wb,`分享自查_數據彙總_${new Date().toISOString().slice(0,10)}.xlsx`);
     notify(`✓ 已下載（未結案 ${open.length}、已結案 ${closed.length}）`,"ok2");
   }
 };
@@ -1258,9 +1260,37 @@ function exportExcel(){
   // 2026-11-04 細目回覆：每艘船每一條「請確認」細目有沒有勾、補充說明（例：鋼瓶支數），方便督導彙整
   const ckRows=[];
   (responses||[]).forEach(r=>(r.items||[]).forEach((it,i)=>(it.checks||[]).forEach((c,j)=>ckRows.push({"船舶代碼":r.ship,"船名":shipLabel(r.ship),"題號":i+1,"題目":it.topic||it.code||"","細目":c,"回答方式":CK_LABEL[ckTypeS(((curCampaign.items||[])[i])||it,j).type],"已勾／已答":(it.checkDone||[])[j]?"✓":"","回答":ckAnsText(((curCampaign.items||[])[i])||it,j,(it.checkVal||[])[j]),"補充說明":(it.checkNote||[])[j]||"","本題回答":stLabelIt(it).replace(/^[^一-龥（]+/,"")}))));
-  if(ckRows.length){const ws3=XLSX.utils.json_to_sheet(ckRows);ws3["!cols"]=[8,22,6,26,40,14,8,18,36,16].map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws3,"細目回覆");}
-  XLSX.writeFile(wb,`分享自查彙整_${(curCampaign.title||curCampaign.id).replace(/[\\/:*?"<>|]/g,"_")}_${new Date().toISOString().slice(0,10)}.xlsx`);
-  notify(`✓ 已下載 Excel（${status.length} 艘船、${issues.length} 項需處理）`,"ok2");
+  // 2026-11-11 細目回覆彙整：跟畫面上「📋 細目回覆彙整」同一套統計，每條細目一列，後面每艘船一欄（勾選＋補充說明），方便橫向比較
+  const ck=ckSummarySheet();
+  if(ck){const wsS=XLSX.utils.aoa_to_sheet(ck.aoa);wsS["!cols"]=ck.cols.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,wsS,"細目回覆彙整");}
+  if(ckRows.length){const ws3=XLSX.utils.json_to_sheet(ckRows);ws3["!cols"]=[8,22,6,26,40,14,8,18,36,16].map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws3,"細目回覆（逐船明細）");}
+  const fn=`分享自查彙整_${(curCampaign.title||curCampaign.id).replace(/[\\/:*?"<>|]/g,"_")}_${new Date().toISOString().slice(0,10)}.xlsx`;
+  const done=()=>notify(`✓ 已下載 Excel（${status.length} 艘船、${issues.length} 項需處理${ck?"、細目回覆彙整":""}）`,"ok2");
+  if(typeof XlsxPretty!=="undefined")XlsxPretty.writeFile(wb,fn,{title:`分享自查彙整　${curCampaign.title||""}`}).then(done);else{XLSX.writeFile(wb,fn);done();}
+}
+/* 細目回覆彙整（Excel 用）：題號／題目／細目／回答方式／作答統計＋每艘船一欄 */
+function ckSummarySheet(){
+  const items=curCampaign.items||[];
+  if(!items.some(it=>(it.checks||[]).length))return null;
+  const resp=(responses||[]).filter(r=>targetShips().some(s=>s.code===r.ship)).sort((a,b)=>String(a.ship).localeCompare(String(b.ship),undefined,{numeric:true}));
+  const head=["題號","題目","細目","回答方式","已勾／已答","統計"].concat(resp.map(r=>shipLabel(r.ship)));
+  const aoa=[head];
+  items.forEach((it,i)=>(it.checks||[]).forEach((c,j)=>{
+    const ty=ckTypeS(it,j);let n=0,sum="";
+    const cell=r=>{const ri=(r.items||[])[i]||{},v=(ri.checkVal||[])[j],note=String((ri.checkNote||[])[j]||"").trim();
+      if(ty.type==="tick"){const t=!!(ri.checkDone||[])[j];if(t)n++;return (t?"☑":(note?"☐":""))+(note?" "+note:"");}
+      if(!ckHas(v))return note;n++;return ckAnsText(it,j,v)+(note?"｜"+note:"");};
+    const cells=resp.map(cell);
+    if(ty.type==="yn"||ty.type==="ynna"){const cnt={};resp.forEach(r=>{const v=(((r.items||[])[i]||{}).checkVal||[])[j];if(ckHas(v)){const k=v==="本輪無此情形"?"本輪不適用":v;cnt[k]=(cnt[k]||0)+1;}});sum=(ty.type==="yn"?["是","否"]:["是","否","本輪不適用"]).map(o=>`${o} ${cnt[o]||0}`).join("、");}
+    else if(ty.type==="num"){const vals=resp.map(r=>(((r.items||[])[i]||{}).checkVal||[])[j]).filter(ckHas);
+      if((ty.parts||[]).length)sum=ty.parts.map((p,k)=>{const ns=vals.map(v=>parseFloat(Array.isArray(v)?v[k]:NaN)).filter(x=>!isNaN(x));return `${p} 合計 ${+ns.reduce((a,b)=>a+b,0).toFixed(2)}${ty.unit||""}`;}).join("、");
+      else{const ns=vals.map(v=>parseFloat(v)).filter(x=>!isNaN(x));if(ns.length)sum=`合計 ${+ns.reduce((a,b)=>a+b,0).toFixed(2)}${ty.unit||""}、平均 ${+(ns.reduce((a,b)=>a+b,0)/ns.length).toFixed(2)}、最少 ${Math.min(...ns)}、最多 ${Math.max(...ns)}`;}}
+    else if(ty.type==="date"){const ds=resp.map(r=>(((r.items||[])[i]||{}).checkVal||[])[j]).filter(ckHas).map(String).sort();if(ds.length)sum=`最早 ${ds[0]}、最晚 ${ds[ds.length-1]}`;}
+    const notes=cells.filter(x=>x&&x.replace(/^[☑☐]\s*/,"")).length;
+    if(ty.type==="tick"&&notes)sum=`${notes} 艘有補充說明`;
+    aoa.push([j===0?i+1:"",j===0?(it.topic||it.code||""):"",c,(CK_LABEL[ty.type]||"")+(ty.unit?"・"+ty.unit:""),`${n}／${resp.length} 艘`,sum].concat(cells));
+  }));
+  return {aoa,cols:[6,22,40,12,11,30].concat(resp.map(()=>22))};
 }
 function exportPdf(){
   if(!curCampaign){notify("⚠ 請先進入某個活動","err");return;}
