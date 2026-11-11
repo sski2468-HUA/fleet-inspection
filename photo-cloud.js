@@ -43,23 +43,44 @@ const PhotoCloud=(()=>{
     const h=await crypto.subtle.digest("SHA-256",buf);
     return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,"0")).join("");
   }
+  /* 2026-11-11：dataUrl 轉檔案不再用 fetch(dataUrl)——Mac／iPhone 的 Safari 對很長的 data: 網址會直接回
+     「Load failed」，照片全部傳不上去、整張單也跟著存不進雲端。改成自己解 base64。 */
+  function dataUrlToBlob(dataUrl){
+    const i=dataUrl.indexOf(",");const head=dataUrl.slice(0,i),body=dataUrl.slice(i+1);
+    const type=(/^data:([^;,]+)/.exec(head)||[])[1]||"image/jpeg";
+    if(!/;base64/i.test(head))return new Blob([decodeURIComponent(body)],{type});
+    const bin=atob(body),n=bin.length,u8=new Uint8Array(n);
+    for(let k=0;k<n;k++)u8[k]=bin.charCodeAt(k);
+    return new Blob([u8],{type});
+  }
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   async function upload(dataUrl){
     if(cache.has(dataUrl))return cache.get(dataUrl);
     if(!cfg)throw new Error("PhotoCloud 尚未設定雲端連線");
-    const blob=await (await fetch(dataUrl)).blob();
+    const blob=dataUrlToBlob(dataUrl);
     const hash=await sha256Hex(await blob.arrayBuffer());
     const ext=blob.type==="image/png"?"png":"jpg";
     const path=`p/${hash.slice(0,2)}/${hash}.${ext}`;
-    const r=await fetch(`${cfg.url}/storage/v1/object/${BUCKET}/${path}`,{
-      method:"POST",
-      headers:{"apikey":cfg.key,"Authorization":"Bearer "+cfg.key,"Content-Type":blob.type||"image/jpeg","x-upsert":"false"},
-      body:blob
-    });
-    if(!r.ok){
+    // 網路一時不穩（Safari 顯示 Load failed、Chrome 顯示 Failed to fetch）或伺服器忙碌（5xx）時自動重試，最多 3 次
+    let lastErr=null;
+    for(let tries=0;tries<3;tries++){
+      if(tries)await sleep(tries===1?1200:3500);
+      let r;
+      try{
+        r=await fetch(`${cfg.url}/storage/v1/object/${BUCKET}/${path}`,{
+          method:"POST",
+          headers:{"apikey":cfg.key,"Authorization":"Bearer "+cfg.key,"Content-Type":blob.type||"image/jpeg","x-upsert":"false"},
+          body:blob
+        });
+      }catch(e){lastErr=new Error(`網路連線失敗（${e&&e.message||e}）`);continue;}
+      if(r.ok){lastErr=null;break;}
       const t=await r.text().catch(()=>"");
       // 檔名＝內容雜湊，已經存在就代表同一張照片之前傳過了，直接沿用
-      if(!(r.status===409||/exists|duplicate/i.test(t)))throw new Error(`HTTP ${r.status} ${t.slice(0,120)}`);
+      if(r.status===409||/exists|duplicate/i.test(t)){lastErr=null;break;}
+      lastErr=new Error(`HTTP ${r.status} ${t.slice(0,120)}`);
+      if(r.status<500)break; // 4xx 重試也沒用
     }
+    if(lastErr)throw lastErr;
     const res={url:`${cfg.url}/storage/v1/object/public/${BUCKET}/${path}`,path};
     cache.set(dataUrl,res);
     return res;
