@@ -1554,6 +1554,14 @@ table.ap-xl td.ap-selm{box-shadow:inset 2px 0 0 #1b6ec2,inset -2px 0 0 #1b6ec2}
 #airPushDefsModal,#airPushPosModal,#importDiffModal{z-index:10000}
 .modal-bg.show{display:flex}
 #photoboxModal{z-index:10050}
+/* 船隊風險清單 */
+.rk-lv{display:inline-block;border:1px solid var(--line-2);border-radius:6px;padding:2px 10px;font-weight:700;font-size:13px;white-space:nowrap;color:var(--ink-2);background:#fff}
+.rk-lv.hrs{color:#b3261e;border-color:#e8a29b;background:#fdecea}
+.rk-lv.srs{color:#8a5a00;border-color:#e6c97a;background:#fff7e0}
+.rk-lv.lrs{color:#1f7a45;border-color:#9fd3b2;background:#e8f6ee}
+.rk-t tr.rk-hrs td{background:#fff4f3}
+.rk-t tr.rk-hrs td:first-child{box-shadow:inset 4px 0 0 #c0392b}
+.rk-t tr.rk-hrs td:first-child b{color:#b3261e}
 /* 檢查紀錄列表：點缺失數／正評數的大視窗 */
 #inspPeekModal{padding:1.5vh 1.2vw;background:rgba(12,36,51,.6)}
 .ipk-n{font:inherit;font-weight:700;border-radius:6px;padding:1px 12px;cursor:pointer;border:1px solid}
@@ -2970,6 +2978,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="toolbar" style="margin:0 0 12px">
         <button type="button" class="btn lg df-tabbtn active" data-t="summary" onclick="Ov.setSubTab('summary')">📊 檢查紀錄一覽表</button>
         <button type="button" class="btn lg df-tabbtn" data-t="list" onclick="Ov.setSubTab('list')">📋 檢查紀錄列表</button>
+        <button type="button" class="btn lg df-tabbtn" data-t="risk" onclick="Ov.setSubTab('risk')">⚠ 船隊風險清單<span id="risk-badge"></span></button>
+      </div>
+
+      <div id="ov-sub-risk" style="display:none">
+        <div class="card">
+          <h3>船隊風險清單 <span class="hint" style="font-weight:400">Tokyo MOU Ship Risk Profile</span>
+            <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap" id="risk-tools"></span></h3>
+          <div id="risk-body"><div class="hint">載入中…</div></div>
+        </div>
       </div>
 
       <div id="ov-sub-summary">
@@ -3606,6 +3623,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       </div>
     </div>
 
+    <div class="modal-bg" id="riskPasteModal">
+      <div class="modal" style="max-width:760px">
+        <div class="mh"><h3>📋 貼上更新船隊風險清單</h3><button class="x" onclick="$('#riskPasteModal').classList.remove('show')">✕</button></div>
+        <div class="mb">
+          <p class="hint" style="margin:0 0 8px;line-height:1.7">把 APCIS 查詢結果、同事的「船隊風險清單」網頁或 PDF、或 Excel 整張表<b>全選複製</b>後貼在下面。系統依 <b>IMO 號碼</b>對應本公司船舶，抓出風險等級（HRS／SRS／LRS 或高／標準／低風險）、檢查優先級、窗口日期與取得時間。貼上後會先帶進編輯畫面，確認無誤再按「💾 儲存」。</p>
+          <textarea id="riskPasteText" style="width:100%;min-height:260px;font-size:12.5px" placeholder="例：FPMC B 201　IMO 9468229　▲ 高風險 HRS　無優先級　2027-01-10 ～ 2027-03-10　…"></textarea>
+          <div id="riskPasteMsg" style="color:var(--bad);font-size:13px;margin-top:6px"></div>
+          <div class="toolbar" style="margin-top:10px;justify-content:flex-end"><button class="btn" onclick="$('#riskPasteModal').classList.remove('show')">取消</button><button class="btn primary" onclick="ShipRisk.applyPaste()">帶入</button></div>
+        </div>
+      </div>
+    </div>
     <div class="modal-bg" id="photoboxModal" onclick="if(event.target===this)Photobox.close()" style="background:rgba(10,20,28,.92)">
       <div style="position:relative;max-width:94vw;max-height:90vh">
         <button class="x" onclick="Photobox.close()" style="position:absolute;top:-38px;right:0;color:#fff;font-size:26px;background:none;border:none;cursor:pointer">✕</button>
@@ -11063,7 +11091,7 @@ const App={
     this.defs.forEach(d=>{if(d.inspector)d.inspector=canonInspector(d.inspector);if(d.oilco)d.oilco=canonUnit(d.oilco);});
     if(typeof Classify!=="undefined")Classify.init();
     if(typeof NCTree!=="undefined")NCTree.init();
-    Dash.init();Ov.init();if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof Trend!=="undefined")Trend.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();if(typeof PscZone!=="undefined")PscZone.init();if(typeof StorageMonitor!=="undefined")StorageMonitor.init();if(typeof DupFinder!=="undefined")DupFinder.init();// 編輯鎖定功能已停用(全部資料表都已改為逐筆同步,不再需要)：不建立浮動按鈕/面板，EditLock.guard() 保留為恆真空操作。
+    Dash.init();Ov.init();if(typeof ShipRisk!=="undefined")setTimeout(()=>ShipRisk.load(),1500);if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof Trend!=="undefined")Trend.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();if(typeof PscZone!=="undefined")PscZone.init();if(typeof StorageMonitor!=="undefined")StorageMonitor.init();if(typeof DupFinder!=="undefined")DupFinder.init();// 編輯鎖定功能已停用(全部資料表都已改為逐筆同步,不再需要)：不建立浮動按鈕/面板，EditLock.guard() 保留為恆真空操作。
     refreshInspectorList();refreshPlaceList();
     this.refreshMeta();
     NavConfig.apply();
@@ -12677,15 +12705,131 @@ const InspPeek={
     toast("已帶入這次檢查的船名、檢查來源與月份");
   }
 };
+/* ══════ 船隊風險清單（Tokyo MOU Ship Risk Profile）══════
+   app_db ship_risk：{ships:{船代碼:{tmou:"HRS|SRS|LRS",prio,winFrom,winTo,paris,uscg,checked,note}},updatedBy,updatedAt}
+   APCIS 有防機器人驗證，系統不自動抓取：由海技查詢後，在這裡「貼上更新」或逐船修改。
+   船舶平台首頁：本船為 HRS 時顯示紅色提醒（讀同一個 key）。 */
+const ShipRisk={
+  KEY:"ship_risk",data:{ships:{}},updated:null,loaded:false,editing:false,draft:null,
+  LV:{HRS:{t:"高風險 HRS",c:"hrs",o:0},SRS:{t:"標準風險 SRS",c:"srs",o:1},LRS:{t:"低風險 LRS",c:"lrs",o:2}},
+  canEdit(){return typeof Role==="undefined"||Role.isAdmin();},
+  ships(){return (typeof SHIPINFO!=="undefined"?SHIPINFO:[]).filter(s=>s&&s.code&&!s._deleted);},
+  async load(force){
+    if(this.loaded&&!force)return;
+    if(typeof Cloud==="undefined"||!Cloud.enabled())return;
+    try{
+      const rows=await Cloud.api(`app_db?select=payload,updated&k=eq.${this.KEY}`)||[];
+      const p=rows[0]&&rows[0].payload;
+      this.data=Object.assign({ships:{}},p||{});if(!this.data.ships||typeof this.data.ships!=="object")this.data.ships={};
+      this.updated=rows[0]?rows[0].updated:null;this.loaded=true;this.badge();
+    }catch(e){console.warn("讀取船隊風險清單失敗",e);}
+  },
+  badge(){const el=$("#risk-badge");if(!el)return;const n=Object.values(this.data.ships||{}).filter(x=>x&&x.tmou==="HRS").length;
+    el.innerHTML=n?` <span style="background:#c0392b;color:#fff;font-size:11px;border-radius:9px;padding:0 7px;margin-left:4px">HRS ${n}</span>`:"";},
+  async open(){await this.load();this.render();},
+  async save(){
+    if(!this.canEdit()){toast("⚠ 船隊風險清單僅限 Owner／管理員維護",true);return;}
+    const next={ships:this.draft,updatedBy:(typeof Audit!=="undefined"?Audit.user():""),updatedAt:Date.now()},now=Date.now();
+    try{
+      let rows;
+      if(this.updated==null){
+        const ex=await Cloud.api(`app_db?select=updated&k=eq.${this.KEY}`)||[];
+        if(ex.length){toast("⚠ 雲端剛有人建立了風險清單，已重新載入，請再改一次",true);await this.load(true);this.editing=false;this.render();return;}
+        rows=await Cloud.api("app_db",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify([{k:this.KEY,payload:next,updated:now}])});
+      }else{
+        rows=await Cloud.api(`app_db?k=eq.${this.KEY}&updated=eq.${this.updated}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify({payload:next,updated:now})});
+      }
+      if(!rows||!rows.length){toast("⚠ 風險清單剛被其他人更新過，已重新載入，請再改一次",true);await this.load(true);this.editing=false;this.render();return;}
+      const hrs=Object.entries(next.ships).filter(([,v])=>v.tmou==="HRS").map(([k])=>k).join("、");
+      this.data=next;this.updated=now;this.editing=false;this.draft=null;
+      if(typeof Audit!=="undefined")Audit.log("修改","船隊風險清單",`HRS：${hrs||"無"}`);
+      toast("✓ 已儲存，船上重新整理平台後就會看到");this.badge();this.render();
+    }catch(e){toast("⚠ 儲存失敗："+e.message,true);}
+  },
+  startEdit(){this.draft=JSON.parse(JSON.stringify(this.data.ships||{}));this.editing=true;this.render();},
+  cancelEdit(){this.editing=false;this.draft=null;this.render();},
+  setF(code,k,v){const d=this.draft[code]=this.draft[code]||{};d[k]=v;if(k!=="checked"&&k!=="note"&&!d._touched){d._touched=1;if(!d.checked){d.checked=todayStr();const el=$(`#rk-ck-${code}`);if(el)el.value=d.checked;}}},
+  /* 貼上更新：從 APCIS 查詢結果、同事的風險清單網頁／PDF、Excel 複製整張表貼上。
+     依 IMO 切段，每段抓風險等級、優先級、窗口日期、取得時間。 */
+  openPaste(){
+    const m=$("#riskPasteModal");$("#riskPasteText").value="";$("#riskPasteMsg").textContent="";m.classList.add("show");$("#riskPasteText").focus();
+  },
+  parsePaste(text){
+    const byImo={};this.ships().forEach(s=>{if(s.imo)byImo[String(s.imo).trim()]=s.code;});
+    const re=/\b(\d{7})\b/g,hits=[];let m;
+    while((m=re.exec(text))){if(byImo[m[1]])hits.push({imo:m[1],at:m.index});}
+    const out={};
+    hits.forEach((h,i)=>{
+      const seg=text.slice(h.at+7,i+1<hits.length?hits[i+1].at:text.length);
+      const code=byImo[h.imo];if(out[code])return;
+      const lv=/HRS|高風險|High\s*Risk/i.test(seg)?"HRS":/SRS|標準風險|Standard\s*Risk/i.test(seg)?"SRS":/LRS|低風險|Low\s*Risk/i.test(seg)?"LRS":"";
+      if(!lv)return;
+      const pm=seg.match(/Priority\s*(I{1,2}|1|2)\b|無優先級|No\s*Priority/i);
+      const ds=[...seg.matchAll(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})(?!\s+\d{1,2}:\d{2})/g)].map(x=>`${x[1]}-${x[2].padStart(2,"0")}-${x[3].padStart(2,"0")}`);
+      const ft=seg.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})\s+\d{1,2}:\d{2}/);
+      out[code]={tmou:lv,prio:pm?(/無|No/i.test(pm[0])?"無優先級":"Priority "+(pm[1]==="1"?"I":pm[1]==="2"?"II":pm[1].toUpperCase())):"",
+        winFrom:ds[0]||"",winTo:ds[1]||"",checked:ft?`${ft[1]}-${ft[2].padStart(2,"0")}-${ft[3].padStart(2,"0")}`:todayStr()};
+    });
+    return out;
+  },
+  applyPaste(){
+    const got=this.parsePaste($("#riskPasteText").value||"");const n=Object.keys(got).length;
+    if(!n){$("#riskPasteMsg").textContent="⚠ 沒有找到本公司船舶的 IMO 和風險等級，請確認複製的內容包含 IMO 號碼與 HRS／SRS／LRS（或高／標準／低風險）。";return;}
+    if(!this.editing)this.startEdit();
+    Object.entries(got).forEach(([code,v])=>{this.draft[code]=Object.assign({},this.draft[code]||{},v);});
+    $("#riskPasteModal").classList.remove("show");
+    this.render();
+    toast(`已帶入 ${n} 艘船（尚未儲存），確認後按「💾 儲存」`);
+  },
+  lvHtml(v){const L=this.LV[v];return L?`<span class="rk-lv ${L.c}">${L.c==="hrs"?"▲":L.c==="srs"?"◆":"●"} ${L.t}</span>`:`<span class="hint">未登錄</span>`;},
+  render(){
+    const box=$("#risk-body"),tools=$("#risk-tools");if(!box)return;
+    const src=this.editing?this.draft:(this.data.ships||{}),ed=this.editing,can=this.canEdit();
+    const list=this.ships().map(s=>({s,v:src[s.code]||{}})).sort((a,b)=>{const oa=(this.LV[a.v.tmou]||{o:9}).o,ob=(this.LV[b.v.tmou]||{o:9}).o;return oa-ob||String(a.s.code).localeCompare(String(b.s.code));});
+    const cnt=k=>list.filter(x=>x.v.tmou===k).length,none=list.filter(x=>!this.LV[x.v.tmou]).length;
+    tools.innerHTML=ed?`<button class="btn sm" onclick="ShipRisk.openPaste()">📋 貼上更新</button><button class="btn sm" onclick="ShipRisk.cancelEdit()">取消</button><button class="btn sm primary" onclick="ShipRisk.save()">💾 儲存</button>`
+      :`<a class="btn sm" href="https://apcis.tmou.org/public/" target="_blank" rel="noopener">🔗 開啟 APCIS 查詢</a><button class="btn sm" onclick="ShipRisk.print()">🖨 列印／存 PDF</button>${can?`<button class="btn sm primary" onclick="ShipRisk.startEdit()">✎ 更新風險清單</button>`:""}`;
+    const meta=this.data.updatedAt?`最後更新：${new Date(this.data.updatedAt).toLocaleString("zh-TW",{hour12:false})}${this.data.updatedBy?"，"+esc(this.data.updatedBy):""}`:"尚未建立風險清單";
+    const inp=(code,k,v,type,w)=>`<input type="${type||"text"}" ${k==="checked"?`id="rk-ck-${code}"`:""} value="${esc(v||"")}" style="width:${w||120}px;padding:3px 6px" oninput="ShipRisk.setF('${code}','${k}',this.value)">`;
+    box.innerHTML=`
+      <div class="hint" style="margin:0 0 8px">${meta}。資料來源：Tokyo MOU APCIS（需人工查詢，網站有防機器人驗證，系統不自動抓取）。${ed?"<b style=\"color:var(--signal-d)\">編輯中：可逐船修改，或按「📋 貼上更新」貼上整張清單；修改風險時查詢日期自動填今天。</b>":""}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <span class="rk-lv hrs">▲ 高風險 HRS：${cnt("HRS")} 艘</span><span class="rk-lv srs">◆ 標準風險 SRS：${cnt("SRS")} 艘</span><span class="rk-lv lrs">● 低風險 LRS：${cnt("LRS")} 艘</span>${none?`<span class="rk-lv">未登錄：${none} 艘</span>`:""}
+      </div>
+      <div class="tblwrap"><table class="tbl rk-t"><thead><tr><th>船名 / IMO</th><th>Tokyo MOU 目前風險</th><th>檢查優先級 / 窗口</th><th>Paris MoU</th><th>USCG</th><th>查詢日期</th><th>備註</th></tr></thead><tbody>
+      ${list.map(({s,v})=>`<tr class="${v.tmou==="HRS"?"rk-hrs":""}">
+        <td><b>${esc(shipFullLabel(s.code))}</b><div class="hint">IMO ${esc(s.imo||"—")}</div></td>
+        <td>${ed?`<select onchange="ShipRisk.setF('${s.code}','tmou',this.value)"><option value="">未登錄</option>${Object.entries(this.LV).map(([k,L])=>`<option value="${k}" ${v.tmou===k?"selected":""}>${L.t}</option>`).join("")}</select>`:this.lvHtml(v.tmou)}</td>
+        <td>${ed?`${inp(s.code,"prio",v.prio,"text",110)}<div style="margin-top:3px">${inp(s.code,"winFrom",v.winFrom,"date",135)} ～ ${inp(s.code,"winTo",v.winTo,"date",135)}</div>`
+          :`${esc(v.prio||"")}${v.winFrom||v.winTo?`<div class="hint" style="font-family:var(--mono)">${esc(v.winFrom||"")} ～ ${esc(v.winTo||"")}</div>`:""}`}</td>
+        <td>${ed?inp(s.code,"paris",v.paris,"text",100):esc(v.paris||"")||'<span class="hint">—</span>'}</td>
+        <td>${ed?inp(s.code,"uscg",v.uscg,"text",100):esc(v.uscg||"")||'<span class="hint">—</span>'}</td>
+        <td style="font-family:var(--mono);white-space:nowrap">${ed?inp(s.code,"checked",v.checked,"text",100):esc(v.checked||"")}</td>
+        <td>${ed?inp(s.code,"note",v.note,"text",160):esc(v.note||"")}</td></tr>`).join("")}
+      </tbody></table></div>`;
+  },
+  print(){
+    const list=this.ships().map(s=>({s,v:(this.data.ships||{})[s.code]||{}})).sort((a,b)=>((this.LV[a.v.tmou]||{o:9}).o-(this.LV[b.v.tmou]||{o:9}).o)||String(a.s.code).localeCompare(String(b.s.code)));
+    const w=window.open("","_blank");if(!w){toast("⚠ 瀏覽器擋住了新視窗，請允許彈出視窗",true);return;}
+    w.document.write(`<!doctype html><meta charset="utf-8"><title>台塑海運船隊風險清單 ${todayStr()}</title><style>body{font:12px "Microsoft JhengHei",sans-serif;margin:16px}h2{margin:0 0 4px}table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}th{background:#eee}.h{background:#fdecea;color:#a12b20;font-weight:700}</style>
+      <h2>台塑海運船隊風險清單（Tokyo MOU）</h2><div>列印日期：${todayStr()}　最後更新：${this.data.updatedAt?new Date(this.data.updatedAt).toLocaleString("zh-TW",{hour12:false}):"—"}</div>
+      <table><tr><th>船名</th><th>IMO</th><th>Tokyo MOU 風險</th><th>檢查優先級</th><th>窗口</th><th>Paris MoU</th><th>USCG</th><th>查詢日期</th><th>備註</th></tr>
+      ${list.map(({s,v})=>`<tr><td>${esc(shipFullLabel(s.code))}</td><td>${esc(s.imo||"")}</td><td class="${v.tmou==="HRS"?"h":""}">${esc((this.LV[v.tmou]||{}).t||"未登錄")}</td><td>${esc(v.prio||"")}</td><td>${esc(v.winFrom||"")}${v.winTo?" ～ "+esc(v.winTo):""}</td><td>${esc(v.paris||"")}</td><td>${esc(v.uscg||"")}</td><td>${esc(v.checked||"")}</td><td>${esc(v.note||"")}</td></tr>`).join("")}</table>
+      <script>setTimeout(()=>print(),300)<\/script>`);
+    w.document.close();
+  }
+};
 const Ov={
   ms:{},sel:new Set(),scope:"all",selRows:new Set(),
   subTab:"summary",
   setSubTab(t){
     this.subTab=t;
     $$(".tabpage#tab-ov .df-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
-    const s=$("#ov-sub-summary"),l=$("#ov-sub-list");
+    const s=$("#ov-sub-summary"),l=$("#ov-sub-list"),rk=$("#ov-sub-risk");
     if(s)s.style.display=t==="summary"?"":"none";
     if(l)l.style.display=t==="list"?"":"none";
+    if(rk)rk.style.display=t==="risk"?"":"none";
+    if(t==="risk"&&typeof ShipRisk!=="undefined")ShipRisk.open();
   },
   setScope(v,btn){
     this.scope=v;
