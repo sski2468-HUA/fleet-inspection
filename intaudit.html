@@ -410,6 +410,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
         <span class="msel" id="msShip2"></span><span class="msel" id="msSrc2"></span><span class="msel" id="msInsp2"></span>
         <select id="fMode" onchange="renderList()" style="width:auto"><option value="">全部結案方式</option><option value="FLOW">FLOW 系統（DMP-FM01）</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
         <select id="fStatus" onchange="renderList()" style="width:auto"><option value="">全部狀態</option><option>FLOW 結案</option><option>待船上改善</option><option>船上已回報</option><option>已結案</option></select>
+        <span style="display:inline-flex;align-items:center;gap:4px" title="依檢查日期的年月篩選，可只選起或迄"><select id="fYmFrom" onchange="renderList()" style="width:auto"></select>～<select id="fYmTo" onchange="renderList()" style="width:auto"></select></span>
         <select id="fRec" onchange="renderList()" style="width:auto" title="登錄單本身的狀態：督導還沒送出的草稿／已送出等海技匯入／海技已匯入主系統"><option value="">全部登錄單</option><option value="draft">草稿</option><option value="pending">已送出・待海技匯入</option><option value="imported">海技已匯入</option></select>
         <input type="text" class="fq" id="fQ" placeholder="🔍 搜尋船名／檢查人／分類／缺失描述…" oninput="$('#stQ').value=this.value;renderList()">
         <span class="fsp"></span>
@@ -553,6 +554,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
         <select id="rvShip" onchange="renderReview()" style="width:auto"><option value="">全部船舶</option></select>
         <select id="rvSrc" onchange="reviewSel.clear();renderReview()" style="width:auto;font-weight:700" title="改善單依檢查來源分成內稽與非內稽，預設只看非內稽"><option value="non" selected>非內稽項目</option><option value="int">內稽項目</option><option value="">全部（含內稽）</option></select>
         <select id="rvInspector" onchange="renderReview()" style="width:auto"><option value="">全部檢查人</option></select>
+        <span style="display:inline-flex;align-items:center;gap:4px" title="依檢查日期的年月篩選，可只選起或迄；下方各船一覽也一起套用"><select id="rvYmFrom" onchange="reviewSel.clear();renderReview()" style="width:auto"></select>～<select id="rvYmTo" onchange="reviewSel.clear();renderReview()" style="width:auto"></select></span>
         <select id="rvMode" onchange="renderReview()" style="width:auto"><option value="">全部結案方式</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option></select>
         <input type="text" class="fq" id="rvQ" placeholder="🔍 搜尋船名／分類／缺失描述／回報人" oninput="renderReview()">
         <span class="fsp"></span>
@@ -911,7 +913,10 @@ let SHIPS=[],SUPERVISORS=[],STAFF_EN={};
 function shipLabel(code){const s=SHIPS.find(x=>x.code===code);return s?s.label:(code||"");}
 async function getKey(k){const r=await withTimeout(api(`app_db?select=payload&k=eq.${encodeURIComponent(k)}`),8000);return r&&r[0]?r[0].payload:null;}
 async function loadLists(){
-  try{const p=await getKey("ships");if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,imo:s.imo||"",type1:s.type1||"",operator:s.operator||"",deckSup:s.deckSup||"",engineSup:s.engineSup||"",label:[s.zh,s.name].filter(Boolean).join(" ")||s.code}));}catch(e){}
+  // 船舶資料：主系統現在逐筆存在 sync_ships（app_db ships 是 8/6 之後就沒更新的舊整包，督導等欄位會過時），讀不到才退回舊的
+  try{let p=null;try{const r=await withTimeout(api("sync_ships?select=payload"),8000);p=(r||[]).map(x=>x&&x.payload).filter(s=>s&&s.code&&!s._deleted);if(!p.length)p=null;}catch(e){}
+    if(!p)p=await getKey("ships");
+    if(Array.isArray(p))SHIPS=p.map(s=>({code:s.code,name:s.zh||s.name||s.code,en:s.name||s.code,imo:s.imo||"",type1:s.type1||"",operator:s.operator||"",deckSup:s.deckSup||"",engineSup:s.engineSup||"",label:[s.zh,s.name].filter(Boolean).join(" ")||s.code})).sort((a,b)=>String(a.code).localeCompare(String(b.code),undefined,{numeric:true}));}catch(e){}
   // CAEM-FM06 的稽核員要寫英文名：從主系統「公司人員通訊錄」對照中文名→英文名
   try{const hf=await getKey(FM06_HF_KEY);if(hf&&typeof hf==="object")FM06_HF=Object.assign({},FM06_HF_DEF,hf);}catch(e){}
   try{const sd=await getKey("staffDirectory");(sd&&sd.people||[]).forEach(p=>{if(p.zh&&p.en)STAFF_EN[String(p.zh).replace(/\s/g,"")]=p.en;});}catch(e){}
@@ -1088,7 +1093,7 @@ function download(blob,name){const a=document.createElement("a");a.href=URL.crea
 
 /* ══════ 登錄紀錄（清單） ══════ */
 function toggleHelp(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==="none"?"":"none";}
-function clearReviewFilters(){["#rvShip","#rvInspector","#rvMode"].forEach(s=>{if($(s))$(s).value="";});if($("#rvSrc"))$("#rvSrc").value="non";if($("#rvQ"))$("#rvQ").value="";reviewSel.clear();renderReview();}
+function clearReviewFilters(){["#rvShip","#rvInspector","#rvMode","#rvYmFrom","#rvYmTo"].forEach(s=>{if($(s))$(s).value="";});rvOvFlt="open";rvOvAll=false;if($("#rvSrc"))$("#rvSrc").value="non";if($("#rvQ"))$("#rvQ").value="";reviewSel.clear();renderReview();}
 function clearSuggFilters(){$("#sgShip").value="";$("#sgDept").value="";$("#sgQ").value="";renderSuggPage();}
 function showList(){
   stopAutoSave();
@@ -1331,7 +1336,7 @@ function msAll(key,host,label,on){
   stSel[key].clear();if(on)m[key]().forEach(v=>stSel[key].add(v));renderList();
 }
 document.addEventListener("click",e=>{if(!e.target.closest(".msel"))document.querySelectorAll(".msel .mp.open").forEach(p=>p.classList.remove("open"));});
-function clearStFilters(){stSel.ship.clear();stSel.src.clear();stSel.insp.clear();$("#stClose").value="";$("#stQ").value="";$("#fQ").value="";$("#fMode").value="";$("#fStatus").value="";if($("#fRec"))$("#fRec").value="";$("#stFrom").value="";$("#stTo").value="";renderList();}
+function clearStFilters(){stSel.ship.clear();stSel.src.clear();stSel.insp.clear();$("#stClose").value="";$("#stQ").value="";$("#fQ").value="";$("#fMode").value="";$("#fStatus").value="";if($("#fRec"))$("#fRec").value="";["fYmFrom","fYmTo"].forEach(id=>{if($("#"+id))$("#"+id).value="";});$("#stFrom").value="";$("#stTo").value="";renderList();}
 function statFiltered(){
   const all=statRows(),q=$("#stQ").value.trim().toLowerCase(),cl=$("#stClose").value,f=$("#stFrom").value,t=$("#stTo").value;
   return all.filter(x=>{
@@ -1402,6 +1407,7 @@ function renderFilterSum(){
     if(val("fMode"))add("結案方式",selText("fMode"),"$('#fMode').value=''");
     if(val("fStatus"))add("狀態",selText("fStatus"),"$('#fStatus').value=''");
     if(val("fRec"))add("登錄單",selText("fRec"),"$('#fRec').value=''");
+    if(val("fYmFrom")||val("fYmTo"))add("年月",`${(val("fYmFrom")||"最早").replace("-","/")} ～ ${(val("fYmTo")||"最新").replace("-","/")}`,"$('#fYmFrom').value='';$('#fYmTo').value=''");
     if(val("fQ"))add("搜尋",val("fQ"),"$('#fQ').value='';$('#stQ').value=''");
   }else if(v==="table"){
     if(val("stClose"))add("結案情形",selText("stClose"),"$('#stClose').value=''");
@@ -1441,7 +1447,14 @@ function recPass(r){
 const srcPass=d=>!stSel.src.size||stSel.src.has(d.type||"");
 /* 卡片檢視「登錄單狀態」篩選（2026-11-03）：草稿／已送出・待海技匯入／海技已匯入 */
 const recState=r=>r.draft?"draft":r.imported?"imported":"pending";
-const recStatePass=r=>{const v=$("#fRec")?$("#fRec").value:"";return !v||recState(r)===v;};
+const recStatePass=r=>{const v=$("#fRec")?$("#fRec").value:"";return (!v||recState(r)===v)&&ymRangePass(r,"fYmFrom","fYmTo");};
+/* 2026-11-11 年月區間篩選（以檢查日期起日的年月為準）：起、迄可只選一邊 */
+const ymOfRec=r=>String(r&&r.dateFrom||"").slice(0,7);
+function ymRangePass(r,fromId,toId){const f=($("#"+fromId)||{}).value||"",t=($("#"+toId)||{}).value||"",ym=ymOfRec(r);if(!f&&!t)return true;if(!ym)return false;return (!f||ym>=f)&&(!t||ym<=t);}
+function fillYmSelects(fromId,toId){
+  const yms=[...new Set(Store.rows.map(ymOfRec).filter(Boolean))].sort().reverse();
+  [[fromId,"年月起"],[toId,"年月迄"]].forEach(([id,lbl])=>{const el=$("#"+id);if(!el)return;const v=el.value;el.innerHTML=`<option value="">${lbl}：不限</option>`+yms.map(m=>`<option value="${m}">${m.replace("-","/")}</option>`).join("");el.value=yms.includes(v)?v:"";});
+}
 /* 匯出全部 Excel：套用目前畫面上的篩選條件（船舶／檢查人／結案方式／狀態／關鍵字），
    跟畫面上看到的登錄單、缺失完全一致——篩選清空的話就是匯出全部。兩個分頁：
    「登錄紀錄」一張單一列，「缺失明細」每筆缺失一列，方便督導自己留底或交接查核用。 */
@@ -1588,7 +1601,7 @@ function renderList(){
   const rows=Store.rows;
   // 檢查人篩選選項：直接從目前登錄單裡有出現過的檢查人整理，不限於目前的 SUPERVISORS 名單
   // （名單調整過也還是看得到舊紀錄的檢查人可以篩），每次重繪時保留使用者目前選取的值。
-  buildMsels();
+  buildMsels();fillYmSelects("fYmFrom","fYmTo");
   const fm=$("#fMode").value,fst=$("#fStatus").value,q=$("#fQ").value.trim().toLowerCase(),fsrc=stSel.src.size>0;
   // ⚠ 上方「全部缺失結案方式」統計原本是用完全沒篩選過的 rows/all 算的，使用者下面篩選船舶／
   // 檢查人／結案方式／狀態／關鍵字之後，上面那排數字完全不會變，看起來像篩選沒作用在統計上。
@@ -1694,6 +1707,7 @@ function reviewBaseItems(){
   const fsrc=$("#rvSrc")?$("#rvSrc").value:"non";
   if(fsrc==="non")items=items.filter(x=>!isIntAudit(x.d));else if(fsrc==="int")items=items.filter(x=>isIntAudit(x.d));
   if(fs)items=items.filter(x=>x.r.ship===fs);
+  items=items.filter(x=>ymRangePass(x.r,"rvYmFrom","rvYmTo"));
   if(fi)items=items.filter(x=>inspList(x.r).includes(fi));
   if(fm)items=items.filter(x=>x.d.closeMode===fm);
   if(q)items=items.filter(x=>{const p=x.rp.payload||{};return [shipLabel(x.r.ship),x.r.inspector,x.d.category,x.d.finding,p.by].join(" ").toLowerCase().includes(q);});
@@ -1810,13 +1824,33 @@ function reviewTableHtml(items){
 let rvOvOpen=(()=>{try{return localStorage.getItem("rv_ov_open")!=="0";}catch(e){return true;}})();
 function toggleRvOverview(){rvOvOpen=!rvOvOpen;try{localStorage.setItem("rv_ov_open",rvOvOpen?"1":"0");}catch(e){}renderRvOverview();}
 function pickRvShip(code){const el=$("#rvShip");el.value=el.value===code?"":code;reviewSel.clear();renderReview();}
+/* 2026-11-11 各船一覽：船多了也好找
+   ① 上方快捷：未全部結案（預設）／有待審核／有待改善／有退回／已全部結案／全部
+   ② 表頭可點排序　③ 點數字＝只看這艘船＋下方清單切到對應狀態　④ 預設只列前 10 艘，其餘按「顯示全部」 */
+let rvOvFlt=(()=>{try{return localStorage.getItem("rv_ov_flt")||"open";}catch(e){return "open";}})(),rvOvSort={k:"",dir:-1},rvOvAll=false;
+/* 依督導：船舶資料的甲板／機艙督導（一艘船可能同時屬於兩位督導）。rvOvSup＝只看某位督導的船；rvOvGroup＝依督導分組顯示 */
+let rvOvSup="",rvOvGroup=(()=>{try{return localStorage.getItem("rv_ov_group")==="1";}catch(e){return false;}})();
+function shipSups(code){const s=SHIPS.find(x=>x.code===code)||{};const sp=v=>String(v||"").split(/[、,，\/／;；\s]+/).map(x=>x.trim()).filter(Boolean);
+  return [...sp(s.deckSup).map(n=>({n,role:"甲板"})),...sp(s.engineSup).map(n=>({n,role:"機艙"}))];}
+function setRvOvSup(v){rvOvSup=v;rvOvAll=false;renderRvOverview();}
+function setRvOvGroup(on){rvOvGroup=!!on;try{localStorage.setItem("rv_ov_group",on?"1":"0");}catch(e){}renderRvOverview();}
+const RV_OV_LIMIT=10;
+function setRvOvFlt(k){rvOvFlt=k;rvOvAll=false;try{localStorage.setItem("rv_ov_flt",k);}catch(e){}renderRvOverview();}
+function sortRvOv(k){rvOvSort=rvOvSort.k===k?{k,dir:-rvOvSort.dir}:{k,dir:-1};renderRvOverview();}
+function pickRvCell(code,st){
+  const el=$("#rvShip");el.value=code;reviewSel.clear();
+  reviewStatusFlt={sub:"submitted",ret:"returned",done:"reviewed"}[st]||"all";
+  renderReview();const b=$("#reviewBody");if(b)b.scrollIntoView({behavior:"smooth",block:"start"});
+}
 function renderRvOverview(){
   const box=$("#rvOverview");if(!box)return;
+  fillYmSelects("rvYmFrom","rvYmTo");
   const fsrc=$("#rvSrc")?$("#rvSrc").value:"non",fi=$("#rvInspector")?$("#rvInspector").value:"",fm=$("#rvMode")?$("#rvMode").value:"",cur=$("#rvShip")?$("#rvShip").value:"";
   const by={};
   Store.rows.forEach(r=>{
     if(r.draft||!r.issuedAt)return;
     if(fi&&!inspList(r).includes(fi))return;
+    if(!ymRangePass(r,"rvYmFrom","rvYmTo"))return;
     (r.defs||[]).forEach(d=>{
       if(d.closeMode==="FLOW"||!d.closeMode)return;
       if(fm&&d.closeMode!==fm)return;
@@ -1826,20 +1860,54 @@ function renderRvOverview(){
       const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null,at=rp&&rp.payload&&rp.payload.at;if(at&&at>o.last)o.last=at;
     });
   });
-  const ships=Object.keys(by).sort((a,b)=>(by[b].sub-by[a].sub)||((by[b].wait+by[b].ret)-(by[a].wait+by[a].ret))||shipLabel(a).localeCompare(shipLabel(b)));
-  const T={wait:0,sub:0,ret:0,done:0};ships.forEach(k=>["wait","sub","ret","done"].forEach(f=>T[f]+=by[k][f]));
+  const allShips=Object.keys(by);
+  const T={wait:0,sub:0,ret:0,done:0};allShips.forEach(k=>["wait","sub","ret","done"].forEach(f=>T[f]+=by[k][f]));
   const tot=T.wait+T.sub+T.ret+T.done;
-  $("#rvOvSum").innerHTML=tot?`共 ${ships.length} 艘船・${tot} 案：<b style="color:#1c3a5e">待審核 ${T.sub}</b>　<b style="color:#7a5a10">待改善 ${T.wait}</b>　<b style="color:#c0392b">已退回 ${T.ret}</b>　<b style="color:#2e8b57">已結案 ${T.done}</b>`:"目前沒有已發改善單的項目";
+  $("#rvOvSum").innerHTML=tot?`共 ${allShips.length} 艘船・${tot} 案：<b style="color:#1c3a5e">待審核 ${T.sub}</b>　<b style="color:#7a5a10">待改善 ${T.wait}</b>　<b style="color:#c0392b">已退回 ${T.ret}</b>　<b style="color:#2e8b57">已結案 ${T.done}</b>`:"目前沒有已發改善單的項目";
   $("#rvOvBtn").textContent=rvOvOpen?"▴ 收合":"▾ 展開";
   box.style.display=rvOvOpen?"":"none";
   if(!rvOvOpen)return;
-  if(!ships.length){box.innerHTML=`<div class="hint">目前條件下沒有已發改善單的項目。</div>`;return;}
-  const num=(v,c)=>v?`<b style="color:${c}">${v}</b>`:`<span style="color:#c3ced5">0</span>`;
+  if(!allShips.length){box.innerHTML=`<div class="hint">目前條件下沒有已發改善單的項目。</div>`;return;}
+  // ① 快捷篩選
+  const FL={open:["未全部結案",o=>o.wait+o.sub+o.ret>0],sub:["有待審核",o=>o.sub>0],wait:["有待改善",o=>o.wait>0],ret:["有退回",o=>o.ret>0],done:["已全部結案",o=>o.wait+o.sub+o.ret===0],all:["全部船",()=>true]};
+  if(!FL[rvOvFlt])rvOvFlt="open";
+  const chips=Object.entries(FL).map(([k,[l,f]])=>{const n=allShips.filter(s=>f(by[s])).length;return `<span class="fchip ${rvOvFlt===k?"on":""}" onclick="setRvOvFlt('${k}')">${l}<b>${n}</b></span>`;}).join("");
+  // ② 排序（預設：待審核多的在前，再看待改善＋退回）
+  const val=(k,o)=>({sub:o.sub,wait:o.wait,ret:o.ret,done:o.done,tot:o.wait+o.sub+o.ret+o.done,rate:o.done/((o.wait+o.sub+o.ret+o.done)||1),last:o.last})[k];
+  let ships=allShips.filter(s=>FL[rvOvFlt][1](by[s]));
+  // 督導選單：船舶資料裡出現過的甲板／機艙督導；「我負責的船」＝目前登入者
+  const supNames=[...new Set(allShips.flatMap(s=>shipSups(s).map(x=>x.n)))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+  if(rvOvSup&&!supNames.includes(rvOvSup))rvOvSup="";
+  if(rvOvSup)ships=ships.filter(s=>shipSups(s).some(x=>x.n===rvOvSup));
+  const me=(()=>{try{const s=IAAuth.ident();return s&&s.name||"";}catch(e){return "";}})();
+  const supCtl=`<span style="display:inline-flex;align-items:center;gap:6px;margin-left:6px;padding-left:10px;border-left:1px solid var(--line)">
+    <select onchange="setRvOvSup(this.value)" style="width:auto;padding:4px 8px;font-size:13px" title="只看某位督導（甲板或機艙）負責的船"><option value="">全部督導</option>${supNames.map(n=>`<option ${n===rvOvSup?"selected":""}>${esc(n)}</option>`).join("")}</select>
+    ${me&&supNames.includes(me)?`<span class="fchip ${rvOvSup===me?"on":""}" onclick="setRvOvSup(rvOvSup==='${esc(me)}'?'':'${esc(me)}')">👤 我負責的船</span>`:""}
+    <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;font-weight:600;color:var(--ink-2)"><input type="checkbox" ${rvOvGroup?"checked":""} onchange="setRvOvGroup(this.checked)" style="width:16px;height:16px">依督導分組</label></span>`;
+  ships.sort(rvOvSort.k?((a,b)=>rvOvSort.dir*(val(rvOvSort.k,by[a])-val(rvOvSort.k,by[b]))||shipLabel(a).localeCompare(shipLabel(b)))
+    :((a,b)=>(by[b].sub-by[a].sub)||((by[b].wait+by[b].ret)-(by[a].wait+by[a].ret))||shipLabel(a).localeCompare(shipLabel(b))));
+  const hiddenN=Math.max(0,ships.length-RV_OV_LIMIT),shown=rvOvAll?ships:ships.slice(0,RV_OV_LIMIT);
+  const num=(v,c,k,st)=>v?`<b style="color:${c};cursor:pointer;text-decoration:underline dotted" onclick="event.stopPropagation();pickRvCell('${esc(k)}','${st}')" title="只看這艘船的這類項目">${v}</b>`:`<span style="color:#c3ced5">0</span>`;
   const bar=o=>{const t=o.wait+o.sub+o.ret+o.done||1;return `<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:#eef1f3;min-width:120px">${[[o.done,"#2e8b57"],[o.sub,"#1c3a5e"],[o.ret,"#c0392b"],[o.wait,"#e0a83a"]].map(([v,c])=>v?`<span style="width:${v/t*100}%;background:${c}"></span>`:"").join("")}</div>`;};
-  box.innerHTML=`<table class="lt" style="font-size:13.5px"><thead><tr><th>船舶</th><th style="text-align:right">待審核</th><th style="text-align:right">待改善</th><th style="text-align:right">已退回</th><th style="text-align:right">已結案</th><th style="text-align:right">合計</th><th>結案進度</th><th style="text-align:right">結案率</th><th>最近回報</th></tr></thead><tbody>
-    ${ships.map(k=>{const o=by[k],t=o.wait+o.sub+o.ret+o.done,on=cur===k;return `<tr style="cursor:pointer;${on?"background:#e4f1f2":""}" onclick="pickRvShip('${esc(k)}')" title="${on?"再點一次取消":"點一下只看這艘船"}"><td><b>${esc(shipLabel(k))}</b>${on?' <span class="hint">（篩選中）</span>':""}</td><td style="text-align:right">${num(o.sub,"#1c3a5e")}</td><td style="text-align:right">${num(o.wait,"#7a5a10")}</td><td style="text-align:right">${num(o.ret,"#c0392b")}</td><td style="text-align:right">${num(o.done,"#2e8b57")}</td><td style="text-align:right"><b>${t}</b></td><td>${bar(o)}</td><td style="text-align:right">${Math.round(o.done/t*100)}%</td><td class="hint" style="white-space:nowrap">${o.last?new Date(o.last).toLocaleDateString("zh-TW"):"—"}</td></tr>`;}).join("")}
-    <tr style="background:#f1f5f8"><td><b>合計</b></td><td style="text-align:right"><b>${T.sub}</b></td><td style="text-align:right"><b>${T.wait}</b></td><td style="text-align:right"><b>${T.ret}</b></td><td style="text-align:right"><b>${T.done}</b></td><td style="text-align:right"><b>${tot}</b></td><td>${bar(T)}</td><td style="text-align:right"><b>${Math.round(T.done/(tot||1)*100)}%</b></td><td></td></tr>
-  </tbody></table>
+  const th=(k,l,right)=>`<th style="${right?"text-align:right;":""}cursor:pointer;white-space:nowrap" onclick="sortRvOv('${k}')" title="點一下排序">${l}${rvOvSort.k===k?(rvOvSort.dir<0?" ▼":" ▲"):""}</th>`;
+  const S={wait:0,sub:0,ret:0,done:0};ships.forEach(k=>["wait","sub","ret","done"].forEach(f=>S[f]+=by[k][f]));const st=S.wait+S.sub+S.ret+S.done;
+  const rowHtml=(k,role)=>{const o=by[k],t=o.wait+o.sub+o.ret+o.done,on=cur===k;return `<tr style="cursor:pointer;${on?"background:#e4f1f2":""}" onclick="pickRvShip('${esc(k)}')" title="${on?"再點一次取消":"點一下只看這艘船"}"><td>${rvOvGroup?'<span style="display:inline-block;width:14px"></span>':""}<b>${esc(shipLabel(k))}</b>${role?` <span class="hint" style="font-size:11.5px">${role}</span>`:""}${on?' <span class="hint">（篩選中）</span>':""}</td><td style="text-align:right">${num(o.sub,"#1c3a5e",k,"sub")}</td><td style="text-align:right">${num(o.wait,"#7a5a10",k,"wait")}</td><td style="text-align:right">${num(o.ret,"#c0392b",k,"ret")}</td><td style="text-align:right">${num(o.done,"#2e8b57",k,"done")}</td><td style="text-align:right"><b>${t}</b></td><td>${bar(o)}</td><td style="text-align:right">${Math.round(o.done/t*100)}%</td><td class="hint" style="white-space:nowrap">${o.last?new Date(o.last).toLocaleDateString("zh-TW"):"—"}</td></tr>`;};
+  // 依督導分組：每位督導一段（標題列＝該督導的小計），一艘船同時有甲板、機艙督導時兩段都會列出；沒設定督導的放最後
+  let bodyHtml;
+  if(rvOvGroup){
+    const groups=new Map();
+    ships.forEach(k=>{const sp=shipSups(k);(sp.length?sp:[{n:"（未設定督導）",role:""}]).forEach(x=>{if(rvOvSup&&x.n!==rvOvSup)return;if(!groups.has(x.n))groups.set(x.n,[]);groups.get(x.n).push({k,role:x.role});});});
+    const names=[...groups.keys()].sort((a,b)=>(a.startsWith("（")?1:0)-(b.startsWith("（")?1:0)||a.localeCompare(b,"zh-Hant"));
+    bodyHtml=names.map(n=>{const list=groups.get(n),G={wait:0,sub:0,ret:0,done:0};list.forEach(({k})=>["wait","sub","ret","done"].forEach(f=>G[f]+=by[k][f]));const gt=G.wait+G.sub+G.ret+G.done;
+      return `<tr style="background:#eef3f8"><td><b style="color:var(--navy)">👤 ${esc(n)}</b> <span class="hint">（${list.length} 艘）</span></td><td style="text-align:right"><b style="color:#1c3a5e">${G.sub}</b></td><td style="text-align:right"><b style="color:#7a5a10">${G.wait}</b></td><td style="text-align:right"><b style="color:#c0392b">${G.ret}</b></td><td style="text-align:right"><b style="color:#2e8b57">${G.done}</b></td><td style="text-align:right"><b>${gt}</b></td><td>${bar(G)}</td><td style="text-align:right"><b>${Math.round(G.done/(gt||1)*100)}%</b></td><td></td></tr>`+list.map(({k,role})=>rowHtml(k,role)).join("");}).join("");
+  }else{
+    bodyHtml=shown.map(k=>rowHtml(k,"")).join("")+(hiddenN?`<tr><td colspan="9" style="text-align:center;padding:6px"><button class="btn sm" onclick="rvOvAll=!rvOvAll;renderRvOverview()">${rvOvAll?"▴ 只顯示前 "+RV_OV_LIMIT+" 艘":"▾ 顯示全部 "+ships.length+" 艘（還有 "+hiddenN+" 艘）"}</button></td></tr>`:"");
+  }
+  box.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">${chips}${supCtl}<span class="hint" style="margin-left:4px">點數字可直接看那艘船的項目；表頭可排序</span></div>
+  ${ships.length?`<table class="lt" style="font-size:13.5px"><thead><tr><th>${rvOvGroup?"督導／船舶":"船舶"}</th>${th("sub","待審核",1)}${th("wait","待改善",1)}${th("ret","已退回",1)}${th("done","已結案",1)}${th("tot","合計",1)}<th>結案進度</th>${th("rate","結案率",1)}${th("last","最近回報")}</tr></thead><tbody>
+    ${bodyHtml}
+    <tr style="background:#f1f5f8"><td><b>小計</b> <span class="hint">（${ships.length} 艘）</span></td><td style="text-align:right"><b>${S.sub}</b></td><td style="text-align:right"><b>${S.wait}</b></td><td style="text-align:right"><b>${S.ret}</b></td><td style="text-align:right"><b>${S.done}</b></td><td style="text-align:right"><b>${st}</b></td><td>${bar(S)}</td><td style="text-align:right"><b>${Math.round(S.done/(st||1)*100)}%</b></td><td></td></tr>
+  </tbody></table>`:`<div class="hint">「${FL[rvOvFlt][0]}」目前沒有船。</div>`}
   <div class="hint" style="margin-top:6px;font-size:12px"><span style="color:#2e8b57">■</span> 已結案　<span style="color:#1c3a5e">■</span> 待審核（船上已回報）　<span style="color:#c0392b">■</span> 已退回待重填　<span style="color:#e0a83a">■</span> 待改善（船上還沒回報）　・只算已發改善單的內控／系統內結案缺失，FLOW 不列入</div>`;
 }function renderReview(){
   renderRvOverview();
