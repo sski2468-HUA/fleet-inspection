@@ -12738,6 +12738,11 @@ const ShipRisk={
       const p=rows[0]&&rows[0].payload;
       this.data=Object.assign({ships:{}},p||{});if(!this.data.ships||typeof this.data.ships!=="object")this.data.ships={};
       this.updated=rows[0]?rows[0].updated:null;this.loaded=true;this.badge();
+      // 檢查管控等頁面若已先畫好，風險資料到了再重畫一次，HRS 標記與篩選數字才會出現
+      const vis=sel=>{const el=document.querySelector(sel);return !!el&&el.offsetParent!==null;};
+      try{if(vis("#ic2-kpis"))InspCtrl2.render();}catch(e){}
+      try{if(vis("#ad2-kpis"))AuditDash2.render();}catch(e){}
+      try{if(vis("#ic-summary"))InspCtrl.render();}catch(e){}
     }catch(e){console.warn("讀取船隊風險清單失敗",e);}
   },
   badge(){const el=$("#risk-badge");if(!el)return;const n=Object.values(this.data.ships||{}).filter(x=>x&&x.tmou==="HRS").length;
@@ -13456,6 +13461,7 @@ function rankOptionsHtml(cur){
    （例如已不在船舶清單的舊代碼）時退回代碼本身，不讓畫面開天窗。 */
 /* 船名旁的 Tokyo MOU 高風險船標記（資料：船隊風險清單 ShipRisk） */
 function riskTag(code){try{return ShipRisk.tag(code);}catch(e){return "";}}
+function isHrs(code){try{const v=(ShipRisk.data.ships||{})[code];return !!v&&v.tmou==="HRS";}catch(e){return false;}}
 function shipFullLabel(code){
   const s=SHIPINFO.find(x=>x.code===code);
   if(!s)return code||"";
@@ -20550,6 +20556,7 @@ const InspCtrl2={
     if(F.mineSup&&s.deckSup!==me&&s.engineSup!==me)return false;
     if(F.st==="dev"&&!(s.dv.deck?.warn||s.dv.engine?.warn))return false;
     if(F.st==="enh"&&!s.enh)return false;
+    if(F.st==="hrs"&&!isHrs(s.code))return false;
     return true;},
   ownerPass(r){const F=this.F;return (!F.owner||r.owner===F.owner)&&(!F.mineOwn||r.owner===this.me());},
   rowPass(r){const F=this.F;
@@ -20557,7 +20564,7 @@ const InspCtrl2={
     if(F.unsched&&r.sched)return false;
     if(F.st==="nosched")return !!r.due&&r.days<=InspCtrl.thresh().yellow&&!r.sched;
     if(F.st==="attn")return r.st<=2;
-    if(F.st==="enh"||F.st==="dev")return true; // 這兩個是篩船，船上的格子照常顯示
+    if(F.st==="enh"||F.st==="dev"||F.st==="hrs")return true; // 這幾個是篩船，船上的格子照常顯示
     if(typeof F.st==="number")return r.st===F.st;
     return true;},
   cellTxt(r){if(!r.due)return r.txt||"—";if(r.days<0)return "逾"+(-r.days);if(r.days<=InspCtrl.thresh().yellow)return r.days+"天";return r.due.slice(2,7).replace("-","/");},
@@ -20623,12 +20630,12 @@ const InspCtrl2={
       `<button class="ic2-kpi ${ns?"s0":"s3"} ${F.st==="nosched"?"on":""}" data-st="nosched" title="${t.yellow} 天內到期（含已逾期）但還沒有預排日期的項目；目標是 0">⏳ ${t.yellow} 天內未排程<b>${ns}</b><span style="font-size:11px;opacity:.85">目標 0</span></button><span class="ic2-sep"></span>`+
       chip("attn","🔔 需關注","s2",base.filter(r=>r.st<=2).length)+chip(0,"逾期","s0",n(0))+chip(1,`${t.red} 天內`,"s1",n(1))+chip(2,`${t.yellow} 天內`,"s2",n(2))+
       chip(3,"正常","s3",n(3))+chip(4,"無到期日","s4",n(4))+chip("all","全部","s4",base.length)+
-      `<span style="flex:1"></span><button class="ic2-alert ${F.st==="dev"?"on":""}" data-st="dev">⚠ 督導間隔警示（${devN}）</button><button class="ic2-alert ${F.st==="enh"?"on":""}" style="background:var(--bad)" data-st="enh">🔺 加強管理船舶（${enhN}）</button>`;
+      `<span style="flex:1"></span><button class="ic2-alert ${F.st==="dev"?"on":""}" data-st="dev">⚠ 督導間隔警示（${devN}）</button><button class="ic2-alert ${F.st==="enh"?"on":""}" style="background:var(--bad)" data-st="enh">🔺 加強管理船舶（${enhN}）</button><button class="ic2-alert ${F.st==="hrs"?"on":""}" style="background:#b3261e" data-st="hrs" title="Tokyo MOU 高風險船（依船隊風險清單）">▲ HRS 高風險船（${this.SHIPS.filter(s=>isHrs(s.code)).length}）</button>`;
   },
   /* 目前套用了哪些篩選，一眼看出來；每個都可以單獨取消 */
   activeBar(){
     const F=this.F,t=InspCtrl.thresh(),chips=[];
-    const stName={nosched:`${t.yellow} 天內未排程`,attn:"需關注",0:"逾期",1:`${t.red} 天內`,2:`${t.yellow} 天內`,3:"正常",4:"無到期日",dev:"督導間隔警示",enh:"加強管理船舶"};
+    const stName={nosched:`${t.yellow} 天內未排程`,attn:"需關注",0:"逾期",1:`${t.red} 天內`,2:`${t.yellow} 天內`,3:"正常",4:"無到期日",dev:"督導間隔警示",enh:"加強管理船舶",hrs:"Tokyo MOU 高風險船 HRS"};
     if(F.st!=null)chips.push(["st",`狀態：${stName[F.st]}`]);
     if(F.items.size)chips.push(["items",`項目：${[...F.items].map(k=>this.colOf(k)[1]).join("、")}`]);
     else if(F.scope!=="insp")chips.push(["scope",`範圍：${F.scope==="cert"?"海技管理證書":"檢查項目＋證書"}`]);
@@ -21262,7 +21269,7 @@ AuditNotice.injectCss();
    同一份資料 App.auditDash，所有寫入都走 AuditDash 原本的方法（權限、同步檢查管控／年度計畫都不變），
    只換成「清單＋右側明細」版面，跟檢查管控2 一樣：上方流程數字可點、目前篩選看得到、點列開明細。 */
 const AuditDash2={
-  F:{step:null,kw:"",auditor:"",year:"",enh:false,showDone:true},
+  F:{step:null,kw:"",auditor:"",year:"",enh:false,hrs:false,showDone:true},
   cur:null,_bound:false,
   me(){return (typeof Role!=="undefined"&&Role.cur&&Role.cur.name)?Role.cur.name:"";},
   fmt(s){return s?String(s).replace(/-/g,"/"):"—";},
@@ -21279,6 +21286,7 @@ const AuditDash2={
     if(F.kw){const k=F.kw.toLowerCase();if(!(r.ship.toLowerCase().includes(k)||(r.vesselName||"").toLowerCase().includes(k)||(r.zh||"").includes(F.kw)))return false;}
     if(F.auditor&&r.auditor!==F.auditor&&r.auditor2!==F.auditor)return false;
     if(F.enh&&!r.enhanced)return false;
+    if(F.hrs&&!isHrs(r.ship))return false;
     if(!ignoreStep&&F.step&&r.step!==F.step)return false;
     return true;
   },
@@ -21290,7 +21298,7 @@ const AuditDash2={
     const chip=(k,cls)=>`<button class="ic2-kpi ${cls} ${F.step===k?"on":""}" data-adstep="${k}">${this.STEP[k][0]}<b>${n(k)}</b></button>`;
     $("#ad2-kpis").innerHTML=chip("need","s1")+'<span class="ad2-arr">→</span>'+chip("scheduled","s2")+'<span class="ad2-arr">→</span>'+chip("done_open","s4b")+'<span class="ad2-arr">→</span>'+chip("done_closed","s3")+
       `<span class="ic2-sep"></span>`+chip("later","s4")+`<button class="ic2-kpi s4 ${F.step===null?"on":""}" data-adstep="all">全部<b>${base.length}</b></button>`+
-      `<span style="flex:1"></span><button class="ic2-alert ${F.enh?"on":""}" style="background:var(--bad)" data-adenh="1">⭐ 加強稽核（${new Set(all.filter(r=>r.enhanced).map(r=>r.ship)).size}）</button>`;
+      `<span style="flex:1"></span><button class="ic2-alert ${F.enh?"on":""}" style="background:var(--bad)" data-adenh="1">⭐ 加強稽核（${new Set(all.filter(r=>r.enhanced).map(r=>r.ship)).size}）</button><button class="ic2-alert ${F.hrs?"on":""}" style="background:#b3261e;margin-left:6px" data-adhrs="1" title="Tokyo MOU 高風險船（依船隊風險清單）">▲ HRS 高風險船（${new Set(all.filter(r=>isHrs(r.ship)).map(r=>r.ship)).size}）</button>`;
     // 下拉選單
     const keep=(sel,html)=>{const el=$(sel),v=el.value;el.innerHTML=html;el.value=[...el.options].some(o=>o.value===v)?v:"";};
     keep("#ad2-f-auditor",`<option value="">全部稽核員</option>`+AuditDash.AUDITORS.map(a=>`<option>${esc(a)}</option>`).join(""));
@@ -21303,6 +21311,7 @@ const AuditDash2={
     if(F.auditor)chips.push(["auditor",`稽核員：${F.auditor}`]);
     if(F.year)chips.push(["year",`完成年度：${F.year}`]);
     if(F.enh)chips.push(["enh","只看加強稽核"]);
+    if(F.hrs)chips.push(["hrs","只看 Tokyo MOU 高風險船"]);
     const rows=base.filter(r=>this.pass(r));
     $("#ad2-active").innerHTML=`<span class="ic2-lbl">目前顯示</span>`+(chips.length?chips.map(([k,l])=>`<span class="ic2-chip">${esc(l)}<button data-adunf="${k}" title="取消這個篩選">×</button></span>`).join("")+`<button class="btn sm" data-adunf="__all">清除全部篩選</button>`:`<span class="ic2-lbl" style="color:var(--ink-2)">尚未完成的全部船＋今年已完成</span>`)+
       `<span style="flex:1"></span><b style="color:var(--navy)">${new Set(rows.map(r=>r.ship)).size} 艘船・${rows.length} 列</b>`;
@@ -21432,7 +21441,8 @@ const AuditDash2={
       const st=t.closest("[data-adstep]");if(st){const v=st.dataset.adstep==="all"?null:st.dataset.adstep;F.step=F.step===v?null:v;this.render();return;}
       const so=t.closest("[data-adsort]");if(so){this.sortBy(so.dataset.adsort);return;}
       if(t.closest("[data-adenh]")){F.enh=!F.enh;this.render();return;}
-      const uf=t.closest("[data-adunf]");if(uf){const k=uf.dataset.adunf;if(k==="__all")Object.assign(F,{step:null,kw:"",auditor:"",year:"",enh:false});else F[k]=k==="enh"?false:(k==="step"?null:"");
+      if(t.closest("[data-adhrs]")){F.hrs=!F.hrs;this.render();return;}
+      const uf=t.closest("[data-adunf]");if(uf){const k=uf.dataset.adunf;if(k==="__all")Object.assign(F,{step:null,kw:"",auditor:"",year:"",enh:false,hrs:false});else F[k]=k==="enh"||k==="hrs"?false:(k==="step"?null:"");
         $("#ad2-f-kw").value=F.kw;$("#ad2-f-auditor").value=F.auditor;$("#ad2-f-year").value=F.year;this.render();return;}
       const sc=t.closest("[data-adsched]");if(sc){e.stopPropagation();this.open(+sc.dataset.adsched);const i=$('#ic2-drawer [data-adfield="plannedDate"]');if(i){i.focus();try{i.showPicker&&i.showPicker();}catch(_){}}return;}
       const tr=t.closest("tr[data-adid]");if(tr){this.open(+tr.dataset.adid);return;}
@@ -22193,6 +22203,7 @@ const InspCtrl={
     });
     if(this.quickStatus==="attention")rows=rows.filter(r=>r.status==="逾期"||r.status==="即將到期(紅)"||r.status==="即將到期(黃)");
     else if(this.quickStatus==="enhanced")rows=rows.filter(r=>r.isEnhancedAudit);
+    else if(this.quickStatus==="hrs")rows=rows.filter(r=>isHrs(r.ship));
     else if(this.quickStatus!=="all")rows=rows.filter(r=>r.status===this.quickStatus);
     const k=this.sortKey,dir=this.sortDir==="desc"?-1:1;
     rows.sort((a,b)=>{
@@ -22852,10 +22863,11 @@ const InspCtrl={
     const enhCount=allRows.filter(r=>r.isEnhancedAudit).length;
     const sumEl=$("#ic-summary");
     if(sumEl){
-      const chip=(key,label,count)=>`<button class="ic-chip ic-${key==="attention"?"warn":key==="enhanced"?"bad":this.statusClass(key)} ${this.quickStatus===key?"active":""}" onclick="InspCtrl.filterStatus('${key}')">${label}：${count}</button>`;
+      const chip=(key,label,count)=>`<button class="ic-chip ic-${key==="attention"?"warn":key==="enhanced"||key==="hrs"?"bad":this.statusClass(key)} ${this.quickStatus===key?"active":""}" onclick="InspCtrl.filterStatus('${key}')">${label}：${count}</button>`;
       sumEl.innerHTML=
         chip("attention","🔔 需關注（逾期＋即將到期）",attnCount)+
         chip("enhanced","🔺 加強管理",enhCount)+
+        chip("hrs","▲ Tokyo MOU 高風險船 HRS",allRows.filter(r=>isHrs(r.ship)).length)+
         chip("逾期","逾期",counts["逾期"])+
         chip("即將到期(紅)","即將到期(紅)",counts["即將到期(紅)"])+
         chip("即將到期(黃)","即將到期(黃)",counts["即將到期(黃)"])+
