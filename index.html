@@ -3644,7 +3644,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         <div class="mh"><h3>📋 貼上更新船隊風險清單</h3><button class="x" onclick="$('#riskPasteModal').classList.remove('show')">✕</button></div>
         <div class="mb">
           <p class="hint" style="margin:0 0 8px;line-height:1.7">把 APCIS 查詢結果、同事的「船隊風險清單」網頁或 PDF、或 Excel 整張表<b>全選複製</b>後貼在下面。系統依 <b>IMO 號碼</b>對應本公司船舶，抓出風險等級（HRS／SRS／LRS 或高／標準／低風險）、檢查優先級、窗口日期與取得時間。貼上後會先帶進編輯畫面，確認無誤再按「💾 儲存」。</p>
-          <textarea id="riskPasteText" style="width:100%;min-height:260px;font-size:12.5px" placeholder="例：FPMC B 201　IMO 9468229　▲ 高風險 HRS　無優先級　2027-01-10 ～ 2027-03-10　…"></textarea>
+          <textarea id="riskPasteText" style="width:100%;min-height:260px;font-size:12.5px" placeholder="例：FPMC B 201　IMO 9468229　▲ 高風險 HRS　No Priority　2027-01-10 ～ 2027-03-10　…"></textarea>
           <div id="riskPasteMsg" style="color:var(--bad);font-size:13px;margin-top:6px"></div>
           <div class="toolbar" style="margin-top:10px;justify-content:flex-end"><button class="btn" onclick="$('#riskPasteModal').classList.remove('show')">取消</button><button class="btn primary" onclick="ShipRisk.applyPaste()">帶入</button></div>
         </div>
@@ -12736,7 +12736,7 @@ const ShipRisk={
     try{
       const rows=await Cloud.api(`app_db?select=payload,updated&k=eq.${this.KEY}`)||[];
       const p=rows[0]&&rows[0].payload;
-      this.data=Object.assign({ships:{}},p||{});if(!this.data.ships||typeof this.data.ships!=="object")this.data.ships={};
+      this.data=Object.assign({ships:{}},p||{});if(!this.data.ships||typeof this.data.ships!=="object")this.data.ships={};Object.values(this.data.ships).forEach(v=>{if(v&&v.prio==="無優先級")v.prio="No Priority";});
       this.updated=rows[0]?rows[0].updated:null;this.loaded=true;this.badge();
       // 檢查管控等頁面若已先畫好，風險資料到了再重畫一次，HRS 標記與篩選數字才會出現
       const vis=sel=>{const el=document.querySelector(sel);return !!el&&el.offsetParent!==null;};
@@ -12788,7 +12788,7 @@ const ShipRisk={
       const pm=seg.match(/Priority\s*(I{1,2}|1|2)\b|無優先級|No\s*Priority/i);
       const ds=[...seg.matchAll(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})(?!\d)(?!\s+\d{1,2}:\d{2})/g)].map(x=>`${x[1]}-${x[2].padStart(2,"0")}-${x[3].padStart(2,"0")}`);
       const ft=seg.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})\s+\d{1,2}:\d{2}/);
-      out[code]={tmou:lv,prio:pm?(/無|No/i.test(pm[0])?"無優先級":"Priority "+(pm[1]==="1"?"I":pm[1]==="2"?"II":pm[1].toUpperCase())):"",
+      out[code]={tmou:lv,prio:pm?(/無|No/i.test(pm[0])?"No Priority":"Priority "+(pm[1]==="1"?"I":pm[1]==="2"?"II":pm[1].toUpperCase())):"",
         winFrom:ds[0]||"",winTo:ds[1]||"",checked:ft?`${ft[1]}-${ft[2].padStart(2,"0")}-${ft[3].padStart(2,"0")}`:todayStr()};
     });
     return out;
@@ -12886,7 +12886,7 @@ const ShipRisk={
               <tr><td><span class="rk-lv lrs">● 低風險 LRS</span></td><td>9～18 個月</td></tr></tbody></table></div>
           <div style="flex:1 1 380px"><b>檢查優先級 Priority</b>
             <table class="tbl" style="margin-top:6px"><thead><tr><th style="width:110px">顯示</th><th>意思</th><th>實務上</th></tr></thead><tbody>
-              <tr><td><b>無優先級<br>No Priority</b></td><td>還沒到窗口期</td><td>一般不會被選檢，除非有臨時因素</td></tr>
+              <tr><td><b>No Priority</b></td><td>還沒到窗口期</td><td>一般不會被選檢，除非有臨時因素</td></tr>
               <tr><td><b style="color:#8a5a00">Priority II</b></td><td>已進入窗口期</td><td><b>可以被選來檢查</b>，進 Tokyo MOU 港口被登輪機率明顯提高</td></tr>
               <tr><td><b style="color:#b3261e">Priority I</b></td><td>已超過窗口期仍未被檢查，或區域內沒有近期檢查紀錄</td><td><b>必須被檢查</b>，下一個 Tokyo MOU 港口幾乎一定上船</td></tr></tbody></table>
             <div class="hint" style="margin-top:4px">臨時因素（被檢舉、事故、碰撞擱淺、前次滯留等）不論優先級都可能直接被檢查。定義以 Tokyo MOU 官網 PSC 手冊為準。</div></div>
