@@ -1562,6 +1562,7 @@ table.ap-xl td.ap-selm{box-shadow:inset 2px 0 0 #1b6ec2,inset -2px 0 0 #1b6ec2}
 .rk-t tr.rk-hrs td{background:#fff4f3}
 .rk-t tr.rk-hrs td:first-child{box-shadow:inset 4px 0 0 #c0392b}
 .rk-t tr.rk-hrs td:first-child b{color:#b3261e}
+.rk-tag{display:inline-block;margin-left:5px;background:#c0392b;color:#fff;font-size:10.5px;font-weight:700;line-height:1.5;border-radius:4px;padding:0 5px;vertical-align:1px;white-space:nowrap;cursor:help;font-family:inherit}
 /* 檢查紀錄列表：點缺失數／正評數的大視窗 */
 #inspPeekModal{padding:1.5vh 1.2vw;background:rgba(12,36,51,.6)}
 .ipk-n{font:inherit;font-weight:700;border-radius:6px;padding:1px 12px;cursor:pointer;border:1px solid}
@@ -11106,7 +11107,7 @@ const App={
     this.defs.forEach(d=>{if(d.inspector)d.inspector=canonInspector(d.inspector);if(d.oilco)d.oilco=canonUnit(d.oilco);});
     if(typeof Classify!=="undefined")Classify.init();
     if(typeof NCTree!=="undefined")NCTree.init();
-    Dash.init();Ov.init();if(typeof ShipRisk!=="undefined")setTimeout(()=>ShipRisk.load(),1500);if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof Trend!=="undefined")Trend.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();if(typeof PscZone!=="undefined")PscZone.init();if(typeof StorageMonitor!=="undefined")StorageMonitor.init();if(typeof DupFinder!=="undefined")DupFinder.init();// 編輯鎖定功能已停用(全部資料表都已改為逐筆同步,不再需要)：不建立浮動按鈕/面板，EditLock.guard() 保留為恆真空操作。
+    Dash.init();Ov.init();if(typeof ShipRisk!=="undefined"){setTimeout(()=>ShipRisk.load(),1500);setTimeout(()=>ShipRisk.load(),6000);}if(typeof ShipGroup!=="undefined")ShipGroup.init();else Sp.init();Defs.init();if(typeof DefsProj!=="undefined")DefsProj.init();SelfCheck.init();if(typeof Cloud!=="undefined")Cloud.init();if(typeof Audit!=="undefined")Audit.init();refreshRoleWho();if(typeof Pdfx!=="undefined")Pdfx.init();if(typeof Recur!=="undefined")Recur.init();if(typeof Ref!=="undefined")Ref.init();if(typeof Trend!=="undefined")Trend.init();if(typeof SirePos!=="undefined")SirePos.init();if(typeof Air!=="undefined")Air.init();if(typeof PscChap!=="undefined")PscChap.init();if(typeof PscZone!=="undefined")PscZone.init();if(typeof StorageMonitor!=="undefined")StorageMonitor.init();if(typeof DupFinder!=="undefined")DupFinder.init();// 編輯鎖定功能已停用(全部資料表都已改為逐筆同步,不再需要)：不建立浮動按鈕/面板，EditLock.guard() 保留為恆真空操作。
     refreshInspectorList();refreshPlaceList();
     this.refreshMeta();
     NavConfig.apply();
@@ -12849,6 +12850,12 @@ const ShipRisk={
     $("#riskToolN").textContent=this.ships().filter(s=>s.imo).length;
     m.classList.add("show");
   },
+  /* 其他頁面（檢查管控等）在船名旁標示 Tokyo MOU 高風險船 */
+  tag(code){
+    const v=(this.data.ships||{})[code];if(!v||v.tmou!=="HRS")return "";
+    const tip=`Tokyo MOU 高風險船（HRS）${v.prio?"・"+v.prio:""}${v.winFrom||v.winTo?"・檢查窗口 "+(v.winFrom||"")+" ～ "+(v.winTo||""):""}${v.checked?"・查詢日期 "+v.checked:""}`;
+    return `<span class="rk-tag" title="${esc(tip)}">▲HRS</span>`;
+  },
   lvHtml(v){const L=this.LV[v];return L?`<span class="rk-lv ${L.c}">${L.c==="hrs"?"▲":L.c==="srs"?"◆":"●"} ${L.t}</span>`:`<span class="hint">未登錄</span>`;},
   render(){
     const box=$("#risk-body"),tools=$("#risk-tools");if(!box)return;
@@ -13447,6 +13454,8 @@ function rankOptionsHtml(cur){
 /* 船名標準化顯示：寬版面（表格欄位、匯出、對話框等有空間的地方）一律顯示「代碼＋中文簡稱＋完整
    英文船名」；窄版面（篩選器小標籤 chip 等欄寬有限的地方）改用完整英文船名。找不到船舶資料
    （例如已不在船舶清單的舊代碼）時退回代碼本身，不讓畫面開天窗。 */
+/* 船名旁的 Tokyo MOU 高風險船標記（資料：船隊風險清單 ShipRisk） */
+function riskTag(code){try{return ShipRisk.tag(code);}catch(e){return "";}}
 function shipFullLabel(code){
   const s=SHIPINFO.find(x=>x.code===code);
   if(!s)return code||"";
@@ -20658,7 +20667,7 @@ const InspCtrl2={
     let h=`<thead><tr><th class="corner">船舶（${ships.length}）</th>${C.map(c=>{const d=this.CERT_DESC[c[0]],bt=admin&&this.isCertKey(c[0]);return `<th class="${this.isCertKey(c[0])?"cert":""}" ${bt?`data-batch="${c[0]}" style="cursor:pointer"`:""} ${d?`title="${esc(d[0]+"\n"+d[1]+"\n"+d[2])}${bt?"\n\n▶ 點欄名可一次填全部船":""}"`:""}>${esc(c[1])}<small>${esc(c[2])||"&nbsp;"}</small></th>`;}).join("")}</tr></thead><tbody>`;
     for(const s of ships){
       const dv=s.dv.deck?.warn||s.dv.engine?.warn;
-      h+=`<tr><th tabindex="0" data-ship="${esc(s.code)}" title="${esc(s.zh||s.name)}・甲板督導 ${esc(s.deckSup||"-")}／機艙督導 ${esc(s.engineSup||"-")}"><b>${esc(s.code)}</b><small>${s.vtype==="tanker"?"油":"散"}・${esc(s.deckSup||"")}／${esc(s.engineSup||"")}</small>${s.enh?'<span class="ic2-tag enh">加強</span>':""}${dv?'<span class="ic2-tag dev">督導</span>':""}</th>`;
+      h+=`<tr><th tabindex="0" data-ship="${esc(s.code)}" title="${esc(s.zh||s.name)}・甲板督導 ${esc(s.deckSup||"-")}／機艙督導 ${esc(s.engineSup||"-")}"><b>${esc(s.code)}</b>${riskTag(s.code)}<small>${s.vtype==="tanker"?"油":"散"}・${esc(s.deckSup||"")}／${esc(s.engineSup||"")}</small>${s.enh?'<span class="ic2-tag enh">加強</span>':""}${dv?'<span class="ic2-tag dev">督導</span>':""}</th>`;
       for(const c of C){const r=this.cell(s.code,c[0]);
         if(!r){h+=this.isCertKey(c[0])&&admin?`<td class="c sadd" data-add="${esc(s.code)}|${c[0]}" title="建立 ${esc(s.code)} ${esc(c[1])} 證書資料">＋</td>`:`<td class="c sx">·</td>`;continue;}
         const dim=!this.rowPass(r);
@@ -20671,7 +20680,7 @@ const InspCtrl2={
     const L=this.LSORT;
     const rows=this.visible().filter(x=>this.rowPass(x.r)).sort((a,b)=>L==="days"?((a.r.days??1e9)-(b.r.days??1e9)):L==="ship"?a.s.code.localeCompare(b.s.code,undefined,{numeric:true}):String(a.r[L]||"").localeCompare(String(b.r[L]||""),"zh-Hant"));
     $("#ic2-list").innerHTML=`<thead><tr><th data-sort="ship">船</th><th>項目</th><th data-sort="days">狀態 ▾</th><th>最近一次</th><th data-sort="due">到期日</th><th data-sort="sched">預排日</th><th data-sort="owner">檢查安排人</th><th>備註</th></tr></thead><tbody>`+
-      rows.map(({s,c,r})=>`<tr data-ship="${esc(s.code)}" data-k="${c[0]}"><td><b>${esc(s.code)}</b>${s.enh?'<span class="ic2-tag enh">加強</span>':""}</td><td>${esc(c[1])}${r.stage?` <span class="ic2-pill ${r.stage==="intermediate"?"s2":"s4"}" style="font-size:11px">${r.stage==="intermediate"?"中檢":"換證"}</span>`:""}</td>
+      rows.map(({s,c,r})=>`<tr data-ship="${esc(s.code)}" data-k="${c[0]}"><td><b>${esc(s.code)}</b>${riskTag(s.code)}${s.enh?'<span class="ic2-tag enh">加強</span>':""}</td><td>${esc(c[1])}${r.stage?` <span class="ic2-pill ${r.stage==="intermediate"?"s2":"s4"}" style="font-size:11px">${r.stage==="intermediate"?"中檢":"換證"}</span>`:""}</td>
       <td><span class="ic2-pill s${r.st}">${esc(this.stLabel(r))}</span></td><td style="font-family:var(--mono)">${this.fmt(r.last)}${this.lastWhoHtml(r)}</td><td style="font-family:var(--mono)">${this.fmt(r.due)}</td>
       <td style="font-family:var(--mono)">${r.sched?this.fmt(r.sched)+(r.src.schedPort?`<div class="ic2-lbl">${esc(r.src.schedPort)}</div>`:""):(r.st===5?"—":`<button class="btn sm" data-sched-open="${esc(s.code)}|${c[0]}">📅 排程</button>`)}</td>
       <td>${esc(r.owner)}</td><td style="max-width:280px;color:var(--ink-2);font-size:12px">${esc(r.note)}</td></tr>`).join("")+
@@ -20718,7 +20727,7 @@ const InspCtrl2={
     const list=(this._calEv&&this._calEv[iso])||[];
     this.showDrawer(`<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="lbl">排程月曆</div><h2>${this.fmt(iso)}</h2></div><button class="btn" data-close>關閉</button></div>
       <table style="margin-top:10px"><thead><tr><th>船</th><th>項目</th><th>類型</th><th>狀態</th></tr></thead><tbody>
-      ${list.map(e=>`<tr data-ship="${esc(e.s.code)}" data-k="${e.r.k}"><td><b>${esc(e.s.code)}</b></td><td>${esc(e.c[1])}</td><td>${e.kind==="sched"?"📅 排程":"⏰ 到期"}</td><td><span class="ic2-pill s${e.r.st}">${esc(this.stLabel(e.r))}</span></td></tr>`).join("")}</tbody></table>`,["day",iso]);
+      ${list.map(e=>`<tr data-ship="${esc(e.s.code)}" data-k="${e.r.k}"><td><b>${esc(e.s.code)}</b>${riskTag(e.s.code)}</td><td>${esc(e.c[1])}</td><td>${e.kind==="sched"?"📅 排程":"⏰ 到期"}</td><td><span class="ic2-pill s${e.r.st}">${esc(this.stLabel(e.r))}</span></td></tr>`).join("")}</tbody></table>`,["day",iso]);
   },
   /* 時間軸：每列一個「船＋項目」，橫軸是月份；長條＝最近一次檢查到到期日，◆到期、●排程，淡黃底＝中間檢查窗口 */
   timeline(){
@@ -20738,7 +20747,7 @@ const InspCtrl2={
       if(r.due&&new Date(r.due+"T00:00:00").getTime()<T0)marks+=`<div class="old">◀ 逾期 ${-r.days} 天（${this.fmt(r.due)}）</div>`;
       if(r.due&&inR(r.due))marks+=`<div class="dia s${r.st}" style="left:${pct(r.due)}%" title="到期 ${this.fmt(r.due)}（${esc(this.stLabel(r))}）"></div><div class="dl" style="left:${pct(r.due)}%">${r.due.slice(5).replace("-","/")}</div>`;
       if(r.sched&&inR(r.sched))marks+=`<div class="sch" style="left:${pct(r.sched)}%" title="排程 ${this.fmt(r.sched)}${r.src.schedPort?"・"+esc(r.src.schedPort):""}"></div>`;
-      body+=`<div class="tr ${first?"first":""}" data-ship="${esc(x.s.code)}" data-k="${r.k}"><div class="tlab">${first?`<b>${esc(x.s.code)}</b>`:""}<span>${esc(x.c[1])}</span></div><div class="track">${marks}</div></div>`;}
+      body+=`<div class="tr ${first?"first":""}" data-ship="${esc(x.s.code)}" data-k="${r.k}"><div class="tlab">${first?`<b>${esc(x.s.code)}</b>${riskTag(x.s.code)}`:""}<span>${esc(x.c[1])}</span></div><div class="track">${marks}</div></div>`;}
     $("#ic2-tl").innerHTML=`
       <div class="ic2-calbar"><span class="ic2-lbl">顯示範圍</span>${[6,12,24].map(n=>`<button class="btn sm ${F.tlSpan===n?"on":""}" data-tlspan="${n}">未來 ${n} 個月</button>`).join("")}
         <span style="flex:1"></span><span class="ic2-lbl">長條＝最近一次檢查→到期日　◆ 到期　<span style="color:var(--navy)">●</span> 排程　<span style="background:#fff3c4;padding:0 6px">　</span> 中間檢查窗口　紅線＝今天</span></div>
@@ -20784,7 +20793,7 @@ const InspCtrl2={
     const s=this.SHIPS.find(x=>x.code===ship);if(!s)return;
     const items=[...this.INSP_COLS,...this.extraCols(),...this.CERT_COLS].map(c=>({c,r:this.cell(ship,c[0])})).filter(x=>x.r).sort((a,b)=>(a.r.days??1e9)-(b.r.days??1e9));
     const dvl=["deck","engine"].map(t=>{const v=s.dv[t];return v?`${t==="deck"?"甲板":"機艙"}督導（登記：${esc(v.assigned||"-")}）最近訪船：${v.date?esc(v.name)+" "+this.fmt(v.date):"查無"}${v.warn?' <span class="ic2-pill s1">超過 14 個月</span>':""}`:""}).filter(Boolean).join("<br>");
-    this.showDrawer(`${this.head(ship,`${esc(ship)}　${esc(s.zh||"")}`,`${s.vtype==="tanker"?"油輪":"散裝"}・${esc(s.flag||"")}・${esc(s.cls||"")}`)}
+    this.showDrawer(`${this.head(ship,`${esc(ship)}　${esc(s.zh||"")}${riskTag(ship)}`,`${s.vtype==="tanker"?"油輪":"散裝"}・${esc(s.flag||"")}・${esc(s.cls||"")}`)}
       <div class="note" style="margin-top:10px">${dvl||"未設定督導"}</div>
       <table style="margin-top:10px"><thead><tr><th>項目</th><th>狀態</th><th>到期</th><th>預排</th></tr></thead><tbody>
       ${items.map(({c,r})=>`<tr data-ship="${esc(ship)}" data-k="${c[0]}"><td>${esc(c[1])}</td><td><span class="ic2-pill s${r.st}">${esc(this.stLabel(r))}</span></td><td>${this.fmt(r.due)}</td><td>${r.sched?this.fmt(r.sched):"—"}</td></tr>`).join("")}</tbody></table>`,["ship",ship]);
@@ -21312,7 +21321,7 @@ const AuditDash2={
     const due=r=>r.actualAuditDate||!r.dueDate?"":`<span class="ic2-pill ${r.daysLeft<0?"s0":r.daysLeft<=30?"s1":r.daysLeft<=90?"s2":"s3"}">${r.daysLeft<0?"逾期 "+(-r.daysLeft)+" 天":"剩 "+r.daysLeft+" 天"}</span>`;
     $("#ad2-list").innerHTML=`<thead><tr>${th("ship","船")}${th("step","流程")}${th("last","上次稽核")}${th("due","到期")}${th("month","預計月")}${th("plan","計畫檢查日")}${th("port","預計港口")}${th("actual","實際檢查日")}${th("auditor","稽核員")}${th("def","缺失")}${th("closed","結案")}${th("remark","備註")}</tr></thead><tbody>`+
       rows.map(r=>`<tr data-adid="${r.id}">
-        <td><b>${esc(r.ship)}</b>${r.enhanced?'<span class="ic2-tag enh">加強</span>':""}<div class="ic2-lbl">${esc(r.zh||"")}</div></td>
+        <td><b>${esc(r.ship)}</b>${riskTag(r.ship)}${r.enhanced?'<span class="ic2-tag enh">加強</span>':""}<div class="ic2-lbl">${esc(r.zh||"")}</div></td>
         <td><span class="ic2-pill ${this.STEP[r.step][1]}">${this.STEP[r.step][0]}</span></td>
         <td style="font-family:var(--mono)">${this.fmt(r.lastAuditDate)}</td>
         <td style="font-family:var(--mono)">${r.actualAuditDate?'<span class="ic2-lbl">—</span>':this.fmt(r.dueDate)+"<div>"+due(r)+"</div>"}</td>
@@ -22648,7 +22657,7 @@ const InspCtrl={
        原本用 <select> 直接內嵌在列表上、onchange 就寫入，滑鼠誤點或滾輪
        掃過就可能把某筆紀錄改掛到別艘船，而且沒有任何確認。
        改為唯讀顯示；真要修改請按 ✎ 開啟編輯視窗。 */
-    const shipInput=`<span class="ic-fixed" title="船名為追蹤標的，如需修改請按左側 ✎ 編輯">${esc(r.ship)||"—"}</span>`;
+    const shipInput=`<span class="ic-fixed" title="船名為追蹤標的，如需修改請按左側 ✎ 編輯">${esc(r.ship)||"—"}${riskTag(r.ship)}</span>`;
     const itypeInput=`<span class="ic-fixed" title="檢查項目為追蹤標的，如需修改請按左側 ✎ 編輯">${esc(r.itype)||"—"}</span>`;
     const validInput=`<input type="text" class="ic-sched-inline" style="text-align:center" value="${esc(r.validityMonths)}" ${dis} onchange="InspCtrl.quickSetField(${r.id},'validityMonths',this.value)" title="${canEdit?"點選直接修改效期(月)":lockTitle}">`;
     const lastInspCat=(this.normItype(r.itype)==="ONBOARDVISIT"&&r.lastInspector)?this.ownerCatOf(r.lastInspector):null;
@@ -22760,7 +22769,7 @@ const InspCtrl={
     const tb=$("#ic-enh-tbody");if(!tb)return;
     if(!list.length){tb.innerHTML=`<tr><td colspan="6" class="hint" style="text-align:center;padding:14px">目前沒有標記為加強稽核的船舶</td></tr>`;return;}
     tb.innerHTML=list.map(r=>`<tr>
-        <td><b>${esc(r.ship)}</b></td>
+        <td><b>${esc(r.ship)}</b>${riskTag(r.ship)}</td>
         <td>${esc(r.itype)}</td>
         <td style="max-width:320px;white-space:pre-wrap">${esc(r.enhancedReason||"")}</td>
         <td>${esc(r.enhancedSince||"-")}</td>
@@ -22788,7 +22797,7 @@ const InspCtrl={
       const rec=App.inspCtrl.find(x=>x.ship===r.ship&&this.normItype(x.itype)==="ONBOARDVISIT");
       const actionBtn=rec?`<button class="btn sm" onclick="InspCtrl.openEdit(${rec.id})">✎ 開啟排程</button>`:`<span class="hint" title="此船尚無 onboard visit 管控紀錄，請用上方「新增管控紀錄」建立">尚無管控紀錄</span>`;
       return `<tr>
-        <td><b>${esc(r.ship)}</b> ${esc(r.zh)}</td>
+        <td><b>${esc(r.ship)}</b>${riskTag(r.ship)} ${esc(r.zh)}</td>
         <td>${esc(r.deck.name)||"-"}</td>
         <td>${cell(r.deck)}</td>
         <td style="text-align:center">${days(r.deck)}</td>
@@ -22909,7 +22918,7 @@ const InspCtrl={
         </div>`;
       }).join("");
       return `<div class="ic-month-card">
-        <div class="ic-month-head"><span>🚢 ${esc(ship)}</span><span class="cnt">${items.length} 項${attn?` · ⚠${attn}需關注`:""}</span></div>
+        <div class="ic-month-head"><span>🚢 ${esc(ship)}${riskTag(ship)}</span><span class="cnt">${items.length} 項${attn?` · ⚠${attn}需關注`:""}</span></div>
         <div class="ic-month-body">${body}</div>
       </div>`;
     }).join("");
@@ -23102,11 +23111,11 @@ const InspCtrl={
           ${Object.keys(byShip).sort().map(ship=>{
             const list=byShip[ship];
             const urg=list.filter(r=>!r.schedDate&&r.daysLeft!=null&&r.daysLeft<=t.red).length;
-            return `<div class="ic-tl-grp">🚢 ${esc(ship)}
+            return `<div class="ic-tl-grp">🚢 ${esc(ship)}${riskTag(ship)}
                 <span style="font-family:var(--mono);font-size:10px;color:var(--ink-3)">${list.length} 項</span>
                 ${urg?`<span class="st st-hi">⚠ ${urg} 項急迫</span>`:""}</div>`
               + list.map(r=>`
-                <div class="ic-tl-c ic-tl-f1"><b>${esc(r.ship)}</b></div>
+                <div class="ic-tl-c ic-tl-f1"><b>${esc(r.ship)}</b>${riskTag(r.ship)}</div>
                 <div class="ic-tl-c ic-tl-f2">${esc(r.itype)}${r.owner?`<span class="ic-tl-own">${esc(r.owner)}</span>`:""}</div>
                 <div class="ic-tl-c ic-tl-f3">${stat(r)}</div>
                 ${bar(r)}`).join("");
@@ -23161,7 +23170,7 @@ const InspCtrl={
           <span class="hint" style="margin-left:auto;font-weight:normal">${open?"點選收合 ▲":"點選展開 ▼"}</span>
         </h4>`+
         (open?`<div class="ic-alert-list">`+
-        needAttn.map(r=>`<div class="ic-alert-ticket" onclick="InspCtrl.openEdit(${r.id})" style="cursor:pointer" title="點選開啟編輯視窗"><b>${esc(r.ship)}</b> ${esc(r.itype)}${r.activeStage?`(${r.activeStage==='intermediate'?"中檢":"換證"})`:""}<br>到期 ${esc(r.dueDateCalc)||"-"}　${esc(r.owner)||""}</div>`).join("")+
+        needAttn.map(r=>`<div class="ic-alert-ticket" onclick="InspCtrl.openEdit(${r.id})" style="cursor:pointer" title="點選開啟編輯視窗"><b>${esc(r.ship)}</b>${riskTag(r.ship)} ${esc(r.itype)}${r.activeStage?`(${r.activeStage==='intermediate'?"中檢":"換證"})`:""}<br>到期 ${esc(r.dueDateCalc)||"-"}　${esc(r.owner)||""}</div>`).join("")+
         `</div>`:"")+
         `</div>`;
     }
@@ -23179,7 +23188,7 @@ const InspCtrl={
         .sort((a,b)=>this.parseLoose(a.schedDate)-this.parseLoose(b.schedDate));
       const body=entries.length?entries.map(r=>{
         const cls=this.statusClass(r.status);
-        return `<div class="ic-month-entry ${cls}" onclick="InspCtrl.openEdit(${r.id})" style="cursor:pointer" title="點選開啟編輯視窗"><b>${esc(r.ship)}</b> ${esc(r.itype)}${r.activeStage?`(${r.activeStage==='intermediate'?"中檢":"換證"})`:""}<br><span class="hint" style="font-size:10.5px">排程 ${esc(r.schedDate)}　到期 ${esc(r.dueDateCalc)||"-"}　${esc(r.owner)||""}</span></div>`;
+        return `<div class="ic-month-entry ${cls}" onclick="InspCtrl.openEdit(${r.id})" style="cursor:pointer" title="點選開啟編輯視窗"><b>${esc(r.ship)}</b>${riskTag(r.ship)} ${esc(r.itype)}${r.activeStage?`(${r.activeStage==='intermediate'?"中檢":"換證"})`:""}<br><span class="hint" style="font-size:10.5px">排程 ${esc(r.schedDate)}　到期 ${esc(r.dueDateCalc)||"-"}　${esc(r.owner)||""}</span></div>`;
       }).join(""):`<div class="ic-month-empty">本月尚無排程項目</div>`;
       return `<div class="ic-month-card"><div class="ic-month-head"><span>${this.monthLabel(m)}</span><span class="cnt">${entries.length} 項</span></div><div class="ic-month-body">${body}</div></div>`;
     }).join("");
