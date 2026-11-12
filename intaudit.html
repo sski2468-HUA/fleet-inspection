@@ -4641,7 +4641,7 @@ const Home={
   goPending(){showList();const f=$("#fRec");if(f){f.value="pending";renderList();}},
   todoHtml(T,admin){
     const n=k=>T.filter(x=>x.k===k).length;
-    const sum=[["rev","🔎 待審核","#2f6fb5"],["iss","📨 待發改善單","#c0392b"],["cls","📑 待發結案報告","#1f8a4c"],...(admin?[["imp","📥 待匯入主系統","#34506e"]]:[["drf","✎ 草稿未送出","#a0670f"]])].map(([k,t,c])=>`<span class="ux-sc" style="${k==="drf"?`border:1.5px solid ${c};color:${c}`:`background:${c};color:#fff`}">${t} ${n(k)}</span>`).join("");
+    const sum=[["rev","🔎 待審核","#2f6fb5"],["iss","📨 待發改善單","#c0392b"],["cls","📑 待發結案報告","#1f8a4c"],...(admin?[["imp","📥 待匯入主系統","#34506e"]]:[["drf","✎ 草稿未送出","#a0670f"]])].map(([k,t,c])=>`<span class="ux-sc" style="${k==="drf"?`border:1.5px solid ${c};color:${c}`:`background:${c};color:#fff`}${k==="imp"&&n(k)?";cursor:pointer":""}" ${k==="imp"&&n(k)?`onclick="Home.goPending()" title="到檢查紀錄只看「已送出・待海技匯入」"`:""}>${t} ${n(k)}</span>`).join("");
     const sgN=+(($("#btnSuggCount")||{}).textContent||0)||0;
     const rows=T.slice(0,40).map(x=>`<tr><td>${this.TAG[x.k]}</td><td><b>${esc(shipLabel(x.r.ship))}</b><div class="hint" style="font-size:12px">${esc(dateText(x.r))} ${(x.r.types||[]).map(t=>(typeDef(t)||{label:t}).label).join("、")}${admin?"・"+esc(inspList(x.r).join("、")):""}</div></td><td>${x.txt}</td>${admin?`<td class="hint" style="font-size:12px">${esc(UX.shipSupNames(x.r.ship).join("／")||"—")}</td>`:""}<td>${x.w==null?'<span class="ux-pl x">—</span>':`<span class="ux-pl ${x.w>7?"r":x.w>2?"o":"x"}">${x.w?x.w+" 天":"今天"}</span>`}</td><td>${x.btn}</td></tr>`).join("");
     return `<div class="ux-card"><div class="ux-hd"><h2>❗ ${admin?"海技組待辦（全船隊）":"我的待辦"}</h2><span class="ux-cnt">${T.length}</span><span class="hint" style="font-size:12.5px">只列「輪到${admin?"海技組／各督導":"我"}動手」的事；做完會自動從這裡消失</span></div>
@@ -4721,12 +4721,13 @@ const Home={
     const subAll=items.filter(x=>x.st==="sub"),subMine=admin?subAll.length:subAll.filter(x=>Track.mine(x.r,x.d)).length;
     const sgN=+(($("#btnSuggCount")||{}).textContent||0)||0,pend=Store.rows.filter(r=>!r.draft&&!r.imported).length;
     const tile=(ic,t,s,fn,n,main)=>`<div class="ux-tile${main?" main":""}" onclick="${fn}">${n?`<span class="n">${n}</span>`:""}<div class="ic">${ic}</div><b>${t}</b><span>${s}</span></div>`;
+    // 2026-11-12 功能方塊跟上方導覽列重複，首頁不再顯示（待匯入主系統在「海技組待辦」、操作手冊在右上角）
     const tiles=`<div class="ux-tiles">${tile("＋","新增檢查記錄","上船檢查後建檔","newForm()",0,1)}${tile("📋","檢查紀錄",`全部 ${Store.rows.length} 張登錄單`,"showList()",0)}${tile("✅","缺失審核／追蹤",admin?"全船隊待審核":"船上回報待我審核","showTrack()",subMine)}${tile("📌","船舶訴求／建議","船上提出的需求","showSugg()",sgN)}${tile("📢","缺失分享自查","發佈、看各船填答","window.open('selfcheck-share-summary.html','_blank')",0)}${tile("📅","年度檢查一覽","各船 1～12 月檢查","showYear()",0)}${admin?tile("📥","待匯入主系統","已送出、海技未匯入","Home.goPending()",pend):""}${tile("📖","操作手冊","流程與說明","window.open('intaudit-guide.html','_blank')",0)}</div>`;
     const myCodes=SHIPS.filter(s=>shipSups(s.code).some(x=>x.n===me)).map(s=>s.code);
     const fleetCodes=SHIPS.filter(s=>String(s.operator||"").toUpperCase()==="FPMC"||!s.operator).map(s=>s.code);
     const T=this.todo(me,admin);
     const head=`<div class="ux-hello">👤 <b>${esc(me||"（未選擇登入人員）")}</b>${admin?"（Owner／管理員）・看的是全船隊":myCodes.length?`・經管船舶 ${myCodes.length} 艘`:""}　｜　今天 ${UX.ymd(Date.now())}</div>`;
-    box.innerHTML=`<div class="ux-wrap">${head}${tiles}${this.todoHtml(T,admin)}${admin?this.supTrack():""}${(admin||myCodes.length)?this.dueHtml(admin?fleetCodes:myCodes,admin):""}${admin?"":this.myShipsHtml(me)}${this.recentHtml(me,admin)}${admin?this.fleetHtml():""}</div>`;
+    box.innerHTML=`<div class="ux-wrap">${head}${this.todoHtml(T,admin)}${admin?this.supTrack():""}${(admin||myCodes.length)?this.dueHtml(admin?fleetCodes:myCodes,admin):""}${admin?"":this.myShipsHtml(me)}${this.recentHtml(me,admin)}${admin?this.fleetHtml():""}</div>`;
   }
 };
 /* 原本的頁面切換（showList／showReview／showSugg／openForm）只認得舊的四頁，這裡補上：切到舊頁時把新頁收起來 */
