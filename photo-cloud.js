@@ -20,7 +20,15 @@ const PhotoCloud=(()=>{
   const PDF_ICON="data:image/svg+xml;utf8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="#fdecea"/><path d="M18 8h20l10 10v38H18z" fill="#fff" stroke="#c0392b" stroke-width="3"/><path d="M38 8v10h10" fill="none" stroke="#c0392b" stroke-width="3"/><text x="33" y="46" font-family="Arial" font-size="13" font-weight="700" fill="#c0392b" text-anchor="middle">PDF</text></svg>');
   const isPdf=p=>!!p&&typeof p==="object"&&(p.type==="application/pdf"||/\.pdf$/i.test(p.name||"")||/\.pdf(\?|#|$)/i.test(p.url||""));
   const isPdfFile=f=>!!f&&(f.type==="application/pdf"||/\.pdf$/i.test(f.name||""));
-  function src(p){if(!p)return "";if(isPdf(p))return PDF_ICON+"#pdf="+encodeURIComponent(p.url||"");return p.url||p.dataUrl||"";}
+  /* 照片「待補傳」：上傳失敗時雲端只先存 {name,pending:true}（照片本體留在建檔那台電腦），別人看到的是這張提示圖 */
+  const PENDING_ICON="data:image/svg+xml;utf8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90"><rect width="120" height="90" rx="8" fill="#fff4e0"/><rect x="3" y="3" width="114" height="84" rx="6" fill="none" stroke="#e0a83a" stroke-width="2" stroke-dasharray="6 4"/><text x="60" y="42" font-family="sans-serif" font-size="13" font-weight="700" fill="#a05a10" text-anchor="middle">照片待補傳</text><text x="60" y="62" font-family="sans-serif" font-size="10" fill="#a05a10" text-anchor="middle">建檔人電腦存檔後補上</text></svg>');
+  function src(p){if(!p)return "";if(isPdf(p))return PDF_ICON+"#pdf="+encodeURIComponent(p.url||"");return p.url||p.dataUrl||(p.pending?PENDING_ICON:"");}
+  /* 還沒傳上 Storage 的照片數 */
+  function countEmbedded(obj){const l=[];collect(obj,l);return l.length;}
+  /* 複製一份要寫進雲端的資料：還沒傳上去的照片換成 {name,pending:true}，避免整張單因為照片太大存不進去 */
+  function stripEmbedded(obj){
+    return JSON.parse(JSON.stringify(obj,(k,v)=>isEmbedded(v)?{name:v.name||"照片",pending:true}:v));
+  }
   function pdfUrlFromSrc(s){const m=/#pdf=(.*)$/.exec(String(s||""));return m?decodeURIComponent(m[1]):"";}
   async function uploadPdf(file){
     if(!cfg)throw new Error("PhotoCloud 尚未設定雲端連線");
@@ -94,10 +102,12 @@ const PhotoCloud=(()=>{
   /* 把 obj 裡所有內嵌照片上傳並換成 {name,url,path}（直接改 obj 本身）。回傳 {total,fail,first} */
   async function externalize(obj){
     const list=[];collect(obj,list);
-    let fail=0,first="";
+    let fail=0,first="",netFail=0;
     for(const p of list){
-      try{const r=await upload(p.dataUrl);p.url=r.url;p.path=r.path;delete p.dataUrl;}
-      catch(e){fail++;if(!first)first=e.message||String(e);console.warn("照片上傳 Storage 失敗，這張先保留在資料裡",e);}
+      // 連續 2 張都是「連不上網路」就不再一張張重試（每張重試要等約 5 秒，10 張就要乾等快 1 分鐘），剩下的直接留到下次補傳
+      if(netFail>=2&&!cache.has(p.dataUrl)){fail++;continue;}
+      try{const r=await upload(p.dataUrl);p.url=r.url;p.path=r.path;delete p.dataUrl;netFail=0;}
+      catch(e){fail++;if(!first)first=e.message||String(e);if(/^網路連線失敗/.test(e.message||""))netFail++;console.warn("照片上傳 Storage 失敗，這張先保留在資料裡",e);}
     }
     return {total:list.length,fail,first};
   }
@@ -116,5 +126,5 @@ const PhotoCloud=(()=>{
       return await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(b);});
     }catch(e){console.warn("照片下載失敗",p.url,e);return "";}
   }
-  return {init,src,externalize,applyCache,toDataUrl,BUCKET,isPdf,isPdfFile,uploadPdf,pdfUrlFromSrc,PDF_ICON};
+  return {init,src,externalize,applyCache,toDataUrl,BUCKET,isPdf,isPdfFile,uploadPdf,pdfUrlFromSrc,PDF_ICON,countEmbedded,stripEmbedded,PENDING_ICON};
 })();

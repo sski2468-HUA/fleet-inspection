@@ -183,11 +183,19 @@ async function buildDocBody(r,ctx,replyOf){
 }
 /* 產生 .docx：replyOf(d) 回傳該缺失的船上回報內容（{action,corrected,evidence,photos,by,title,at,status}）或 null。
    回傳 {blob, photoCount}；下載由呼叫端負責（督導端與船上端的檔名相同：船名_檢查日期_檢查缺失具體項目記錄表.docx）。 */
+/* 2026-11-12：範本在頁面打開時就先下載好放著——存檔失敗（網路不通）時跳出的「下載 Word 備份」才不會因為抓不到範本也失敗 */
+let _iaTplBuf=null;
+function iaPreloadTemplate(){
+  if(!_iaTplBuf)_iaTplBuf=fetch("intaudit-template.docx").then(resp=>{
+    if(!resp.ok)throw new Error("找不到範本檔 intaudit-template.docx（HTTP "+resp.status+"），請確認已一併上傳");
+    return resp.arrayBuffer();
+  }).catch(e=>{_iaTplBuf=null;throw e;});
+  return _iaTplBuf;
+}
+setTimeout(()=>{iaPreloadTemplate().catch(()=>{});},2500);
 async function iaMakeDocx(r,replyOf){
   if(typeof JSZip==="undefined")throw new Error("Word 元件載入失敗，請確認網路後重新整理頁面");
-  const resp=await fetch("intaudit-template.docx");
-  if(!resp.ok)throw new Error("找不到範本檔 intaudit-template.docx（HTTP "+resp.status+"），請確認已一併上傳");
-  const zip=await JSZip.loadAsync(await resp.arrayBuffer());
+  const zip=await JSZip.loadAsync(await iaPreloadTemplate());
   const ctx={n:0,files:[]};
   const body=await buildDocBody(r,ctx,replyOf);
   let doc=await zip.file("word/document.xml").async("string");

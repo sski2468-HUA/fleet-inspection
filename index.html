@@ -4994,11 +4994,33 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           .eoe{display:block;border-radius:5px;padding:2px 5px;margin:2px 0;font-size:11.5px;line-height:1.35;white-space:nowrap;cursor:default}
           .eoe b{margin-right:3px}
           .eoe.audit{background:#efe6f7;color:#5b3290}.eoe.visit{background:#e4f1f2;color:#176670}.eoe.accompany{background:#fdeed9;color:#9a520c}.eoe.isps{background:#e8edf3;color:#34506e}.eoe.cross{background:#e3f3e8;color:#1f6f43}
+          #ig-page-execov .eo-vsw{display:inline-flex;border:1.5px solid #1c3a5e;border-radius:7px;overflow:hidden}
+          #ig-page-execov .eo-vsw button{border:0;background:#fff;color:#1c3a5e;font:inherit;font-size:13px;font-weight:700;padding:5px 12px;cursor:pointer}
+          #ig-page-execov .eo-vsw button.on{background:#1c3a5e;color:#fff}
+          /* 督導近期清單 */
+          .eot.eol td{min-width:0}
+          .eot.eol tr.eog td{background:#eef3f8!important;color:#1c3a5e;font-weight:800;font-size:13.5px;padding:7px 8px;border-top:2px solid #1c3a5e}
+          .eot.eol tr.eog td .hint{font-weight:400;font-size:12px;color:#52656f;margin-left:6px}
+          .eot.eol td.sup{white-space:nowrap;font-size:12px;color:#34495e}
+          .eol-i{display:block;white-space:nowrap;font-size:12px;line-height:1.5}
+          .eol-i .dt{font-family:var(--mono);font-weight:700;margin-right:5px}
+          .eol-i.old{color:#8a98a3}.eol-i.old .dt{font-weight:400}
+          .eol-none{color:#c3ced5}
+          .eol-w{display:inline-block;font-size:11.5px;font-weight:700;border-radius:9px;padding:0 7px;margin:1px 3px 1px 0;white-space:nowrap}
+          .eol-w.r{background:#fde8e6;color:#c0392b}.eol-w.o{background:#fff1dc;color:#b5610f}.eol-w.g{background:#dff2e6;color:#20703f}
         </style>
         <div class="card" style="margin-bottom:14px">
           <div class="toolbar" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
             <h3 style="margin:0">📊 執行情形一覽表</h3>
             <span class="hint">所有船 × 1～12 月，依「檢查紀錄」列出內稽／訪船／隨船／ISPS INTERNAL AUDIT 的檢查日期與檢查人（唯讀）</span>
+          </div>
+          <div class="toolbar" style="margin-bottom:8px;flex-wrap:wrap;gap:8px;align-items:center">
+            <span class="eo-vsw"><button type="button" id="eo-v-month" class="on" onclick="ExecOverview.setView('month')">📅 月份總表</button><button type="button" id="eo-v-sup" onclick="ExecOverview.setView('sup')">📋 督導近期清單</button></span>
+            <span id="eo-supopts" style="display:none;align-items:center;gap:8px">
+              <select id="eo-recent" onchange="ExecOverview.render()" style="padding:5px 8px" title="每種檢查列出最近幾次"><option value="2">每類最近 2 次</option><option value="3" selected>每類最近 3 次</option><option value="5">每類最近 5 次</option></select>
+              <label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:700;margin:0"><input type="checkbox" id="eo-grp" checked onchange="ExecOverview.render()" style="width:14px;height:14px;margin:0">依督導分組</label>
+              <span class="hint">不分年度，列到所選年度年底為止；同一艘船在甲板、機艙督導兩組都會出現</span>
+            </span>
           </div>
           <div class="toolbar" style="margin-bottom:0;flex-wrap:wrap;gap:8px;align-items:center">
             <select id="eo-year" onchange="ExecOverview.render()" style="padding:5px 8px"></select>
@@ -20390,6 +20412,47 @@ const ExecOverview={
     return {isCur,last,noOV:c=>!has.has(c),late:c=>isCur&&!!last[c]&&last[c]<limIso};
   },
   setPick(k){this.pick=this.pick===k?"":k;this.render();},
+  /* ── 督導近期清單（2026-11-12）：每艘船一列，各檢查類型列出最近 N 次（日期＋檢查人），不分年度；
+     依甲板／機艙督導分組，方便直接發給督導核對自己經管船舶的檢查紀錄有沒有缺漏。 ── */
+  view:"month",
+  setView(v){this.view=v;$("#eo-v-month").classList.toggle("on",v==="month");$("#eo-v-sup").classList.toggle("on",v==="sup");$("#eo-supopts").style.display=v==="sup"?"inline-flex":"none";this.render();},
+  supData(rows,y,T,ov,iaShips){
+    const N=+(($("#eo-recent")||{}).value||3),fi=$("#eo-insp").value;
+    const ev=this.ev().filter(e=>e.y<=y&&this.on.has(e.k)&&(!fi||this.names(e.insp).includes(fi)));
+    const yearHas=k=>new Set(this.ev().filter(e=>e.y===y&&e.k===k).map(e=>e.ship));
+    const ispsY=yearHas("isps");
+    const ship=s=>{
+      const es=ev.filter(e=>e.ship===s.code).sort((a,b)=>b.iso.localeCompare(a.iso));
+      const per={};T.forEach(t=>per[t.k]=es.filter(e=>e.k===t.k).slice(0,N));
+      const warn=[];
+      if(T.some(t=>t.k==="audit")&&!iaShips.has(s.code))warn.push(["r","本年未內稽"]);
+      if(T.some(t=>t.k==="visit")){if(ov.noOV(s.code))warn.push(["o","本年未訪船"]);else if(ov.late(s.code))warn.push(["o","逾 7 個月未訪"]);}
+      if(T.some(t=>t.k==="isps")&&!ispsY.has(s.code))warn.push(["o","本年未 ISPS"]);
+      return {s,per,warn};
+    };
+    const list=rows.map(ship);
+    if(!$("#eo-grp").checked)return [{name:"",items:list}];
+    const dk=$("#eo-deck").value,en=$("#eo-engine").value,g={};
+    const add=(n,role,it)=>{const o=g[n]=g[n]||{name:n,deck:0,engine:0,items:[]};o[role]++;if(!o.items.includes(it))o.items.push(it);};
+    list.forEach(it=>{
+      const ds=this.names(it.s.deckSup),es=this.names(it.s.engineSup);
+      if(!en)ds.forEach(n=>{if(!dk||n===dk)add(n,"deck",it);});
+      if(!dk)es.forEach(n=>{if(!en||n===en)add(n,"engine",it);});
+      if(!ds.length&&!es.length&&!dk&&!en)add("（未設定督導）","deck",it);
+    });
+    return Object.values(g).sort((a,b)=>a.name==="（未設定督導）"?1:b.name==="（未設定督導）"?-1:a.name.localeCompare(b.name,"zh-Hant"));
+  },
+  renderSup(rows,y,T,ov,iaShips){
+    this._supRows=rows;
+    const groups=this.supData(rows,y,T,ov,iaShips),tl=k=>this.TYPES.find(t=>t.k===k).t;
+    const sl=d=>d.replace(/-/g,"/");
+    const cols=4+T.length;
+    const head=`<thead><tr><th class="sh">船舶</th><th>甲板督導</th><th>機艙督導</th>${T.map(t=>`<th>${t.t}<br><span style="font-weight:400;opacity:.85">日期｜檢查人</span></th>`).join("")}<th>提醒</th></tr></thead>`;
+    const rowHtml=({s,per,warn})=>`<tr><td class="sh">${esc(s.zh||s.code)}<span class="en">${esc(s.name||"")}</span></td><td class="sup">${esc(s.deckSup||"—")}</td><td class="sup">${esc(s.engineSup||"—")}</td>${T.map(t=>`<td>${per[t.k].length?per[t.k].map(e=>`<span class="eol-i ${e.y<y?"old":""}" title="${esc(tl(e.k))}｜${e.iso}｜${esc(e.insp||"（未填檢查人）")}｜${esc(e.loc)}"><span class="dt">${sl(e.iso)}</span>${esc(e.insp||"—")}</span>`).join(""):`<span class="eol-none">—</span>`}</td>`).join("")}<td>${warn.map(([c,t])=>`<span class="eol-w ${c}">${t}</span>`).join("")}</td></tr>`;
+    const body=groups.map(g=>(g.name?`<tr class="eog"><td colspan="${cols}">👤 ${esc(g.name)}<span class="hint">${[g.deck?`甲板督導 ${g.deck} 艘`:"",g.engine?`機艙督導 ${g.engine} 艘`:""].filter(Boolean).join("・")}${g.items.some(i=>i.warn.length)?`・<b style="color:#c0392b">${g.items.filter(i=>i.warn.length).length} 艘有提醒</b>`:""}</span></td></tr>`:"")+g.items.map(rowHtml).join("")).join("")
+      ||`<tr><td colspan="${cols}" style="padding:20px;text-align:center;color:#8195a0">沒有符合條件的船</td></tr>`;
+    $("#eo-table").innerHTML=head+`<tbody>${body}</tbody>`;
+  },
   toggle(k,v){v?this.on.add(k):this.on.delete(k);this.render();},
   clear(){["#eo-vtype","#eo-deck","#eo-engine","#eo-insp","#eo-q"].forEach(s=>{if($(s))$(s).value="";});if($("#eo-op"))$("#eo-op").value="FPMC";this.pick="";this.on=new Set(this.TYPES.map(t=>t.k));this.render();},
   filtered(){
@@ -20436,6 +20499,8 @@ const ExecOverview={
     const pk=(k,html,sty)=>`<button type="button" class="chip eo-pick ${this.pick===k?"on":""}" style="${sty||""}" onclick="ExecOverview.setPick('${k}')" title="點選只看這些船，再點一次取消">${html}</button>`;
     $("#eo-summary").innerHTML=`<span class="chip">${y} 年度・共 ${ships.length} 艘船</span>${T.map(t=>pk("has:"+t.k,`${t.t} <b>${ev.filter(e=>e.k===t.k).length}</b> 次`)).join("")}${pk("noia",`本年度尚未內稽 <b>${noIA}</b> 艘`,"border-color:#c0392b;color:#c0392b")}${pk("noov",`本年度尚未訪船 <b>${noOV}</b> 艘`,"border-color:#e8862a;color:#b5610f")}${ov.isCur&&lateOV?pk("late",`⏰ 逾 7 個月未訪 <b>${lateOV}</b> 艘`,"border-color:#e8862a;color:#b5610f"):""}${NO_T.map(t=>pk("no:"+t.k,`本年度尚未${t.t} <b>${ships.filter(pickFn["no:"+t.k]).length}</b> 艘`)).join("")}<span class="hint" style="margin-left:6px">${this.pick?`顯示 ${rows.length} 艘（再點一次取消）`:"點小卡可只看該類船"}</span>`;
     const tl=k=>this.TYPES.find(t=>t.k===k).t;
+    $("#eo-table").classList.toggle("eol",this.view==="sup");
+    if(this.view==="sup"){this.renderSup(rows,y,T,ov,iaShips);return;}
     const head=`<thead><tr><th class="sh">船舶</th>${Array.from({length:12},(_,i)=>`<th class="${i+1===curM?"cur":""}">${i+1}月</th>`).join("")}${T.map(t=>`<th>${t.t}</th>`).join("")}<th>最近一次內稽<br><span style="font-weight:400;opacity:.85">最近訪船</span></th></tr></thead>`;
     const body=rows.map(s=>{
       const es=(by[s.code]||[]).sort((a,b)=>a.iso.localeCompare(b.iso)),noia=!iaShips.has(s.code);
@@ -20448,6 +20513,7 @@ const ExecOverview={
     $("#eo-table").innerHTML=head+`<tbody>${body}</tbody>`;
   },
   exportXlsx(){
+    if(this.view==="sup")return this.exportSupXlsx();
     const {y,ev,iaShips,lastIA,rows}=this.filtered(),T=this.TYPES.filter(t=>this.on.has(t.k)),tl=k=>this.TYPES.find(t=>t.k===k).t,ovX=this.ovStatus(y);
     const data=rows.map(s=>{const es=ev.filter(e=>e.ship===s.code).sort((a,b)=>a.iso.localeCompare(b.iso));
       const o={"船舶":shipFullLabel(s.code)};
@@ -20460,10 +20526,29 @@ const ExecOverview={
     const fn=`執行情形一覽表_${y}.xlsx`;
     if(typeof XlsxPretty!=="undefined")XlsxPretty.writeFile(wb,fn);else XLSX.writeFile(wb,fn);
   },
+  exportSupXlsx(){
+    this.render();
+    const {y,iaShips}=this.filtered(),T=this.TYPES.filter(t=>this.on.has(t.k)),ov=this.ovStatus(y);
+    const rows=this._supRows||[]; // 跟畫面一致（含小卡點選的篩選）
+    const groups=this.supData(rows,y,T,ov,iaShips),grp=$("#eo-grp").checked,data=[];
+    groups.forEach(g=>g.items.forEach(({s,per,warn})=>{
+      const o={};if(grp)o["督導"]=g.name;
+      o["船舶"]=shipFullLabel(s.code);o["甲板督導"]=s.deckSup||"";o["機艙督導"]=s.engineSup||"";
+      T.forEach(t=>o[t.t]=per[t.k].map(e=>`${e.iso.replace(/-/g,"/")} ${e.insp||""}`).join("\n"));
+      o["提醒"]=warn.map(w=>w[1]).join("、");data.push(o);
+    }));
+    if(!data.length){toast("目前沒有資料可匯出",true);return;}
+    const ws=XLSX.utils.json_to_sheet(data);ws["!cols"]=[...(grp?[{wch:10}]:[]),{wch:26},{wch:10},{wch:10},...T.map(()=>({wch:26})),{wch:22}];
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"督導近期清單");
+    const fn=`督導經管船舶近期檢查紀錄_${todayIsoEO()}.xlsx`;
+    if(typeof XlsxPretty!=="undefined")XlsxPretty.writeFile(wb,fn);else XLSX.writeFile(wb,fn);
+    function todayIsoEO(){const d=new Date();return d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0");}
+  },
   /* 列印／存 PDF：直接印目前畫面上的表（同樣的篩選與小卡），A3 橫向，表頭每頁重複 */
   printPdf(){
     this.render();
     const tb=$("#eo-table");if(!tb)return;
+    const isSup=this.view==="sup",ttl=isSup?"督導經管船舶近期檢查紀錄":"執行情形一覽表";
     const y=$("#eo-year").value||new Date().getFullYear();
     const cond=[["#eo-op",""],["#eo-vtype",""],["#eo-deck",""],["#eo-engine",""],["#eo-insp",""]].map(([s])=>{const el=$(s);return el&&el.value&&el.selectedOptions[0]?el.selectedOptions[0].textContent:"";}).filter(Boolean);
     const q=($("#eo-q").value||"").trim();if(q)cond.push("搜尋："+q);
@@ -20485,18 +20570,22 @@ const ExecOverview={
       .eot tr.noia td.sh{border-left:4px solid #c0392b}.eot tr.noov td.sh{border-left:4px solid #e8862a}
       .eoe{display:block;border-radius:4px;padding:1px 4px;margin:1px 0;font-size:7.5pt;line-height:1.3;white-space:nowrap}
       .eoe b{margin-right:2px}
-      .eoe.audit{background:#efe6f7;color:#5b3290}.eoe.visit{background:#e4f1f2;color:#176670}.eoe.accompany{background:#fdeed9;color:#9a520c}.eoe.isps{background:#e8edf3;color:#34506e}.eoe.cross{background:#e3f3e8;color:#1f6f43}`;
+      .eoe.audit{background:#efe6f7;color:#5b3290}.eoe.visit{background:#e4f1f2;color:#176670}.eoe.accompany{background:#fdeed9;color:#9a520c}.eoe.isps{background:#e8edf3;color:#34506e}.eoe.cross{background:#e3f3e8;color:#1f6f43}`+(isSup?`
+      @page{size:A4 landscape}
+      .eot tr.eog td{background:#eef3f8!important;color:#1c3a5e;font-weight:800;font-size:10pt;padding:4px 5px;border-top:2px solid #1c3a5e}.eot tr.eog td .hint{font-weight:400;font-size:8pt;color:#52656f;margin-left:5px}
+      .eot td.sup{white-space:nowrap}.eol-i{display:block;white-space:nowrap;font-size:8pt;line-height:1.45}.eol-i .dt{font-family:Consolas,monospace;font-weight:700;margin-right:4px}.eol-i.old{color:#8a98a3}.eol-i.old .dt{font-weight:400}.eol-none{color:#c3ced5}
+      .eol-w{display:inline-block;font-size:7.5pt;font-weight:700;border-radius:8px;padding:0 5px;margin:1px 2px 1px 0;white-space:nowrap}.eol-w.r{background:#fde8e6;color:#c0392b}.eol-w.o{background:#fff1dc;color:#b5610f}`:"");
     const stamp=new Date().toLocaleString("zh-TW",{hour12:false});
-    const html=`<!doctype html><html><head><meta charset="utf-8"><title>執行情形一覽表_${y}</title><style>${css}</style></head><body>
-      <h1>執行情形一覽表　${esc(y)} 年度</h1>
-      <div class="sub">類型：${esc(types||"—")}${cond.length?"　｜　篩選："+esc(cond.join("、")):""}　｜　資料來源：檢查紀錄　｜　列印時間：${esc(stamp)}</div>
-      <div class="sum">${esc(sum)}</div>
-      <table class="eot">${tb.innerHTML}</table></body></html>`;
+    const html=`<!doctype html><html><head><meta charset="utf-8"><title>${ttl}_${y}</title><style>${css}</style></head><body>
+      <h1>${ttl}　${isSup?`（列到 ${esc(y)} 年底，每類最近 ${esc($("#eo-recent").value)} 次）`:esc(y)+" 年度"}</h1>
+      <div class="sub">類型：${esc(types||"—")}${cond.length?"　｜　篩選："+esc(cond.join("、")):""}　｜　資料來源：檢查紀錄　｜　列印時間：${esc(stamp)}${isSup?"　｜　灰字＝往年紀錄；如有缺漏或錯誤，請回覆海技組":""}</div>
+      ${isSup?"":`<div class="sum">${esc(sum)}</div>`}
+      <table class="eot${isSup?" eol":""}">${tb.innerHTML}</table></body></html>`;
     let fr=$("#eo-print-frame");
     if(!fr){fr=document.createElement("iframe");fr.id="eo-print-frame";fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";document.body.appendChild(fr);}
     fr.onload=()=>{
       // 存 PDF 的預設檔名取自上層頁面標題：列印期間暫時改掉，印完還原
-      const old=document.title;document.title=`執行情形一覽表_${y}`;
+      const old=document.title;document.title=`${ttl}_${y}`;
       const restore=()=>{document.title=old;window.removeEventListener("afterprint",restore);};
       window.addEventListener("afterprint",restore);setTimeout(restore,120000);
       try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){toast("⚠ 無法開啟列印："+e.message,true);}
@@ -32112,6 +32201,30 @@ const IntAuditQueue={
     this.replySel=on?new Set(list.map(x=>x.id)):new Set();
     this.renderReplies();
   },
+  /* 2026-11-12 匯入後確認缺失紀錄真的在雲端 sync_defs：背景載入可能把剛加的缺失蓋掉、或上傳失敗，
+     B108 10/30（10 筆）、CM 9/18（16 筆）就是這樣只有檢查紀錄上去，缺失一直沒進雲端，之後套用改善內容全部失敗。
+     做法同 AirQueue.ensureUploaded：送出→查雲端→缺的補回本機再送，最多約 40 秒；仍失敗就提醒不要重新整理。 */
+  async ensureDefsUploaded(recs,label){
+    if(!recs||!recs.length)return true;
+    if(typeof RecordSync==="undefined"||typeof Cloud==="undefined"||!Cloud.enabled())return true;
+    const snap=recs.map(x=>JSON.parse(JSON.stringify(x))),ids=snap.map(x=>x.id);
+    for(let i=0;i<16;i++){
+      try{await RecordSync.flushNow("deficiencies");}catch(e){}
+      try{await RecordSync.flushNow("inspections");}catch(e){}
+      await new Promise(r=>setTimeout(r,i?2500:500));
+      try{
+        const got=new Set();
+        for(let k=0;k<ids.length;k+=80){const part=ids.slice(k,k+80);const g=await Cloud.api(`sync_defs?select=id&id=in.(${part.join(",")})`);(g||[]).forEach(x=>got.add(String(x.id)));}
+        const miss=snap.filter(x=>!got.has(String(x.id)));
+        if(!miss.length)return true;
+        // 被背景載入蓋掉了就補回本機（用匯入當下的內容），再送一次
+        miss.forEach(m=>{const cur=App.defs.find(z=>String(z.id)===String(m.id));if(!cur)App.defs.push(JSON.parse(JSON.stringify(m)));});
+        App.saveAll();
+      }catch(e){}
+    }
+    alert(`⚠ ${label}：缺失紀錄還沒有全部上傳到雲端。\n\n這張登錄單先不會標記成「已匯入」。請先「不要」按「載入最新資料」或重新整理，\n檢查網路後再按一次「匯入」（不會重複新增）；若仍失敗請截圖回報。`);
+    return false;
+  },
   async _patchReply(x,status,extra){
     const p=Object.assign({},x.payload,extra||{});
     await Cloud.api(`intaudit_replies?id=eq.${encodeURIComponent(x.id)}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),body:JSON.stringify({status,payload:p,updated_at:Date.now()})});
@@ -32163,14 +32276,16 @@ const IntAuditQueue={
     const ready=items.length-notReady.length;
     if(!ready){alert("勾選的項目所屬登錄單都還沒匯入主系統，請先到「待匯入」分頁匯入，再回來套用。");return;}
     if(!confirm(`確定批量套用 ${ready} 項督導已審核的改善內容？\n\n將把船上的改善措施、改善後照片寫入缺失紀錄總表，並標記為已結案。若其中有內控項目，請套用後再至內控系統把該案標記結案。${notReady.length?`\n\n另有 ${notReady.length} 項所屬登錄單還沒匯入主系統，會略過不處理。`:""}`))return;
-    let okN=0,failN=0,icN=0;
+    let okN=0,failN=0,icN=0;const failWhy={};
     for(const x of items){
       const r=(this.all||[]).find(a=>String(a.id)===String(x.record_id));
       const d=r&&(r.defs||[]).find(dd=>dd.uid===x.def_uid);
       if(!d||d.importedDefId==null)continue; // 未匯入的整批略過，不中斷其餘項目
       const res=await this._applyOne(x);
-      if(res.ok){okN++;if(res.hasIc)icN++;}else failN++;
+      if(res.ok){okN++;if(res.hasIc)icN++;}else{failN++;const k=`${r.ship} ${r.dateFrom}：${res.msg}`;failWhy[k]=(failWhy[k]||0)+1;}
     }
+    // 2026-11-12 失敗要講原因（原本只顯示「N 項失敗」，看不出是缺失紀錄不見了）
+    if(failN)setTimeout(()=>alert(`⚠ 有 ${failN} 項套用失敗：\n\n${Object.entries(failWhy).map(([k,n])=>`・${k}（${n} 項）`).join("\n")}\n\n「找不到對應的缺失」→ 請到「已匯入」分頁，對這張登錄單按「重新匯入」重建缺失紀錄，再回來套用。`),300);
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();
     try{if(typeof Defs!=="undefined"){Defs.init();Defs.render();}}catch(e){}
     this.replySel=new Set();
@@ -32222,7 +32337,7 @@ const IntAuditQueue={
       else{const nid=App.nextInspId();App.insp.push(Object.assign({id:nid},payload,{detain:""}));inspIds[k]=nid;}
     });
     // 缺失紀錄：每筆缺失一筆，檢查來源＝該缺失所屬的檢查種類；FLOW／內控／系統內結案的缺失都要留紀錄
-    let dAdd=0,dUpd=0;
+    let dAdd=0,dUpd=0;const touchedDefRecs=[];
     // 防重複：對應編號遺失、或指到的那筆已不在主系統時，改用「同船＋同日＋同檢查來源＋缺失內容相同」
     // 找既有紀錄來更新（2026/11/06 BF Cross ship visit 9/10 因對應失效被重新匯入新增成兩份）
     const usedDef=new Set();
@@ -32253,10 +32368,10 @@ const IntAuditQueue={
         // 2026-11-06 也不要洗掉已套用的改善內容（登錄單本來就沒有這些欄位，重新匯入時一律保留原值）
         ["actual","preventive","corrective","rootCause","opComment","immediateCause","photosAfter"].forEach(k=>delete safe[k]);
         if(!safe.photosBefore.length)delete safe.photosBefore;
-        Object.assign(ex,safe);dUpd++;
+        Object.assign(ex,safe);dUpd++;touchedDefRecs.push(ex);
       }else{
         const rec=Object.assign({id:App.nextId(),attn:false},payload);
-        App.defs.push(rec);d.importedDefId=rec.id;usedDef.add(String(rec.id));dAdd++;
+        App.defs.push(rec);d.importedDefId=rec.id;usedDef.add(String(rec.id));dAdd++;touchedDefRecs.push(rec);
       }
     });
     // 2026-11-06 補回已審核／已套用過的改善內容：缺失紀錄若因重新匯入、同步遺失而少了改善內容，
@@ -32290,6 +32405,9 @@ const IntAuditQueue={
     App.saveAll();if(typeof Cloud!=="undefined")Cloud.flushNow();if(App.refreshMeta)App.refreshMeta();
     try{if(typeof Ov!=="undefined"){Ov.init();Ov.render();}if(typeof InspCtrl!=="undefined")InspCtrl.render();
       if(typeof Defs!=="undefined"){Defs.init();Defs.render();}if(typeof SirePos!=="undefined")SirePos.init();}catch(e){}
+    // 2026-11-12 確認缺失真的上傳到雲端（B108 10/30、CM 9/18 匯入後檢查紀錄有上去、缺失卻沒有，套用改善內容才會全部失敗）
+    const upOk=await this.ensureDefsUploaded(touchedDefRecs,`${r.ship} ${r.dateFrom}`);
+    if(!upOk)return; // 沒上傳成功就先不要標記「已匯入」，讓海技可以再按一次匯入
     // 把對應關係記回登錄單，之後重新匯入才能更新而不是重複新增
     r.imported={at:now,by,inspIds};
     try{
