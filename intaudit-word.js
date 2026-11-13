@@ -170,7 +170,7 @@ async function buildDocBody(r,ctx,replyOf){
         lblCell(3100,"Risk Level",{span:2})+txtCell(8000,d.risk||"",{span:2})+lblCell(1800,"結案方式")+txtCell(1778,mm?mm.label:""),
         lblCell(3100,"待改善描述 Finding Brief",{span:2})+txtCell(11578,d.finding||"",{span:4}),
         lblCell(3100,"改善措施簡述 Action Brief",{span:2})+txtCell(11578,rp?rp.action||"":"",{span:4})
-      ].concat(rp&&rp.by?[lblCell(3100,"船上回報人 Replied by",{span:2})+txtCell(11578,`${rp.by}${rp.title?"（"+rp.title+"）":""}　${rp.at?new Date(rp.at).toLocaleString("zh-TW",{hour12:false}):""}${rp.status==="reviewed"?"　✓ 海技已審核結案":rp.status==="submitted"?"　（待海技審核）":""}`,{span:4})]:[]))+tinyGap();
+      ].concat(rp&&rp.by?[lblCell(3100,"船上回報人 Replied by",{span:2})+txtCell(11578,`${rp.by}${rp.title?"（"+rp.title+"）":""}　${rp.at?new Date(rp.at).toLocaleString("zh-TW",{hour12:false}):""}${rp.status==="reviewed"?`　✓ 已審核結案${rp.reviewedBy?"　結案人："+rp.reviewedBy:""}${rp.reviewedAt?"　"+new Date(rp.reviewedAt).toLocaleDateString("zh-TW",{year:"numeric",month:"2-digit",day:"2-digit"}):""}`:rp.status==="submitted"?"　（待督導審核）":""}`,{span:4})]:[]))+tinyGap();
     }
   }
   if((r.sugg||[]).length){
