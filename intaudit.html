@@ -2607,7 +2607,7 @@ const CloseRpt={
   /* 2026-11-13：打開視窗時會自動下載一次；照片多時產生要好幾秒，這段期間再按「再下載一次」會變成下載兩份。
      改成：產生中按鈕反灰顯示「⏳ 產生中…」，同一張單同時只產生一份 */
   _busy:null,
-  btnState(){const b=$("#crWordBtn");if(!b)return;const busy=this._busy!=null;b.disabled=busy;b.textContent=busy?"⏳ Word 產生中…":"⬇ 再下載一次 Word";},
+  btnState(){const b=$("#crWordBtn");if(!b)return;const busy=this._busy!=null;b.disabled=busy;b.textContent=busy?"⏳ Word 產生中…":"⬇ 下載 Word";},
   async word(id){
     const r=Store.rows.find(x=>x.id===id);if(!r)return;
     if(this._busy!=null){toast("⏳ 結案報告 Word 還在產生中，請稍候…");return;}
@@ -2624,19 +2624,19 @@ const CloseRpt={
     const {plain,html}=this.texts(r);_issueCopyHtml=html;
     $("#issueModalTitle").textContent="📑 結案報告";
     $("#issueModalBody").innerHTML=`
-      <div class="banner" style="margin:0 0 12px">${first?"✓ 已記錄為「已發結案報告」。":`這張單已於 <b>${esc(new Date(r.closeReportAt).toLocaleString("zh-TW",{hour12:false}))}</b>${r.closeReportBy?`（${esc(r.closeReportBy)}）`:""} 發過結案報告。`}<br>${copied?"郵件內文已複製到剪貼簿，":""}結案報告 Word 正在下載（檔名結尾「_結案報告.docx」）。</div>
-      <p class="hint" style="margin:0 0 6px">請開新郵件 → 貼上內文（Ctrl+V）→ <b>附加剛下載的 Word 檔</b> → 寄給船上。內文也可以從下面方塊手動複製：</p>
+      <div class="banner" style="margin:0 0 12px">${first?"✓ 已記錄為「已發結案報告」。":`這張單已於 <b>${esc(new Date(r.closeReportAt).toLocaleString("zh-TW",{hour12:false}))}</b>${r.closeReportBy?`（${esc(r.closeReportBy)}）`:""} 發過結案報告。`}<br>${copied?"郵件內文已複製到剪貼簿。":""}${first?"結案報告 Word 正在下載（檔名結尾「_結案報告.docx」）。":"需要 Word 檔時，再按下面「⬇ 下載 Word」。"}</div>
+      <p class="hint" style="margin:0 0 6px">請開新郵件 → 貼上內文（Ctrl+V）→ <b>附加結案報告 Word 檔</b> → 寄給船上。內文也可以從下面方塊手動複製：</p>
       <textarea id="issueCopyBox" readonly style="width:100%;min-height:190px;font-family:var(--mono);font-size:12.5px;padding:10px;border:1px solid var(--line-2);border-radius:7px" onclick="this.select()">${esc(plain)}</textarea>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <button class="btn primary" onclick="reCopyIssueText()">📋 再複製一次內文</button>
-        <button class="btn" id="crWordBtn" onclick="CloseRpt.word(${r.id})">⬇ 再下載一次 Word</button>
+        <button class="btn" id="crWordBtn" onclick="CloseRpt.word(${r.id})">⬇ 下載 Word</button>
         <button class="btn" onclick="closeIssueModal()">完成，關閉</button>
       </div>`;
     $("#issueModal").style.display="flex";this.btnState();
   },
   /* 已發過：按鈕打開的是「再下載／再複製」，不重複記錄 */
   open(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;if(r.closeReportAt)this.again(r);else this.send(id);},
-  async again(r){const {plain,html}=this.texts(r);const copied=await copyRich(plain,html);this.show(r,copied,false);this.word(r.id);},
+  async again(r){const {plain,html}=this.texts(r);const copied=await copyRich(plain,html);this.show(r,copied,false);}, // 2026-11-13 已發過：只複製內文，不自動下載 Word（之前已下載過；要再下載請按「⬇ 下載 Word」）
   /* 清單用：結案報告狀態小標籤（全部結案才顯示） */
   chip(r){
     if(!this.allClosed(r))return "";
@@ -4839,7 +4839,7 @@ const RecList={
       ${it("✎ 編輯",`editRec(${r.id})`)}${it("⬇ 匯出（Word／JSON／內控 Excel）",`openExport(${r.id})`)}
       ${r.issuedAt?`<div onclick="RecList.closeMenus();window.open('${replyUrl(r)}','_blank')">🔗 開啟船上頁</div>`:""}
       ${r.issuedAt&&!r.closeReportAt?it("📨 再發一次改善單",`issueOrder(${r.id})`):""}
-      ${r.closeReportAt?it("📑 結案報告（再下載／再複製）",`CloseRpt.open(${r.id})`):""}
+      ${r.closeReportAt?it("📑 結案報告（再複製內文／下載 Word）",`CloseRpt.open(${r.id})`):""}
       ${(r.defs||[]).some(d=>d.uid&&Store.replies[`${r.id}_${d.uid}`])?it("✅ 看這張的缺失審核",`Track.openFor(${r.id})`):""}
       ${it("⧉ 複製一單",`duplicateRec(${r.id})`)}
       ${IAAuth.canDelete()?`<hr>${it("🗑 刪除",`delRec(${r.id})`,"del")}`:""}</div></div>`;
