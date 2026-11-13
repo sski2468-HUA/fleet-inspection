@@ -402,7 +402,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
 .ux-bar{display:flex;width:90px;height:7px;border-radius:4px;overflow:hidden;background:#eef1f3}.ux-bar i{display:block;height:100%}
 .ux-more{position:relative;display:inline-block}
 .ux-more>button{background:#fff;border:1px solid #c9d3dc;border-radius:6px;width:30px;height:28px;cursor:pointer;font-weight:800;color:var(--navy)}
-.ux-menu{display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.14);z-index:20;min-width:210px;padding:4px}
+.ux-menu{display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.14);z-index:300;min-width:210px;padding:4px}
 .ux-menu.show{display:block}
 .ux-menu div{padding:7px 10px;border-radius:6px;font-size:13.5px;white-space:nowrap;cursor:pointer}
 .ux-menu div:hover{background:#f1f5f9}.ux-menu hr{border:0;border-top:1px solid var(--line);margin:4px 0}.ux-menu .del{color:var(--bad)}
@@ -4865,7 +4865,9 @@ const RecList={
       ${it("⧉ 複製一單",`duplicateRec(${r.id})`)}
       ${IAAuth.canDelete()?`<hr>${it("🗑 刪除",`delRec(${r.id})`,"del")}`:""}</div></div>`;
   },
-  toggleMenu(b){const m=b.nextElementSibling,on=!m.classList.contains("show");this.closeMenus();if(on)m.classList.add("show");},
+  /* 2026-11-13「⋯」選單改成浮在畫面上（position:fixed）：清單外框 overflow 會裁掉選單，只有一兩列時選單被切掉、框內多出捲軸。
+     依按鈕位置定位；下方空間不夠就往上開；捲動或縮放視窗時自動收起。 */
+  toggleMenu(b){const m=b.nextElementSibling,on=!m.classList.contains("show");this.closeMenus();if(!on)return;m.classList.add("show");const r=b.getBoundingClientRect(),h=m.offsetHeight,w=m.offsetWidth;m.style.position="fixed";m.style.right="auto";m.style.left=Math.max(8,Math.min(window.innerWidth-w-8,r.right-w))+"px";m.style.top=(r.bottom+4+h<=window.innerHeight-8?r.bottom+4:Math.max(8,r.top-4-h))+"px";},
   closeMenus(){document.querySelectorAll(".ux-menu.show").forEach(m=>m.classList.remove("show"));},
   toggle(id){this.open.has(id)?this.open.delete(id):this.open.add(id);this.render(this._last);},
   selOne(id,on){on?this.sel.add(id):this.sel.delete(id);this.render(this._last);},
@@ -4922,6 +4924,7 @@ const RecList={
   async batchWord(){const ids=[...this.sel];for(const id of ids){try{await exportWord(id);}catch(e){toast("⚠ 匯出失敗："+e.message,true);}}}
 };
 document.addEventListener("click",e=>{if(!e.target.closest(".ux-more"))RecList.closeMenus();});
+window.addEventListener("scroll",()=>RecList.closeMenus(),true);window.addEventListener("resize",()=>RecList.closeMenus()); // 浮動選單位置是開啟當下算的，捲動就收起
 
 /* ───────────── 🏠 首頁 ───────────── */
 const Home={
