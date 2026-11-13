@@ -11395,6 +11395,14 @@ const Snap={
   async loadCloudInfo(){
     if(typeof Cloud==="undefined"||!Cloud.enabled())return;
     try{
+      /* 2026-11-13 省流量：整份預設備份約 7MB（壓縮後 2.4MB），以前每次開主系統都整份下載，只為了顯示一行摘要。
+         改成先只問「備份時間」（約 100 bytes）：跟本機摘要記的一樣就不再下載；有人重設過預設備份、
+         或本機還沒有摘要時，才照舊下載整份更新摘要。只讀不寫；「還原預設」仍是另外完整讀取，不受影響。 */
+      const hd=await Cloud.api("app_db?select=savedAt:payload->savedAt&k=eq."+encodeURIComponent(this.CLOUD_KEY));
+      if(!hd||!hd[0])return; // 雲端沒有預設備份
+      const cloudAt=hd[0].savedAt,local0=this.get();
+      if(local0&&cloudAt!=null&&String(local0.savedAt)===String(cloudAt)){this.render();return;} // 同一份：不用再下載
+      if(local0&&!local0.meta&&(cloudAt||0)<(local0.savedAt||0)){this.render();return;}           // 本機是比雲端新的完整備份：維持原樣（同舊邏輯）
       const rows=await Cloud.api("app_db?select=payload&k=eq."+encodeURIComponent(this.CLOUD_KEY));
       const p=rows&&rows[0]&&rows[0].payload;
       if(p){
