@@ -576,6 +576,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
     <div class="ux-wrap">
       <div class="ux-card ux-flt">
         <span class="ux-seg" id="tkSrcSeg"></span>
+        <button type="button" class="btn sm" id="tkMineBtn" onclick="Track.f.mine=!Track.f.mine;Track.render()" title="依審核人規則，只看要我審核的缺失（訪船＝檢查人；交叉訪船／隨船／專項＝經管督導；內稽／ISPS＝督導或稽核員）；再按一次取消">🙋 只看我要審核的</button>
         <select id="tkSup" onchange="Track.f.sup=this.value;Track.render()"></select>
         <select id="tkShip" onchange="Track.f.ship=this.value;Track.render()"></select>
         <select id="tkInsp" onchange="Track.f.insp=this.value;Track.render()"></select>
@@ -1604,7 +1605,7 @@ function fillSupSel(){
   const me=mySupName();
   b.style.display=me?"":"none";
   if(!me){mySupOnly=false;return;}
-  if(!_fSupInit){_fSupInit=true;if(!UX.isAdmin())mySupOnly=true;}
+  // 2026-11-13 預設看全部船，要只看自己的再按
   b.classList.toggle("primary",mySupOnly);
   b.textContent=mySupOnly?"👤 只看我督導的船 ✓":"👤 只看我督導的船";
 }
@@ -4567,9 +4568,9 @@ function showYear(){uxShowPage("yearPage");const yv=$("#yearView");if(yv)yv.styl
 const TK_ST={sub:"待督導審核",ret:"已退回待重填",wait:"待船上改善",noissue:"尚未發改善單",done:"已結案",flow:"FLOW（船上自辦）"};
 const TK_ORD={sub:0,ret:1,wait:2,noissue:3,done:4,flow:5};
 const Track={
-  f:{src:"",sup:"",ship:"",insp:"",mode:"",risk:"",q:"",st:"sub",rec:null},
+  f:{src:"",sup:"",ship:"",insp:"",mode:"",risk:"",q:"",st:"sub",rec:null,mine:false},
   view:(()=>{try{return localStorage.getItem("tk_view")||"list";}catch(e){return "list";}})(),
-  ovo:true,ovg:false,ovOpen:true,just:{},retKey:null,open:new Set(),coll:new Set(),sel:null,limit:60,_init:false,
+  ovo:false,ovg:false,ovOpen:true,just:{},retKey:null,open:new Set(),coll:new Set(),sel:null,limit:60,_init:false,
   visible(){const p=$("#trackPage");return !!p&&p.style.display!=="none";},
   /* 審核人：訪船＝檢查人；內稽／ISPS＝該船督導或稽核員（稽核員＝這張單的檢查人）；其他（交叉訪船／隨船／專項）＝甲板＋機艙督導 */
   reviewer(r,d){
@@ -4596,6 +4597,7 @@ const Track={
       if(f.rec!=null&&r.id!==f.rec)return false;
       if(f.src==="ia"&&!isIntAudit(d))return false;if(f.src==="non"&&isIntAudit(d))return false;
       if(f.sup&&!UX.shipSupNames(r.ship).includes(f.sup))return false;
+      if(f.mine&&!this.mine(r,d))return false; // 2026-11-13「🙋 只看我要審核的」：依審核人規則
       if(!skipShip&&f.ship&&r.ship!==f.ship)return false;
       if(f.insp&&!inspList(r).includes(f.insp))return false;
       if(!ymRangePass(r,"tkYmFrom","tkYmTo"))return false;
@@ -4613,13 +4615,13 @@ const Track={
   show(){
     if(!this._init){
       this._init=true;
-      const me=UX.me();if(!UX.isAdmin()&&UX.allSupNames().includes(me))this.f.sup=me; // 督導預設只看自己經管的船
+      // 2026-11-13 改成預設看全部船（督導要只看自己的船，再選「督導」篩選）
     }
     // 不在這裡重讀回報（loadReplies 會先清空再讀，畫面會閃成 0）；要最新資料請按「🔄 重新整理」
     this.render();
   },
   async reload(){await Store.load();await Store.loadReplies();this.just={};this.render();toast("✓ 已重新整理");},
-  clear(){this.f={src:"",sup:"",ship:"",insp:"",mode:"",risk:"",q:"",st:"sub",rec:null};["tkYmFrom","tkYmTo"].forEach(id=>{const e=$("#"+id);if(e)e.value="";});const q=$("#tkQ");if(q)q.value="";reviewSel.clear();this.render();},
+  clear(){this.f={src:"",sup:"",ship:"",insp:"",mode:"",risk:"",q:"",st:"sub",rec:null,mine:false};["tkYmFrom","tkYmTo"].forEach(id=>{const e=$("#"+id);if(e)e.value="";});const q=$("#tkQ");if(q)q.value="";reviewSel.clear();this.render();},
   setView(v){this.view=v;try{localStorage.setItem("tk_view",v);}catch(e){}this.render();},
   pick(ship,st){this.f.ship=ship;this.f.st=st;this.f.rec=null;this.render();const b=$("#tkBody");if(b)b.scrollIntoView({behavior:"smooth",block:"start"});},
   openFor(rid){const r=Store.rows.find(x=>x.id===rid);if(!r)return;showTrack();this.f=Object.assign(this.f,{src:"",sup:"",ship:"",insp:"",mode:"",risk:"",q:"",st:"sub",rec:rid});const q=$("#tkQ");if(q)q.value="";this.render();},
@@ -4745,6 +4747,7 @@ const Track={
   },
   fillSelects(){
     const me=UX.me(),sups=UX.allSupNames();
+    {const mb=$("#tkMineBtn");if(mb){mb.classList.toggle("primary",!!this.f.mine);mb.textContent=this.f.mine?"🙋 只看我要審核的 ✓":"🙋 只看我要審核的";}}
     $("#tkSup").innerHTML=`<option value="">督導：全部</option>`+sups.map(n=>`<option value="${esc(n)}" ${this.f.sup===n?"selected":""}>督導：${esc(n)}${n===me?"（我）":""}</option>`).join("");
     const ships=[...new Set(Store.rows.filter(r=>!r.draft).map(r=>r.ship))].filter(Boolean).sort((a,b)=>shipLabel(a).localeCompare(shipLabel(b)));
     $("#tkShip").innerHTML=`<option value="">船舶：全部</option>`+ships.map(s=>`<option value="${esc(s)}" ${this.f.ship===s?"selected":""}>${esc(shipLabel(s))}</option>`).join("");
