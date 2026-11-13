@@ -545,7 +545,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
         <select id="fStatus" onchange="renderList()" style="width:auto"><option value="">全部狀態</option><option>FLOW 結案</option><option>待船上改善</option><option>船上已回報</option><option>已結案</option></select>
         <span style="display:inline-flex;align-items:center;gap:4px" title="依檢查日期的年月篩選，可只選起或迄"><select id="fYmFrom" onchange="renderList()" style="width:auto"></select>～<select id="fYmTo" onchange="renderList()" style="width:auto"></select></span>
         <select id="fRec" onchange="renderList()" style="width:auto" title="登錄單本身的狀態：督導還沒送出的草稿／已送出等海技匯入／海技已匯入主系統"><option value="">全部登錄單</option><option value="draft">草稿</option><option value="pending">已送出・待海技匯入</option><option value="imported">海技已匯入</option></select>
-        <select id="fSup" onchange="renderList()" style="width:auto" title="依船舶資料的甲板／輪機督導篩選：只看某位督導經管的船"><option value="">督導：全部</option></select>
+        <button type="button" class="btn sm" id="fSupBtn" style="display:none" onclick="toggleMySup()" title="只看船舶資料裡由我擔任甲板／輪機督導的船；再按一次取消">👤 只看我督導的船</button>
         <input type="text" class="fq" id="fQ" placeholder="🔍 搜尋船名／檢查人／分類／缺失描述…" oninput="$('#stQ').value=this.value;renderList()">
         <span class="fsp"></span>
         <button class="btn sm" onclick="clearFilters()">清除篩選</button>
@@ -1593,17 +1593,20 @@ function exportStatTable(){
   XlsxPretty.writeFile(wb,`各輪各項檢查統計_${todayIso()}.xlsx`);
   toast(`✓ 已匯出 ${data.length} 列`);
 }
-function clearFilters(){if($("#fSup"))$("#fSup").value="";clearStFilters();}
-/* 督導篩選：選項＝船舶資料裡所有甲板／輪機督導；登入者本人是督導時排第一個「👤 只看我督導的船」。
-   督導（非 Owner／管理員）第一次進來預設只看自己經管的船，跟「缺失審核／追蹤」一致；要看全部選「督導：全部」。 */
-let _fSupInit=false;
+function clearFilters(){mySupOnly=false;clearStFilters();}
+/* 「👤 只看我督導的船」：按一下開、再按一下取消。登入者是船舶資料裡的甲板／輪機督導才顯示這顆鈕；
+   督導（非 Owner／管理員）第一次進來預設開啟，跟「缺失審核／追蹤」一致。 */
+let mySupOnly=false,_fSupInit=false;
+function mySupName(){try{const me=UX.me();return UX.allSupNames().includes(me)?me:"";}catch(e){return "";}}
+function toggleMySup(){mySupOnly=!mySupOnly;renderList();}
 function fillSupSel(){
-  const el=$("#fSup");if(!el||typeof UX==="undefined")return;
-  const me=UX.me(),all=UX.allSupNames(),cur=el.value;
-  if(!all.length){el.style.display="none";return;}
-  el.innerHTML=`<option value="">督導：全部</option>`+(all.includes(me)?`<option value="${esc(me)}">👤 只看我督導的船</option>`:"")+all.filter(n=>n!==me).map(n=>`<option value="${esc(n)}">督導：${esc(n)}</option>`).join("");
-  if(!_fSupInit){_fSupInit=true;if(!UX.isAdmin()&&all.includes(me)){el.value=me;return;}}
-  el.value=all.includes(cur)?cur:"";
+  const b=$("#fSupBtn");if(!b||typeof UX==="undefined")return;
+  const me=mySupName();
+  b.style.display=me?"":"none";
+  if(!me){mySupOnly=false;return;}
+  if(!_fSupInit){_fSupInit=true;if(!UX.isAdmin())mySupOnly=true;}
+  b.classList.toggle("primary",mySupOnly);
+  b.textContent=mySupOnly?"👤 只看我督導的船 ✓":"👤 只看我督導的船";
 }
 /* ══ 目前篩選中：把這個檢視正在套用的條件列成小標籤，每個可單獨取消，也可一鍵全部清除 ══ */
 function renderFilterSum(){
@@ -1655,7 +1658,7 @@ function fltClearAll(){
 /* 登錄單檢視與檢查統計表共用的篩選（船舶／檢查來源／檢查人／搜尋）：切換檢視時維持原本篩選 */
 function recPass(r){
   if(stSel.ship.size&&!stSel.ship.has(r.ship))return false;
-  {const fs=$("#fSup")&&$("#fSup").value;if(fs&&!UX.shipSupNames(r.ship).includes(fs))return false;} // 2026-11-13 督導篩選（只看某位督導經管的船）
+  if(mySupOnly){const me=mySupName();if(me&&!UX.shipSupNames(r.ship).includes(me))return false;} // 2026-11-13「👤 只看我督導的船」
   if(stSel.insp.size&&!inspList(r).some(n=>stSel.insp.has(n)))return false;
   if(stSel.src.size&&!((r.types||[]).length?r.types:[""]).some(k=>stSel.src.has(k)))return false;
   return true;
