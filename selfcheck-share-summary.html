@@ -114,6 +114,7 @@ tr.done td{background:#eaf5ee}
   #printArea h1{font-size:18px;margin:0 0 4px}
   #printArea h2{font-size:14px;margin:16px 0 6px}
   #printArea table{width:100%;border-collapse:collapse}
+  #printArea .ckprint{font-size:11px;line-height:1.5}#printArea .ckprint .hint{color:#444}
   #printArea th,#printArea td{border:1px solid #888;padding:4px 6px;font-size:10.5px;position:static;background:none}
   #printArea th{background:#e8edf1;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #printArea tr{page-break-inside:avoid}
@@ -1341,8 +1342,21 @@ function exportPdf(){
     ${status.map(r=>`<tr><td>${c(r.name)}</td><td>${c(r.checker)}${r.title?"（"+c(r.title)+"）":""}</td><td>${c(r.progress)}</td><td>${r.state}</td><td>${c(r.submittedAt)}</td><td>${r.needN}</td><td>${r.openN}</td></tr>`).join("")}</tbody></table>
     <h2>三、有類似情形、需處理項目（${issues.length} 項）</h2>
     ${issues.length?`<table><thead><tr><th style="width:11%">船舶</th><th style="width:26%">缺失內容</th><th style="width:20%">本船實際狀況</th><th style="width:29%">處理情況</th><th style="width:8%">結案</th></tr></thead><tbody>
-    ${issues.map(r=>`<tr><td>${c(r.name)}</td><td>${c(r.detail)}${r.actual2?"<br><i>實際情況："+c(r.actual2)+"</i>":""}</td><td>${c(r.note)}</td><td>${c(r.handle)}</td><td>${r.closed}</td></tr>`).join("")}</tbody></table>`:"<div>目前沒有需處理項目。</div>"}`;
+    ${issues.map(r=>`<tr><td>${c(r.name)}</td><td>${c(r.detail)}${r.actual2?"<br><i>實際情況："+c(r.actual2)+"</i>":""}</td><td>${c(r.note)}</td><td>${c(r.handle)}</td><td>${r.closed}</td></tr>`).join("")}</tbody></table>`:"<div>目前沒有需處理項目。</div>"}`
+    +ckPrintHtml();
   window.print();
+}
+/* 2026-11-13 PDF 加上「四、細目回覆彙整」：跟畫面上「📋 細目回覆彙整」同一份內容（含「只看有補充說明」的勾選狀態），
+   列印時把船名連結改成純文字。沒有「請確認」細目的活動不加這一節。 */
+function ckPrintHtml(){
+  const items=(curCampaign&&curCampaign.items)||[];
+  if(!items.some(it=>(it.checks||[]).length))return "";
+  try{renderCkSummary();}catch(e){return "";}
+  const box=document.getElementById("ckBody");if(!box)return "";
+  const tmp=document.createElement("div");tmp.innerHTML=box.innerHTML;
+  tmp.querySelectorAll("a").forEach(a=>a.replaceWith(document.createTextNode(a.textContent)));
+  const only=document.getElementById("ckOnlyNote");
+  return `<h2 style="page-break-before:always">四、細目回覆彙整</h2><div style="font-size:11px">每一條「請確認」細目：幾艘船已勾／已答、各船的回答與補充說明${only&&only.checked?"（只列有補充說明的船）":""}</div><div class="ckprint">${tmp.innerHTML}</div>`;
 }
 
 function rowClick(ev,ship){
