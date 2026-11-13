@@ -471,11 +471,11 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
   <!-- ══════ 登錄紀錄 ══════ -->
   <div id="listPage">
     <div class="subbar">
-      <span class="segtabs"><button class="btn sm primary" id="lvRows" onclick="setListView('rows')">☰ 清單</button><button class="btn sm" id="lvCards" onclick="setListView('cards')">▤ 卡片（舊版）</button><button class="btn sm" id="lvTable" onclick="setListView('table')">▦ 檢查清單（舊版）</button><button class="btn sm" id="lvDefs" style="display:none" onclick="setListView('defs')">🚦 缺失清單列表</button><button class="btn sm" id="lvYear" style="display:none" onclick="setListView('year')">📅 年度檢查一覽</button></span>
+      <span class="segtabs" style="display:none"><!-- 2026-11-13 舊版「卡片」「檢查清單」檢視不再提供，只用清單；程式先保留 --><button class="btn sm primary" id="lvRows" onclick="setListView('rows')">☰ 清單</button><button class="btn sm" id="lvCards" onclick="setListView('cards')">▤ 卡片（舊版）</button><button class="btn sm" id="lvTable" onclick="setListView('table')">▦ 檢查清單（舊版）</button><button class="btn sm" id="lvDefs" style="display:none" onclick="setListView('defs')">🚦 缺失清單列表</button><button class="btn sm" id="lvYear" style="display:none" onclick="setListView('year')">📅 年度檢查一覽</button></span>
       <span class="hint subhint" id="lvHint">一列＝一張登錄單；點列展開缺失明細</span>
       <button class="btn sm" onclick="toggleHelp('lvHelp')">ⓘ 說明</button>
     </div>
-    <div class="banner helpbox" id="lvHelp" style="display:none">督導、稽核員上船檢查後在這裡建檔。<b>卡片檢視</b>一張登錄單一張卡，可展開缺失逐筆編輯、發改善單；<b>清單檢視</b>每一列是「一張登錄單的一項檢查」，方便看各船各輪檢查的日期、檢查人與缺失結案情形。兩種檢視的船舶／檢查來源／檢查人篩選共用，切換時會保留。</div>
+    <div class="banner helpbox" id="lvHelp" style="display:none">督導、稽核員上船檢查後在這裡建檔。<b>一列＝一張登錄單</b>：狀態標籤就是下一步（按了直接去做），點一列在原地展開缺失明細；編輯、匯出、開啟船上頁、複製一單、刪除收在最右邊「⋯」；左邊勾選可批次發改善單、發結案報告、匯出 Word。</div>
     <div id="fltSum" class="fltsum" style="display:none"></div>
     <div id="yearView" style="display:none">
       <div class="card fcard">
@@ -545,6 +545,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
         <select id="fStatus" onchange="renderList()" style="width:auto"><option value="">全部狀態</option><option>FLOW 結案</option><option>待船上改善</option><option>船上已回報</option><option>已結案</option></select>
         <span style="display:inline-flex;align-items:center;gap:4px" title="依檢查日期的年月篩選，可只選起或迄"><select id="fYmFrom" onchange="renderList()" style="width:auto"></select>～<select id="fYmTo" onchange="renderList()" style="width:auto"></select></span>
         <select id="fRec" onchange="renderList()" style="width:auto" title="登錄單本身的狀態：督導還沒送出的草稿／已送出等海技匯入／海技已匯入主系統"><option value="">全部登錄單</option><option value="draft">草稿</option><option value="pending">已送出・待海技匯入</option><option value="imported">海技已匯入</option></select>
+        <select id="fSup" onchange="renderList()" style="width:auto" title="依船舶資料的甲板／輪機督導篩選：只看某位督導經管的船"><option value="">督導：全部</option></select>
         <input type="text" class="fq" id="fQ" placeholder="🔍 搜尋船名／檢查人／分類／缺失描述…" oninput="$('#stQ').value=this.value;renderList()">
         <span class="fsp"></span>
         <button class="btn sm" onclick="clearFilters()">清除篩選</button>
@@ -1592,7 +1593,18 @@ function exportStatTable(){
   XlsxPretty.writeFile(wb,`各輪各項檢查統計_${todayIso()}.xlsx`);
   toast(`✓ 已匯出 ${data.length} 列`);
 }
-function clearFilters(){clearStFilters();}
+function clearFilters(){if($("#fSup"))$("#fSup").value="";clearStFilters();}
+/* 督導篩選：選項＝船舶資料裡所有甲板／輪機督導；登入者本人是督導時排第一個「👤 只看我督導的船」。
+   督導（非 Owner／管理員）第一次進來預設只看自己經管的船，跟「缺失審核／追蹤」一致；要看全部選「督導：全部」。 */
+let _fSupInit=false;
+function fillSupSel(){
+  const el=$("#fSup");if(!el||typeof UX==="undefined")return;
+  const me=UX.me(),all=UX.allSupNames(),cur=el.value;
+  if(!all.length){el.style.display="none";return;}
+  el.innerHTML=`<option value="">督導：全部</option>`+(all.includes(me)?`<option value="${esc(me)}">👤 只看我督導的船</option>`:"")+all.filter(n=>n!==me).map(n=>`<option value="${esc(n)}">督導：${esc(n)}</option>`).join("");
+  if(!_fSupInit){_fSupInit=true;if(!UX.isAdmin()&&all.includes(me)){el.value=me;return;}}
+  el.value=all.includes(cur)?cur:"";
+}
 /* ══ 目前篩選中：把這個檢視正在套用的條件列成小標籤，每個可單獨取消，也可一鍵全部清除 ══ */
 function renderFilterSum(){
   const box=$("#fltSum");if(!box)return;
@@ -1643,6 +1655,7 @@ function fltClearAll(){
 /* 登錄單檢視與檢查統計表共用的篩選（船舶／檢查來源／檢查人／搜尋）：切換檢視時維持原本篩選 */
 function recPass(r){
   if(stSel.ship.size&&!stSel.ship.has(r.ship))return false;
+  {const fs=$("#fSup")&&$("#fSup").value;if(fs&&!UX.shipSupNames(r.ship).includes(fs))return false;} // 2026-11-13 督導篩選（只看某位督導經管的船）
   if(stSel.insp.size&&!inspList(r).some(n=>stSel.insp.has(n)))return false;
   if(stSel.src.size&&!((r.types||[]).length?r.types:[""]).some(k=>stSel.src.has(k)))return false;
   return true;
@@ -1804,7 +1817,7 @@ function renderList(){
   const rows=Store.rows;
   // 檢查人篩選選項：直接從目前登錄單裡有出現過的檢查人整理，不限於目前的 SUPERVISORS 名單
   // （名單調整過也還是看得到舊紀錄的檢查人可以篩），每次重繪時保留使用者目前選取的值。
-  buildMsels();fillYmSelects("fYmFrom","fYmTo");
+  buildMsels();fillYmSelects("fYmFrom","fYmTo");fillSupSel();
   const fm=$("#fMode").value,fst=$("#fStatus").value,q=$("#fQ").value.trim().toLowerCase(),fsrc=stSel.src.size>0;
   // ⚠ 上方「全部缺失結案方式」統計原本是用完全沒篩選過的 rows/all 算的，使用者下面篩選船舶／
   // 檢查人／結案方式／狀態／關鍵字之後，上面那排數字完全不會變，看起來像篩選沒作用在統計上。
@@ -2540,14 +2553,12 @@ const CloseRpt={
     const tyTxt=(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、");
     // 2026-11-13 改版：強調只限「系統內結案（含內控）」的項目，FLOW 另外辦理；拿掉改善單連結
     const subj=`【系統內結案通知】${shipLabel(r.ship)} ${dateText(r)} ${tyTxt}`;
-    const body=[`船長、輪機長 您好：`,``,
-      `貴輪 ${dateText(r)} ${tyTxt}（檢查人：${inspList(r).join("、")}）缺失中，以「系統內結案（含內控）」方式改善的 ${n} 項，已全數審核結案。`,
-      nFlow?`本通知僅限系統內結案（含內控）的項目；FLOW 項目請依 FLOW 系統流程辦理。`:`本通知僅限系統內結案（含內控）的項目。`,``,
-      `系統內結案報告（含改善措施、完成日期、改善照片）請見附件 Word 檔，請留存備查。`,
-      ...(nFlow?[``,`※ 另有 ${nFlow} 項 FLOW 缺失，請持續於 FLOW 系統（DMP-FM01）完成結案。`]:[]),
-      ``,`感謝配合。`];
+    const body=[`船長您好：`,``,
+      `貴輪 ${dateText(r)} ${tyTxt}（檢查人：${inspList(r).join("、")}）缺失中，以「系統內結案（含內控）」方式改善的 ${n} 項，已全數審核結案，系統內結案報告（含改善措施、完成日期、改善照片）請見附件 Word 檔，請留存備查。`,``,
+      ...(nFlow?[`本通知僅限系統內結案（含內控）的項目；`,`※ 另有 ${nFlow} 項 FLOW 缺失，請持續於 FLOW 系統（DMP-FM01）完成結案。`]:[`本通知僅限系統內結案（含內控）的項目。`]),
+      ``,``,`感謝配合。`];
     const plain=`主旨：${subj}\n\n`+body.join("\n");
-    const html=`<b>主旨：${esc(subj)}</b><br><br>`+body.map(l=>esc(l)).join("<br>").replace(/(以「系統內結案（含內控）」方式改善的 \d+ 項，已全數審核結案。)/,"<b>$1</b>").replace(/(※ 另有[^<]*)/,'<b style="color:#c0392b">$1</b>');
+    const html=`<b>主旨：${esc(subj)}</b><br><br>`+body.map(l=>esc(l)).join("<br>").replace(/(以「系統內結案（含內控）」方式改善的 \d+ 項，已全數審核結案)/,"<b>$1</b>").replace(/(※ 另有[^<]*)/,'<b style="color:#c0392b">$1</b>');
     return {plain,html,n,nFlow};
   },
   /* 剛結完最後一條時跳的提醒 */
