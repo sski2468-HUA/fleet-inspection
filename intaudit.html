@@ -107,6 +107,7 @@ header p{margin:5px 0 0;font-size:14px;color:#b9c8d6;line-height:1.6}
 /* 缺失清單列表：每列前面一個燈號，整列淡底色＝結案情形；FLOW 用暗灰色 */
 .dlt{table-layout:fixed;width:100%}
 .dlt td{vertical-align:top;line-height:1.5}
+.lt.sgtbl td,.lt.sgtbl th{padding-left:7px;padding-right:7px;overflow-wrap:anywhere}.lt.sgtbl th{white-space:normal}.lt.sgtbl .opcol{width:auto}
 .dlt tr.st-flow td{background:#e9ecef;color:#5f6b73}
 .dlt tr.st-done td{background:#f1f9f4}
 .dlt tr.st-sub td{background:#eef4fb}
@@ -2039,7 +2040,7 @@ function reviewTableHtml(items){
   const thumbs=arr=>(arr||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">${arr.map(ph=>`<img src="${PhotoCloud.src(ph)}" title="點一下放大" style="width:34px;height:34px;object-fit:cover;border-radius:4px;border:1px solid var(--line-2);cursor:zoom-in" onclick="openLightbox(this.src)">`).join("")}</div>`:"";
   const lines=[];
   items.forEach(c=>c.rows.forEach(x=>{if(fd&&x.dept!==fd)return;lines.push({c,x,first:!lines.length||lines[lines.length-1].c!==c});}));
-  return `<div class="card" style="padding:0;overflow:auto"><table class="lt dlt"><colgroup><col style="width:96px"><col style="width:122px"><col style="width:96px"><col><col style="width:17%"><col style="width:62px"><col style="width:74px"><col style="width:18%"><col style="width:84px"><col style="width:90px"></colgroup>
+  return `<div class="card" style="padding:0;overflow-x:hidden"><table class="lt dlt sgtbl"><colgroup><col style="width:7%"><col style="width:10.5%"><col style="width:8%"><col style="width:20%"><col style="width:15.5%"><col style="width:5.5%"><col style="width:6.5%"><col style="width:15%"><col style="width:6.5%"><col style="width:8.5%"></colgroup>
     <thead><tr><th>處理情形</th><th>船舶</th><th>檢查日期</th><th>現狀</th><th>建議</th><th>負責部門</th><th>承辦人</th><th>初步回應／處理結果</th><th>結案日期</th><th>操作</th></tr></thead><tbody>${lines.map(({c,x,first})=>{
     const p=(x.rp&&x.rp.payload)||{},stt=suggRowState(x.rp),lk=suggLockInfo(x.rp),L=LAMP[stt];
     const same=`<span class="hint">〃</span>`;
@@ -4871,7 +4872,7 @@ const RecList={
     let prevYm="",html="";
     P.forEach(({r,ds,filtering})=>{
       const ym=String(r.dateFrom||"").slice(0,7);
-      if(ym!==prevYm){prevYm=ym;html+=`<tr class="ux-mon"><td colspan="11">${ym?ym.replace("-"," 年 ").replace(/ 年 0?/," 年 ")+" 月":"（未填檢查日期）"}</td></tr>`;}
+      if(ym!==prevYm){prevYm=ym;html+=`<tr class="ux-mon"><td colspan="12">${ym?ym.replace("-"," 年 ").replace(/ 年 0?/," 年 ")+" 月":"（未填檢查日期）"}</td></tr>`;}
       const st=RecStage.of(r),op=this.open.has(r.id)||(filtering&&!this.open.size&&false);
       const flowN=(r.defs||[]).filter(d=>d.closeMode==="FLOW").length;
       html+=`<tr class="ux-r k-${st}${op?" open":""}" onclick="RecList.toggle(${r.id})">
@@ -4885,11 +4886,12 @@ const RecList={
         <td style="text-align:center"><b class="ux-num">${(r.defs||[]).length}</b>${flowN?`<div class="hint" style="font-size:11.5px">${flowN===(r.defs||[]).length?"全部 FLOW":"FLOW "+flowN}</div>`:""}</td>
         <td>${this.prog(r)}</td>
         <td style="font-size:12px;white-space:nowrap">${r.draft?'<span class="hint">—</span>':r.imported?`<b style="color:var(--ok)">✓ 已匯入</b>`:'<span class="hint">未匯入</span>'}</td>
+        <td style="font-size:11.5px;color:var(--ink-3);line-height:1.3;overflow-wrap:anywhere">${esc(r.creator||r.createdBy||"—")}</td>
         <td>${this.menu(r)}</td></tr>`;
-      if(op)html+=`<tr class="ux-det"><td colspan="11">${this.detail(r,ds,filtering)}</td></tr>`;
+      if(op)html+=`<tr class="ux-det"><td colspan="12">${this.detail(r,ds,filtering)}</td></tr>`;
     });
     const pager=pages>1||L.length>30?`<div class="ux-pager">每頁 <select onchange="RecList.setSize(this.value)">${[30,50,100].map(n=>`<option ${n===this.size?"selected":""}>${n}</option>`).join("")}</select> 張　${Array.from({length:pages},(_,i)=>`<span class="${i===this.page?"on":""}" onclick="RecList.go(${i})">${i+1}</span>`).join("")}</div>`:"";
-    box.innerHTML=bbar+`<div class="ux-tw" style="margin:0 14px"><table class="ux-L ux-RL"><thead><tr><th style="width:34px"><input type="checkbox" title="全選這一頁" onchange="RecList.selAll(this.checked)"></th><th style="width:168px">狀態／下一步</th><th>船舶</th><th style="width:150px">檢查日期</th><th>檢查種類</th><th>檢查人</th><th>地點</th><th style="width:60px;text-align:center">缺失</th><th style="width:200px">結案進度</th><th style="width:70px">主系統</th><th style="width:40px"></th></tr></thead><tbody>${html||`<tr><td colspan="11" class="hint" style="text-align:center;padding:24px">沒有符合條件的登錄單。</td></tr>`}</tbody></table></div>${pager}`;
+    box.innerHTML=bbar+`<div class="ux-tw" style="margin:0 14px"><table class="ux-L ux-RL"><thead><tr><th style="width:34px"><input type="checkbox" title="全選這一頁" onchange="RecList.selAll(this.checked)"></th><th style="width:168px">狀態／下一步</th><th>船舶</th><th style="width:150px">檢查日期</th><th>檢查種類</th><th>檢查人</th><th>地點</th><th style="width:60px;text-align:center">缺失</th><th style="width:200px">結案進度</th><th style="width:70px">主系統</th><th style="width:58px" title="實際建立這張登錄單的人（第一次存檔時的登入身份）">建檔人</th><th style="width:40px"></th></tr></thead><tbody>${html||`<tr><td colspan="12" class="hint" style="text-align:center;padding:24px">沒有符合條件的登錄單。</td></tr>`}</tbody></table></div>${pager}`;
   },
   batchIssue(){const ids=[...this.sel].filter(id=>{const r=Store.rows.find(x=>x.id===id);return r&&["needIssue","needFlow"].includes(RecStage.of(r));});if(!ids.length)return;this.q=ids;toast(`📨 共 ${ids.length} 張，會一張一張跳出發改善單視窗`);this.nextQ();},
   nextQ(){const id=this.q.shift();if(id==null)return;Promise.resolve(issueOrder(id)).finally(()=>setTimeout(()=>{if($("#issueModal").style.display!=="flex"&&this.q.length)this.nextQ();},500));},
