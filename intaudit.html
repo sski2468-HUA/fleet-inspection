@@ -114,6 +114,7 @@ header p{margin:5px 0 0;font-size:14px;color:#b9c8d6;line-height:1.6}
 .btn.sm.mytog.primary{background:#1e7f8c;color:#fff;border-color:#1e7f8c}
 .btn.sm.mytog.primary::before{background-color:#e8f5f6;box-shadow:inset 0 0 0 2px #fff;background-image:radial-gradient(circle at 22px 8px,#1e7f8c 5px,transparent 6px)}
 .mybar{margin:0 14px 10px;padding:8px 14px;border-radius:9px;background:#e8f5f6;border:1px solid #9fd0d6;color:#14606a;font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ux-mtabs{display:inline-flex;gap:6px;margin-left:4px}.ux-mtab{border:2px solid #c3ccd3;background:#fff;border-radius:999px;padding:3px 13px;font-weight:800;font-size:13.5px;cursor:pointer;color:#52656f;white-space:nowrap}.ux-mtab b{margin-left:5px;font-family:Consolas,monospace}.ux-mtab.me.on{background:#1e7f8c;border-color:#1e7f8c;color:#fff}.ux-mtab.all.on{background:#1c3a5e;border-color:#1c3a5e;color:#fff}.ux-metag{display:inline-block;background:#1e7f8c;color:#fff;border-radius:6px;padding:0 6px;font-size:11.5px;font-weight:800;margin-right:5px;vertical-align:1px}
 .mybar a{color:#14606a;cursor:pointer;margin-left:auto}
 .dlt tr.st-flow td{background:#e9ecef;color:#5f6b73}
 .dlt tr.st-done td{background:#f1f9f4}
@@ -4959,12 +4960,23 @@ const Home={
   },
   TAG:{rev:'<span class="ux-tag" style="background:#2f6fb5;color:#fff">🔎 待審核</span>',iss:'<span class="ux-tag" style="background:#c0392b;color:#fff">📨 待發改善單</span>',cls:'<span class="ux-tag" style="background:#1f8a4c;color:#fff">📑 待發結案報告</span>',drf:'<span class="ux-tag" style="border:1.5px solid #a0670f;color:#a0670f">✎ 草稿未送出</span>',imp:'<span class="ux-tag" style="background:#34506e;color:#fff">📥 待匯入主系統</span>'},
   goPending(){showList();const f=$("#fRec");if(f){f.value="pending";renderList();}},
-  todoHtml(T,admin){
+  /* 2026-11-13 Owner／管理員的待辦分兩頁：「🙋 我的」＝要我自己動手的（同督導的審核人規則）、「🏢 全船隊」＝海技組總覽，
+     全船隊裡屬於我的那幾列標「我」。我的是 0 件就停在全船隊；記住上次停哪一頁。只有督導身份的帳號不顯示頁籤。 */
+  todoBlock(T,admin){
+    if(!admin)return this.todoHtml(T,false);
+    const me=UX.me(),mineT=this.todo(me,false),mine=new Set(mineT.map(x=>x.k+'|'+x.r.id));
+    let tab="";try{tab=localStorage.getItem("ia_home_tab")||"";}catch(e){}
+    if(!tab)tab=mineT.length?"me":"all";if(tab==="me"&&!mineT.length)tab="all";
+    const tabs=`<span class="ux-mtabs"><span class="ux-mtab me ${tab==="me"?"on":""}" onclick="Home.setTab('me')">🙋 我的<b>${mineT.length}</b></span><span class="ux-mtab all ${tab==="all"?"on":""}" onclick="Home.setTab('all')">🏢 全船隊<b>${T.length}</b></span></span>`;
+    return tab==="me"?this.todoHtml(mineT,false,{tabs,meView:true}):this.todoHtml(T,true,{tabs,mine});
+  },
+  setTab(t){try{localStorage.setItem("ia_home_tab",t);}catch(e){}this.render();},
+  todoHtml(T,admin,opt){opt=opt||{};
     const n=k=>T.filter(x=>x.k===k).length;
     const sum=[["rev","🔎 待審核","#2f6fb5"],["iss","📨 待發改善單","#c0392b"],["cls","📑 待發結案報告","#1f8a4c"],...(admin?[["imp","📥 待匯入主系統","#34506e"]]:[["drf","✎ 草稿未送出","#a0670f"]])].map(([k,t,c])=>`<span class="ux-sc" style="${k==="drf"?`border:1.5px solid ${c};color:${c}`:`background:${c};color:#fff`}${k==="imp"&&n(k)?";cursor:pointer":""}" ${k==="imp"&&n(k)?`onclick="Home.goPending()" title="到檢查紀錄只看「已送出・待海技匯入」"`:""}>${t} ${n(k)}</span>`).join("");
     const sgN=+(($("#btnSuggCount")||{}).textContent||0)||0;
-    const rows=T.slice(0,40).map(x=>`<tr><td>${this.TAG[x.k]}</td><td><b>${esc(shipLabel(x.r.ship))}</b><div class="hint" style="font-size:12px">${esc(dateText(x.r))} ${(x.r.types||[]).map(t=>(typeDef(t)||{label:t}).label).join("、")}${admin?"・"+esc(inspList(x.r).join("、")):""}</div></td><td>${x.txt}</td>${admin?`<td class="hint" style="font-size:12px">${esc(UX.shipSupNames(x.r.ship).join("／")||"—")}</td>`:""}<td>${x.w==null?'<span class="ux-pl x">—</span>':`<span class="ux-pl ${x.w>7?"r":x.w>2?"o":"x"}">${x.w?x.w+" 天":"今天"}</span>`}</td><td>${x.btn}</td></tr>`).join("");
-    return `<div class="ux-card"><div class="ux-hd"><h2>❗ ${admin?"海技組待辦（全船隊）":"我的待辦"}</h2><span class="ux-cnt">${T.length}</span><span class="hint" style="font-size:12.5px">只列「輪到${admin?"海技組／各督導":"我"}動手」的事；做完會自動從這裡消失</span></div>
+    const rows=T.slice(0,40).map(x=>`<tr><td>${this.TAG[x.k]}</td><td>${opt.mine&&opt.mine.has(x.k+'|'+x.r.id)?'<span class="ux-metag" title="這件是要我自己動手的">我</span>':''}<b>${esc(shipLabel(x.r.ship))}</b><div class="hint" style="font-size:12px">${esc(dateText(x.r))} ${(x.r.types||[]).map(t=>(typeDef(t)||{label:t}).label).join("、")}${admin?"・"+esc(inspList(x.r).join("、")):""}</div></td><td>${x.txt}</td>${admin?`<td class="hint" style="font-size:12px">${esc(UX.shipSupNames(x.r.ship).join("／")||"—")}</td>`:""}<td>${x.w==null?'<span class="ux-pl x">—</span>':`<span class="ux-pl ${x.w>7?"r":x.w>2?"o":"x"}">${x.w?x.w+" 天":"今天"}</span>`}</td><td>${x.btn}</td></tr>`).join("");
+    return `<div class="ux-card"><div class="ux-hd">${opt.tabs?`<h2>❗ 待辦</h2>${opt.tabs}`:`<h2>❗ ${admin?"海技組待辦（全船隊）":"我的待辦"}</h2><span class="ux-cnt">${T.length}</span>`}<span class="hint" style="font-size:12.5px">只列「${opt.meView?"要我自己":"輪到"+(admin?"海技組／各督導":"我")}動手」的事；做完會自動從這裡消失</span></div>
       <div class="ux-sum">${sum}${admin&&sgN?`<span class="ux-sc" style="background:#7b4fa0;color:#fff;cursor:pointer" onclick="showSugg()">📌 訴求待承辦 ${sgN}</span>`:""}</div>
       ${T.length?`<div class="ux-tw"><table class="ux-T"><thead><tr><th style="width:140px">要做的事</th><th>船舶／登錄單</th><th>內容</th>${admin?'<th style="width:120px">負責督導</th>':""}<th style="width:80px">等了多久</th><th style="width:110px"></th></tr></thead><tbody>${rows}</tbody></table></div>${T.length>40?`<div class="hint" style="font-size:12px;margin-top:4px">只列前 40 件，其餘請到各清單查看</div>`:""}`:`<div class="hint" style="padding:10px 0">👍 目前沒有待辦。</div>`}</div>`;
   },
@@ -5047,7 +5059,7 @@ const Home={
     const fleetCodes=SHIPS.filter(s=>String(s.operator||"").toUpperCase()==="FPMC"||!s.operator).map(s=>s.code);
     const T=this.todo(me,admin);
     const head=`<div class="ux-hello">👤 <b>${esc(me||"（未選擇登入人員）")}</b>${admin?"（Owner／管理員）・看的是全船隊":myCodes.length?`・經管船舶 ${myCodes.length} 艘`:""}　｜　今天 ${UX.ymd(Date.now())}</div>`;
-    box.innerHTML=`<div class="ux-wrap">${head}${this.todoHtml(T,admin)}${admin?this.supTrack():""}${(admin||myCodes.length)?this.dueHtml(admin?fleetCodes:myCodes,admin):""}${admin?"":this.myShipsHtml(me)}${this.recentHtml(me,admin)}${admin?this.fleetHtml():""}</div>`;
+    box.innerHTML=`<div class="ux-wrap">${head}${this.todoBlock(T,admin)}${admin?this.supTrack():""}${(admin||myCodes.length)?this.dueHtml(admin?fleetCodes:myCodes,admin):""}${admin?"":this.myShipsHtml(me)}${this.recentHtml(me,admin)}${admin?this.fleetHtml():""}</div>`;
   }
 };
 /* 原本的頁面切換（showList／showReview／showSugg／openForm）只認得舊的四頁，這裡補上：切到舊頁時把新頁收起來 */
