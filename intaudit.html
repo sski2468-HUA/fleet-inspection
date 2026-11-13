@@ -2541,9 +2541,9 @@ const CloseRpt={
     // 2026-11-13 改版：強調只限「系統內結案（含內控）」的項目，FLOW 另外辦理；拿掉改善單連結
     const subj=`【系統內結案通知】${shipLabel(r.ship)} ${dateText(r)} ${tyTxt}`;
     const body=[`船長、輪機長 您好：`,``,
-      `本輪 ${dateText(r)} ${tyTxt}（檢查人：${inspList(r).join("、")}）缺失中，以「系統內結案（含內控）」方式改善的 ${n} 項，已全數審核結案。`,
+      `貴輪 ${dateText(r)} ${tyTxt}（檢查人：${inspList(r).join("、")}）缺失中，以「系統內結案（含內控）」方式改善的 ${n} 項，已全數審核結案。`,
       nFlow?`本通知僅限系統內結案（含內控）的項目；FLOW 項目請依 FLOW 系統流程辦理。`:`本通知僅限系統內結案（含內控）的項目。`,``,
-      `結案報告（含改善措施、完成日期、改善照片）請見附件 Word 檔，請留存備查。`,
+      `系統內結案報告（含改善措施、完成日期、改善照片）請見附件 Word 檔，請留存備查。`,
       ...(nFlow?[``,`※ 另有 ${nFlow} 項 FLOW 缺失，請持續於 FLOW 系統（DMP-FM01）完成結案。`]:[]),
       ``,`感謝配合。`];
     const plain=`主旨：${subj}\n\n`+body.join("\n");
@@ -2586,14 +2586,21 @@ const CloseRpt={
     renderList();
     this.word(id);
   },
+  /* 2026-11-13：打開視窗時會自動下載一次；照片多時產生要好幾秒，這段期間再按「再下載一次」會變成下載兩份。
+     改成：產生中按鈕反灰顯示「⏳ 產生中…」，同一張單同時只產生一份 */
+  _busy:null,
+  btnState(){const b=$("#crWordBtn");if(!b)return;const busy=this._busy!=null;b.disabled=busy;b.textContent=busy?"⏳ Word 產生中…":"⬇ 再下載一次 Word";},
   async word(id){
     const r=Store.rows.find(x=>x.id===id);if(!r)return;
+    if(this._busy!=null){toast("⏳ 結案報告 Word 還在產生中，請稍候…");return;}
+    this._busy=id;this.btnState();
     toast("⏳ 正在產生結案報告 Word…");
     try{
       const {blob,photoCount}=await iaMakeDocx(r,d=>{const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;return rp&&rp.payload?Object.assign({status:rp.status},rp.payload):null;});
       download(blob,fname(r,".docx","_結案報告"));
       toast(`✓ 已下載結案報告 Word（照片 ${photoCount} 張），請附加到郵件`);
     }catch(e){toast("⚠ 產生 Word 失敗："+e.message,true);}
+    finally{this._busy=null;this.btnState();}
   },
   show(r,copied,first){
     const {plain,html}=this.texts(r);_issueCopyHtml=html;
@@ -2604,10 +2611,10 @@ const CloseRpt={
       <textarea id="issueCopyBox" readonly style="width:100%;min-height:190px;font-family:var(--mono);font-size:12.5px;padding:10px;border:1px solid var(--line-2);border-radius:7px" onclick="this.select()">${esc(plain)}</textarea>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <button class="btn primary" onclick="reCopyIssueText()">📋 再複製一次內文</button>
-        <button class="btn" onclick="CloseRpt.word(${r.id})">⬇ 再下載一次 Word</button>
+        <button class="btn" id="crWordBtn" onclick="CloseRpt.word(${r.id})">⬇ 再下載一次 Word</button>
         <button class="btn" onclick="closeIssueModal()">完成，關閉</button>
       </div>`;
-    $("#issueModal").style.display="flex";
+    $("#issueModal").style.display="flex";this.btnState();
   },
   /* 已發過：按鈕打開的是「再下載／再複製」，不重複記錄 */
   open(id){const r=Store.rows.find(x=>x.id===id);if(!r)return;if(r.closeReportAt)this.again(r);else this.send(id);},
