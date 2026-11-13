@@ -20279,6 +20279,8 @@ const XlsxPretty=(()=>{
     [/^(處理中|待審核|待督導審核|船上已回報|審核中|進行中|已發改善單|已發單|未排程|尚未完成|加強稽核)$/,"FFFFF3CD","FF7A5A10"],
     [/^(草稿|FLOW.*|不適用|—|-)$/,"FFEEF1F3","FF52656F"]
   ];
+  // 2026-11-13 需處理／未結案等欄位的數字 >0、或文字含「未結案／需處理／逾期」→ 紅色粗體
+  const XRED_HEAD=/需處理|未結案|需追蹤|待處理|逾期|未完成|已退回|待審核/,XRED_TXT=/未結案|需處理|逾期/,XRED={name:FONT,size:10.5,bold:true,color:{argb:"FFC0392B"}};
   const RISK={"高":["FFFDE3E0","FFC0392B"],"中":["FFFDEED9","FFB5610F"],"低":["FFE2F3E8","FF2E8B57"]};
   const textLen=v=>{let n=0;for(const ch of String(v??""))n+=/[\u0000-ÿ]/.test(ch)?1:2;return n;};
   const lastCol=n=>{let s="";n++;while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;};
@@ -20338,6 +20340,7 @@ const XlsxPretty=(()=>{
           cell.alignment={vertical:"top",horizontal:typeof v==="number"?"right":"left",wrapText:!!isLong[c]};
           if(zi%2===1)cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:C.zebra}};
           const sv=typeof v==="string"?v.trim():"";
+          if(typeof v==="number"&&v>0&&XRED_HEAD.test(String((aoa[0]||[])[c]||"")))cell.font=XRED;else if(sv&&XRED_TXT.test(sv))cell.font=XRED;
           if(sv&&textLen(sv)<=14){
             if(RISK[sv]){cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:RISK[sv][0]}};cell.font={name:FONT,size:10.5,bold:true,color:{argb:RISK[sv][1]}};cell.alignment={vertical:"top",horizontal:"center"};}
             else for(const [re,bg,fg] of STATUS){if(re.test(sv)){cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:bg}};cell.font={name:FONT,size:10.5,bold:true,color:{argb:fg}};cell.alignment={vertical:"top",horizontal:"center"};break;}}
@@ -20361,6 +20364,7 @@ const XlsxPretty=(()=>{
         cell.alignment={vertical:"top",horizontal:isNum[c]?"right":"left",wrapText:!!isLong[c]};
         if(ri%2===0)cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:C.zebra}};
         const sv=typeof v==="string"?v.trim():"";
+        if(typeof v==="number"&&v>0&&XRED_HEAD.test(String((aoa[0]||[])[c]||"")))cell.font=XRED;else if(sv&&XRED_TXT.test(sv))cell.font=XRED;
         if(sv&&textLen(sv)<=14){
           if(RISK[sv]){cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:RISK[sv][0]}};cell.font={name:FONT,size:10.5,bold:true,color:{argb:RISK[sv][1]}};cell.alignment={vertical:"top",horizontal:"center"};}
           else for(const [re,bg,fg] of STATUS){if(re.test(sv)){cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:bg}};cell.font={name:FONT,size:10.5,bold:true,color:{argb:fg}};cell.alignment={vertical:"top",horizontal:"center"};break;}}
@@ -21393,7 +21397,9 @@ const AuditNotice={
     const t=s=>esc(s||"").replace(/\n/g,"<br>")||"&nbsp;";
     const lab=(zh,en)=>`<span class="fm2-zh">${zh}</span><br><span class="fm2-en">${en}</span>`;
     $("#printArea").innerHTML=`<style>${this.CSS.replace(/(^|\})\s*\.fm2/g,"$1 #printArea .fm2")}
-      #printArea .fm2-page{box-shadow:none;margin:0;width:auto}</style>
+      #printArea .fm2-page{box-shadow:none;margin:0;width:auto}
+      /* 2026-11-13 列印時日程列、簽名欄加高，讓表格撐滿一張 A4（跟 Word 原表單一樣），並固定 A4 紙張避免跑成兩頁 */
+      #printArea .fm2-sch tr.fm2-r td{height:9mm} #printArea .fm2-sign tr.fm2-sg td{height:26mm}</style>
       <div class="fm2-page">
         <div class="fm2-hd"><img src="${logo}" class="fm2-logo"><div class="fm2-cat"><div>Cat.: ${this.CAT}</div><div><i>Office use</i></div><div>Rev.: ${this.REV}</div></div></div>
         <div class="fm2-title"><span class="fm2-tzh">安全管理制度內部稽查通知</span><br><b>NOTIFICATION OF INTERNAL SMS AUDIT</b></div>
@@ -21415,7 +21421,7 @@ const AuditNotice={
         <div class="fm2-ft">Ed.: ${this.ED}</div>
       </div>`;
     if(typeof Audit!=="undefined")Audit.log("匯出","內稽通知單",`${row.ship} ${d.ref} PDF`);
-    doPrint(false,"margin:12mm 16mm 12mm 16mm",`${d.ref||"CAEM-FM02"}_${row.ship}_內稽通知`);
+    doPrint(false,"size:A4;margin:12mm 16mm 12mm 16mm",`${d.ref||"CAEM-FM02"}_${row.ship}_內稽通知`);
   },
   CSS:`.fm2-page{background:#fff;width:178mm;margin:0 auto;padding:6mm 6mm 4mm;box-shadow:0 2px 10px rgba(0,0,0,.15);color:#000;font-family:Arial,"DFKai-SB","BiauKai","標楷體",serif}
     .fm2-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3mm}
@@ -25617,14 +25623,41 @@ const AuditDash={
     toast(`⚠ ${msg||"僅指定編輯者（"+who+"）或 Owner 可操作"}，您目前僅能查看`);
     return false;
   },
+  /* 2026-11-13 舊預排日：計畫檢查日取自檢查管控的預排日（schedDate）。某輪完成後自動開了下一輪，
+     那個預排日其實是「剛完成那一輪」的（例：F28 預排 11/15、11/09 就提前做完），卻被當成下一輪已排程，
+     卡在「② 已排程待執行」。判斷：預排日不晚於這一輪的「上次稽核日」+60 天，就是上一輪的 → 不算排程；
+     按「🔄 更新進度」時順便把檢查管控的這個舊預排日（和預排港口）清掉。 */
+  STALE_PLAN_DAYS:60,
+  isStalePlan(plan,lastAudit){
+    const p=InspCtrl.normDate(plan||""),l=InspCtrl.normDate(lastAudit||"");
+    if(!p||!l)return false;
+    return (new Date(p+"T00:00:00")-new Date(l+"T00:00:00"))/86400000<=this.STALE_PLAN_DAYS;
+  },
+  clearStalePlans(){
+    const logs=[];
+    this.fpmcShips().forEach(s=>{
+      const row=this.openRowFor(s.code);if(!row||row.actualAuditDate)return;
+      const ic=this.inspCtrlRow(s.code);if(!ic||!ic.schedDate)return;
+      if(!this.isStalePlan(ic.schedDate,row.lastAuditDate))return;
+      logs.push(`${s.code} 預排 ${ic.schedDate}${ic.schedPort?"（"+ic.schedPort+"）":""}，上次稽核 ${row.lastAuditDate}`);
+      ic.schedDate="";ic.schedPort="";
+    });
+    if(logs.length){
+      if(typeof Cloud!=="undefined"&&Cloud.queueAutoPublish)Cloud.queueAutoPublish("inspctrl");
+      if(typeof Audit!=="undefined")Audit.log("自動清除","內稽動態",`已完成那一輪的舊預排日已清除（${logs.join("；")}）`);
+    }
+    return logs.length;
+  },
   refresh(){
     if(!this.requireEdit("僅指定編輯者或 Owner 可更新進度"))return;
     this.updatedAt=new Date();
     this.refreshAutoFields(); // 先偵測目前進行中的列本輪是否已完成
     this.ensureDefaults(); // 若因此有列變為已完成，這裡自動幫該船補上下一輪的新列
+    const nStale=this.clearStalePlans(); // 已完成那一輪的舊預排日清掉，不再卡在「已排程待執行」
     App.saveAll();
     this.render();
-    toast("✓ 已更新內稽動態表進度");
+    toast("✓ 已更新內稽動態表進度"+(nStale?`；${nStale} 艘船上一輪的舊計畫檢查日已清除`:""));
+    if(nStale&&typeof Cloud!=="undefined"&&Cloud.flushNow)Cloud.flushNow();
   },
   init(){
     this.loadAuditorsLocal();this.loadAuditorsCloud();
@@ -25699,14 +25732,15 @@ const AuditDash={
     let icRow=ic?InspCtrl.computeRow(ic):null;
     // 內稽動態手動填的日期比檢查管控抓到的還新（例如還沒同步過的舊資料）→ 到期日用較新的那天重算（只算、不寫入）
     if(ic&&icRow){const best=this.latestAuditDateFor(row.ship);if(best&&best>(icRow.lastDateCalc||""))icRow=InspCtrl.computeRow({...ic,lastDate:best});}
-    const plannedDate=ic&&ic.schedDate?InspCtrl.normDate(ic.schedDate):"";
+    let plannedDate=ic&&ic.schedDate?InspCtrl.normDate(ic.schedDate):"";
+    const stalePlan=!!(plannedDate&&!row.actualAuditDate&&this.isStalePlan(plannedDate,row.lastAuditDate));if(stalePlan)plannedDate=""; // 2026-11-13 上一輪的舊預排日不算這一輪的排程
     const enhanced=!!(icRow&&icRow.isEnhancedAudit);
     const defCount=this.defsFor(row.ship,row.actualAuditDate).length;
     // 2026-11-05 計畫檢查日本來就取自檢查管控的預排日；港口／稽核員也一樣要帶過來（檢查管控編輯視窗右半邊排程填的）。
     // 尚未完成的這一輪才帶：預排港口以檢查管控為準（兩邊編輯都會互相同步），稽核員內稽這邊沒填才用檢查管控的。
     if(ic&&!row.actualAuditDate){
       row={...row};
-      if(ic.schedDate&&ic.schedPort)row.plannedPort=ic.schedPort;
+      if(ic.schedDate&&ic.schedPort&&!stalePlan)row.plannedPort=ic.schedPort;
       if(!row.auditor&&ic.auditor)row.auditor=ic.auditor;
     }
     return {...row,auditorText:[row.auditor,row.auditor2].filter(Boolean).join("、"),vesselName:s.name||row.ship,zh:s.zh||"",cso:s.cso||"",plannedDate,enhanced,enhancedReason:ic?ic.enhancedReason:"",enhancedSince:ic?ic.enhancedSince||"":"",enhancedUntil:ic?ic.enhancedUntil||"":"",defCount,

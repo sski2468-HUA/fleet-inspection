@@ -18,6 +18,8 @@ const XlsxPretty=(()=>{
     [/^(處理中|待審核|待督導審核|船上已回報|審核中|進行中|已發改善單|已發單)$/,"FFFFF3CD","FF7A5A10"],
     [/^(草稿|FLOW.*|不適用|—|-)$/,"FFEEF1F3","FF52656F"]
   ];
+  // 2026-11-13 需處理／未結案等欄位的數字 >0、或文字含「未結案／需處理／逾期」→ 紅色粗體
+  const XRED_HEAD=/需處理|未結案|需追蹤|待處理|逾期|未完成|已退回|待審核/,XRED_TXT=/未結案|需處理|逾期/,XRED={name:FONT,size:10.5,bold:true,color:{argb:"FFC0392B"}};
   const RISK={"高":["FFFDE3E0","FFC0392B"],"中":["FFFDEED9","FFB5610F"],"低":["FFE2F3E8","FF2E8B57"]};
   const textLen=v=>{let n=0;for(const ch of String(v??""))n+=/[\u0000-ÿ]/.test(ch)?1:2;return n;};
   const lastCol=n=>{let s="";n++;while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;};
@@ -71,6 +73,7 @@ const XlsxPretty=(()=>{
         cell.alignment={vertical:"top",horizontal:isNum[c]?"right":"left",wrapText:!!isLong[c]};
         if(ri%2===0)cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:C.zebra}};
         const sv=typeof v==="string"?v.trim():"";
+        if(typeof v==="number"&&v>0&&XRED_HEAD.test(String((aoa[0]||[])[c]||"")))cell.font=XRED;else if(sv&&XRED_TXT.test(sv))cell.font=XRED;
         if(sv&&textLen(sv)<=14){
           if(RISK[sv]){cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:RISK[sv][0]}};cell.font={name:FONT,size:10.5,bold:true,color:{argb:RISK[sv][1]}};cell.alignment={vertical:"top",horizontal:"center"};}
           else for(const [re,bg,fg] of STATUS){if(re.test(sv)){cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:bg}};cell.font={name:FONT,size:10.5,bold:true,color:{argb:fg}};cell.alignment={vertical:"top",horizontal:"center"};break;}}

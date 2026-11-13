@@ -159,7 +159,17 @@ tr.done td{background:#eaf5ee}
 .ask3 .btns{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .ask3 .btns .btn{justify-content:center;padding:10px;font-size:14px}
 /* 2026-11-05 活動清單：操作鍵三個一排；涉及船舶 */
-.opsgrid{display:grid;grid-template-columns:repeat(3,auto);gap:4px;justify-content:start}
+.opsgrid{display:flex;flex-wrap:nowrap;gap:4px;justify-content:start;align-items:center}
+.btn.done{background:#1e8449;color:#fff;border-color:#1e8449}
+.btn.done.off{background:#fff;color:#7b8794;border-color:#cfd6de}
+.btn.reopen{color:#1b5e7a;border-color:#1b5e7a}
+.pill.can{background:#1e8449;color:#fff}
+.pill.stop{background:#e3e7eb;color:#455a64}
+.opmenu{position:fixed;z-index:150;background:#fff;border:1px solid #cfd6de;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:4px;min-width:190px;display:none}
+.opmenu button{display:block;width:100%;text-align:left;background:none;border:0;padding:7px 10px;font-size:13px;border-radius:5px;cursor:pointer;color:var(--ink)}
+.opmenu button:hover{background:#eef3f8}
+.opmenu button.del{color:var(--bad)}
+.opmenu hr{border:0;border-top:1px solid #e3e7eb;margin:4px 2px}
 .opsgrid .btn{white-space:nowrap;padding:4px 8px}
 .scopetx{font-size:12px;font-weight:700;color:var(--navy);line-height:1.5;word-break:break-word}
 .scopetx.pick{font-weight:600;color:var(--ink-2)}
@@ -217,7 +227,7 @@ tr.done td{background:#eaf5ee}
       <div class="dfilters">
         <div class="dfg"><span class="dfl">檢查來源</span><div id="fSrcChips" class="chips"></div></div>
         <div class="dfg"><span class="dfl">建立者</span><select id="fBy" onchange="renderDash()"></select></div>
-        <div class="dfg"><span class="dfl">狀態</span><select id="fState" onchange="renderDash()"><option value="active">進行中</option><option value="ended">已結束</option><option value="">全部</option></select></div>
+        <div class="dfg"><span class="dfl">狀態</span><select id="fState" onchange="renderDash()"><option value="active">進行中</option><option value="can">❗ 可完成</option><option value="done">✅ 已完成</option><option value="ended">⏹ 已終止</option><option value="">全部</option></select></div>
         <div class="dfg"><span class="dfl">建立超過</span><select id="fAge" onchange="renderDash()"><option value="0">不限</option><option value="7">7 天</option><option value="14">14 天</option><option value="30">30 天</option><option value="60">60 天</option></select></div>
         <div class="dfg"><span class="dfl">關鍵字</span><input type="text" id="fKw" placeholder="主題…" oninput="renderDash()" style="width:150px;padding:6px 8px;font-size:13px"></div>
         <button class="btn sm" onclick="clearDashFilters()">✕ 清除篩選</button>
@@ -316,12 +326,7 @@ tr.done td{background:#eaf5ee}
       <div class="kpis" id="kpis"></div>
       <div class="toolbar">
         <span class="hint" style="font-weight:700;color:var(--ink-3)">篩選</span>
-        <select id="filterSel" onchange="renderTable()">
-          <option value="all">全部船舶</option>
-          <option value="track">⚠ 有需追蹤項目（未結案）</option>
-          <option value="unsubmitted">未完成</option>
-          <option value="submitted">完成</option>
-        </select>
+        <input type="hidden" id="filterSel" value="all"><span id="filterChips" style="display:inline-flex;gap:6px;flex-wrap:wrap"></span><!-- 2026-11-13 篩選改成按鈕（項目少，直接點） -->
         <input type="text" id="shipSearch" placeholder="輸入船名快速查找…" style="max-width:200px" oninput="renderTable()">
       </div>
       <div style="overflow-x:auto">
@@ -461,6 +466,7 @@ async function loadCampaignList(){
   try{
     campaigns=await api(`${CAMPAIGN_TABLE}?order=created_at.desc&limit=200`);
     allResponses=await api(`${RESPONSE_TABLE}?select=id,campaign_id,ship,items,submitted_at,checker_name,checker_title&limit=5000`);
+    await loadShareStates();
     try{await SC.fleet();}catch(e){} // 船型（油輪／散裝）判斷「涉及船舶」用
   }catch(e){
     notify("⚠ 活動清單讀取失敗："+e.message,"err");
@@ -496,6 +502,105 @@ function resolveSrcShip(it){
 }const srcShipOf=it=>resolveSrcShip(it);
 const srcShipList=()=>shipOpts;
 const selfOnlyShip=(c,code)=>{const its=(c&&c.items)||[];return its.length>0&&its.every(it=>srcShipOf(it)===code);};
+/* 2026-11-13 活動狀態：進行中／可完成／已完成／已終止
+   活動表只有 active 欄位，完成或終止都是 active=false；是「完成」還是「終止」（含原因）另存在 app_db share_state_<活動id>。
+   舊資料沒有 share_state 的 active=false 活動一律視為「已終止」（舊的「⏸ 結束」）。 */
+const SHARE_STATE_PREFIX="share_state_";
+let shareStates={};
+async function loadShareStates(){
+  try{const rows=await api(`app_db?select=k,payload&k=like.${SHARE_STATE_PREFIX}*`)||[];
+    shareStates={};rows.forEach(r=>{if(r&&r.payload)shareStates[String(r.k).slice(SHARE_STATE_PREFIX.length)]=r.payload;});
+  }catch(e){console.warn("share_state",e);}
+}
+function campState(c,st){
+  if(c.active===false){const s=shareStates[String(c.id)]||{};return s.state==="done"?"done":"stopped";}
+  st=st||campaignStats(c);
+  return st.total&&st.submitted>=st.total&&!st.track?"can":"active";
+}
+const STATE_TXT={active:"進行中",can:"可完成",done:"已完成",stopped:"已終止"};
+function statePill(c,st){
+  const s=campState(c,st);
+  if(s==="done")return '<span class="pill ok">✅ 已完成</span>';
+  if(s==="stopped"){const r=(shareStates[String(c.id)]||{}).reason;return `<span class="pill stop"${r?` title="終止原因：${esc(r)}"`:""}>⏹ 已終止</span>`;}
+  if(s==="can")return '<span class="pill can" title="全部船已送出、沒有未結案的追蹤項目，可以按「✓ 完成」">❗ 可完成</span>';
+  return '<span class="pill warn">進行中</span>';
+}
+async function saveShareState(id,payload){
+  await api("app_db?on_conflict=k",{method:"POST",headers:authHeaders({"Prefer":"resolution=merge-duplicates"}),body:JSON.stringify([{k:SHARE_STATE_PREFIX+id,updated:Date.now(),payload}])});
+  shareStates[String(id)]=payload;
+}
+function whoAmI(){const s=SLog.ident();return s?s.name:"";}
+async function setCampActive(c,next){
+  await api(`${CAMPAIGN_TABLE}?id=eq.${c.id}`,{method:"PATCH",headers:authHeaders({"Prefer":"return=minimal"}),body:JSON.stringify({active:next})});
+  c.active=next;
+  if(curCampaign&&String(curCampaign.id)===String(c.id))curCampaign.active=next;
+}
+async function completeCampaign(id){
+  const c=campaigns.find(x=>String(x.id)===String(id));if(!c)return;
+  const st=campaignStats(c),why=[];
+  if(!st.total)why.push("這項自查沒有應填船舶");
+  else if(st.submitted<st.total)why.push(`還有 ${st.total-st.submitted} 艘船沒送出`);
+  if(st.track)why.push(`還有 ${st.track} 項「需後續追蹤」沒結案`);
+  if(why.length){alert("還不能完成：\n\n・"+why.join("\n・")+"\n\n要等全部船送出、追蹤項目都結案才能按完成。\n如果這項自查不做了，請改用「⋯ → ⏹ 終止（不做了）」。");return;}
+  if(!confirm(`確定把「${c.title||("活動 #"+id)}」標為已完成？\n\n・船上還看得到自己的填答（唯讀），不能再修改\n・之後需要的話，可以按「▶ 重新開啟」`))return;
+  try{
+    await setCampActive(c,false);
+    await saveShareState(id,{state:"done",by:whoAmI(),at:Date.now()});
+    SLog.log("完成","活動",`「${c.title||id}」（${st.submitted}/${st.total} 艘已送出）`);
+    notify("✅ 已完成，船上仍可查看填答內容","ok2");
+    renderListView();
+  }catch(e){notify("⚠ 更新失敗："+e.message,"err");}
+}
+async function stopCampaign(id){
+  closeOpMenu();
+  const c=campaigns.find(x=>String(x.id)===String(id));if(!c)return;
+  const st=campaignStats(c);
+  const reason=prompt(`終止「${c.title||("活動 #"+id)}」\n（${st.submitted}/${st.total} 艘已送出${st.track?`，${st.track} 項追蹤未結案`:""}）\n\n終止後船上不能再填，但已填的內容仍看得到，並會顯示終止原因。\n請輸入終止原因（必填）：`,"");
+  if(reason===null)return;
+  if(!reason.trim()){alert("請填寫終止原因，船上會看到這段說明。");return;}
+  try{
+    await setCampActive(c,false);
+    await saveShareState(id,{state:"stopped",reason:reason.trim(),by:whoAmI(),at:Date.now()});
+    SLog.log("終止","活動",`「${c.title||id}」原因：${reason.trim()}`);
+    notify("⏹ 已終止，船上會看到終止原因","ok2");
+    renderListView();
+  }catch(e){notify("⚠ 更新失敗："+e.message,"err");}
+}
+async function reopenCampaign(id){
+  const c=campaigns.find(x=>String(x.id)===String(id));if(!c)return;
+  if(!confirm(`重新開啟「${c.title||("活動 #"+id)}」？\n船上又可以繼續填答、修改。`))return;
+  try{
+    await setCampActive(c,true);
+    await saveShareState(id,{state:"open",by:whoAmI(),at:Date.now()});
+    SLog.log("重新開啟","活動",`「${c.title||id}」`);
+    notify("▶ 已重新開啟，船上又可以繼續填答","ok2");
+    renderListView();
+  }catch(e){notify("⚠ 更新失敗："+e.message,"err");}
+}
+/* ⋯ 選單：position:fixed 跟著按鈕位置，不會被表格裁掉；捲動或點別處就關 */
+function openOpMenu(id,ev){
+  ev&&ev.stopPropagation();
+  const c=campaigns.find(x=>String(x.id)===String(id));if(!c)return;
+  let m=document.getElementById("opMenu");
+  if(!m){m=document.createElement("div");m.id="opMenu";m.className="opmenu";document.body.appendChild(m);m.addEventListener("click",e=>e.stopPropagation());}
+  if(m.style.display==="block"&&m.dataset.id===String(id)){closeOpMenu();return;}
+  const ended=c.active===false;
+  const canEdit=(c.items||[]).some(it=>it&&it.src==="自訂案例")&&!(allResponses||[]).some(r=>String(r.campaign_id)===String(c.id));
+  m.innerHTML=`<button onclick="closeOpMenu();copyFillLink(${c.id})">📋 複製填答連結</button>
+    <button onclick="closeOpMenu();previewFill(${c.id})">👁 預覽船上畫面</button>
+    ${canEdit?`<button onclick="closeOpMenu();SC.editCampaign(${c.id})" title="還沒有船開始填，可以修改題目／說明／附件／發給哪些船（連結不變）">✎ 編輯題目</button>`:""}
+    ${ended?"":`<button onclick="stopCampaign(${c.id})">⏹ 終止（不做了）</button>`}
+    <hr><button class="del" onclick="closeOpMenu();deleteCampaign(${c.id})">🗑 刪除</button>`;
+  m.dataset.id=String(id);m.style.display="block";
+  const r=ev.currentTarget.getBoundingClientRect(),mw=m.offsetWidth,mh=m.offsetHeight;
+  let left=Math.min(r.right-mw,window.innerWidth-mw-8);left=Math.max(8,left);
+  let top=r.bottom+4;if(top+mh>window.innerHeight-8)top=Math.max(8,r.top-mh-4);
+  m.style.left=left+"px";m.style.top=top+"px";
+}
+function closeOpMenu(){const m=document.getElementById("opMenu");if(m)m.style.display="none";}
+document.addEventListener("click",closeOpMenu);
+window.addEventListener("scroll",closeOpMenu,true);
+window.addEventListener("resize",closeOpMenu);
 function campaignStats(c){
   const resp=allResponses.filter(r=>String(r.campaign_id)===String(c.id));
   const total=targetShipsFor(c,resp).length;
@@ -516,7 +621,7 @@ let listSort={key:"created_at",dir:-1};
 const LIST_SORT_COLS={
   title:{label:"主題",get:(c,st)=>c.title||("活動 #"+c.id)},
   created_at:{label:"建立",get:(c,st)=>c.created_at||0},
-  active:{label:"狀態",get:(c,st)=>c.active===false?0:1},
+  active:{label:"狀態",get:(c,st)=>({can:3,active:2,done:1,stopped:0})[campState(c,st)]},
   submitted:{label:"完成/應填",get:(c,st)=>st.total?st.submitted/st.total:st.submitted},
   track:{label:"需追蹤",get:(c,st)=>st.track},
   scope:{label:"涉及船舶",get:(c,st)=>scopeText(c)}
@@ -564,8 +669,11 @@ function dashFiltered(){
   return campaigns.filter(c=>{
     if(fSrc.size&&!campaignSources(c).some(s=>fSrc.has(s)))return false;
     if(by&&creatorOf(c)!==by)return false;
-    if(state==="active"&&c.active===false)return false;
-    if(state==="ended"&&c.active!==false)return false;
+    const cs=campState(c); // 進行中＝含「可完成」
+    if(state==="active"&&!(cs==="active"||cs==="can"))return false;
+    if(state==="can"&&cs!=="can")return false;
+    if(state==="done"&&cs!=="done")return false;
+    if(state==="ended"&&cs!=="stopped")return false;
     if(age&&daysSince(c.created_at)<age)return false;
     if(kw&&!String(c.title||"").toLowerCase().includes(kw))return false;
     return true;
@@ -718,24 +826,22 @@ function renderListView(fromDash){
     return cmp*listSort.dir;
   });
   const th=(key,label,style)=>{const on=listSort.key===key;return `<th${style?` style="${style}"`:""} class="sortable${on?" sorted":""}" onclick="sortListBy('${key}')">${label}${on?(listSort.dir>0?" ▲":" ▼"):""}</th>`;};
-  box.innerHTML=`<table style="table-layout:fixed;min-width:860px"><thead><tr>${th("title","主題")}${th("created_at","建立","width:96px")}${th("active","狀態","width:72px")}${th("submitted","完成/應填","width:84px")}${th("track","需追蹤","width:76px")}${th("scope","涉及船舶","width:130px")}<th style="width:236px">操作</th></tr></thead><tbody>
+  box.innerHTML=`<table style="table-layout:fixed;min-width:860px"><thead><tr>${th("title","主題")}${th("created_at","建立","width:96px")}${th("active","狀態","width:96px")}${th("submitted","完成/應填","width:84px")}${th("track","需追蹤","width:76px")}${th("scope","涉及船舶","width:130px")}<th style="width:252px">操作</th></tr></thead><tbody>
     ${withStats.map(({c,st})=>{
       const ended=c.active===false,sc=scopeText(c),allSub=st.total&&st.submitted>=st.total;
       return `<tr class="${st.track?'track':''}">
         <td><b>${esc(c.title||("活動 #"+c.id))}</b><div class="hint">共 ${(c.items||[]).length} 項查核項目</div></td>
         <td class="hint">${esc(shortDate(c.created_at))}${c.created_by?"<br>"+esc(creatorOf(c)):""}</td>
-        <td>${ended?'<span class="pill na">已結束</span>':'<span class="pill ok">進行中</span>'}</td>
+        <td>${statePill(c,st)}</td>
         <td style="font-weight:700;${allSub?"color:var(--ok)":""}">${st.submitted} / ${st.total}</td>
         <td>${st.track?`<span class="pill bad">⚠ ${st.track} 項</span>`:'<span class="pill na">—</span>'}</td>
         <td><div class="scopetx${/^All /.test(sc)?"":" pick"}">${esc(sc)}</div></td>
         <td><div class="opsgrid">
           <button class="btn sm" onclick="openDetail(${c.id})">📊 進度</button>
-          <button class="btn sm" onclick="previewFill(${c.id})" title="開新分頁，看船上填答畫面長怎樣（不會存檔、不會送出）">👁 預覽</button>
-          <button class="btn sm" onclick="copyMailText(${c.id})" title="複製「自查項目＋連結」（上下兩行），貼入郵件發給船隊">✉ MAIL船</button>
-          <button class="btn sm" onclick="copyFillLink(${c.id})">📋 連結</button>
-          <button class="btn sm" onclick="toggleActive(${c.id})">${ended?"▶ 重啟":"⏸ 結束"}</button>
-          <button class="btn sm" style="color:var(--bad);border-color:var(--bad)" onclick="deleteCampaign(${c.id})">🗑 刪除</button>
-          ${(c.items||[]).some(it=>it&&it.src==="自訂案例")&&!(allResponses||[]).some(r=>String(r.campaign_id)===String(c.id))?`<button class="btn sm" style="color:#a05a10;border-color:#e8842c" onclick="SC.editCampaign(${c.id})" title="還沒有船開始填，可以修改題目／說明／附件／發給哪些船（連結不變）">✏ 編輯</button>`:""}
+          ${ended?"":`<button class="btn sm" onclick="copyMailText(${c.id})" title="複製「自查項目＋連結」（上下兩行），貼入郵件發給船隊">✉ MAIL船</button>`}
+          ${ended?`<button class="btn sm reopen" onclick="reopenCampaign(${c.id})" title="船上又可以繼續填答、修改">▶ 重新開啟</button>`
+            :`<button class="btn sm done${campState(c,st)==="can"?"":" off"}" onclick="completeCampaign(${c.id})" title="全部船送出、追蹤項目都結案後才能完成">✓ 完成</button>`}
+          <button class="btn sm" onclick="openOpMenu(${c.id},event)" title="更多：複製連結、預覽、編輯、終止、刪除" style="padding:4px 10px">⋯</button>
         </div></td>
       </tr>`;
     }).join("")}
@@ -803,7 +909,7 @@ async function loadCampaign(id){
   curCampaign=campaigns.find(c=>String(c.id)===String(id));
   if(!curCampaign)return;
   document.getElementById("detailTitle").textContent=curCampaign.title||("活動 #"+curCampaign.id);
-  document.getElementById("campaignDesc").textContent=`共 ${(curCampaign.items||[]).length} 項查核項目　建立於 ${curCampaign.created_at?new Date(curCampaign.created_at).toLocaleString("zh-TW",{hour12:false}):""}${curCampaign.created_by?"　建立者："+curCampaign.created_by:""}${curCampaign.active===false?"　⛔ 已結束，不再開放填答":""}`;
+  document.getElementById("campaignDesc").textContent=`共 ${(curCampaign.items||[]).length} 項查核項目　建立於 ${curCampaign.created_at?new Date(curCampaign.created_at).toLocaleString("zh-TW",{hour12:false}):""}${curCampaign.created_by?"　建立者："+curCampaign.created_by:""}${curCampaign.active===false?(campState(curCampaign)==="done"?"　✅ 已完成，不再開放填答":"　⏹ 已終止，不再開放填答"+((shareStates[String(curCampaign.id)]||{}).reason?"（原因："+shareStates[String(curCampaign.id)].reason+"）":"")):""}`;
   // 自訂案例的「自查說明」（存在第一題 campIntro）
   {const intro=String(curCampaign.intro||((curCampaign.items||[])[0]||{}).campIntro||"").trim();const el=document.getElementById("campaignDesc");
    if(intro&&el){const d=document.createElement("div");d.style.cssText="margin-top:6px;background:#fff8e6;border-left:4px solid #e0a020;border-radius:6px;padding:6px 10px;white-space:pre-wrap;color:var(--ink,#333)";d.textContent="📢 自查說明："+intro;el.appendChild(d);}}
@@ -884,6 +990,7 @@ function rowStat(resp){
   return {done,total:items.length,openTrack,closedTrack};
 }
 
+function setShipFilter(k){document.getElementById("filterSel").value=k;renderTable();}
 function renderTable(){
   const tbody=document.getElementById("tbody");
   const filter=document.getElementById("filterSel").value;
@@ -924,6 +1031,10 @@ function renderTable(){
     `);
   });
   tbody.innerHTML=rowsHtml.join("")||`<tr><td colspan="7" class="hint" style="text-align:center;padding:20px">找不到符合條件的船舶</td></tr>`;
+  { // 篩選按鈕（含件數）
+    const nAll=ships.length,FC=[["all","全部船舶",nAll],["track","⚠ 有需追蹤（未結案）",nTrackOpen],["unsubmitted","未完成",nAll-nSubmitted],["submitted","完成",nSubmitted]];
+    const box=document.getElementById("filterChips");if(box)box.innerHTML=FC.map(([k,l,n])=>`<button type="button" class="chip ${filter===k?"on":""}" onclick="setShipFilter('${k}')">${l}<small>${n}</small></button>`).join("");
+  }
   document.getElementById("kpis").innerHTML=`
     <div class="kpi"><div class="v">${nSubmitted} / ${targetShips().length}</div><div class="l">完成／應填船數</div></div>
     <div class="kpi"><div class="v">${responses.filter(r=>targetShips().some(s=>s.code===r.ship)).length}</div><div class="l">已開始填答</div></div>
@@ -1040,7 +1151,7 @@ function exportAllCampaigns(){
   list.forEach(c=>allIssues.push(...collectReportFor(c).issues));
   const T=c=>c.title||("活動 #"+c.id);
   const wb=XLSX.utils.book_new();
-  const ws0=XLSX.utils.json_to_sheet(ov.map(o=>({"主題":T(o.c),"檢查來源":campaignSources(o.c).join("、"),"建立日期":shortDate(o.c.created_at),"建立者":creatorOf(o.c),"狀態":o.c.active===false?"已結束":"進行中","涉及船舶":scopeText(o.c),"應填船數":o.total,"完成船數":o.done,"未完成船數":o.total-o.done,"需處理項數":o.need,"已結案":o.closed,"未結案":o.open,"結案狀況":o.result})));
+  const ws0=XLSX.utils.json_to_sheet(ov.map(o=>({"主題":T(o.c),"檢查來源":campaignSources(o.c).join("、"),"建立日期":shortDate(o.c.created_at),"建立者":creatorOf(o.c),"狀態":STATE_TXT[campState(o.c)],"涉及船舶":scopeText(o.c),"應填船數":o.total,"完成船數":o.done,"未完成船數":o.total-o.done,"需處理項數":o.need,"已結案":o.closed,"未結案":o.open,"結案狀況":o.result})));
   ws0["!cols"]=[40,12,11,10,8,24,8,8,9,9,7,7,16].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws0,"主題總覽");
   // 船舶 × 主題矩陣：一眼看出哪些船做了哪些專項、是否結案
@@ -1077,7 +1188,7 @@ function exportFilteredPdf(){
     <div style="margin-top:4px"><b>主題 ${list.length} 個　船次完成 ${done} / ${tot}　需處理 ${issues.length} 項（已結案 ${issues.length-openI.length}、未結案 ${openI.length}）　全部完成結案的主題 ${ov.filter(o=>o.allOk).length} / ${list.length}</b></div>
     <h2>一、主題總覽</h2>
     <table><thead><tr><th style="width:3%">#</th><th style="width:31%">主題</th><th style="width:8%">建立</th><th style="width:7%">狀態</th><th style="width:17%">涉及船舶</th><th style="width:8%">完成/應填</th><th style="width:8%">需處理</th><th style="width:7%">未結案</th><th style="width:11%">結案狀況</th></tr></thead><tbody>
-    ${ov.map((o,i)=>`<tr><td>${i+1}</td><td>${e(T(o.c))}</td><td>${e(shortDate(o.c.created_at))}<br>${e(creatorOf(o.c))}</td><td>${o.c.active===false?"已結束":"進行中"}</td><td>${e(scopeText(o.c))}</td><td>${o.done} / ${o.total}</td><td>${o.need}</td><td>${o.open}</td><td class="c" style="background:${o.allOk?CLR.ok:CLR.open}">${e(o.result)}</td></tr>`).join("")}</tbody></table>
+    ${ov.map((o,i)=>`<tr><td>${i+1}</td><td>${e(T(o.c))}</td><td>${e(shortDate(o.c.created_at))}<br>${e(creatorOf(o.c))}</td><td>${STATE_TXT[campState(o.c)]}</td><td>${e(scopeText(o.c))}</td><td>${o.done} / ${o.total}</td><td>${o.need}</td><td>${o.open}</td><td class="c" style="background:${o.allOk?CLR.ok:CLR.open}">${e(o.result)}</td></tr>`).join("")}</tbody></table>
     <h2>二、船舶 × 主題（各船執行與結案情形）</h2>
     <div style="font-size:10px;margin-bottom:4px">表頭數字＝上方主題編號。完成＝已送出；「完成・未結案 n」＝有 n 項需處理尚未結案；空白＝該主題未發給這艘船。</div>
     <table class="mx"><thead><tr><th style="width:110px">船舶</th>${ov.map((o,i)=>`<th title="${esc(T(o.c))}">${i+1}</th>`).join("")}</tr></thead><tbody>
