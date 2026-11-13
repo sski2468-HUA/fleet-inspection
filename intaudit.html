@@ -2558,12 +2558,14 @@ const CloseRpt={
     const tyTxt=(r.types||[]).map(k=>(typeDef(k)||{label:k}).label).join("、");
     // 2026-11-13 改版：強調只限「系統內結案（含內控）」的項目，FLOW 另外辦理；拿掉改善單連結
     const subj=`【系統內結案通知】${shipLabel(r.ship)} ${dateText(r)} ${tyTxt}`;
+    const shipUrl=replyUrl(r).replace(/\?rid=.*/,"?ship="+encodeURIComponent(r.ship)); // 本船歷次改善單清單（固定連結）
     const body=[`船長您好：`,``,
       `貴輪 ${dateText(r)} ${tyTxt}（檢查人：${inspList(r).join("、")}）缺失中，以「系統內結案（含內控）」方式改善的 ${n} 項，已全數審核結案，系統內結案報告（含改善措施、完成日期、改善照片）請見附件 Word 檔，請留存備查。`,``,
       ...(nFlow?[`本通知僅限系統內結案（含內控）的項目；`,`※ 另有 ${nFlow} 項 FLOW 缺失，請持續於 FLOW 系統（DMP-FM01）完成結案。`]:[`本通知僅限系統內結案（含內控）的項目。`]),
+      ``,`結案報告也可從本船改善單清單（點「已結案」→「⬇ Word」）下載：${shipUrl}`,
       ``,``,`感謝配合。`];
     const plain=`主旨：${subj}\n\n`+body.join("\n");
-    const html=`<b>主旨：${esc(subj)}</b><br><br>`+body.map(l=>esc(l)).join("<br>").replace(/(以「系統內結案（含內控）」方式改善的 \d+ 項，已全數審核結案)/,"<b>$1</b>").replace(/(※ 另有[^<]*)/,'<b style="color:#c0392b">$1</b>');
+    const html=`<b>主旨：${esc(subj)}</b><br><br>`+body.map(l=>esc(l)).join("<br>").replace(esc(shipUrl),`<a href="${esc(shipUrl)}">${esc(shipUrl)}</a>`).replace(/(以「系統內結案（含內控）」方式改善的 \d+ 項，已全數審核結案)/,"<b>$1</b>").replace(/(※ 另有[^<]*)/,'<b style="color:#c0392b">$1</b>');
     return {plain,html,n,nFlow};
   },
   /* 剛結完最後一條時跳的提醒 */
