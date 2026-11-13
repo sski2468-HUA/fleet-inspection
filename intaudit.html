@@ -108,6 +108,13 @@ header p{margin:5px 0 0;font-size:14px;color:#b9c8d6;line-height:1.6}
 .dlt{table-layout:fixed;width:100%}
 .dlt td{vertical-align:top;line-height:1.5}
 .lt.sgtbl td,.lt.sgtbl th{padding-left:7px;padding-right:7px;overflow-wrap:anywhere}.lt.sgtbl th{white-space:normal}.lt.sgtbl .opcol{width:auto}
+/* 2026-11-13「只看我的」開關按鈕（藍綠色，跟橘色「新增」分開）＋開啟時清單上方的提示條 */
+.btn.sm.mytog{border:2px solid #1e7f8c;background:#e8f5f6;color:#14606a;font-weight:800;border-radius:999px;padding:5px 12px 5px 8px;display:inline-flex;align-items:center;gap:7px;box-shadow:0 1px 4px rgba(30,127,140,.25)}
+.btn.sm.mytog::before{content:"";flex:none;width:30px;height:16px;border-radius:999px;background:#d7dde2;box-shadow:inset 0 0 0 2px #c3ccd3;background-image:radial-gradient(circle at 8px 8px,#fff 5px,transparent 6px)}
+.btn.sm.mytog.primary{background:#1e7f8c;color:#fff;border-color:#1e7f8c}
+.btn.sm.mytog.primary::before{background-color:#e8f5f6;box-shadow:inset 0 0 0 2px #fff;background-image:radial-gradient(circle at 22px 8px,#1e7f8c 5px,transparent 6px)}
+.mybar{margin:0 14px 10px;padding:8px 14px;border-radius:9px;background:#e8f5f6;border:1px solid #9fd0d6;color:#14606a;font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mybar a{color:#14606a;cursor:pointer;margin-left:auto}
 .dlt tr.st-flow td{background:#e9ecef;color:#5f6b73}
 .dlt tr.st-done td{background:#f1f9f4}
 .dlt tr.st-sub td{background:#eef4fb}
@@ -457,7 +464,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
   <div class="toolbar">
     <!-- 2026-11-12 改版：首頁／檢查紀錄／缺失審核・追蹤（原缺失清單＋改善單審核合併）／訴求／分享自查／年度檢查一覽 -->
     <button class="btn" id="btnHome" onclick="leaveFormGuard(showHome)">🏠 首頁</button>
-    <button class="btn primary" id="btnList" onclick="leaveFormGuard('list')">📋 檢查紀錄</button>
+    <button class="btn primary" id="btnList" onclick="leaveFormGuard('list')">📋 檢查登錄單</button>
     <button class="btn" id="btnTrack" onclick="leaveFormGuard(showTrack)">✅ 缺失審核／追蹤<span class="n" id="btnReviewCount" style="display:none"></span></button>
     <button class="btn" id="btnReview" style="display:none" onclick="leaveFormGuard(showReview)">🔎 改善單審核清單（舊版）</button>
     <button class="btn" id="btnSugg" onclick="leaveFormGuard(showSugg)">📌 船舶訴求／建議<span class="n" id="btnSuggCount" style="display:none"></span></button>
@@ -489,6 +496,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
           <select id="yrInsp" onchange="renderYearView()" style="width:auto"><option value="">全部檢查人</option></select>
           <input type="text" class="fq" id="yrQ" placeholder="🔍 搜尋船名" oninput="renderYearView()">
           <span class="fsp"></span>
+          <button type="button" class="btn sm mytog" id="yrMineBtn" style="display:none" onclick="yrMine=!yrMine;renderYearView()" title="只看船舶資料裡由我擔任甲板／輪機督導的船；再按一次取消">👤 只看我督導的船</button>
           <button class="btn sm" onclick="loadYearData(true)">🔄 重新讀取</button>
           <button class="btn sm dark" onclick="exportYearXlsx()">⬇ 匯出 Excel</button>
         </div>
@@ -499,6 +507,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
 
         </div>
         <div class="frow2" id="yrSummary"></div>
+        <div id="yrMineBar" class="mybar" style="display:none;margin:8px 0 0"></div>
       </div>
       <div class="card" style="padding:0;overflow:auto;margin:0 14px 12px"><table class="yrt" id="yrTable"></table></div>
       <p class="hint" style="margin:0 14px 12px">資料來源：主系統「檢查紀錄」中的內稽／訪船／隨船（唯讀，不能在這裡編輯）；內部檢查缺失登錄裡已送出、但海技還沒匯入主系統的，也會列出並標「登錄中」。已離開船隊的船不列出。</p>
@@ -546,7 +555,8 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
         <select id="fStatus" onchange="renderList()" style="width:auto"><option value="">全部狀態</option><option>FLOW 結案</option><option>待船上改善</option><option>船上已回報</option><option>已結案</option></select>
         <span style="display:inline-flex;align-items:center;gap:4px" title="依檢查日期的年月篩選，可只選起或迄"><select id="fYmFrom" onchange="renderList()" style="width:auto"></select>～<select id="fYmTo" onchange="renderList()" style="width:auto"></select></span>
         <select id="fRec" onchange="renderList()" style="width:auto" title="登錄單本身的狀態：督導還沒送出的草稿／已送出等海技匯入／海技已匯入主系統"><option value="">全部登錄單</option><option value="draft">草稿</option><option value="pending">已送出・待海技匯入</option><option value="imported">海技已匯入</option></select>
-        <button type="button" class="btn sm" id="fSupBtn" style="display:none" onclick="toggleMySup()" title="只看船舶資料裡由我擔任甲板／輪機督導的船；再按一次取消">👤 只看我督導的船</button>
+        <button type="button" class="btn sm mytog" id="fSupBtn" style="display:none;margin-left:auto" onclick="toggleMySup()" title="只看船舶資料裡由我擔任甲板／輪機督導的船；再按一次取消">👤 只看我督導的船</button>
+        <span style="flex-basis:100%;height:0"></span>
         <input type="text" class="fq" id="fQ" placeholder="🔍 搜尋船名／檢查人／分類／缺失描述…" oninput="$('#stQ').value=this.value;renderList()">
         <span class="fsp"></span>
         <button class="btn sm" onclick="clearFilters()">清除篩選</button>
@@ -565,6 +575,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
         <th style="width:44px">No.</th><th style="width:170px">檢查類別／分類</th><th>待改善描述</th><th style="width:60px">風險</th><th style="width:130px">結案方式</th><th style="width:110px">狀態</th><th style="width:160px">後續</th><th style="width:130px">操作</th>
       </tr></thead><tbody id="listBody"></tbody></table>
     </div>
+    <div id="mySupBar" class="mybar" style="display:none"></div>
     <div id="rowsBox"></div>
     </div>
   </div>
@@ -577,10 +588,11 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
     <div class="ux-wrap">
       <div class="ux-card ux-flt">
         <span class="ux-seg" id="tkSrcSeg"></span>
-        <button type="button" class="btn sm" id="tkMineBtn" onclick="Track.f.mine=!Track.f.mine;Track.render()" title="依審核人規則，只看要我審核的缺失（訪船＝檢查人；交叉訪船／隨船／專項＝經管督導；內稽／ISPS＝督導或稽核員）；再按一次取消">🙋 只看我要審核的</button>
         <select id="tkSup" onchange="Track.f.sup=this.value;Track.render()"></select>
         <select id="tkShip" onchange="Track.f.ship=this.value;Track.render()"></select>
         <select id="tkInsp" onchange="Track.f.insp=this.value;Track.render()"></select>
+        <button type="button" class="btn sm mytog" id="tkMineBtn" style="margin-left:auto" onclick="Track.f.mine=!Track.f.mine;Track.render()" title="依審核人規則，只看要我審核的缺失（訪船＝檢查人；交叉訪船／隨船／專項＝經管督導；內稽／ISPS＝督導或稽核員）；再按一次取消">🙋 只看我要審核的</button>
+        <span style="flex-basis:100%;height:0"></span>
         <span style="display:inline-flex;align-items:center;gap:4px" title="依檢查日期的年月篩選"><select id="tkYmFrom" onchange="Track.render()"></select>～<select id="tkYmTo" onchange="Track.render()"></select></span>
         <select id="tkMode" onchange="Track.f.mode=this.value;Track.render()"><option value="">結案方式：全部</option><option value="內控">內控</option><option value="系統內結案">系統內結案</option><option value="FLOW">FLOW</option></select>
         <select id="tkRisk" onchange="Track.f.risk=this.value;Track.render()"><option value="">風險：全部</option><option>高</option><option>中</option><option>低</option></select>
@@ -594,6 +606,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
       <div class="ux-card" id="tkOvw"></div>
       <div class="ux-chips" id="tkChips"></div>
       <div class="ux-views" id="tkViews"></div>
+      <div id="tkMineBar" class="mybar" style="display:none;margin:0 0 10px"></div>
       <div id="tkHint"></div>
       <div id="tkBody"></div>
     </div>
@@ -1347,14 +1360,18 @@ function yrOvStatus(y){
 let yrPick="";
 function yrSetPick(k){yrPick=yrPick===k?"":k;renderYearView();}
 function yrToggleType(k,on){on?yrOn.add(k):yrOn.delete(k);renderYearView();}
+let yrMine=false; // 2026-11-13 年度檢查一覽「👤 只看我督導的船」
 function yrFiltered(){
   const y=+$("#yrYear").value,vt=$("#yrVtype").value,fi=$("#yrInsp").value,q=$("#yrQ").value.trim().toLowerCase();
   const op=$("#yrOp")?$("#yrOp").value:"FPMC";
+  const myS=yrMine?mySupName():"";
   const ships=SHIPS.filter(s=>(!op||String(s.operator||"").toUpperCase()===op.toUpperCase())&&(!vt||s.type1===vt)&&(!q||[s.label,s.code].join(" ").toLowerCase().includes(q)));
+  if(myS)ships.splice(0,ships.length,...ships.filter(s=>UX.shipSupNames(s.code).includes(myS)));
   const ev=(YR_DATA||[]).filter(e=>e.dt.y===y&&yrOn.has(e.k)&&(!fi||String(e.insp).split(/[、,，\/]/).map(x=>x.trim()).includes(fi)));
   return {y,ships,ev};
 }
 function renderYearView(){
+  {const mb=$("#yrMineBtn"),me=mySupName();if(mb){mb.style.display=me?"":"none";if(!me)yrMine=false;mb.classList.toggle("primary",yrMine);mb.textContent=yrMine?"👤 只看我督導的船 ✓":"👤 只看我督導的船";}}
   if(!YR_DATA){loadYearData();return;}
   // 年度、船型、檢查人選項
   const ys=[...new Set(YR_DATA.map(e=>e.dt.y))].concat([new Date().getFullYear()]);const yrs=[...new Set(ys)].sort((a,b)=>b-a);
@@ -1365,6 +1382,7 @@ function renderYearView(){
   isel.innerHTML='<option value="">全部檢查人</option>'+names.map(n=>`<option ${n===ci?"selected":""}>${esc(n)}</option>`).join("");
   $("#yrTypes").innerHTML=YR_TYPES.map(t=>`<label class="${yrOn.has(t.k)?"on":""}" style="color:${YR_COLOR[t.k]}"><input type="checkbox" ${yrOn.has(t.k)?"checked":""} onchange="yrToggleType('${t.k}',this.checked)">${t.t}</label>`).join("");
   const {y,ships,ev}=yrFiltered();
+  {const bar=$("#yrMineBar");if(bar){bar.style.display=yrMine?"":"none";if(yrMine)bar.innerHTML=`<span>👤 目前只顯示<b>我督導的船</b>（${ships.length} 艘）</span><a onclick="yrMine=false;renderYearView()">✕ 看全部</a>`;}}
   const allY=(YR_DATA||[]).filter(e=>e.dt.y===y);
   const byShip={};ev.forEach(e=>{(byShip[e.ship]=byShip[e.ship]||[]).push(e);});
   const iaShips=new Set(allY.filter(e=>e.k==="ia").map(e=>e.ship));
@@ -1380,7 +1398,7 @@ function renderYearView(){
   if(yrPick&&!pickFn[yrPick])yrPick="";
   const rows=ships.filter(s=>!yrPick||pickFn[yrPick](s));
   const now=new Date(),curM=now.getFullYear()===y?now.getMonth()+1:0;
-  const cnt=k=>ev.filter(e=>e.k===k).length;
+  const shipSet=new Set(ships.map(s=>s.code));const cnt=k=>ev.filter(e=>e.k===k&&shipSet.has(e.ship)).length; // 次數只算目前範圍內的船（管理公司／船型／搜尋／只看我督導的船）
   const noIA=ships.filter(s=>!iaShips.has(s.code)).length;
   const noOV=ships.filter(s=>ov.noOV(s.code)).length,lateOV=ships.filter(s=>!ov.noOV(s.code)&&ov.late(s.code)).length;
   $("#yrSummary").innerHTML=(()=>{const pk=(k,html,sty)=>`<button type="button" class="cchip yrsum ${yrPick===k?"on":""}" style="${sty||""}" onclick="yrSetPick('${k}')" title="點選只看這些船，再點一次取消">${html}</button>`;
@@ -1902,6 +1920,7 @@ function renderList(){
     ${(()=>{const t={total:0,closed:0,open:0};rows.forEach(r=>{if(!recPass(r))return;const ds=filteredDefs.filter(d=>(r.defs||[]).includes(d));const c=closureCount(r,ds);t.total+=c.total;t.closed+=c.closed;t.open+=c.open;});
       return `<span style="flex-basis:100%"></span><span class="hint" style="font-weight:700">${filtering?"篩選結果":"全部"}結案進度</span><span class="cchip" style="border-color:#20703f;color:#20703f">已結案<b>${t.closed}</b> 筆</span><span class="cchip" style="border-color:#c0392b;color:#c0392b">未結案<b>${t.open}</b> 筆</span><span class="hint">（內控＋系統內結案共 ${t.total} 筆；FLOW 由船上自行辦理，不列入）</span>`;})()}`;
   if(listView==="rows"&&typeof RecList!=="undefined")RecList.render(shownRecs);
+  {const bar=$("#mySupBar"),on=mySupOnly&&mySupName();if(bar){bar.style.display=on?"":"none";if(on)bar.innerHTML=`<span>👤 目前只顯示<b>我督導的船</b>（${shownRecs.length} 張登錄單）</span><a onclick="toggleMySup()">✕ 看全部</a>`;}}
   updateReviewBadge();
 }
 async function delRec(id){if(!ownerOnly("刪除登錄單"))return;if(!confirm("確定刪除這張登錄單？此動作無法復原。"))return;const _r=Store.rows.find(x=>x.id===id);await Store.remove(id);IALog.log("刪除","登錄單",`${recLabel(_r)}（${((_r&&_r.defs)||[]).length} 筆缺失）`);renderList();}
@@ -2158,7 +2177,7 @@ function renderRvOverview(){
   const items=reviewFilteredItems();
   const pending=base.filter(x=>x.rp.status==="submitted").length;
   const orphanN=orphanReplies().length;
-  $("#rvStat").innerHTML=`顯示 ${items.length} 筆・全部待審核 ${pending} 筆`+(orphanN&&IAAuth.canDelete()?`　<button class="btn sm danger" onclick="cleanupOrphanReplies()">🗑 清除 ${orphanN} 筆孤兒資料</button><span class="hint" style="cursor:help" title="「孤兒資料」是指：船上曾經回報過，但後來這筆缺失（或整張登錄單）已經被督導刪除，導致這份回報內容沒有任何缺失可以對應，變成一筆留在雲端卻用不到的殘留資料。它不會顯示在「檢查紀錄登錄清單」裡，但會一直留在主系統的「船上改善回報」清單中，看起來像是「刪了怎麼還在」。按這顆按鈕會把這些殘留資料從雲端清掉，不影響任何還有效的缺失或回報。">　ⓘ 什麼是孤兒資料？</span>`:"");
+  $("#rvStat").innerHTML=`顯示 ${items.length} 筆・全部待審核 ${pending} 筆`+(orphanN&&IAAuth.canDelete()?`　<button class="btn sm danger" onclick="cleanupOrphanReplies()">🗑 清除 ${orphanN} 筆孤兒資料</button><span class="hint" style="cursor:help" title="「孤兒資料」是指：船上曾經回報過，但後來這筆缺失（或整張登錄單）已經被督導刪除，導致這份回報內容沒有任何缺失可以對應，變成一筆留在雲端卻用不到的殘留資料。它不會顯示在「檢查登錄單」裡，但會一直留在主系統的「船上改善回報」清單中，看起來像是「刪了怎麼還在」。按這顆按鈕會把這些殘留資料從雲端清掉，不影響任何還有效的缺失或回報。">　ⓘ 什麼是孤兒資料？</span>`:"");
   const selAllBox=$("#rvSelAll");
   const pendingShown=items.filter(x=>x.rp.status==="submitted");
   if(selAllBox)selAllBox.checked=pendingShown.length>0&&pendingShown.every(x=>reviewSel.has(`${x.r.id}_${x.d.uid}`));
@@ -2583,7 +2602,7 @@ const CloseRpt={
         <button class="btn primary" onclick="CloseRpt.send(${r.id})">📑 發結案報告（下載 Word＋複製郵件內文）</button>
         <button class="btn" onclick="closeIssueModal()">稍後再發</button>
       </div>
-      <p class="hint" style="margin:12px 0 0;font-size:12px">選「稍後再發」也沒關係：到「檢查紀錄登錄清單」這張單按「📑 發結案報告」即可；清單上會一直顯示「結案報告未發」提醒。</p>`;
+      <p class="hint" style="margin:12px 0 0;font-size:12px">選「稍後再發」也沒關係：到「📋 檢查登錄單」這張單按「📑 發結案報告」即可；清單上會一直顯示「結案報告未發」提醒。</p>`;
     $("#issueModal").style.display="flex";
   },
   /* 發結案報告／已發過再按：下載 Word＋複製內文；第一次發才記錄時間 */
@@ -2797,7 +2816,7 @@ function renderDownloadTab(){
         <div class="hint" style="font-weight:700;margin-bottom:8px">選用：另存備份檔（JSON）</div>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <button class="btn" style="min-width:220px" onclick="dlBackupJsonInTab()" title="把這張登錄單目前的完整內容（含照片）存成 JSON 檔到這台電腦">💾 下載備份 JSON</button>
-          <span class="hint">把這張單目前的完整內容（含照片）存一份到這台電腦；萬一雲端出問題，可在「📋 檢查紀錄」上方按「📥 匯入備份檔」匯回。</span>
+          <span class="hint">把這張單目前的完整內容（含照片）存一份到這台電腦；萬一雲端出問題，可在「📋 檢查登錄單」上方按「📥 匯入備份檔」匯回。</span>
         </div>
       </div>
       <div style="padding-top:12px;border-top:1px dashed var(--line-2);${IC_JSON_ON?"":"opacity:.55"}"><!-- 內控案件目前直接在本系統結案，不需匯入船舶動態與早會待辦系統：按鈕先反灰，日後要開啟把 IC_JSON_ON 改成 true -->
@@ -4421,7 +4440,7 @@ const Rescue={
     $("#rescueTitle").textContent=why==="photo"?"📷 照片這次沒傳上雲端"
       :stage2?"⚠ 還是沒有存進雲端，請先匯出備份檔":"⚠ 沒有儲存成功";
     $("#rescueSub").innerHTML=`${esc(shipLabel(rec.ship)||"（未選船）")}　${esc(dateText(rec)||"")}　缺失 <b>${n}</b> 筆${ph?`、照片 <b>${ph}</b> 張`:""}`;
-    const self=`到網路穩定的地方後，可以自己在「📋 檢查紀錄登錄清單」上方按 <b>📥 匯入備份檔</b> 選這個 JSON 檔接著存；也可以把 JSON 檔寄給海技組協助匯入。`;
+    const self=`到網路穩定的地方後，可以自己在「📋 檢查登錄單」上方按 <b>📥 匯入備份檔</b> 選這個 JSON 檔接著存；也可以把 JSON 檔寄給海技組協助匯入。`;
     $("#rescueNote").innerHTML=why==="photo"
       ?`文字內容<b>已經存進雲端</b>，但這 ${ph} 張照片目前只在這台電腦。可以先「再試一次儲存」；還是不行就按「匯出備份檔」。${self}`
       :!stage2
@@ -4762,6 +4781,7 @@ const Track={
   render(){
     if(!$("#trackPage"))return;
     this.fillSelects();
+    {const bar=$("#tkMineBar");if(bar){bar.style.display=this.f.mine?"":"none";if(this.f.mine)bar.innerHTML=`<span>🙋 目前只顯示<b>要我審核的缺失</b>（${this.base().length} 筆）</span><a onclick="Track.f.mine=false;Track.render()">✕ 看全部</a>`;}}
     const all=this.items(),nI=all.filter(x=>isIntAudit(x.d)).length;
     $("#tkSrcSeg").innerHTML=[["","全部",all.length],["non","非內稽",all.length-nI],["ia","內稽",nI]].map(([k,t,n])=>`<a class="${this.f.src===k?"on":""}" onclick="Track.f.src='${k}';Track.render()">檢查來源：${t}<b>${n}</b></a>`).join("");
     this.renderOvw();
