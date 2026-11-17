@@ -70,11 +70,16 @@ function buildDocx_photos(ctx){
 }
 const MODE_SUFFIX={"FLOW":"需要登記到DMP-FM01中","內控":"需要登記內控中（不用輸入DMP-FM01）","系統內結案":"線上改善單改善即可"};
 const SECTION_HEAD={"onboard visit":"訪船缺失 Ship Visit","Internal audit":"內稽缺失 Internal Audit","ACCOMPANYING SHIP":"隨船缺失 On-Voyage Audit","Cross ship visit":"交叉訪船缺失 Cross Visit","ISPS Audit":"ISPS缺失 ISPS Internal Audit","主題檢查":"專項檢查缺失 Special Inspection"};
-async function buildDocBody(r,ctx,replyOf){
+/* 2026-11-17 兩種版本：opts.ver="ship" 給船上版＝只放 FLOW 缺失（內控、系統內結案不匯出）；
+   "mgr" 呈主管版＝全部缺失。沒給 ver＝舊行為（全部，不加版本標示），存檔失敗備份用。 */
+async function buildDocBody(r,ctx,replyOf,opts){
+  const ver=(opts&&opts.ver)||"",shipVer=ver==="ship";
+  if(shipVer)r=Object.assign({},r,{defs:(r.defs||[]).filter(d=>d.closeMode==="FLOW")});
   const P=buildDocx_photos(ctx),W=14678;
   const ship=SHIPS.find(s=>s.code===r.ship),shipTxt=ship?(ship.label||ship.name):r.ship;
   let b="";
-  b+=wPara(wRun("檢查缺失具體項目記錄表 Audit N/C / Deficiency Items Details Records",{sz:28}),{jc:"center",after:120});
+  b+=wPara(wRun("檢查缺失具體項目記錄表 Audit N/C / Deficiency Items Details Records",{sz:28}),{jc:"center",after:ver?20:120});
+  if(ver)b+=wPara(wRun(shipVer?"給船上版 For Vessel（FLOW 缺失）":"呈主管版 For Management（全部缺失，含內控／系統內結案）",{sz:18,color:"666666"}),{jc:"center",after:120});
   const specialKeysInR=(r.types||[]).filter(k=>typeof k==="string"&&(k===SPECIAL_TYPE_K||k.startsWith(SPECIAL_PREFIX)));
   const typeChecks=TYPE_DEFS.filter(t=>t.k!==SPECIAL_TYPE_K).map(t=>`${(r.types||[]).includes(t.k)?"☑":"☐"} ${t.label} ${t.en}`).join("　　")
     +`　　${specialKeysInR.length?"☑":"☐"} 專項檢查 Special Inspection`
@@ -99,14 +104,21 @@ async function buildDocBody(r,ctx,replyOf){
   /* ── 彙整：優良案例與各檢查種類缺失數量，並依結案方式列出 FLOW／內控／系統內結案的缺失內容 ── */
   {
     const defs=r.defs||[],cnt=(k,m)=>defs.filter(d=>d.type===k&&(!m||d.closeMode===m)).length;
-    b+=heading("● 彙整 Summary（優良案例與缺失數量、結案方式）");
+    b+=heading(shipVer?"● 彙整 Summary（優良案例與 FLOW 缺失數量）":"● 彙整 Summary（優良案例與缺失數量、結案方式）");
+    if(shipVer){
+      const sr=[lblCell(7339,"項目")+lblCell(7339,"FLOW 系統（DMP-FM01）缺失")];
+      sr.push(txtCell(7339,"優良案例 Best Practice")+txtCell(7339,`${(r.best||[]).length} 項`));
+      (r.types||[]).forEach(k=>{const t=typeDef(k)||{label:k};const lbl=t.label+(t.sarForm?"："+t.sarForm:"");sr.push(txtCell(7339,`${lbl}缺失`)+txtCell(7339,`${cnt(k)} 項`));});
+      sr.push(wCell(7339,wPara(wRun("缺失合計",{b:true,sz:19}),{after:0}),{shd:LBL})+wCell(7339,wPara(wRun(`${defs.length} 項`,{b:true,sz:19}),{after:0}),{shd:LBL}));
+      b+=wTbl([7339,7339],sr)+tinyGap();
+    }
     const sumRows=[lblCell(4678,"項目")+lblCell(2500,"合計")+lblCell(2500,"FLOW 系統（DMP-FM01）")+lblCell(2500,"內控")+lblCell(2500,"系統內結案")];
     sumRows.push(txtCell(4678,"優良案例 Best Practice")+txtCell(2500,`${(r.best||[]).length} 項`)+txtCell(2500,"—")+txtCell(2500,"—")+txtCell(2500,"—"));
     (r.types||[]).forEach(k=>{const t=typeDef(k)||{label:k};const lbl=t.label+(t.sarForm?"："+t.sarForm:"");sumRows.push(txtCell(4678,`${lbl}缺失`)+txtCell(2500,`${cnt(k)} 項`)+txtCell(2500,`${cnt(k,"FLOW")}`)+txtCell(2500,`${cnt(k,"內控")}`)+txtCell(2500,`${cnt(k,"系統內結案")}`));});
     sumRows.push(wCell(4678,wPara(wRun("缺失合計",{b:true,sz:19}),{after:0}),{shd:LBL})+wCell(2500,wPara(wRun(`${defs.length} 項`,{b:true,sz:19}),{after:0}),{shd:LBL})+
       wCell(2500,wPara(wRun(`${defs.filter(d=>d.closeMode==="FLOW").length}`,{b:true,sz:19}),{after:0}),{shd:LBL})+wCell(2500,wPara(wRun(`${defs.filter(d=>d.closeMode==="內控").length}`,{b:true,sz:19}),{after:0}),{shd:LBL})+
       wCell(2500,wPara(wRun(`${defs.filter(d=>d.closeMode==="系統內結案").length}`,{b:true,sz:19}),{after:0}),{shd:LBL}));
-    b+=wTbl([4678,2500,2500,2500,2500],sumRows)+tinyGap();
+    if(!shipVer)b+=wTbl([4678,2500,2500,2500,2500],sumRows)+tinyGap();
     const kind=d=>{const t=typeDef(d.type)||{label:d.type};return t.label+(t.sarForm?"："+t.sarForm:"")+(topicText(d)?"・"+topicText(d):"");};
     const listBlock=(title,items,withRemark)=>{
       // 檢查種類／主題、分類兩欄文字通常很短（訪船、內稽、防火門…），原本給太寬，擠壓到
@@ -119,8 +131,10 @@ async function buildDocBody(r,ctx,replyOf){
       return wPara(wRun(`${title}（${items.length} 項）`,{b:true,sz:20}),{before:120,after:60,keepNext:true})+wTbl(cols,rows)+tinyGap();
     };
     b+=listBlock("■ 需登記到 FLOW 系統（DMP-FM01）的缺失",defs.filter(d=>d.closeMode==="FLOW"),false);
-    b+=listBlock("■ 需登記內控的缺失（不用輸入 DMP-FM01）",defs.filter(d=>d.closeMode==="內控"),false);
-    b+=listBlock("■ 系統內直接結案追蹤的缺失（含內控）",defs.filter(d=>d.closeMode==="內控"||d.closeMode==="系統內結案"),true);
+    if(!shipVer){
+      b+=listBlock("■ 需登記內控的缺失（不用輸入 DMP-FM01）",defs.filter(d=>d.closeMode==="內控"),false);
+      b+=listBlock("■ 系統內直接結案追蹤的缺失（含內控）",defs.filter(d=>d.closeMode==="內控"||d.closeMode==="系統內結案"),true);
+    }
   }
   if((r.best||[]).length){
     b+=heading("● 優良案例 Best Practice");
@@ -193,11 +207,11 @@ function iaPreloadTemplate(){
   return _iaTplBuf;
 }
 setTimeout(()=>{iaPreloadTemplate().catch(()=>{});},2500);
-async function iaMakeDocx(r,replyOf){
+async function iaMakeDocx(r,replyOf,opts){
   if(typeof JSZip==="undefined")throw new Error("Word 元件載入失敗，請確認網路後重新整理頁面");
   const zip=await JSZip.loadAsync(await iaPreloadTemplate());
   const ctx={n:0,files:[]};
-  const body=await buildDocBody(r,ctx,replyOf);
+  const body=await buildDocBody(r,ctx,replyOf,opts);
   let doc=await zip.file("word/document.xml").async("string");
   if(!doc.includes("<!--BODY-->"))throw new Error("範本檔內容不符");
   doc=doc.replace("<!--BODY-->",()=>body);

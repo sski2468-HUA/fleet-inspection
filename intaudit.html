@@ -2372,9 +2372,11 @@ function openExport(id){
   const r=Store.rows.find(x=>x.id===id);if(!r)return;
   const nIc=(r.defs||[]).filter(d=>d.closeMode==="內控").length;
   $("#exportSub").innerHTML=`${esc(shipLabel(r.ship))}　${esc(dateText(r))}　檔名：<span style="font-family:var(--mono)">${esc(exportBaseName(r))}</span>`;
-  const row=(fn,label,desc,dis)=>`<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)"><button class="btn primary" style="min-width:150px" ${dis?"disabled":""} onclick="${fn}(${id})">${label}</button><div class="hint" style="font-size:12.5px">${desc}</div></div>`;
+  const nFlow=(r.defs||[]).filter(d=>d.closeMode==="FLOW").length;
+  const row=(fn,label,desc,dis,arg)=>`<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)"><button class="btn primary" style="min-width:150px" ${dis?"disabled":""} onclick="${fn}(${id}${arg?`,'${arg}'`:""})">${label}</button><div class="hint" style="font-size:12.5px">${desc}</div></div>`;
   $("#exportRows").innerHTML=
-    row("exportWord","⬇ Word（.docx）","檢查缺失具體項目記錄表：含照片，若船上已回報，改善措施／完成日期／證據照片也會一併帶入；每條缺失獨立一頁",false)+
+    row("exportWord","⬇ Word 給船上版",nFlow?`只含結案方式為「FLOW」的 ${nFlow} 筆缺失（內控、系統內結案不匯出）；含照片與船上回報，每條缺失獨立一頁`:"這張登錄單沒有 FLOW 缺失",!nFlow,"ship")+
+    row("exportWord","⬇ Word 呈主管版",`全部 ${(r.defs||[]).length} 筆缺失（含內控、系統內結案）；含照片與船上回報，每條缺失獨立一頁`,false,"mgr")+
     row("exportJson","⬇ JSON","這張登錄單的完整資料（含照片），可備份或日後匯入",false)+
     row("exportIcXls","⬇ 內控 Excel（.xls）",nIc?`只含結案方式為「內控」的 ${nIc} 筆缺失；欄位同船舶動態系統的內控異常清單（16 欄）`:"這張登錄單沒有結案方式為「內控」的缺失",!nIc)+
     row("exportIcJson","⬇ 內控 JSON",!IC_JSON_ON?"暫未開啟使用（內控案件目前直接在本系統結案）":nIc?"只含「內控」缺失，含船上回報內容，供日後匯入用":"這張登錄單沒有結案方式為「內控」的缺失",!nIc||!IC_JSON_ON);
@@ -2634,7 +2636,7 @@ const CloseRpt={
     this._busy=id;this.btnState();
     toast("⏳ 正在產生結案報告 Word…");
     try{
-      const {blob,photoCount}=await iaMakeDocx(r,d=>{const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;return rp&&rp.payload?Object.assign({status:rp.status},rp.payload):null;});
+      const {blob,photoCount}=await iaMakeDocx(r,d=>{const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;return rp&&rp.payload?Object.assign({status:rp.status},rp.payload):null;},{ver:"ship"}); // 結案報告寄給船上＝給船上版（只含 FLOW 缺失）
       download(blob,fname(r,".docx","_結案報告"));
       toast(`✓ 已下載結案報告 Word（照片 ${photoCount} 張），請附加到郵件`);
     }catch(e){toast("⚠ 產生 Word 失敗："+e.message,true);}
@@ -2691,14 +2693,20 @@ function exportIcJson(id){
 }
 const fname=(r,ext,suffix)=>exportBaseName(r)+(suffix||"")+ext;
 /* Word 匯出：內容含船上回報（若有）——改善措施、完成日期、證據備註與改善後照片，寫在各缺失表格對應欄位 */
-async function exportWord(id){
-  const r=Store.rows.find(x=>x.id===id);if(!r)return;
-  toast("⏳ 正在產生 Word 檔…");
+/* 2026-11-17 兩個版本：ver="ship" 給船上版（只含 FLOW 缺失）、"mgr" 呈主管版（全部缺失，含內控／系統內結案） */
+const WORD_VER={ship:{suffix:"_給船上版",label:"給船上版"},mgr:{suffix:"_呈主管版",label:"呈主管版"}};
+async function exportWord(id,ver){
+  ver=WORD_VER[ver]?ver:"mgr";
+  const r=Store.rows.find(x=>x.id===id);if(!r)return false;
+  const n=ver==="ship"?(r.defs||[]).filter(d=>d.closeMode==="FLOW").length:(r.defs||[]).length;
+  if(ver==="ship"&&!n){toast(`⚠ ${shipLabel(r.ship)} ${dateText(r)} 沒有 FLOW 缺失，不用產生給船上版 Word`,true);return false;}
+  toast(`⏳ 正在產生 Word（${WORD_VER[ver].label}）…`);
   try{
-    const {blob,photoCount}=await iaMakeDocx(r,d=>{const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;return rp&&rp.payload?Object.assign({status:rp.status},rp.payload):null;});
-    download(blob,fname(r,".docx"));
-    toast(`✓ 已產生 Word 檔（缺失 ${(r.defs||[]).length} 筆、照片 ${photoCount} 張）`);
-  }catch(e){toast("⚠ 產生 Word 失敗："+e.message,true);}
+    const {blob,photoCount}=await iaMakeDocx(r,d=>{const rp=d.uid?Store.replies[`${r.id}_${d.uid}`]:null;return rp&&rp.payload?Object.assign({status:rp.status},rp.payload):null;},{ver});
+    download(blob,fname(r,".docx",WORD_VER[ver].suffix));
+    toast(`✓ 已產生 Word ${WORD_VER[ver].label}（缺失 ${n} 筆、照片 ${photoCount} 張）`);
+    return true;
+  }catch(e){toast("⚠ 產生 Word 失敗："+e.message,true);return false;}
 }
 /* ══════ ⑥ 下載／發改善單：讓督導填完資料後，不用先送出、離開編輯頁到外面的登錄紀錄清單
    才能下載或發改善單，直接在編輯畫面內就能完成，並記錄「誰、什麼時候」下載／發送過。
@@ -2725,9 +2733,10 @@ async function dlIcJsonInTab(){
   await persist(keepDraftFlag());
   renderDownloadTab();
 }
-async function dlWordInTab(){
+async function dlWordInTab(ver){
+  if(ver==="ship"&&!(cur.defs||[]).some(d=>d.closeMode==="FLOW")){toast("⚠ 這張單沒有 FLOW 缺失，不用產生給船上版 Word",true);return;}
   if(!(await ensureSavedForTabAction()))return;
-  await exportWord(cur.id);
+  if(!(await exportWord(cur.id,ver)))return;
   cur.wordDlAt=Date.now();cur.wordDlBy=cur.inspector||"";
   await persist(keepDraftFlag());
   renderDownloadTab();
@@ -2802,14 +2811,15 @@ function renderDownloadTab(){
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:12px;border-top:1px dashed var(--line-2)">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${cur.draft===false?"var(--navy)":"#c3ced5"};color:#fff;font-weight:700;font-size:13px;flex:none">2</span>
         <button class="btn ${cur.draft===false?"":"soft-disabled"}" style="min-width:220px" ${(nIssue||nFlowT)?"":"disabled"} onclick="issueOrderInTab()">📨 ${nIssue||!nFlowT?"發改善單給船":"發 FLOW 提醒給船"}</button>
-        <span class="hint">${cur.draft!==false?'<b style="color:var(--bad)">請先完成上一步「送出海技入系統」，才能發改善單給船上</b><br>':""}${nIssue?`共 ${nIssue} 項待改善${nFlowT?`（另 ${nFlowT} 項 FLOW 會附提醒）`:""}；會複製好內容供貼到郵件，船上打開連結後也能在那頁完整下載這次的檢查報告 WORD`:nFlowT?`全部 ${nFlowT} 項都是 FLOW：會複製一則「FLOW 缺失提醒」，請船上務必至 FLOW 系統（DMP-FM01）填單`:"這張單沒有缺失"}${cur.issuedAt?`<br><b style="color:var(--ok)">✓ 已於 ${fmtT(cur.issuedAt)} 發送</b>`:""}</span>
+        <span class="hint">${cur.draft!==false?'<b style="color:var(--bad)">請先完成上一步「送出海技入系統」，才能發改善單給船上</b><br>':""}${nIssue?`共 ${nIssue} 項待改善${nFlowT?`（另 ${nFlowT} 項 FLOW 會附提醒）`:""}；會複製好內容供貼到郵件，船上打開連結後也能在那頁下載這次的檢查報告 WORD（只含 FLOW 缺失）`:nFlowT?`全部 ${nFlowT} 項都是 FLOW：會複製一則「FLOW 缺失提醒」，請船上務必至 FLOW 系統（DMP-FM01）填單`:"這張單沒有缺失"}${cur.issuedAt?`<br><b style="color:var(--ok)">✓ 已於 ${fmtT(cur.issuedAt)} 發送</b>`:""}</span>
       </div>
       <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:12px 14px;border:2px solid var(--signal);border-radius:10px;background:#fff7ee">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--signal);color:#fff;font-weight:700;font-size:13px;flex:none">3</span>
         <div style="flex:1;min-width:260px">
           <div style="font-weight:800;color:#a8570f;font-size:15px">📎 最後一步：下載「完整的檢查報告」自行留存</div>
-          <div class="hint" style="margin:4px 0 8px;color:var(--ink-2)">下載下面的完整報告 WORD（含照片、每筆缺失獨立一頁），<b>由督導自行存檔留存</b>。</div>
-          <button class="btn lg" style="padding:9px 20px;font-size:15px" onclick="dlWordInTab()">⬇ 下載完整報告 WORD</button>
+          <div class="hint" style="margin:4px 0 8px;color:var(--ink-2)">報告 WORD（含照片、每筆缺失獨立一頁）分兩個版本，<b>由督導自行存檔留存</b>：<b>給船上版</b>只含 FLOW 缺失；<b>呈主管版</b>含全部缺失（內控、系統內結案也在內）。</div>
+          <button class="btn lg" style="padding:9px 20px;font-size:15px" ${(cur.defs||[]).some(d=>d.closeMode==="FLOW")?"":'disabled title="這張單沒有 FLOW 缺失"'} onclick="dlWordInTab('ship')">⬇ 給船上版 WORD（FLOW）</button>
+          <button class="btn lg" style="padding:9px 20px;font-size:15px" onclick="dlWordInTab('mgr')">⬇ 呈主管版 WORD（全部）</button>
           <span class="hint" style="margin-left:8px">${cur.wordDlAt?`<b style="color:var(--ok)">✓ ${esc(cur.wordDlBy||cur.inspector||"")} 已於 ${fmtT(cur.wordDlAt)} 下載</b>`:`<b style="color:var(--bad)">尚未下載</b>`}</span>
         </div>
       </div>
@@ -4893,7 +4903,7 @@ const RecList={
     [...this.sel].forEach(id=>{if(!L.some(x=>x.r.id===id))this.sel.delete(id);});
     const selRecs=[...this.sel].map(id=>Store.rows.find(r=>r.id===id)).filter(Boolean);
     const nIss=selRecs.filter(r=>["needIssue","needFlow"].includes(RecStage.of(r))).length,nCls=selRecs.filter(r=>RecStage.of(r)==="needClose").length;
-    const bbar=this.sel.size?`<div class="ux-bbar">已勾選 <b>${this.sel.size}</b> 張：<button class="btn sm ux-redbtn" ${nIss?"":"disabled"} onclick="RecList.batchIssue()">📨 批次發改善單（${nIss}）</button><button class="btn sm ux-grnbtn" ${nCls?"":"disabled"} onclick="RecList.batchClose()">📑 批次發結案報告（${nCls}）</button><button class="btn sm" onclick="RecList.batchWord()">⬇ 批次匯出 Word</button><button class="btn sm" onclick="RecList.sel.clear();RecList.render(RecList._last)">清除勾選</button><span style="flex:1"></span><span style="font-size:12px;opacity:.85">狀態不符的單自動略過；發改善單會一張一張跳視窗</span></div>`:"";
+    const bbar=this.sel.size?`<div class="ux-bbar">已勾選 <b>${this.sel.size}</b> 張：<button class="btn sm ux-redbtn" ${nIss?"":"disabled"} onclick="RecList.batchIssue()">📨 批次發改善單（${nIss}）</button><button class="btn sm ux-grnbtn" ${nCls?"":"disabled"} onclick="RecList.batchClose()">📑 批次發結案報告（${nCls}）</button><button class="btn sm" onclick="RecList.batchWord('ship')" title="只含 FLOW 缺失；沒有 FLOW 缺失的單自動略過">⬇ 批次 Word 給船上版</button><button class="btn sm" onclick="RecList.batchWord('mgr')" title="全部缺失，含內控、系統內結案">⬇ 批次 Word 呈主管版</button><button class="btn sm" onclick="RecList.sel.clear();RecList.render(RecList._last)">清除勾選</button><span style="flex:1"></span><span style="font-size:12px;opacity:.85">狀態不符的單自動略過；發改善單會一張一張跳視窗</span></div>`:"";
     let prevYm="",html="";
     P.forEach(({r,ds,filtering})=>{
       const ym=String(r.dateFrom||"").slice(0,7);
@@ -4921,7 +4931,7 @@ const RecList={
   batchIssue(){const ids=[...this.sel].filter(id=>{const r=Store.rows.find(x=>x.id===id);return r&&["needIssue","needFlow"].includes(RecStage.of(r));});if(!ids.length)return;this.q=ids;toast(`📨 共 ${ids.length} 張，會一張一張跳出發改善單視窗`);this.nextQ();},
   nextQ(){const id=this.q.shift();if(id==null)return;Promise.resolve(issueOrder(id)).finally(()=>setTimeout(()=>{if($("#issueModal").style.display!=="flex"&&this.q.length)this.nextQ();},500));},
   batchClose(){const ids=[...this.sel].filter(id=>{const r=Store.rows.find(x=>x.id===id);return r&&RecStage.of(r)==="needClose";});if(ids.length)CloseRpt.check(ids);},
-  async batchWord(){const ids=[...this.sel];for(const id of ids){try{await exportWord(id);}catch(e){toast("⚠ 匯出失敗："+e.message,true);}}}
+  async batchWord(ver){const ids=[...this.sel];for(const id of ids){try{await exportWord(id,ver);}catch(e){toast("⚠ 匯出失敗："+e.message,true);}}}
 };
 document.addEventListener("click",e=>{if(!e.target.closest(".ux-more"))RecList.closeMenus();});
 window.addEventListener("scroll",()=>RecList.closeMenus(),true);window.addEventListener("resize",()=>RecList.closeMenus()); // 浮動選單位置是開啟當下算的，捲動就收起
