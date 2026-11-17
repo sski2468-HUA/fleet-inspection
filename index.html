@@ -30846,6 +30846,37 @@ const Air={
     try{localStorage.setItem(this.REPLY_BASEKEY,v);}catch(e){}
     toast("✓ 已更新，下次「對外回覆編輯」會用新網址");
   },
+  /* 2026-11-17：主系統寫回 air_reply_drafts 一律走這裡，避免蓋掉別人在外部對外回覆頁剛改的內容。
+     做法跟 submit-airreply.html 一樣：先讀雲端「最新」那份 items[0]，只把這次要改的欄位套上去（mutate），
+     再用條件寫入 items->0->>_editedAt=讀到的值，0 筆＝這中間有人剛存檔 → 重讀重套，最多 4 次。
+     有改到內容才寫入，並更新 _editedBy/_editedAt（外部頁靠它偵測別人改過）；histTag 有給才留版本紀錄。
+     回傳 true＝有寫入、false＝內容一樣不用寫、null＝雲端找不到這條草稿。 */
+  async _mergePatchReplyDraft(rid,k,mutate,extra,histTag){
+    const enc=encodeURIComponent(rid);
+    for(let attempt=0;attempt<4;attempt++){
+      const rows=await Cloud.api(`air_reply_drafts?air_record_id=eq.${enc}&defect_idx=eq.${k}&select=id,items,history&order=id.desc&limit=1`);
+      if(!rows||!rows.length)return null;
+      const row=rows[0],cur=(row.items&&row.items[0])||{};
+      const out=JSON.parse(JSON.stringify(cur));
+      mutate(out);
+      const strip=o=>{const c=Object.assign({},o);delete c._editedBy;delete c._editedAt;return JSON.stringify(c);};
+      if(strip(out)===strip(cur))return false;
+      const who=(typeof Role!=="undefined"?Role.name():"")||"海技組";
+      out._editedBy=who+"（主系統）";out._editedAt=new Date().toISOString();
+      const body=Object.assign({items:[out]},extra||{});
+      if(histTag){
+        const hist=Array.isArray(row.history)?row.history.slice():[];
+        const snap=Object.assign({},out);delete snap._editedBy;delete snap._editedAt;
+        hist.push({by:histTag+"・"+who,at:out._editedAt,items:snap});
+        while(hist.length>40){const ix=hist.findIndex(h=>!Array.isArray(h.changes));if(ix===-1)hist.shift();else hist.splice(ix,1);}
+        body.history=hist;
+      }
+      const ver=cur._editedAt?`eq.${encodeURIComponent(cur._editedAt)}`:"is.null";
+      const res=await Cloud.api(`air_reply_drafts?id=eq.${row.id}&items->0->>_editedAt=${ver}&select=id`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify(body)});
+      if(Array.isArray(res)&&res.length)return true;
+    }
+    throw new Error("同時有人在編輯這張對外回覆，請稍後再試");
+  },
   closeReplyLinkModal(){$("#airReplyLinkModal").classList.remove("show");},
   /* 直接開新分頁跳到外部編輯網頁，給自己（海技組）做階段②翻譯用；跟「產生連結」分開，
      那顆是給外部人（主管）用的分享連結，這顆是自己要編輯時的捷徑 */
@@ -30908,10 +30939,8 @@ const Air={
             const freshMeta={ship:d.ship,date:d.date,itype:d.itype,place:d.place||"",psc:df.psc||"",code:df.code||"",detail:df.detail||"",actual:df.actual||"",corrective:df.corrective||"",rootCause:df.rootCause||"",preventive:df.preventive||""};
             const staleOrMissing=!it._defectMeta||JSON.stringify(it._defectMeta)!==JSON.stringify(freshMeta);
             if(staleOrMissing){
-              it._defectMeta=freshMeta;
-              await Cloud.api(`air_reply_drafts?air_record_id=eq.${this.replyId}&defect_idx=eq.${k}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
-                body:JSON.stringify({items:[it],code:df.code||""})});
-              ex.items=[it];
+              // 只更新左欄「船上填寫版本」(_defectMeta)，右邊對外回覆欄位一律保留雲端最新的（別人可能正在改）
+              await this._mergePatchReplyDraft(this.replyId,k,o=>{o._defectMeta=freshMeta;},{code:df.code||""});
             }
           }
         }
@@ -31214,13 +31243,14 @@ const Air={
     const grabPlain=this._pendingImportGrabPlain,META_FIELDS=this._pendingImportMetaFields;
     let filled=0;
     const changedIdx=new Set();
+    const changedKeys={}; // 每條缺失「這次 Word 真的有填到」的對外回覆欄位，回寫雲端時只動這些
     this._pendingImportBlocks.forEach((block,i)=>{
       if(block==null)return; // 陣列可能有空洞（某幾筆缺失沒對應到 ===DEFICIENCY N=== 區塊）
       if(!d.reply.items[i])d.reply.items[i]={correctiveCn:"",correctiveEn:"",immediateCauseCn:"",immediateCauseEn:"",rootCauseCn:"",rootCauseEn:"",opCommentCn:"",opCommentEn:"",preventiveCn:"",preventiveEn:""};
       FIELDS.forEach(([label,ck,ek])=>{
         const cn=grab(block,label,"中文"),en=grab(block,label,"EN");
-        if(cn){d.reply.items[i][ck]=cn;filled++;changedIdx.add(i);}
-        if(en){d.reply.items[i][ek]=en;filled++;changedIdx.add(i);}
+        if(cn){d.reply.items[i][ck]=cn;filled++;changedIdx.add(i);(changedKeys[i]=changedKeys[i]||{})[ck]=cn;}
+        if(en){d.reply.items[i][ek]=en;filled++;changedIdx.add(i);(changedKeys[i]=changedKeys[i]||{})[ek]=en;}
       });
       // Description／Code／Action Taken 屬於缺失本身的欄位（不是對外回覆），直接寫回
       // d.defects[i]；下次開啟「海技對外回覆」頁時，openExternalEditor() 既有的
@@ -31247,16 +31277,9 @@ const Air={
           const df=(d.defects&&d.defects[i])||{};
           const ex=existingByIdx[i];
           if(ex){
-            const it=(ex.items&&ex.items[0])||{};
-            const merged=Object.assign({},it,{
-              opCommentCn:rp.opCommentCn||"",opCommentEn:rp.opCommentEn||"",
-              immediateCauseCn:rp.immediateCauseCn||"",immediateCauseEn:rp.immediateCauseEn||"",
-              rootCauseCn:rp.rootCauseCn||"",rootCauseEn:rp.rootCauseEn||"",
-              correctiveCn:rp.correctiveCn||"",correctiveEn:rp.correctiveEn||"",
-              preventiveCn:rp.preventiveCn||"",preventiveEn:rp.preventiveEn||""
-            });
-            await Cloud.api(`air_reply_drafts?air_record_id=eq.${id}&defect_idx=eq.${i}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
-              body:JSON.stringify({items:[merged]})});
+            // 只覆寫 Word 有填到的欄位；Word 沒填的欄位保留雲端最新內容（不再用本機可能過期的值整份蓋掉）
+            const keys=changedKeys[i];
+            if(keys)await this._mergePatchReplyDraft(id,i,o=>{Object.assign(o,keys);},null,"（主系統匯入 Word）");
           }else{
             await Cloud.api("air_reply_drafts",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),
               body:JSON.stringify({air_record_id:id,defect_idx:i,ship:d.ship,code:df.code||"",stage:"1",imported:false,history:[],
