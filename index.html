@@ -32381,10 +32381,12 @@ const IntAuditQueue={
       ?`這張登錄單先前已匯入過。\n\n重新匯入會依上次的對應關係「更新」原本那幾筆紀錄（找不到的視為新增），不會產生重複。\n要繼續嗎？`
       :`確定匯入「${shipFullLabel(r.ship)} ${r.dateFrom}」？\n\n將建立：檢查紀錄 ${(r.types||[]).length} 筆、缺失紀錄 ${nDef} 筆、正面評價 ${nBest} 筆。`))return;
     // 2026-11-18 匯入過程跳出「匯入中」視窗，直到完成（成功、失敗都會關掉）
-    this._busy(`${again?"重新匯入":"匯入"}中：${shipFullLabel(r.ship)} ${r.dateFrom}`,"寫入主系統紀錄…");
+    if(this._importing){toast("⚠ 上一張還在匯入中，請等它完成");return;}
+    this._importing=true;
+    this._busy(`${again?"重新匯入":"匯入"}中：${shipFullLabel(r.ship)} ${r.dateFrom}`,"準備中…");
     try{return await this._importRun(r,again);}
     catch(e){this._busyOff();console.error(e);alert("⚠ 匯入過程發生錯誤："+(e&&e.message||e)+"\n\n請重新整理後再試一次。");}
-    finally{this._busyOff();}
+    finally{this._busyOff();this._importing=false;}
   },
   _busy(title,step){
     let ov=document.getElementById("ia-busy");
@@ -32404,6 +32406,21 @@ const IntAuditQueue={
   _busyOff(){const ov=document.getElementById("ia-busy");if(ov)ov.remove();},
   async _importRun(r,again){
     const nBest=(r.best||[]).length;
+    // 2026-11-18 防重複匯入：守輝 BG 11/15 被連按兩次匯入（相隔 8 秒），第二次時本機缺失被背景載入蓋掉，
+    // 找不到第一次建立的紀錄 → 19 筆缺失全部又新增一次。匯入前先到雲端抓「這張登錄單已經建立過的」
+    // 檢查紀錄／缺失／正面評價，補回本機，後面的對應與內容比對才找得到，不會再重複新增。
+    this._busyStep("確認雲端是否已匯入過…");
+    const pullBack=async(table,arr)=>{
+      const rows=await Cloud.api(`${table}?select=id,payload&payload->>intAuditId=eq.${encodeURIComponent(r.id)}&limit=2000`);
+      (rows||[]).forEach(x=>{const p=x.payload||{};if(!arr.some(z=>String(z.id)===String(x.id)))arr.push(Object.assign({},p,{id:p.id!=null?p.id:x.id}));});
+    };
+    try{await pullBack("sync_defs",App.defs);await pullBack("sync_insp",App.insp);await pullBack("sync_sirepos",App.sirePos);}
+    catch(e){
+      this._busyOff();
+      alert("⚠ 無法確認雲端是否已經匯入過這張登錄單（"+(e&&e.message||e)+"）。\n\n為避免重複新增，這次先不匯入，請檢查網路後再試一次。");
+      return;
+    }
+    this._busyStep("寫入主系統紀錄…");
     const by=(typeof Audit!=="undefined")?Audit.user():"",now=Date.now();
     const date=normDateSlash(r.dateFrom),ym=ymOf(date);
     // 多天檢查：迄日只帶到檢查紀錄做顯示，統計仍以起日 date 為準
