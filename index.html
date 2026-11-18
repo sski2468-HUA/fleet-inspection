@@ -32287,7 +32287,7 @@ const IntAuditQueue={
         App.saveAll();
       }catch(e){}
     }
-    alert(`⚠ ${label}：缺失紀錄還沒有全部上傳到雲端。\n\n這張登錄單先不會標記成「已匯入」。請先「不要」按「載入最新資料」或重新整理，\n檢查網路後再按一次「匯入」（不會重複新增）；若仍失敗請截圖回報。`);
+    this._busyOff();alert(`⚠ ${label}：缺失紀錄還沒有全部上傳到雲端。\n\n這張登錄單先不會標記成「已匯入」。請先「不要」按「載入最新資料」或重新整理，\n檢查網路後再按一次「匯入」（不會重複新增）；若仍失敗請截圖回報。`);
     return false;
   },
   async _patchReply(x,status,extra){
@@ -32380,6 +32380,30 @@ const IntAuditQueue={
     if(!confirm(again
       ?`這張登錄單先前已匯入過。\n\n重新匯入會依上次的對應關係「更新」原本那幾筆紀錄（找不到的視為新增），不會產生重複。\n要繼續嗎？`
       :`確定匯入「${shipFullLabel(r.ship)} ${r.dateFrom}」？\n\n將建立：檢查紀錄 ${(r.types||[]).length} 筆、缺失紀錄 ${nDef} 筆、正面評價 ${nBest} 筆。`))return;
+    // 2026-11-18 匯入過程跳出「匯入中」視窗，直到完成（成功、失敗都會關掉）
+    this._busy(`${again?"重新匯入":"匯入"}中：${shipFullLabel(r.ship)} ${r.dateFrom}`,"寫入主系統紀錄…");
+    try{return await this._importRun(r,again);}
+    catch(e){this._busyOff();console.error(e);alert("⚠ 匯入過程發生錯誤："+(e&&e.message||e)+"\n\n請重新整理後再試一次。");}
+    finally{this._busyOff();}
+  },
+  _busy(title,step){
+    let ov=document.getElementById("ia-busy");
+    if(!ov){ov=document.createElement("div");ov.id="ia-busy";
+      ov.style.cssText="position:fixed;inset:0;background:rgba(15,30,50,.45);display:flex;align-items:center;justify-content:center;z-index:10000";
+      ov.innerHTML=`<div style="background:#fff;border-radius:10px;padding:26px 34px;min-width:300px;max-width:90vw;box-shadow:0 10px 30px rgba(0,0,0,.25);text-align:center">
+        <div style="width:38px;height:38px;margin:0 auto 14px;border:4px solid #d6e2ec;border-top-color:#1c3a5e;border-radius:50%;animation:iaBusySpin .9s linear infinite"></div>
+        <div id="ia-busy-title" style="font-weight:700;color:#1c3a5e;font-size:15px"></div>
+        <div id="ia-busy-step" style="color:#5a6b7b;font-size:13px;margin-top:6px"></div>
+        <div style="color:#a04030;font-size:12px;margin-top:10px">請勿關閉或重新整理頁面，完成後視窗會自動關閉</div></div>
+        <style>@keyframes iaBusySpin{to{transform:rotate(360deg)}}</style>`;
+      document.body.appendChild(ov);}
+    if(title!=null)ov.querySelector("#ia-busy-title").textContent=title;
+    if(step!=null)ov.querySelector("#ia-busy-step").textContent=step;
+  },
+  _busyStep(step){const el=document.getElementById("ia-busy-step");if(el)el.textContent=step;},
+  _busyOff(){const ov=document.getElementById("ia-busy");if(ov)ov.remove();},
+  async _importRun(r,again){
+    const nBest=(r.best||[]).length;
     const by=(typeof Audit!=="undefined")?Audit.user():"",now=Date.now();
     const date=normDateSlash(r.dateFrom),ym=ymOf(date);
     // 多天檢查：迄日只帶到檢查紀錄做顯示，統計仍以起日 date 為準
@@ -32441,7 +32465,7 @@ const IntAuditQueue={
     });
     // 2026-11-06 補回已審核／已套用過的改善內容：缺失紀錄若因重新匯入、同步遺失而少了改善內容，
     // 依 intaudit_replies 裡督導已審核（reviewed）的回報重新寫回（跟「套用改善內容」寫的欄位相同）
-    let reFill=0;
+    let reFill=0;this._busyStep("讀取船上已審核的改善內容…");
     try{
       const reps=await Cloud.api(`intaudit_replies?record_id=eq.${encodeURIComponent(r.id)}&status=eq.reviewed&select=id,def_uid,payload&limit=5000`);
       (reps||[]).forEach(x=>{
@@ -32471,14 +32495,15 @@ const IntAuditQueue={
     try{if(typeof Ov!=="undefined"){Ov.init();Ov.render();}if(typeof InspCtrl!=="undefined")InspCtrl.render();
       if(typeof Defs!=="undefined"){Defs.init();Defs.render();}if(typeof SirePos!=="undefined")SirePos.init();}catch(e){}
     // 2026-11-12 確認缺失真的上傳到雲端（B108 10/30、CM 9/18 匯入後檢查紀錄有上去、缺失卻沒有，套用改善內容才會全部失敗）
+    this._busyStep("上傳缺失紀錄到雲端…");
     const upOk=await this.ensureDefsUploaded(touchedDefRecs,`${r.ship} ${r.dateFrom}`);
     if(!upOk)return; // 沒上傳成功就先不要標記「已匯入」，讓海技可以再按一次匯入
     // 把對應關係記回登錄單，之後重新匯入才能更新而不是重複新增
-    r.imported={at:now,by,inspIds};
+    r.imported={at:now,by,inspIds};this._busyStep("標記登錄單為已匯入…");
     try{
       await Cloud.api(`${this.TABLE}?id=eq.${r.id}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=minimal"}),body:JSON.stringify({payload:r,updated_at:now})});
     }catch(e){
-      alert("⚠ 已匯入主系統，但「已匯入」標記寫回雲端登錄單失敗："+e.message+"\n\n請不要重複按匯入（會多出重複紀錄），請聯絡維護者。");
+      this._busyOff();alert("⚠ 已匯入主系統，但「已匯入」標記寫回雲端登錄單失敗："+e.message+"\n\n請不要重複按匯入（會多出重複紀錄），請聯絡維護者。");
       return;
     }
     toast(`✓ 已匯入：檢查紀錄 ${(r.types||[]).length} 筆、缺失 ${dAdd+dUpd} 筆${reFill?`（補回改善內容 ${reFill} 筆）`:""}、正面評價 ${pAdd+pUpd} 筆`);
