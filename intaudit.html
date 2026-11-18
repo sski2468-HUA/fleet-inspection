@@ -795,7 +795,7 @@ th{background:#f0f3f5;font-size:13px;color:var(--ink-2)}
   <div class="banner warn" style="margin:0 0 8px">🔒 您正在編輯這一筆，其他人暫時無法編輯同一部門的這筆；離開前請按「儲存」或「取消」解除鎖定（超過 15 分鐘沒動作會自動解鎖）。</div>
   <div id="sgmCase" style="background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.7"></div>
   <div id="sgmOthers" class="hint" style="margin-top:6px"></div>
-  <label>承辦人 <span class="req">*</span><input type="text" id="sgmOwner" placeholder="負責承辦這項訴求的人員姓名"></label>
+  <label>承辦人 <span class="req">*</span><select id="sgmOwner"><option value="">請選擇承辦人</option></select><span id="sgmOwnerHint" class="hint" style="display:block;margin-top:3px"></span></label>
   <div id="sgmFa" style="margin-top:10px"></div>
   <div id="sgmLegacy" class="hint" style="margin-top:6px"></div>
   <label>初步回應／計畫 <span class="req" id="sgmPlanReq">*</span><textarea id="sgmPlan" rows="3" placeholder="公司對這項訴求的初步回應，以及預計怎麼處理"></textarea></label>
@@ -4048,6 +4048,27 @@ function suggMe(){
   if(!me){me=(prompt("請輸入您的姓名（會記錄為編輯人，也用來顯示「誰正在編輯」）：")||"").trim();if(me){try{localStorage.setItem("intaudit_me",me);}catch(e){}}}
   return me;
 }
+/* 2026-11-18 承辦人改成下拉：名單取自登入用的人員名冊（app_db roster），只列負責部門的人。
+   訴求的部門是簡稱（海技、船工…），名冊是全名（海技組、船工處…），用「開頭相同」對應；航運＝航運組＋航運處；管理層不列入。 */
+function suggRosterAll(){
+  let r=[];try{r=JSON.parse(localStorage.getItem("vsm_roster_v1")||"[]")||[];}catch(e){r=[];}
+  if(!r.length&&typeof IAAuth!=="undefined"&&Array.isArray(IAAuth.roster))r=IAAuth.roster;
+  return r;
+}
+function suggDeptPeople(dept){
+  const r=suggRosterAll();
+  return [...new Set(r.filter(x=>x&&x.name&&x.dept&&x.dept!=="管理層"&&x.dept!=="訪客"&&String(x.dept).startsWith(dept)).map(x=>String(x.name)))];
+}
+async function fillSuggOwner(dept,cur){
+  if(!suggRosterAll().length&&typeof IAAuth!=="undefined"){try{await IAAuth.loadRoster();}catch(e){}}
+  const names=suggDeptPeople(dept);
+  let pick=cur;
+  if(!pick){const me=(typeof IAAuth!=="undefined"&&IAAuth.ident())||null;if(me&&names.includes(me.name))pick=me.name;}
+  const opts=names.slice();if(cur&&!opts.includes(cur))opts.unshift(cur);
+  $("#sgmOwner").innerHTML=`<option value="">請選擇承辦人</option>`+opts.map(n=>`<option value="${esc(n)}">${esc(n)}${n===cur&&!names.includes(n)?"（原填寫，不在名冊）":""}</option>`).join("");
+  $("#sgmOwner").value=pick||"";
+  $("#sgmOwnerHint").textContent=names.length?`名單來自人員名冊（${dept}，共 ${names.length} 人）`:`⚠ 人員名冊裡找不到「${dept}」部門的人，請 Owner 到主系統「資料管理 → 人員名冊」補上`;
+}
 async function suggFetch(key){const a=await api(`intaudit_replies?id=eq.${encodeURIComponent(key)}&select=id,record_id,def_uid,status,payload,updated_at`);return a&&a[0]||null;}
 async function openSuggEdit(rid,uid,dept){
   const me=suggMe();if(!me)return;
@@ -4080,7 +4101,7 @@ async function openSuggEdit(rid,uid,dept){
   $("#sgmCase").innerHTML=`<b>${esc(shipLabel(r.ship))}</b>　${esc(dateText(r))}　${g?esc(SUGG_SRC[g.source]?SUGG_SRC[g.source].l:"")+(g.source==="ot"&&g.sourceOther?"："+esc(g.sourceOther):"")+(g.meeting?"・"+esc(g.meeting):""):"檢查人："+esc(r.inspector||"")}<br><b>現狀：</b>${esc(s.situation||"")}<br><b>建議：</b>${esc(s.suggestion||"")}${s.fa?`<br><span class="hint">建檔時的進一步動作：</span>${suggFaHtml(s.fa)}`:""}`;
   const others=(s.depts||[]).filter(d=>d!==dept).map(d=>{const o=suggReply(rid,uid,d),st=suggRowState(o);return `${d}（${SG_ST_LBL[st]}）`;});
   $("#sgmOthers").innerHTML=others.length?`此案還涉及其他部門：${esc(others.join("、"))}。各部門各自處理、各自結案，互不影響。`:"";
-  $("#sgmOwner").value=base.owner||"";$("#sgmPlan").value=base.plan||"";$("#sgmResult").value=base.result||"";
+  await fillSuggOwner(dept,base.owner||"");$("#sgmPlan").value=base.plan||"";$("#sgmResult").value=base.result||"";
   $("#sgmFa").innerHTML=faBlockHtml("sgmFaYn",FA_SYS,base.fa);
   $("#sgmLegacy").innerHTML=base.xfer?`舊資料：已轉公司待改善項目，案號 <b>${esc(base.caseNo||"")}</b>（保留，顯示為「其他案號」）`:"";
   $("#sgmClosed").checked=!!base.closed;$("#sgmClosedAt").value=base.closedAt||"";
@@ -4337,7 +4358,7 @@ async function saveSuggEdit(){
   const owner=$("#sgmOwner").value.trim(),result=$("#sgmResult").value.trim(),closed=$("#sgmClosed").checked,closedAt=$("#sgmClosedAt").value;
   const xfer=!!suggCtx.base.xfer,caseNo=suggCtx.base.caseNo||""; // 舊資料的「已轉公司待改善項目」原樣保留
   let plan=$("#sgmPlan").value.trim();
-  if(!owner){toast("⚠ 請填寫「承辦人」",true);$("#sgmOwner").focus();return;}
+  if(!owner){toast("⚠ 請選擇「承辦人」",true);$("#sgmOwner").focus();return;}
   const faErr=[],fa=faRead($("#sgmFa .fabox"),"",faErr);
   if(faErr.length){toast("⚠ "+faErr[0],true);const bad=$("#sgmFa .fano input:placeholder-shown");($("#sgmFa").scrollIntoView&&$("#sgmFa").scrollIntoView({block:"center"}));if(bad&&bad.offsetParent)bad.focus();return;}
   if(fa&&fa.need&&!plan)plan=`已轉 ${faText(fa)}`;
