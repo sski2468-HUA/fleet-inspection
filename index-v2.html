@@ -15197,7 +15197,7 @@ const TopNav={
     {lbl:"🛠 內部檢查登錄",x:"__intaudit_new__",ext:1,tip:"第 4 階段會嵌進主系統；目前另開 intaudit"},
     {lbl:"🔍 船舶自查",t:"self"},
     {lbl:"📌 船舶訴求",x:"__intaudit_sugg__",ext:1},
-    {lbl:"✅ 海技審核",id:"rv",dd:[{lbl:"📝 外部檢查　填單紀錄／審核",t:"air"},{lbl:"☁ 線上填單審核佇列",x:"__air_queue__",bdg:"nav-cq-badge"},{lbl:"🛠 內部檢查　審核匯入系統",t:"intaudit",bdg:"air-ia-badge"},{lbl:"🔗 給船上的填單連結",x:"__air_intake__",ext:1}]},
+    {lbl:"✅ 海技審核",id:"rv",admin:1,dd:[{lbl:"📝 外部檢查　填單紀錄／審核",t:"air"},{lbl:"☁ 線上填單審核佇列",x:"__air_queue__",bdg:"nav-cq-badge"},{lbl:"🛠 內部檢查　審核匯入系統",t:"intaudit",bdg:"air-ia-badge"},{lbl:"🔗 給船上的填單連結",x:"__air_intake__",ext:1}]},
     {gap:1},
     {lbl:"📖 通報單／其他資訊",t:"refdocs2"},
     {lbl:"🚢 船舶資料",t:"sp"}
@@ -15206,6 +15206,7 @@ const TopNav={
     return o.t?document.querySelector(`#sidebar .nav-item[data-tab="${o.t}"]`)
              :document.querySelector(`#sidebar .nav-item[data-external="${o.x}"]`);
   },
+  isAdm(){try{return typeof Role!=="undefined"&&Role.isAdmin();}catch(e){return false;}},
   shown(o){const el=this.side(o);return !!el&&el.style.display!=="none"&&!(el.closest(".nav-group")&&el.closest(".nav-group").style.display==="none"&&el.style.display==="none");},
   go(o){const el=this.side(o);if(el)el.click();this.closeAll();this.sync();},
   closeAll(){document.querySelectorAll("#tnav .tn-it.open,.tn-top .tn-more.open").forEach(x=>x.classList.remove("open"));},
@@ -15246,7 +15247,7 @@ const TopNav={
     this.MENU.forEach((m,i)=>{
       const it=document.querySelector(`#tnav .tn-it[data-i="${i}"]`);if(!it)return;
       const kids=m.dd||[m];
-      it.style.display=kids.some(k=>this.shown(k))?"":"none";
+      it.style.display=(!m.admin||this.isAdm())&&kids.some(k=>this.shown(k))?"":"none";
       // 「首頁」和 Dash Board 目前同一頁：亮「首頁」，統計分析下拉裡的 Dash Board 也標示
       it.classList.toggle("on",!!at&&(m.dd?(m.dd.some(k=>k.t===at)&&!(at==="dash")):m.t===at));
       if(m.dd){
@@ -15259,7 +15260,7 @@ const TopNav={
     const tdb=document.getElementById("todo-navbtn"),tdg=document.getElementById("todo-navbadge");
     const tt=document.getElementById("tnTodo");if(tt&&tdb)tt.style.display=tdb.style.display==="none"?"none":"";
     const tg=document.getElementById("tnTodoBdg");if(tg&&tdg){const on=tdg.style.display!=="none"&&tdg.textContent.trim();tg.style.display=on?"":"none";tg.textContent=on?tdg.textContent.trim():"";}
-    const sys=document.getElementById("tnSys"),dm=this.side({t:"data"});if(sys)sys.style.display=dm&&dm.style.display==="none"?"none":"";
+    const sys=document.getElementById("tnSys");if(sys)sys.style.display=this.isAdm()?"":"none"; // 系統管理、海技審核只給 Owner／管理員（海技）
     const ss=document.getElementById("storeStat"),ts=document.getElementById("tnStore");if(ss&&ts)ts.textContent=ss.textContent;
   }
 };
@@ -37998,7 +37999,7 @@ const Role={
     return this.BASELINE.has(action);
   },
   TIER_LABEL:{owner:"Owner",manager:"Manager",admin:"管理員",op1:"操作者1-督導",op2:"操作者2-船舶",op3:"操作者3-其他部門"},
-  renderBadge(){
+  renderBadge(){if(typeof TopNav!=="undefined")setTimeout(()=>TopNav.sync(),0);
     const box=document.querySelector(".role-box");if(!box)return;
     /* 無匯出權限時，在 <body> 標記，讓匯出類按鈕在視覺上就看得出不可用。
        真正的把關在 dl()／hasXLSX()／hasExcelJS()／doPrint()——這裡只是
