@@ -5113,11 +5113,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <button class="btn sm self-tabbtn" data-sp="share" onclick="SelfTabs.set('share')">📤 分享缺失自查</button>
           <button class="btn sm self-tabbtn" data-sp="proj" onclick="SelfTabs.set('proj')">📋 專案自查</button>
           <span style="flex:1"></span>
-          <button class="btn sm" style="background:#e8842c;border-color:#e8842c;color:#fff;font-weight:700" onclick="ShareCase.open()" title="到「分享自查彙整清單」新建自訂自查（出題、草稿、預覽、發佈）">📝 新建自訂自查</button>
-          <button class="btn sm" onclick="Embed.openFile(officeFolder()+'selfcheck-share-summary.html')" title="另開「分享自查彙整清單」：各船逐題明細、需提醒的船舶、結束／刪除活動、匯出">↗ 前往分享自查清單</button>
+          <button class="btn sm tn-hide" style="background:#e8842c;border-color:#e8842c;color:#fff;font-weight:700" onclick="ShareCase.open()" title="到「分享自查彙整清單」新建自訂自查（出題、草稿、預覽、發佈）">📝 新建自訂自查</button>
+          <button class="btn sm tn-hide" onclick="Embed.openFile(officeFolder()+'selfcheck-share-summary.html')" title="另開「分享自查彙整清單」：各船逐題明細、需提醒的船舶、結束／刪除活動、匯出">↗ 前往分享自查清單</button>
         </div>
       </div>
       <div id="self-page-share">
+        <!-- 2026-11-20 新版（上方選單）：這裡嵌完整的分享自查彙整清單，下面的簡易清單只在舊版顯示 -->
+        <style>body:not(.tn) #self-scs-emb{display:none}body.tn #self-page-share>.card{display:none}body.tn .tn-hide{display:none!important}</style>
+        <div id="self-scs-emb"></div>
         <div class="card">
           <h3>📤 分享缺失自查（全部活動）
             <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -15555,7 +15558,7 @@ const Embed={
   PAGES:{
     ia:{file:"intaudit.html",t:["🛠 內部檢查登錄","督導、稽核員上船檢查建檔；缺失審核／追蹤；年度檢查一覽"]},
     psc:{file:"psc-analysis.html",t:["⚓ PSC 檢查熱區","各港口／國家 PSC 檢查與缺失熱區分析"]},
-    scs:{file:"selfcheck-share-summary.html",t:["📢 分享自查彙整","各船自查填答進度、需提醒的船舶、新建自訂自查"]}
+    scs:{file:"selfcheck-share-summary.html",t:["📢 分享自查彙整","各船自查填答進度、需提醒的船舶、新建自訂自查"],host:"self"} // 嵌在「船舶自查 → 分享缺失自查」子標籤裡
   },
   /* 側邊欄 data-external → [頁面, 進去後要切到的畫面（intaudit 裡的函式名）, 網址參數, 上方選單要亮哪一項] */
   EXT:{
@@ -15578,6 +15581,7 @@ const Embed={
   },
   open(key,o){
     o=o||{};const P=this.PAGES[key];if(!P)return;
+    if(P.host==="self"){goToTab("self");if(typeof SelfTabs!=="undefined")SelfTabs.set("share",o);return;}
     this.cur=key;this.curX=o.x||null;
     const body=document.getElementById("embed-body");if(!body)return;
     goToTab("embed");
@@ -15598,6 +15602,16 @@ const Embed={
     const TT=o.t||P.t;if(pt)pt.textContent=TT[0];if(ps)ps.textContent=TT[1];
     this.fit();
     if(typeof TopNav!=="undefined")TopNav.sync();
+  },
+  /* 分享自查彙整：嵌在「船舶自查」頁的「分享缺失自查」子標籤（#self-scs-emb） */
+  mountScs(o){
+    o=o||{};const box=document.getElementById("self-scs-emb");if(!box)return;
+    const src=officeFolder()+this.PAGES.scs.file+(o.q||"")+(o.hash||"");
+    let f=this.frames.scs;
+    if(!f){f=document.createElement("iframe");f.className="emb-frame";f.title="分享自查彙整";f.dataset.key="scs";f.src=src;box.appendChild(f);this.frames.scs=f;f.addEventListener("load",()=>this.fit());}
+    else if(o.reload){f.src="about:blank";setTimeout(()=>{f.src=src;},30);}
+    f.style.display="";this.cur="scs";this.curX=null;
+    setTimeout(()=>this.fit(),0);
   },
   /* iframe 高度撐到視窗底（頁面內容在 iframe 裡自己捲動） */
   fit(){
@@ -22094,7 +22108,7 @@ const SelfTabs={
   cur(){try{return localStorage.getItem(this.KEY)||"share";}catch(e){return "share";}},
   /* 2026-11-04 專案自查功能還不完善，先只給 Owner 看；其他身分只有「自訂清單」 */
   projOk(){return typeof Role!=="undefined"&&Role.isOwner&&Role.isOwner();},
-  set(p){
+  set(p,o){
     if(p==="custom")p="share"; // 2026-11-04 自訂自查的新建／草稿搬到「分享自查彙整清單」，主系統不再有自訂清單子標籤
     const ok=this.projOk();
     $$('.self-tabbtn[data-sp="proj"]').forEach(b=>b.style.display=ok?"":"none");
@@ -22103,7 +22117,8 @@ const SelfTabs={
     const sec=$("#tab-self");if(!sec)return;
     sec.classList.toggle("mode-custom",p==="custom");
     sec.classList.toggle("mode-share",p==="share");
-    if(p==="share")this.renderShare();
+    // 2026-11-20 新版：「分享缺失自查」子標籤直接嵌完整的分享自查彙整清單（舊版照舊顯示簡易清單）
+    if(p==="share"){if(document.body.classList.contains("tn")&&typeof Embed!=="undefined")Embed.mountScs(o);else this.renderShare();}
     $$(".self-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.sp===p));
     if(p==="custom"){if(!$("#sc-title"))ShareCase.mount(null);this.cset(this.ccur());this.renderDrafts();this.renderCustom();}
     else{try{SelfCheck.render();}catch(e){}}
