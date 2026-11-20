@@ -2561,6 +2561,16 @@ body.tn header.topbar h2{font-size:17px}
 .hm-kpis span:first-child{font-size:12.5px;color:var(--ink-3,#6b7c88)}.hm-kpis b{font-size:26px;line-height:1.2}
 .hm-links{display:flex;gap:10px;flex-wrap:wrap}
 .hm-lk{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;font-size:15px;font-weight:700;cursor:pointer;color:var(--navy);font-family:inherit}.hm-lk:hover{border-color:var(--navy-2,#2f6690);background:#f5f9fd}
+/* 第 3 階段：KPI 油輪／散裝船分組 */
+.hm-ktypes{display:grid;gap:12px}
+.hm-ktype{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px 12px}
+.hm-ktype.tanker{border-top:5px solid #8a5a1f}.hm-ktype.bulk{border-top:5px solid #2f6690}
+.hm-kth{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}.hm-kth b{font-size:17px;color:var(--navy)}
+.hm-kpill{background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-size:13.5px;white-space:nowrap}
+.hm-kth .hm-kpill{margin-left:auto}
+.hm-kpill select{border:0;font:inherit;font-weight:700;background:transparent;color:var(--navy)}
+.hm-ktype .hm-kg{background:#fbfcfd}
+#dash-kpi{margin-bottom:16px}#dash-kpi .hm-sect{margin-top:0}
 @media (max-width:640px){.hm-g2{grid-template-columns:1fr}.hm-kpis{grid-template-columns:1fr 1fr 1fr}.hm-row{flex-wrap:wrap}}
 </style>
 <script>/* ═ 內嵌函式庫：JSZip 3.10.1 ═ */
@@ -2715,6 +2725,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     <!-- ════════ 1. DASHBOARD ════════ -->
     <section id="tab-dash" class="tabpage show">
+      <div id="dash-kpi" style="display:none"></div>
       <div class="toolbar">
         <span class="lbl" style="font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:1px">統計區間</span>
         <select id="d-per" onchange="Dash.render()">
@@ -12594,7 +12605,7 @@ $$(".nav-item").forEach(n=>n.onclick=()=>{
   $("#pageTitle").textContent=TITLES[n.dataset.tab][0];
   $("#pageSub").textContent=TITLES[n.dataset.tab][1];
   try{localStorage.setItem("vsm_last_tab_v1",n.dataset.tab);}catch(e){}
-  if(n.dataset.tab==="dash"){Dash.render();if(typeof PscChap!=="undefined")PscChap.render();if(typeof PscZone!=="undefined")PscZone.render();}
+  if(n.dataset.tab==="dash"){Dash.render();if(typeof PscChap!=="undefined")PscChap.render();if(typeof PscZone!=="undefined")PscZone.render();if(typeof Home!=="undefined")Home.renderDashKpi();}
   if(n.dataset.tab==="home"&&typeof Home!=="undefined")Home.render();
   if(n.dataset.tab==="ov")Ov.render();
   if(n.dataset.tab==="data"&&typeof EditorList!=="undefined")EditorList.renderAll();
@@ -14413,6 +14424,7 @@ const SupMgmt={
   role:"mgr",view:"card",
   ROLE_LABELS:{mgr:"海技經管",deckSup:"甲板督導",engineSup:"機艙督導",deckSupAlt:"甲板代理督導",engineSupAlt:"機艙代理督導",cso:"CSO"},
   VKEY:"vsm_supmgmt_view_v1",
+  ALT_OF:{deckSup:"deckSupAlt",engineSup:"engineSupAlt"},PAIR_OF:{deckSupAlt:"deckSup",engineSupAlt:"engineSup"},
   _reassignShips:[],_reassignRole:"mgr",
   init(){
     try{const v=localStorage.getItem(this.VKEY);if(v==="card"||v==="list")this.view=v;}catch(e){}
@@ -14457,7 +14469,7 @@ const SupMgmt={
           </h3>
           <div style="display:flex;flex-wrap:wrap;gap:6px">
             ${g.ships.map(s=>`<span style="display:inline-flex;align-items:center;gap:4px;background:#f2f5f7;border:1px solid var(--line);border-radius:4px;padding:3px 4px 3px 8px;font-size:12px">
-              <b>${esc(s.code)}</b> ${esc(s.zh||s.name||"")}
+              <b>${esc(s.code)}</b> ${esc(s.zh||s.name||"")}${this.ALT_OF[this.role]&&s[this.ALT_OF[this.role]]?` <span class="hint" title="職務代理人">（代理：${esc(s[this.ALT_OF[this.role]])}）</span>`:""}
               ${isOwner?`<button class="btn sm" style="padding:0 4px;line-height:1.4" onclick="SupMgmt.quickChangeOne('${esc(s.code)}')" title="單獨改這艘船的${esc(roleLabel)}">✎</button>`:""}
             </span>`).join("")}
           </div>
@@ -14467,10 +14479,13 @@ const SupMgmt={
     if(listWrap){
       const rows=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code)));
       const tbl=$("#sup-list");
-      if(tbl)tbl.innerHTML=`<thead><tr><th>代碼</th><th>船名</th><th>${esc(roleLabel)}</th>${isOwner?'<th style="width:90px">操作</th>':""}</tr></thead><tbody>
+      // 2026-11-20：甲板／機艙督導旁邊一起顯示職務代理人（甲板＝運務、機艙＝工務；船東督導表括弧內的人）
+      const altR=this.ALT_OF[this.role],pairR=this.PAIR_OF[this.role];
+      if(tbl)tbl.innerHTML=`<thead><tr><th>代碼</th><th>船名</th><th>${esc(roleLabel)}</th>${altR?`<th>${esc(this.ROLE_LABELS[altR])}</th>`:pairR?`<th>本人督導（${esc(this.ROLE_LABELS[pairR])}）</th>`:""}${isOwner?'<th style="width:'+(altR?180:90)+'px">操作</th>':""}</tr></thead><tbody>
         ${rows.map(s=>`<tr><td><b>${esc(s.code)}</b></td><td>${esc(s.zh||s.name||"")}</td>
           <td>${s[this.role]?esc(s[this.role]):`<span style="color:var(--bad)">未指派</span>`}</td>
-          ${isOwner?`<td><button class="btn sm" onclick="SupMgmt.quickChangeOne('${esc(s.code)}')">✎ 改派</button></td>`:""}</tr>`).join("")}
+          ${altR?`<td>${s[altR]?esc(s[altR]):`<span class="hint">未設定</span>`}</td>`:pairR?`<td>${esc(s[pairR]||"—")}</td>`:""}
+          ${isOwner?`<td style="white-space:nowrap"><button class="btn sm" onclick="SupMgmt.quickChangeOne('${esc(s.code)}')">✎ 改派</button>${altR?` <button class="btn sm" onclick="SupMgmt.quickChangeOne('${esc(s.code)}','${altR}')">✎ 改代理</button>`:""}</td>`:""}</tr>`).join("")}
       </tbody>`;
     }
   },
@@ -14490,13 +14505,14 @@ const SupMgmt={
     this.renderReassignShipList();
     $("#supReassignModal").classList.add("show");
   },
-  quickChangeOne(code){
+  quickChangeOne(code,role){
     if(typeof Role!=="undefined"&&!Role.isOwner()){toast("⚠ 督導經管船的調動僅限 Owner 操作");return;}
     const s=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(x=>x.code===code);if(!s)return;
+    role=role||this.role;
     this._reassignShips=[s];
-    this._reassignRole=this.role;
-    $("#sup-reassign-role").textContent=this.ROLE_LABELS[this.role];
-    $("#sup-reassign-from").textContent=s[this.role]||"（未指派）";
+    this._reassignRole=role;
+    $("#sup-reassign-role").textContent=this.ROLE_LABELS[role];
+    $("#sup-reassign-from").textContent=s[role]||"（未指派）";
     $("#sup-reassign-to").value="";
     this.renderReassignShipList();
     $("#supReassignModal").classList.add("show");
@@ -15407,35 +15423,63 @@ const Home={
       <div class="hm-card" style="margin-top:12px"><h3>🔁 同一艘船重複發生 <small>同一個具體缺失 ≥ 2 次</small></h3>
         ${reps.length?`<table class="hm-t"><tr><th>具體缺失</th><th>船名</th><th>次數</th><th>最近一次</th></tr>${reps.map(o=>`<tr class="${o.n>=3?"s-red":"s-orange"}"><td><b>${this.esc(o.t)}</b></td><td>${this.esc(this.shipName(o.ship))}</td><td style="font-weight:800">${o.n} 次</td><td>${this.esc(o.last)}</td></tr>`).join("")}</table>`:`<div class="hint">近 12 個月沒有同船重複的缺失 👍</div>`}</div>`;
   },
-  /* ── KPI 達成狀況（指針圖）：目標沿用 Trend 的 kpi_targets ── */
-  MAIN_KPI:["psc_det","sire_avg","cdi_avg"],
-  kpiHtml(){
+  /* ── KPI 達成狀況（指針圖）：2026-11-20 第 3 階段改成油輪／散裝船分開 ──
+     目標沿用 Trend 的 kpi_targets（Trend.kpiCfg(id,vt)），數值用 Trend.kpiValue(id,from,to,vt)。
+     首頁（管理層、海技）和 Dash Board 最上面共用同一段。 */
+  kper:"ty",
+  kpiRange(){
+    const now=this.ymNow(),Y=this.yr();
+    if(this.kper==="12")return {from:ymAdd(now,-11),to:now,pf:ymAdd(now,-23),pt:ymAdd(now,-12),lbl:"近 12 個月",pl:"前 12 個月"};
+    if(this.kper==="ly")return {from:`${Y-1}-01`,to:`${Y-1}-12`,pf:`${Y-2}-01`,pt:`${Y-2}-12`,lbl:`${Y-1} 年`,pl:`${Y-2} 年`};
+    return {from:`${Y}-01`,to:now,pf:`${Y-1}-01`,pt:ymAdd(now,-12),lbl:"今年",pl:"去年同期"};
+  },
+  kpiHtml(opt){
+    opt=opt||{};
     if(typeof Trend==="undefined")return "";
-    if(!Trend.kpiLoaded&&!this._kpiAsk){this._kpiAsk=true;Trend.kpiLoad().then(()=>this.render()).catch(()=>{});}
-    const to=this.ymNow(),from=String(this.yr())+"-01",pf=String(this.yr()-1)+"-01",pt=ymAdd(to,-12);
+    if(!Trend.kpiLoaded&&!this._kpiAsk){this._kpiAsk=true;Trend.kpiLoad().then(()=>{this.render();this.renderDashKpi();}).catch(()=>{});}
+    const R=this.kpiRange();
     const defs=Trend.KPI_DEFS.filter(d=>Trend.kpiCfg(d.id).on);
-    const val=(d,f,t)=>{try{return Trend.kpiValue(d.id,f,t);}catch(e){return NaN;}};
+    const val=(d,f,t,vt)=>{try{return Trend.kpiValue(d.id,f,t,vt);}catch(e){return NaN;}};
     const st=(d,v,t)=>{if(!isFinite(v)||t==null||!isFinite(t))return "na";const ok=d.low?v<=t:v>=t;if(ok)return "ok";const gap=d.low?v-t:t-v;return gap/Math.max(Math.abs(t),1)<=0.1?"near":"bad";};
     const L={ok:"✅ 達標",near:"⚠ 接近",bad:"❌ 未達標",na:"— 無資料"};
-    const fmt=(d,v)=>isFinite(v)?v.toFixed(d.dp)+(d.unit||""):"—";
-    const cmp=(d,v,p)=>{if(!isFinite(v)||!isFinite(p)||d.snapshot)return "";const df=v-p;if(Math.abs(df)<1e-9)return `<span class="hint">與去年同期持平</span>`;const better=d.low?df<0:df>0;return `<span style="color:${better?"var(--ok)":"var(--bad)"}">${df>0?"▲":"▼"} ${Math.abs(df).toFixed(d.dp)} 比去年同期${better?"改善":"變差"}</span>`;};
-    let nOk=0,nAll=0;
-    const items=defs.map(d=>{const v=val(d,from,to),p=d.snapshot?NaN:val(d,pf,pt),t=Trend.kpiCfg(d.id).tgt,s=st(d,v,t);if(s!=="na"){nAll++;if(s==="ok")nOk++;}return {d,v,p,t,s};});
-    const main=items.filter(o=>this.MAIN_KPI.includes(o.d.id)),rest=items.filter(o=>!this.MAIN_KPI.includes(o.d.id));
-    const gauge=o=>{const d=o.d,v=isFinite(o.v)?o.v:0,t=o.t;const W=200,H=118,cx=100,cy=104,R=80,sw=18;let max,z;
+    const fmt=(d,v)=>isFinite(v)?(+v).toFixed(d.dp)+(d.unit||""):"—";
+    const cmp=(d,v,p)=>{if(!isFinite(v)||!isFinite(p)||d.snapshot)return "";const df=v-p;if(Math.abs(df)<1e-9)return `<span class="hint">與${R.pl}持平</span>`;const better=d.low?df<0:df>0;return `<span style="color:${better?"var(--ok)":"var(--bad)"}">${df>0?"▲":"▼"} ${Math.abs(df).toFixed(d.dp)} 比${R.pl}${better?"改善":"變差"}</span>`;};
+    const one=(d,vt)=>{const v=val(d,R.from,R.to,vt),p=d.snapshot?NaN:val(d,R.pf,R.pt,vt),t=Trend.kpiCfg(d.id,vt).tgt;return {d,vt,v,p,t,s:st(d,v,t)};};
+    const gauge=o=>{const d=o.d,v=isFinite(o.v)?o.v:0,t=isFinite(o.t)?o.t:0;const W=200,H=118,cx=100,cy=104,R0=80,sw=18;let max,z;
       if(d.unit==="%"&&!d.low){max=100;z=[[0,t*0.9,"#d9473b"],[t*0.9,t,"#e89a3c"],[t,100,"#2e8b57"]];}
-      else{const nr=t>0?t*1.1:0.5;max=Math.max(t*2,v*1.25,nr*2,1);if(d.id==="psc_det"||d.id==="int_overdue")max=Math.max(3,v+1);z=[[0,t>0?t:0.25,"#2e8b57"],[t>0?t:0.25,t>0?nr:0.75,"#e89a3c"],[t>0?nr:0.75,max,"#d9473b"]];}
+      else{const nr=t>0?t*1.1:0.5;max=Math.max(t*2,v*1.25,nr*2,d.unit==="%"?20:1);if(d.id==="psc_det"||d.id==="int_overdue")max=Math.max(3,v+1);z=[[0,t>0?t:0.25,"#2e8b57"],[t>0?t:0.25,t>0?nr:0.75,"#e89a3c"],[t>0?nr:0.75,max,"#d9473b"]];}
       const ang=x=>Math.PI*(1-Math.min(Math.max(x,0),max)/max),pt=(x,r)=>[cx+r*Math.cos(ang(x)),cy-r*Math.sin(ang(x))];
-      const arc=(a,b,c)=>{const[x1,y1]=pt(a,R),[x2,y2]=pt(b,R);return `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)} A${R} ${R} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}" stroke="${c}" stroke-width="${sw}" fill="none"/>`;};
-      const[nx,ny]=pt(v,R-14),[a1,b1]=pt(t,R-sw/2-3),[a2,b2]=pt(t,R+sw/2+3);
-      return `<svg viewBox="0 0 ${W} ${H}" class="hm-gauge" role="img" aria-label="${this.esc(d.name)}">${z.filter(q=>q[1]>q[0]).map(q=>arc(q[0],q[1],q[2])).join("")}<line x1="${a1.toFixed(1)}" y1="${b1.toFixed(1)}" x2="${a2.toFixed(1)}" y2="${b2.toFixed(1)}" stroke="#1d2a33" stroke-width="3"><title>目標 ${t}</title></line>${isFinite(o.v)?`<line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="#1d2a33" stroke-width="3.5" stroke-linecap="round"/>`:""}<circle cx="${cx}" cy="${cy}" r="7" fill="#1d2a33"/></svg>`;};
-    const card=o=>`<div class="hm-kg ${o.s}"><div class="hm-kgh">${this.esc(o.d.name)}</div>${gauge(o)}<div class="hm-kgv"><b>${fmt(o.d,o.v)}</b> <span class="hm-kst ${o.s}">${L[o.s]}</span></div><div class="hint">目標 ${o.d.low?"≤":"≥"} ${o.t}${o.d.unit||""}　${cmp(o.d,o.v,o.p)}</div></div>`;
-    const row=o=>`<tr><td><b>${this.esc(o.d.name)}</b></td><td><b>${fmt(o.d,o.v)}</b></td><td>${o.d.low?"≤":"≥"} ${o.t}${o.d.unit||""}</td><td><span class="hm-kst ${o.s}">${L[o.s]}</span></td><td>${cmp(o.d,o.v,o.p)}</td></tr>`;
-    return `<div class="hm-sect"><h2>🎯 KPI 達成狀況</h2><span class="hint">今年（${from}～${to}）；目標由 Owner／管理員在「缺失趨勢比較 → KPI 成績單」設定</span>
-        <span style="margin-left:auto" class="hint">共 ${nAll} 項：<b style="color:var(--ok)">${nOk} 達標</b>、<b style="color:var(--bad)">${nAll-nOk} 未達</b></span>
-        <a href="#" class="hm-lnk" onclick="goToTab('trend');return false">看 KPI 成績單 →</a></div>
-      <div class="hm-kgs">${main.map(card).join("")}</div>
-      ${rest.length?`<details class="hm-more"><summary>其他 KPI（${rest.length} 項）</summary><table class="hm-t"><tr><th>指標</th><th>目前</th><th>目標</th><th>狀態</th><th>與去年同期比較</th></tr>${rest.map(row).join("")}</table></details>`:""}`;
+      const arc=(a,b,c)=>{const[x1,y1]=pt(a,R0),[x2,y2]=pt(b,R0);return `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)} A${R0} ${R0} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}" stroke="${c}" stroke-width="${sw}" fill="none"/>`;};
+      const[nx,ny]=pt(v,R0-14),[a1,b1]=pt(t,R0-sw/2-3),[a2,b2]=pt(t,R0+sw/2+3);
+      const mx=d.unit==="%"&&!d.low?"100":(+max).toFixed(d.dp);
+      return `<svg viewBox="0 0 ${W} ${H}" class="hm-gauge" role="img" aria-label="${this.esc(d.name)} ${fmt(d,o.v)}，目標 ${fmt(d,o.t)}">${z.filter(q=>q[1]>q[0]).map(q=>arc(q[0],q[1],q[2])).join("")}<line x1="${a1.toFixed(1)}" y1="${b1.toFixed(1)}" x2="${a2.toFixed(1)}" y2="${b2.toFixed(1)}" stroke="#1d2a33" stroke-width="3"><title>目標 ${fmt(d,o.t)}</title></line>${isFinite(o.v)?`<line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="#1d2a33" stroke-width="3.5" stroke-linecap="round"/>`:""}<circle cx="${cx}" cy="${cy}" r="7" fill="#1d2a33"/><text x="${cx-R0}" y="${cy+13}" font-size="10" fill="#6f7f8f" text-anchor="middle">0</text><text x="${cx+R0}" y="${cy+13}" font-size="10" fill="#6f7f8f" text-anchor="middle">${mx}</text></svg>`;};
+    const card=o=>`<div class="hm-kg ${o.s}"><div class="hm-kgh">${this.esc(o.d.name)}</div>${gauge(o)}<div class="hm-kgv"><b>${fmt(o.d,o.v)}</b> <span class="hm-kst ${o.s}">${L[o.s]}</span></div><div class="hint">目標 ${o.d.low?"≤":"≥"} ${fmt(o.d,o.t)}　${cmp(o.d,o.v,o.p)}</div></div>`;
+    const ships=vt=>this.active().filter(s=>String(s.vtype||"").toLowerCase()===vt).length;
+    let nOk=0,nAll=0;
+    const main=defs.filter(d=>Trend.kpiCfg(d.id).main),rest=defs.filter(d=>!Trend.kpiCfg(d.id).main);
+    const all=[];defs.forEach(d=>Trend.KPI_VT.forEach(([k])=>{if(Trend.kpiApplies(d.id,k)){const o=one(d,k);all.push(o);if(o.s!=="na"){nAll++;if(o.s==="ok")nOk++;}}}));
+    const get=(d,k)=>all.find(o=>o.d===d&&o.vt===k);
+    const panel=([k,lbl])=>{const os=main.filter(d=>Trend.kpiApplies(d.id,k)).map(d=>get(d,k));if(!os.length)return "";
+      const ok=os.filter(o=>o.s==="ok").length,has=os.filter(o=>o.s!=="na").length;
+      return `<div class="hm-ktype ${k}"><div class="hm-kth"><b>${lbl}</b><span class="hint">${ships(k)} 艘</span><span class="hm-kpill">${ok}／${has} 達標</span></div><div class="hm-kgs">${os.map(card).join("")}</div></div>`;};
+    const cell=(d,k)=>{if(!Trend.kpiApplies(d.id,k))return `<td class="hint">不適用</td>`;const o=get(d,k);
+      return `<td><b>${fmt(d,o.v)}</b> <span class="hm-kst ${o.s}">${L[o.s]}</span><div class="hint">目標 ${d.low?"≤":"≥"} ${fmt(d,o.t)}　${cmp(d,o.v,o.p)}</div></td>`;};
+    const canSet=Trend.canEditKpi&&Trend.canEditKpi();
+    return `<div class="hm-sect"><h2>🎯 KPI 達成狀況</h2>
+        <span class="hm-kpill">期間 <select id="hmKper" onchange="Home.kper=this.value;Home.render();Home.renderDashKpi()">${[["ty","今年"],["12","近 12 個月"],["ly","去年"]].map(([v,l])=>`<option value="${v}"${this.kper===v?" selected":""}>${l}</option>`).join("")}</select></span>
+        <span class="hint">${R.from}～${R.to}，跟${R.pl}比</span>
+        <span class="hm-kpill">油輪＋散裝船共 ${nAll} 項：<b style="color:var(--ok)">${nOk} 達標</b>、<b style="color:var(--bad)">${nAll-nOk} 未達</b></span>
+        ${canSet?`<button class="btn sm" onclick="Trend.kpiEdit()">⚙ 設定 KPI 目標</button>`:""}
+        ${opt.dash?"":`<a href="#" class="hm-lnk" onclick="goToTab('trend');return false">看 KPI 成績單 →</a>`}</div>
+      <div class="hm-ktypes">${Trend.KPI_VT.map(panel).join("")||`<div class="hm-empty">沒有勾選「指針圖」的 KPI，請按「⚙ 設定 KPI 目標」勾選</div>`}</div>
+      ${rest.length?`<details class="hm-more"${this._kOpen?" open":""} ontoggle="Home._kOpen=this.open"><summary>其他 KPI（${rest.length} 項）</summary><div class="hm-tw" style="border:0"><table class="hm-t"><tr><th>指標</th><th>🛢 油輪</th><th>⛴ 散裝船</th></tr>${rest.map(d=>`<tr><td><b>${this.esc(d.name)}</b></td>${cell(d,"tanker")}${cell(d,"bulk")}</tr>`).join("")}</table></div></details>`:""}`;
+  },
+  /* Dash Board 最上面也放同一段 KPI（船舶帳號不顯示） */
+  renderDashKpi(){
+    const box=document.getElementById("dash-kpi");if(!box)return;
+    const k=this.kind();
+    if(k==="ship"||k==="none"){box.innerHTML="";box.style.display="none";return;}
+    try{box.innerHTML=this.kpiHtml({dash:1});box.style.display="";}catch(e){console.warn("dash kpi",e);box.innerHTML="";}
   },
   /* ── 管理層：今年數據概況（外部／內部分開） ── */
   overviewHtml(){
@@ -15479,6 +15523,8 @@ const Home={
     box.innerHTML=hello+body;
   }
 };
+// 第 3 階段：Dash Board 重畫（換區間、雲端資料更新）時，最上面的 KPI 也跟著重畫
+if(typeof Dash!=="undefined"&&Dash.render&&!Dash._hmWrap){const _dr=Dash.render;Dash.render=function(){const r=_dr.apply(this,arguments);try{Home.renderDashKpi();}catch(e){}return r;};Dash._hmWrap=1;}
 </script>
 
 <script>
@@ -36535,16 +36581,26 @@ const Trend={
     {id:"ext_avg",name:"外部檢查平均缺失／次",low:true,tgt:2.5,unit:"",dp:2},
     {id:"psc_avg",name:"PSC 平均缺失／次",low:true,tgt:1.0,unit:"",dp:2},
     {id:"psc_zero",name:"PSC 零缺失率",low:false,tgt:60,unit:"%",dp:0},
-    {id:"psc_det",name:"PSC 扣船次數",low:true,tgt:0,unit:"",dp:0},
-    {id:"sire_avg",name:"SIRE 平均缺失／次",low:true,tgt:3.0,unit:"",dp:2},
-    {id:"cdi_avg",name:"CDI 平均缺失／次",low:true,tgt:4.0,unit:"",dp:2},
-    {id:"rs_avg",name:"RightShip 平均缺失／次",low:true,tgt:5.0,unit:"",dp:2},
+    {id:"psc_det",name:"PSC 扣船次數",low:true,tgt:0,unit:"",dp:0,main:true},
+    {id:"sire_avg",name:"SIRE 平均缺失／次",low:true,tgt:3.0,unit:"",dp:2,only:"tanker",main:true},
+    {id:"cdi_avg",name:"CDI 平均缺失／次",low:true,tgt:4.0,unit:"",dp:2,only:"tanker",main:true},
+    {id:"rs_avg",name:"RightShip 平均缺失／次",low:true,tgt:5.0,unit:"",dp:2,only:"bulk",main:true},
     {id:"flag_avg",name:"FLAG 平均缺失／次",low:true,tgt:1.5,unit:"",dp:2},
     {id:"hi_pct",name:"外部檢查高風險（3）缺失占比",low:true,tgt:10,unit:"%",dp:1},
     {id:"int_ach",name:"內部檢查計畫達成率",low:false,tgt:90,unit:"%",dp:0,hint:"依檢查計畫及管控表：區段內應執行次數 vs 實際次數"},
     {id:"int_overdue",name:"內部檢查逾期項目",low:true,tgt:0,unit:"",dp:0,hint:"檢查計畫及管控表目前狀態為「逾期」的內部檢查項目數（目前狀態，不分區段）",snapshot:true}
   ],
-  kpiCfg(id){const def=this.KPI_DEFS.find(k=>k.id===id)||{};const s=(this.kpiData.items||{})[id]||{};return {on:s.on!==false,tgt:(s.tgt===""||s.tgt==null)?def.tgt:+s.tgt};},
+  /* 2026-11-20 第 3 階段：KPI 分船型（油輪／散裝船）。
+     kpi_targets 每個指標多存 byType:{tanker:{tgt},bulk:{tgt}}（空白＝沿用全船隊目標）、main（是否顯示指針圖）；
+     舊版 index.html 只讀 on／tgt，不受影響（但舊版按儲存會把 byType 蓋掉）。
+     only＝該指標只適用某船型（SIRE／CDI 只有油輪、RightShip 只有散裝船）。 */
+  KPI_VT:[["tanker","🛢 油輪"],["bulk","⛴ 散裝船"]],kpiVt:"",
+  vtOfShip(code){const s=(typeof SHIPINFO!=="undefined"?SHIPINFO:[]).find(x=>x.code===code);return s?String(s.vtype||"").toLowerCase():"";},
+  kpiApplies(id,vt){const d=this.KPI_DEFS.find(k=>k.id===id);return !d||!d.only||!vt||d.only===vt;},
+  kpiCfg(id,vt){const def=this.KPI_DEFS.find(k=>k.id===id)||{};const s=(this.kpiData.items||{})[id]||{};
+    let tgt=(s.tgt===""||s.tgt==null)?def.tgt:+s.tgt;
+    if(vt){const b=s.byType&&s.byType[vt];if(b&&b.tgt!==""&&b.tgt!=null&&isFinite(+b.tgt))tgt=+b.tgt;}
+    return {on:s.on!==false,main:s.main!=null?!!s.main:!!def.main,tgt};},
   canEditKpi(){return typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();},
   async kpiLoad(force){
     if(this.kpiLoaded&&!force)return;
@@ -36556,9 +36612,11 @@ const Trend={
     }catch(e){console.warn("讀取 KPI 目標失敗",e);}
   },
   /* 計算某指標在 [from,to] 的值；回傳 NaN 代表沒有資料 */
-  kpiValue(id,from,to){
+  kpiValue(id,from,to,vt){
+    if(vt&&!this.kpiApplies(id,vt))return NaN;
     const inR=ym=>this.inRange(ym,from,to);
-    const ext=App.insp.filter(r=>!isInternal(r.itype)&&inR(ymOf(r.date)));
+    const okS=code=>!vt||this.vtOfShip(code)===vt;
+    const ext=App.insp.filter(r=>!isInternal(r.itype)&&inR(ymOf(r.date))&&okS(r.ship));
     const avg=a=>a.length?a.reduce((s,r)=>s+(+r.ndef||0),0)/a.length:NaN;
     const src=k=>ext.filter(r=>extSrcOf(r.itype)===k);
     switch(id){
@@ -36570,20 +36628,20 @@ const Trend={
       case "cdi_avg":return avg(src("CDI"));
       case "rs_avg":return avg(src("RightShip"));
       case "flag_avg":return avg(src("FLAG"));
-      case "hi_pct":{const d=App.defs.filter(x=>!isInternal(x.itype)&&inR(x.ym||ymOf(x.date)));return d.length?d.filter(x=>String(x.risk||"").trim()==="3").length/d.length*100:NaN;}
-      case "int_ach":return this.intAchieve(from,to).rate;
-      case "int_overdue":return this.intOverdue();
+      case "hi_pct":{const d=App.defs.filter(x=>!isInternal(x.itype)&&inR(x.ym||ymOf(x.date))&&okS(x.ship));return d.length?d.filter(x=>String(x.risk||"").trim()==="3").length/d.length*100:NaN;}
+      case "int_ach":return this.intAchieve(from,to,vt).rate;
+      case "int_overdue":return this.intOverdue(vt);
     }
     return NaN;
   },
-  intCtrlRows(){
+  intCtrlRows(vt){
     if(typeof InspCtrl==="undefined")return [];
-    return (App.inspCtrl||[]).filter(r=>r&&r.ship&&!(typeof isSoldShip==="function"&&isSoldShip(r.ship))&&isInternal(r.itype));
+    return (App.inspCtrl||[]).filter(r=>r&&r.ship&&!(typeof isSoldShip==="function"&&isSoldShip(r.ship))&&isInternal(r.itype)&&(!vt||this.vtOfShip(r.ship)===vt));
   },
-  intAchieve(from,to){
+  intAchieve(from,to,vt){
     const months=ymSpan(from,to).length;if(!months)return {rate:NaN,req:0,act:0};
     let req=0,act=0;const by={};
-    this.intCtrlRows().forEach(r=>{
+    this.intCtrlRows(vt).forEach(r=>{
       const vm=(r.enhancedAudit&&InspCtrl.normItype(r.itype)==="INTERNALAUDIT")?6:parseFloat(r.validityMonths);
       if(!vm||vm<=0)return;
       const need=months/vm;
@@ -36594,9 +36652,9 @@ const Trend={
     });
     return {rate:req?act/req*100:NaN,req,act,by};
   },
-  intOverdue(){
+  intOverdue(vt){
     if(typeof InspCtrl==="undefined"||!InspCtrl.computeRow)return NaN;
-    const rows=this.intCtrlRows();if(!rows.length)return NaN;
+    const rows=this.intCtrlRows(vt);if(!rows.length)return NaN;
     return rows.map(r=>InspCtrl.computeRow(r)).filter(r=>r.status==="逾期").length;
   },
   renderKpi(){
@@ -36608,14 +36666,15 @@ const Trend={
     const fmt=(def,v)=>isFinite(v)?v.toFixed(def.dp)+def.unit:"—";
     const end=to<ymOf(todayStr())?to:ymOf(todayStr());
     const m12=ymSpan(ymAdd(end,-11),end);
+    const vt=this.kpiVt||"";
     const rowsHtml=this.KPI_DEFS.map(def=>{
-      const cfg=this.kpiCfg(def.id);if(!cfg.on)return "";
-      const v=this.kpiValue(def.id,from,to),p=(pr&&!def.snapshot)?this.kpiValue(def.id,pr.from,pr.to):NaN;
+      const cfg=this.kpiCfg(def.id,vt);if(!cfg.on||!this.kpiApplies(def.id,vt))return "";
+      const v=this.kpiValue(def.id,from,to,vt),p=(pr&&!def.snapshot)?this.kpiValue(def.id,pr.from,pr.to,vt):NaN;
       const hasT=cfg.tgt!=null&&isFinite(cfg.tgt);
       const ok=hasT&&isFinite(v)&&(def.low?v<=cfg.tgt:v>=cfg.tgt);
       const better=isFinite(v)&&isFinite(p)&&(def.low?v<p:v>p);
       const light=!hasT||!isFinite(v)?"n":ok?"g":better?"a":"r";
-      const extra=def.id==="int_ach"?(()=>{const a=this.intAchieve(from,to);return a.req?`<div class="hint" style="font-size:11px;font-weight:400">應執行約 ${a.req.toFixed(0)} 次，達成 ${a.act.toFixed(0)} 次<br>${Object.keys(a.by).map(k=>{const b=a.by[k];return `${esc(k)} ${b.req?Math.round(b.act/b.req*100):0}%（${b.act.toFixed(0)}／${b.req.toFixed(0)}）`;}).join("<br>")}</div>`:"";})():"";
+      const extra=def.id==="int_ach"?(()=>{const a=this.intAchieve(from,to,vt);return a.req?`<div class="hint" style="font-size:11px;font-weight:400">應執行約 ${a.req.toFixed(0)} 次，達成 ${a.act.toFixed(0)} 次<br>${Object.keys(a.by).map(k=>{const b=a.by[k];return `${esc(k)} ${b.req?Math.round(b.act/b.req*100):0}%（${b.act.toFixed(0)}／${b.req.toFixed(0)}）`;}).join("<br>")}</div>`:"";})():"";
       return `<tr><td><b>${esc(def.name)}</b>${def.hint?`<div class="hint" style="font-size:11px">${esc(def.hint)}</div>`:""}</td>
         <td style="text-align:right">${hasT?(def.low?"≤ ":"≥ ")+fmt(def,cfg.tgt):"—"}</td>
         <td style="text-align:right"><b>${fmt(def,v)}</b>${extra}</td>
@@ -36623,12 +36682,14 @@ const Trend={
         <td style="white-space:nowrap"><span class="dlight ${light}"></span>${{g:"達標",a:"進步中",r:"未達標",n:"—"}[light]}</td>
         <td>${def.snapshot?"":`<canvas class="kpi-spark" data-id="${def.id}" width="120" height="30" style="width:120px;height:30px"></canvas>`}</td></tr>`;
     }).join("");
-    box.innerHTML=`<div class="hint" style="margin-bottom:6px">本期 ${from}～${to}${pr?`　vs　前期 ${pr.from}～${pr.to}`:""}${this.kpiLoaded?"":"（目標值尚未從雲端載入，暫用預設值）"}</div>
+    const vtBtn=(k,l)=>`<button class="btn sm${vt===k?" primary":""}" onclick="Trend.kpiVt='${k}';Trend.renderKpi()">${l}</button>`;
+    box.innerHTML=`<div class="toolbar" style="gap:6px;margin-bottom:6px"><span class="lbl">船型</span>${vtBtn("","全船隊")}${this.KPI_VT.map(([k,l])=>vtBtn(k,l)).join("")}<span class="hint">${vt?"SIRE／CDI 只算油輪、RightShip 只算散裝船；目標依船型設定（沒設就用全船隊目標）":""}</span></div>
+      <div class="hint" style="margin-bottom:6px">本期 ${from}～${to}${pr?`　vs　前期 ${pr.from}～${pr.to}`:""}${this.kpiLoaded?"":"（目標值尚未從雲端載入，暫用預設值）"}</div>
       <table class="tbl"><thead><tr><th>KPI 指標</th><th style="text-align:right">目標</th><th style="text-align:right">本期</th><th style="text-align:right">前期</th><th>狀態</th><th>近 12 個月走勢</th></tr></thead><tbody>${rowsHtml||`<tr><td colspan="6" class="hint">所有指標都已停用，請按「⚙ 設定 KPI 目標」開啟</td></tr>`}</tbody></table>`;
     // 走勢小圖：每點＝該月往前 3 個月的累計值
     box.querySelectorAll("canvas.kpi-spark").forEach(cv=>{
-      const id=cv.dataset.id;const def=this.KPI_DEFS.find(k=>k.id===id);const cfg=this.kpiCfg(id);
-      const vals=m12.map(m=>this.kpiValue(id,ymAdd(m,-2),m));
+      const id=cv.dataset.id;const def=this.KPI_DEFS.find(k=>k.id===id);const cfg=this.kpiCfg(id,vt);
+      const vals=m12.map(m=>this.kpiValue(id,ymAdd(m,-2),m,vt));
       const c=cv.getContext("2d");const w=cv.width,h=cv.height;c.clearRect(0,0,w,h);
       const fin=vals.filter(isFinite);if(!fin.length)return;
       const mx=Math.max(...fin,isFinite(cfg.tgt)?cfg.tgt:0)*1.1||1;
@@ -36642,38 +36703,52 @@ const Trend={
   },
   async kpiEdit(){
     if(!this.canEditKpi()){toast("⚠ KPI 目標僅限 Owner／管理員設定");return;}
-    const box=$("#trend-kpi-edit");if(!box)return;
-    if(box.style.display!=="none"){box.style.display="none";return;}
+    // 2026-11-20 第 3 階段：改成彈出視窗（首頁、Dash Board、KPI 成績單都可以開），油輪／散裝船分開設
+    let m=document.getElementById("kpiSetModal");
+    if(!m){m=document.createElement("div");m.className="modal-bg";m.id="kpiSetModal";
+      m.innerHTML=`<div class="modal" style="max-width:860px"><div class="mh"><h3>⚙ 設定 KPI 目標 <span class="tag">Owner／管理員</span></h3><button class="x" onclick="Trend.kpiClose()">✕</button></div><div class="mb" id="kpiSetBody"></div>
+        <div class="mf"><button class="btn" onclick="Trend.kpiClose()">取消</button><button class="btn primary" onclick="Trend.kpiSave()">💾 儲存目標</button></div></div>`;
+      document.body.appendChild(m);}
     await this.kpiLoad(true);
-    box.innerHTML=`<b>⚙ KPI 目標設定</b> <span class="hint">（全公司共用；取消勾選＝不顯示該指標）</span>
-      <table class="tbl" style="margin-top:6px"><thead><tr><th style="width:60px">顯示</th><th>KPI 指標</th><th style="width:90px">方向</th><th style="width:140px">目標值</th></tr></thead><tbody>
-      ${this.KPI_DEFS.map(def=>{const cfg=this.kpiCfg(def.id);return `<tr><td style="text-align:center"><input type="checkbox" data-kon="${def.id}" ${cfg.on?"checked":""}></td><td>${esc(def.name)}</td><td>${def.low?"越低越好 ≤":"越高越好 ≥"}</td><td><input type="number" step="any" data-ktgt="${def.id}" value="${isFinite(cfg.tgt)?cfg.tgt:""}" style="width:100px"> ${def.unit}</td></tr>`;}).join("")}
-      </tbody></table>
-      <div class="toolbar" style="justify-content:flex-end;margin-top:8px"><button class="btn" onclick="Trend.kpiEdit()">取消</button><button class="btn primary" onclick="Trend.kpiSave()">💾 儲存</button></div>`;
-    box.style.display="";
+    const raw=id=>((this.kpiData.items||{})[id])||{};
+    const inp=(def,vt)=>{if(vt&&!this.kpiApplies(def.id,vt))return `<span class="hint">不適用</span>`;
+      const r=raw(def.id),v=vt?(r.byType&&r.byType[vt]?r.byType[vt].tgt:null):this.kpiCfg(def.id).tgt;
+      return `<span style="white-space:nowrap">${def.low?"≤":"≥"} <input type="number" step="any" data-ktgt="${def.id}" data-kvt="${vt}" value="${v!=null&&v!==""&&isFinite(+v)?+v:""}" placeholder="${vt?"同全船隊":""}" style="width:86px"> ${def.unit}</span>`;};
+    document.getElementById("kpiSetBody").innerHTML=`<p class="hint" style="margin:0 0 8px;line-height:1.7">存到雲端後全公司共用（首頁、Dash Board、KPI 成績單同一份）。油輪、散裝船可以分開設目標，<b>空白＝沿用全船隊目標</b>；SIRE／CDI 只有油輪、RightShip 只有散裝船。勾「指針圖」的指標會用指針圖顯示在首頁和 Dash Board，其餘收在「其他 KPI」表格。</p>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th style="width:50px">顯示</th><th style="width:60px">指針圖</th><th>KPI 指標</th><th>全船隊目標</th><th>🛢 油輪目標</th><th>⛴ 散裝船目標</th></tr></thead><tbody>
+      ${this.KPI_DEFS.map(def=>{const cfg=this.kpiCfg(def.id);return `<tr><td style="text-align:center"><input type="checkbox" data-kon="${def.id}" ${cfg.on?"checked":""}></td><td style="text-align:center"><input type="checkbox" data-kmain="${def.id}" ${cfg.main?"checked":""}></td><td><b>${esc(def.name)}</b><div class="hint" style="font-size:11.5px">${def.low?"越低越好":"越高越好"}${def.only?`・只適用${def.only==="tanker"?"油輪":"散裝船"}`:""}</div></td><td>${inp(def,"")}</td><td>${inp(def,"tanker")}</td><td>${inp(def,"bulk")}</td></tr>`;}).join("")}
+      </tbody></table></div>`;
+    m.classList.add("show");
+  },
+  kpiClose(){const m=document.getElementById("kpiSetModal");if(m)m.classList.remove("show");},
+  kpiChanged(){
+    try{if(this.mode==="kpi")this.renderKpi();}catch(e){}
+    try{if(typeof Home!=="undefined"){Home.render();Home.renderDashKpi();}}catch(e){}
   },
   async kpiSave(){
     if(!this.canEditKpi()){toast("⚠ KPI 目標僅限 Owner／管理員設定");return;}
-    const items={};
+    const items={},q=s=>document.querySelector(`#kpiSetModal ${s}`);
+    const num=el=>{const r=((el||{}).value||"").trim();return r===""||!isFinite(+r)?null:+r;};
     this.KPI_DEFS.forEach(def=>{
-      const on=!!($(`#trend-kpi-edit [data-kon="${def.id}"]`)||{}).checked;
-      const raw=(($(`#trend-kpi-edit [data-ktgt="${def.id}"]`)||{}).value||"").trim();
-      items[def.id]={on,tgt:raw===""?null:+raw};
+      const on=!!(q(`[data-kon="${def.id}"]`)||{}).checked;
+      const main=!!(q(`[data-kmain="${def.id}"]`)||{}).checked;
+      const byType={};this.KPI_VT.forEach(([k])=>{if(!this.kpiApplies(def.id,k))return;const v=num(q(`[data-ktgt="${def.id}"][data-kvt="${k}"]`));if(v!=null)byType[k]={tgt:v};});
+      items[def.id]={on,main,tgt:num(q(`[data-ktgt="${def.id}"][data-kvt=""]`)),byType};
     });
     const next={items},now=Date.now();
     try{
       let rows;
       if(this.kpiUpdated==null){
         const ex=await Cloud.api(`app_db?select=updated&k=eq.${this.KPI_KEY}`)||[];
-        if(ex.length){toast("⚠ 雲端剛有人設定了 KPI 目標，已重新載入，請再改一次",true);await this.kpiLoad(true);this.kpiEdit();this.render();return;}
+        if(ex.length){toast("⚠ 雲端剛有人設定了 KPI 目標，已重新載入，請再改一次",true);await this.kpiLoad(true);this.kpiEdit();this.kpiChanged();return;}
         rows=await Cloud.api("app_db",{method:"POST",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify([{k:this.KPI_KEY,payload:next,updated:now}])});
       }else{
         rows=await Cloud.api(`app_db?k=eq.${this.KPI_KEY}&updated=eq.${this.kpiUpdated}`,{method:"PATCH",headers:Object.assign(Cloud.hdr(),{"Prefer":"return=representation"}),body:JSON.stringify({payload:next,updated:now})});
       }
-      if(!rows||!rows.length){toast("⚠ KPI 目標剛被其他人更新過，已重新載入，請再改一次",true);await this.kpiLoad(true);$("#trend-kpi-edit").style.display="none";this.render();return;}
+      if(!rows||!rows.length){toast("⚠ KPI 目標剛被其他人更新過，已重新載入，請再改一次",true);await this.kpiLoad(true);this.kpiEdit();this.kpiChanged();return;}
       this.kpiData=next;this.kpiUpdated=now;this.kpiLoaded=true;
-      if(typeof Audit!=="undefined")Audit.log("修改","KPI 目標",this.KPI_DEFS.map(d=>`${d.name}${items[d.id].on?"":"(停用)"}=${items[d.id].tgt??"預設"}`).join("；"));
-      $("#trend-kpi-edit").style.display="none";toast("✓ KPI 目標已儲存，全公司共用");this.render();
+      if(typeof Audit!=="undefined")Audit.log("修改","KPI 目標",this.KPI_DEFS.map(d=>{const it=items[d.id],bt=it.byType||{};return `${d.name}${it.on?"":"(停用)"}=${it.tgt??"預設"}${bt.tanker?`／油輪 ${bt.tanker.tgt}`:""}${bt.bulk?`／散裝 ${bt.bulk.tgt}`:""}`;}).join("；"));
+      this.kpiClose();toast("✓ KPI 目標已儲存，全公司共用");this.kpiChanged();
     }catch(e){toast("⚠ 儲存失敗："+e.message,true);}
   },
   /* ── 儲存/查詢篩選（本機＋雲端，全公司共用，比照其他模組做法） ── */
