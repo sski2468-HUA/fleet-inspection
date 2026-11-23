@@ -6,6 +6,8 @@
    不會在框框裡再開一層。直接開這個網址時（不在框框裡）完全照舊。 */
 (function(){var T=null;try{if(window.self!==window.top&&window.top.Embed)T=window.top;}catch(e){}
   if(!T)return;document.documentElement.classList.add("emb");
+  /* 在主系統切換身份時，這一頁跟著重新載入成新身份（同網域其他視窗改 localStorage 會觸發 storage 事件） */
+  window.addEventListener("storage",function(e){if(e.key==="vsm_identity_v1")location.reload();});
   document.addEventListener("click",function(ev){var a=ev.target&&ev.target.closest?ev.target.closest("a[href]"):null;if(!a)return;
     var h=a.getAttribute("href")||"";
     if(h==="./"||h==="index.html"||h==="index-v2.html"){ev.preventDefault();try{T.goToTab("home");}catch(e){}return;}
@@ -248,7 +250,7 @@ tr.done td{background:#eaf5ee}
       <div class="dfilters">
         <div class="dfg"><span class="dfl">檢查來源</span><div id="fSrcChips" class="chips"></div></div>
         <div class="dfg"><span class="dfl">建立者</span><select id="fBy" onchange="renderDash()"></select></div>
-        <div class="dfg"><span class="dfl">狀態</span><select id="fState" onchange="renderDash()"><option value="active">進行中</option><option value="can">❗ 可完成</option><option value="done">✅ 已完成</option><option value="ended">⏹ 已終止</option><option value="">全部</option></select></div>
+        <div class="dfg"><span class="dfl">狀態</span><select id="fState" onchange="renderDash()"><option value="active">進行中</option><option value="can">❗ 可完成</option><option value="done">✅ 已完成</option><option value="ended">⏹ 已終止</option><option value="" selected>全部</option></select></div>
         <div class="dfg"><span class="dfl">建立超過</span><select id="fAge" onchange="renderDash()"><option value="0">不限</option><option value="7">7 天</option><option value="14">14 天</option><option value="30">30 天</option><option value="60">60 天</option></select></div>
         <div class="dfg"><span class="dfl">關鍵字</span><input type="text" id="fKw" placeholder="主題…" oninput="renderDash()" style="width:150px;padding:6px 8px;font-size:13px"></div>
         <button class="btn sm" onclick="clearDashFilters()">✕ 清除篩選</button>
@@ -701,7 +703,7 @@ function dashFiltered(){
   });
 }
 function toggleSrc(s){fSrc.has(s)?fSrc.delete(s):fSrc.add(s);renderDash();}
-function clearDashFilters(){fSrc.clear();document.getElementById("fBy").value="";document.getElementById("fState").value="active";document.getElementById("fAge").value="0";document.getElementById("fKw").value="";renderDash();}
+function clearDashFilters(){fSrc.clear();document.getElementById("fBy").value="";document.getElementById("fState").value="";document.getElementById("fAge").value="0";document.getElementById("fKw").value="";renderDash();}
 function fillDashFilters(){
   const srcCnt={};campaigns.forEach(c=>campaignSources(c).forEach(s=>srcCnt[s]=(srcCnt[s]||0)+1));
   document.getElementById("fSrcChips").innerHTML=Object.keys(srcCnt).sort().map(s=>`<button class="chip${fSrc.has(s)?" on":""}" onclick="toggleSrc('${esc(s).replace(/'/g,"\\'")}')">${esc(s)}<small>${srcCnt[s]}</small></button>`).join("")||'<span class="hint">—</span>';
