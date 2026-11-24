@@ -31604,7 +31604,7 @@ const AirQueue={
       const actionBtns=revBtns||(this.view==="rejected"
         ?`<button class="btn sm dark" onclick="AirQueue.restoreRow(${r.id})">↩ 恢復為待審核</button>`
         :this.view==="imported"
-        ?`<button class="btn sm dark" onclick="AirQueue.reimportRow(${r.id})">🔁 重新匯入</button>`
+        ?(p.revOf?`<button class="btn sm dark" onclick="AirQueue.openRevision(${r.id})" title="修訂版已套用過；如果修改沒有留下來（例如被舊資料蓋掉），可以再比對一次補套用">🔍 再比對一次修訂（補套用）</button>`:`<button class="btn sm dark" onclick="AirQueue.reimportRow(${r.id})">🔁 重新匯入</button>`)
         :`<button class="btn sm dark" onclick="AirQueue.importRow(${r.id})">✓ 匯入</button>
           <button class="btn sm" onclick="AirQueue.rejectRow(${r.id})">✕ 拒絕</button>`);
       return `<div class="card" style="margin-bottom:10px;background:${rev?"#fffaf0":"#fafbfc"};${rev?"border-left:4px solid #e0a020":""}">
@@ -31704,7 +31704,7 @@ const AirQueue={
       const def=rd&&rd.pushedDefId!=null?App.defs.find(x=>String(x.id)===String(rd.pushedDefId)):null;
       this.REV_DEF.forEach(([k,l])=>{if(N(k,od[i][k])!==N(k,nd[i][k])){
         const cur=rd?rd[k]:undefined,dcur=def?def[k]:undefined;
-        changes.push({scope:"def",k,l,i,o:od[i][k],n:nd[i][k],cur,def:def?def.id:null,dcur,
+        changes.push({scope:"def",k,l,i,o:od[i][k],n:nd[i][k],cur,def:def?def.id:null,dcur,blank:N(k,nd[i][k])===""&&N(k,od[i][k])!=="",
           conflict:(rd&&N(k,cur)!==N(k,od[i][k]))||(def&&!["photosBefore","photosAfter"].includes(k)&&N(k,dcur)!==N(k,od[i][k])&&N(k,dcur)!==N(k,cur))});
       }});
     }
@@ -31724,11 +31724,11 @@ const AirQueue={
       ${changes.length?`<table style="width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed">
         <thead><tr style="background:#eef3f8">${isImp?'<th style="width:34px;padding:6px">套用</th>':""}<th style="width:120px;padding:6px;text-align:left">項目</th><th style="width:110px;padding:6px;text-align:left">欄位</th><th style="padding:6px;text-align:left">原送出</th><th style="padding:6px;text-align:left">修訂後</th>${isImp?'<th style="padding:6px;text-align:left">系統目前（填單／總表）</th>':""}</tr></thead>
         <tbody>${changes.map((c,j)=>`<tr style="border-top:1px solid var(--line);vertical-align:top;${c.conflict?"background:#fff6e0":""}">
-          ${isImp?`<td style="padding:6px;text-align:center"><input type="checkbox" class="airq-rev-cb" data-j="${j}" ${c.conflict?"":"checked"} ${rec?"":"disabled"}></td>`:""}
+          ${isImp?`<td style="padding:6px;text-align:center"><input type="checkbox" class="airq-rev-cb" data-j="${j}" ${c.conflict||c.blank?"":"checked"} ${rec?"":"disabled"}></td>`:""}
           <td style="padding:6px">${where(c)}</td><td style="padding:6px;font-weight:700">${esc(c.l)}</td>
           <td style="padding:6px;color:#8a1c12;white-space:pre-wrap;word-break:break-word">${sv(c.k,c.o)}</td>
           <td style="padding:6px;color:#1b6b3a;white-space:pre-wrap;word-break:break-word;font-weight:600">${sv(c.k,c.n)}</td>
-          ${isImp?`<td style="padding:6px;white-space:pre-wrap;word-break:break-word;color:var(--ink-2)">${rec?sv(c.k,c.cur):"—"}${c.def?`<div class="hint">總表 #${c.def}：${sv(c.k,c.dcur)}</div>`:""}${c.conflict?'<div style="color:#b5610f;font-weight:700">⚠ 海技改過，預設不套用</div>':""}</td>`:""}
+          ${isImp?`<td style="padding:6px;white-space:pre-wrap;word-break:break-word;color:var(--ink-2)">${rec?sv(c.k,c.cur):"—"}${c.def?`<div class="hint">總表 #${c.def}：${sv(c.k,c.dcur)}</div>`:""}${c.conflict?'<div style="color:#b5610f;font-weight:700">⚠ 海技改過，預設不套用</div>':""}${c.blank&&!c.conflict?'<div style="color:#b5610f;font-weight:700">⚠ 修訂版是空白（船上沒帶這欄），預設不套用，避免把原本的內容清掉</div>':""}</td>`:""}
         </tr>`).join("")}</tbody></table>`:`<p class="hint">既有的欄位沒有差異。</p>`}
       ${added.length?`<div style="margin-top:12px;padding:8px 12px;background:#eef7f0;border:1px solid #c6e3cf;border-radius:8px;font-size:13px">＋ 修訂版<b>新增 ${added.length} 筆缺失</b>：${added.map((d,i)=>`#${od.length+i+1} ${esc(d.code||"")} ${esc(String(d.detail||"").slice(0,40))}`).join("；")}${isImp?`<label style="display:block;margin-top:4px"><input type="checkbox" id="airq-rev-add" checked ${rec?"":"disabled"}> 加入填單記錄（之後請再按「轉入缺失紀錄總表」）</label>`:""}</div>`:""}
       ${addedPos.length&&isImp?`<div style="margin-top:8px;padding:8px 12px;background:#eef7f0;border:1px solid #c6e3cf;border-radius:8px;font-size:13px"><label><input type="checkbox" id="airq-rev-addpos" checked ${rec?"":"disabled"}> 加入修訂版新增的 ${addedPos.length} 則正面評論</label></div>`:""}
@@ -31944,9 +31944,11 @@ const AirQueue={
       try{await RecordSync.flushNow("airReviews");}catch(e){}
       await new Promise(r=>setTimeout(r,i?2500:400));
       try{
-        const got=await Cloud.api(`sync_air?select=id&id=eq.${encodeURIComponent(rec.id)}`);
-        if(Array.isArray(got)&&got.length)return true;
+        // 2026-11-24：要確認雲端那筆的 updatedAt ≥ 這次修改時間（套用修訂時，只檢查「有這筆」會誤判已上傳）
+        const got=await Cloud.api(`sync_air?select=id,ua:payload->>updatedAt&id=eq.${encodeURIComponent(rec.id)}`);
+        if(Array.isArray(got)&&got.length&&(!rec.updatedAt||(+got[0].ua||0)>=rec.updatedAt))return true;
       }catch(e){}
+      {const loc=App.air.find(a=>a.id===rec.id);if(loc&&loc!==rec&&rec.updatedAt&&(+loc.updatedAt||0)<rec.updatedAt){App.air[App.air.indexOf(loc)]=rec;try{App.saveAll();}catch(e){}}}
       if(!App.air.some(a=>a.id===rec.id))App.air.push(rec); // 被載入覆蓋掉了就補回本機，再傳一次
     }
     alert(`⚠ 線上填單記錄 #${rec.id}（${rec.ship} ${rec.date}）還沒有成功上傳到雲端。\n\n請先「不要」按「載入最新資料」或重新整理（會把這筆未上傳的資料蓋掉），\n檢查網路後到「資料管理」重試同步；若仍失敗請截圖回報。`);
