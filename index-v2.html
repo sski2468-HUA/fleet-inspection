@@ -44111,3 +44111,51 @@ f();setInterval(f,3000);})();</script>
 </script>
 
 <script>/* 2026-11-24 嵌入的頁面（內部檢查登錄等）直接沿用主系統目前登入的身份，不用再登入一次 */window.Role=Role;</script>
+
+<script>
+/* ════════ 2026-11-24 第三分割：右邊清單裡再點「缺失數」→ 再開一欄顯示缺失（不取代原本的清單） ════════
+   版面：原頁面｜檢查紀錄清單（中）｜缺失（右）。中間那欄點別筆，右邊直接換；右邊可全螢幕／關閉；關掉中間那欄時右邊一起關。 */
+(function(){
+  if(typeof SidePeek==="undefined")return;
+  const css=document.createElement("style");css.textContent=`
+  body.tn.sp-on.sp2-on .page{margin-right:min(70%,calc(100% - 360px))}
+  body.tn.sp2-on #sidePeek{right:min(38%,calc(100% - 760px));width:min(32%,400px + 8%)}
+  #sidePeek2{display:none;position:fixed;right:0;bottom:0;width:min(38%,calc(100% - 760px));min-width:380px;background:#fff;border-left:2px solid #e8842c;box-shadow:-8px 0 22px rgba(20,40,60,.14);z-index:51;flex-direction:column}
+  body.tn.sp2-on #sidePeek2{display:flex}
+  body.tn.sp2-full #sidePeek2{width:100%}
+  #sidePeek2 .sp-h{display:flex;align-items:flex-start;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:#fff7ee}
+  #sidePeek2 .sp-t{font-size:16px;font-weight:800;color:var(--navy)}#sidePeek2 .sp-s{font-size:12.5px;color:#6b7c88;margin-top:2px}
+  #sidePeek2 .sp-x{margin-left:auto;display:flex;gap:6px;flex-shrink:0}
+  #sidePeek2 .sp-b{flex:1;overflow:auto;padding:10px 14px 16px}
+  #sidePeek2 .sp-f{display:flex;gap:8px;align-items:center;padding:8px 14px;border-top:1px solid var(--line)}#sidePeek2 .sp-f:empty{display:none}
+  #sidePeek2 .ipk-tbl{table-layout:auto;width:100%}#sidePeek2 .ipk-tbl col{width:auto!important}#sidePeek2 .ipk-tbl td.det{min-width:220px}#sidePeek2 .ipk-tbl td.cls{min-width:120px}#sidePeek2 .ipk-tw{overflow-x:auto}
+  /* 三欄時中間清單只留：日期、船名、缺失數、扣船 */
+  body.sp2-on #sp-b table.sp-t2:has(.sp-n) tr>:is(:nth-child(3),:nth-child(4),:nth-child(5)){display:none}
+  #sidePeek tr.sp2-cur>td{background:#fff3e2!important}#sidePeek tr.sp2-cur>td:first-child{box-shadow:inset 4px 0 0 #e8842c}
+  @media(max-width:1200px){body.tn.sp2-on #sidePeek2{width:100%;min-width:0}}`;
+  document.head.appendChild(css);
+  const $=s=>document.querySelector(s);
+  const S=SidePeek;
+  S.el2=function(){let p=$("#sidePeek2");if(p)return p;
+    p=document.createElement("div");p.id="sidePeek2";
+    p.innerHTML=`<div class="sp-h"><div><div class="sp-t" id="sp2-t"></div><div class="sp-s" id="sp2-s"></div></div><span class="sp-x"><button class="btn sm" id="sp2-full" onclick="SidePeek.full2()">⛶ 全螢幕</button><button class="btn sm" onclick="SidePeek.close2()" title="關閉（Esc）">✕ 關閉</button></span></div><div class="sp-b" id="sp2-b"></div><div class="sp-f" id="sp2-f"></div>`;
+    document.body.appendChild(p);return p;};
+  S.open2=function(v,rowEl){
+    this.el2();$("#sp2-t").textContent=v.t||"";$("#sp2-s").textContent=v.s||"";$("#sp2-b").innerHTML=v.html||"";$("#sp2-b").scrollTop=0;$("#sp2-f").innerHTML=v.foot||"";
+    document.querySelectorAll("#sidePeek tr.sp2-cur").forEach(x=>x.classList.remove("sp2-cur"));if(rowEl)rowEl.classList.add("sp2-cur");
+    document.body.classList.add("sp2-on");this.fit2();};
+  S.close2=function(){document.body.classList.remove("sp2-on","sp2-full");const b=$("#sp2-full");if(b)b.textContent="⛶ 全螢幕";document.querySelectorAll("#sidePeek tr.sp2-cur").forEach(x=>x.classList.remove("sp2-cur"));};
+  S.full2=function(){document.body.classList.toggle("sp2-full");$("#sp2-full").textContent=document.body.classList.contains("sp2-full")?"⇲ 回分割":"⛶ 全螢幕";};
+  S.fit2=function(){const p=$("#sidePeek2"),pg=$(".page");if(p&&pg)p.style.top=Math.max(0,pg.getBoundingClientRect().top)+"px";};
+  addEventListener("resize",()=>S.fit2());
+  // 中間清單點「缺失數」→ 右邊第三欄（不再取代清單）
+  S.inspDefs=function(i){const r=this._insp[i];if(!r)return;const btn=document.querySelectorAll("#sp-b .sp-n")[0];
+    const tr=[...document.querySelectorAll("#sp-b tbody tr")][i];this.open2(this.inspView("defs",r),tr);};
+  // 中間那欄關閉／換內容時，右邊一起關
+  const _close=S.close,_open=S.open;
+  S.close=function(){this.close2();return _close.apply(this,arguments);};
+  S.open=function(v,push){if(!push)this.close2();return _open.apply(this,arguments);};
+  // Esc：先關右邊第三欄
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.body.classList.contains("sp2-on")){e.stopImmediatePropagation();S.close2();}},true);
+})();
+</script>
