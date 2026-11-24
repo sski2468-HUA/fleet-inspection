@@ -44624,14 +44624,18 @@ f();setInterval(f,3000);})();</script>
   #sidePeek .sp-b:has(iframe.hp-frame){padding:0;overflow:hidden}`;
   document.head.appendChild(css);
   const me=()=>{try{return String((Role.personName&&Role.personName())||"").trim();}catch(e){return "";}};
-  function schedRows(){
+  /* mode "owner"：督導的待辦（我是檢查安排人）；mode "mgr"：海技／Owner 的待辦（跟待辦計算同一規則：
+     船舶資料「海技負責人」是我、或檢查安排人是我、或兩邊都沒指定）——右邊列的要跟待辦說的一致 */
+  function schedRows(mode){
     const m=me();if(!m||typeof InspCtrl==="undefined")return [];
+    const mgrOf=code=>{const s=(typeof SHIPINFO!=="undefined")?SHIPINFO.find(x=>x.code===code):null;return s?String(s.mgr||"").trim():"";};
+    const mine=mode==="mgr"?(r=>{const g=mgrOf(r.ship),o=String(r.owner||"").trim();return (!g&&!o)||g===m||o===m;}):(r=>String(r.owner||"").trim()===m);
     return (App.inspCtrl||[]).map(d=>{try{return InspCtrl.computeRow(d);}catch(e){return null;}}).filter(Boolean)
-      .filter(r=>String(r.owner||"").trim()===m&&(r.status==="逾期"||r.status==="即將到期(紅)"))
+      .filter(r=>mine(r)&&(r.status==="逾期"||r.status==="即將到期(紅)"))
       .sort((a,b)=>(a.daysLeft??0)-(b.daysLeft??0));
   }
-  Home.peekSched=function(mark){
-    const rows=schedRows(),od=rows.filter(r=>r.status==="逾期").length;
+  Home.peekSched=function(mark,mode){
+    const rows=schedRows(mode),od=rows.filter(r=>r.status==="逾期").length;
     const html=!rows.length?`<div class="hint">目前沒有逾期或快到期的檢查。</div>`:
       `<div class="hp-sum"><div><b style="color:#c0392b">${od}</b>已逾期</div><div><b style="color:#b5600f">${rows.length-od}</b>快到期</div></div>
       <table class="sp-t2"><thead><tr><th>船名</th><th>檢查項目</th><th>上次</th><th>到期日</th><th>狀態</th><th>預定日期</th><th></th></tr></thead><tbody>${rows.map(r=>{
@@ -44643,7 +44647,7 @@ f();setInterval(f,3000);})();</script>
           <td style="white-space:nowrap">${esc(r.schedDate||"")||`<span class="hint">未排</span>`}</td>
           <td style="white-space:nowrap"><button class="btn sm primary" onclick="InspCtrl.openEdit(${JSON.stringify(r.id).replace(/"/g,"&quot;")})">📅 安排／編輯</button></td></tr>`;}).join("")}</tbody></table>
       <p class="hint" style="margin-top:10px">要做的事：逾期的請盡快安排檢查，或已做完請填上實際檢查日；快到期的請先排好預定日期。按「📅 安排／編輯」會打開這筆檢查管控直接修改。</p>`;
-    SidePeek.open({t:"📅 檢查排程：逾期／快到期",s:`您是檢查安排人的檢查，共 ${rows.length} 項`,html,mark,
+    SidePeek.open({t:"📅 檢查排程：逾期／快到期",s:mode==="mgr"?`您負責的船（海技負責人或檢查安排人是您）：已逾期 ${od} 項、快到期 ${rows.length-od} 項`:`您是檢查安排人的檢查，共 ${rows.length} 項`,html,mark,
       foot:`<span style="flex:1"></span><button class="btn" onclick="SidePeek.close();goToTab('inspctrl',()=>{InspCtrl.quickStatus='attention';InspCtrl.render();})">前往檢查計劃 →</button>`});
   };
   Home.peekIA=function(mark){
@@ -44657,10 +44661,16 @@ f();setInterval(f,3000);})();</script>
   Home.go=function(i){
     const it=(this._todo||[])[i];
     const onHome=document.body.classList.contains("tn")&&document.getElementById("tab-home")&&document.getElementById("tab-home").classList.contains("show");
-    if(it&&onHome){
-      const row=document.querySelector(`#tab-home button[onclick="Home.go(${i})"]`);const mark=row&&row.closest(".hm-row");
-      if(/^檢查排程/.test(it.text||""))return this.peekSched(mark);
-      if(/^內部檢查改善單待審核/.test(it.text||""))return this.peekIA(mark);
+    const KIND=t=>/^檢查排程：您負責的船/.test(t)?"mgr":/^檢查排程/.test(t)?"owner":/^內部檢查改善單待審核/.test(t)?"ia":null;
+    const kind=it&&KIND(it.text||"");
+    if(kind&&onHome){
+      // 2026-11-24 首頁待辦是開頁時算的，之後資料更新不一定重算（會出現「2 項逾期」但右邊只有 1 項）→ 點的時候先重算一次
+      try{const now=Todo.compute().map(x=>x.text).join("|");if(now!==(this._todo||[]).map(x=>x.text).join("|"))this.render();}catch(e){}
+      const j=(this._todo||[]).findIndex(x=>KIND(x.text||"")===kind);
+      const row=document.querySelector(`#tab-home button[onclick="Home.go(${j})"]`);const mark=row&&row.closest(".hm-row");
+      if(j<0){toast("✓ 這件待辦已經處理完了");return;}
+      if(kind==="ia")return this.peekIA(mark);
+      return this.peekSched(mark,kind);
     }
     return _go.apply(this,arguments);
   };
@@ -44707,5 +44717,127 @@ f();setInterval(f,3000);})();</script>
       if(me&&tier==="op1"&&this._supDefFor!==me){this._supDefFor=me;if((typeof SHIPINFO!=="undefined"?SHIPINFO:[]).some(s=>this.isMySup(s,me)))this.F.mineSup=true;}}catch(e){}
     return _r.apply(this,arguments);
   };
+})();
+</script>
+
+<script>
+/* 2026-11-24 填單紀錄頁整理：拿掉上方藍色說明、上方只剩「已刪除的紀錄」那一列收掉（畫面往上）；
+   清單標題列按鈕整理：常用的「＋ 新增／匯入」「➜ 轉入紀錄」「📤 合併分享」留著，
+   「取消勾選」有勾選才出現；「⬇ 匯出」「📥 匯回對外回覆」「🗑 已刪除的紀錄」收進「⋯ 更多」 */
+(function(){
+  const $=s=>document.querySelector(s);
+  const css=document.createElement("style");css.textContent=`
+  body.tn #tab-air>.banner,body.tn #air-toptabs{display:none!important}
+  .air-more{position:relative;display:inline-flex}
+  .air-more .air-dd{display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.14);padding:6px;z-index:40;min-width:200px;flex-direction:column;gap:4px}
+  .air-more.open .air-dd{display:flex}
+  .air-more .air-dd .btn{width:100%;justify-content:flex-start;text-align:left;border-color:transparent;background:transparent}
+  .air-more .air-dd .btn:hover{background:#f3f6f9}`;
+  document.head.appendChild(css);
+  function tidy(){
+    const head=$("#air-newimport-btn");if(!head||$("#air-more"))return;
+    const box=head.parentElement;
+    const exp=box.querySelector('button[onclick^="Air.openExportPickModal"]'),rr=$("#air-restorereply-btn");
+    const del=document.querySelector('#air-toptabs button[onclick^="AirDel.open"]');
+    const m=document.createElement("span");m.className="air-more";m.id="air-more";
+    m.innerHTML=`<button class="btn sm" type="button">⋯ 更多</button><div class="air-dd"></div>`;
+    const dd=m.querySelector(".air-dd");[exp,rr,del].forEach(b=>{if(b){b.classList.remove("btn");b.classList.add("btn","sm");dd.appendChild(b);b.addEventListener("click",()=>m.classList.remove("open"));}});
+    m.firstElementChild.onclick=e=>{e.stopPropagation();m.classList.toggle("open");};
+    document.addEventListener("click",e=>{if(!e.target.closest("#air-more"))m.classList.remove("open");});
+    // 順序：新增／匯入｜轉入紀錄｜合併分享｜（已勾選 N 筆、取消勾選）｜⋯ 更多
+    const push=$("#air-pushmodal-btn"),share=box.querySelector('button[onclick^="Air.openShareCheckWizardMulti"]'),cnt=$("#air-sel-count"),clr=$("#air-clearsel-btn");
+    [head,push,share,cnt,clr,m].forEach(x=>{if(x)box.appendChild(x);});
+    // 取消勾選：有勾選才出現
+    const sync=()=>{if(!clr||!cnt)return;const want=(cnt.style.display!=="none"&&String(cnt.textContent||"").trim())?"":"none";if(clr.style.display!==want)clr.style.display=want;};
+    if(cnt)new MutationObserver(sync).observe(cnt,{attributes:true,attributeFilter:["style"]});
+    if(clr)new MutationObserver(sync).observe(clr,{attributes:true,attributeFilter:["style"]}); // 別的程式把它打開時，沒勾選就再收起來
+    if(cnt)new MutationObserver(sync).observe(cnt,{childList:true,characterData:true,subtree:true});sync();
+  }
+  tidy();
+})();
+</script>
+
+<script>
+/* ════════ 2026-11-24 ① 填單內容再調整 ════════
+   ・基本資料也改成「按 ✎ 編輯 → 點哪格改哪格」（船名、檢查來源用下拉；缺失數／正面評價數依明細自動算，不在這裡改）
+   ・缺失的「完整表單」改成在右邊打開：分類（設備／作業大類、細項、根因、重要程度、風險…）、責任人員、照片、Follow Up，
+     在原頁面直接勾選填寫；右邊最下面仍可「打開整個編輯表單」 */
+(function(){
+  if(typeof Air==="undefined")return;
+  const $=s=>document.querySelector(s);
+  const css=document.createElement("style");css.textContent=`
+  .av-sec.ipb .av-kv{background:#fffbea}
+  .av-kv b.ipbf{border:1.5px solid transparent;border-radius:6px;padding:1px 6px;margin:-2px -6px}
+  .av-sec.ipb .av-kv b.ipbf{cursor:text;border-color:#ecd9a8;background:#fff}
+  .av-sec.ipb .av-kv b.ipbf:hover{border-color:#e8a33c;box-shadow:0 0 0 3px rgba(232,163,60,.15)}
+  .av-kv b.ipbf.on{border-color:#2f6690!important;box-shadow:0 0 0 3px rgba(47,102,144,.18)!important;padding:0 4px}
+  .av-kv b.ipbf select,.av-kv b.ipbf input{width:100%;border:0!important;outline:0;font:inherit;font-weight:700;background:transparent;padding:2px 0;min-width:120px}
+  .av-sec.ipb .ipb-tip{display:inline}.ipb-tip{display:none;font-size:11.5px;color:#a06a12;font-weight:700;margin-right:6px}
+  #air-peek-host .air-def-shortrow{flex-wrap:wrap}
+  #air-peek-host .adf-item{max-width:none!important;flex:1 1 220px}
+  #air-peek-host .air-peek-ppl{margin-bottom:14px}`;
+  document.head.appendChild(css);
+  const canEd=()=>typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();
+  const BF={"船名":["air-ship","sel"],"檢查來源":["air-itype","sel"],"檢查日期":["air-date","txt"],"檢查地點":["air-place","txt"],"油公司／單位":["air-oilco","txt"],"檢查員":["air-inspector","txt"]};
+  Air._ipBasic=false;
+  const _rv=Air.renderView;
+  Air.renderView=function(){
+    const r=_rv.apply(this,arguments);
+    if(!canEd())return r;
+    const sec=[...document.querySelectorAll("#air-sub-view .av-sec")].find(s=>/基本資料/.test((s.querySelector("h3")||{}).textContent||""));
+    if(!sec)return r;
+    sec.classList.toggle("ipb",this._ipBasic);
+    const b=sec.querySelector('h3 .x button[onclick*="showMainSubTab(\'basic\')"]');
+    if(b){b.setAttribute("onclick","Air.ipBasicToggle()");b.textContent=this._ipBasic?"✓ 完成":"✎ 編輯";if(this._ipBasic){b.style.cssText="background:#1c3a5e;color:#fff;border-color:#1c3a5e";
+      b.insertAdjacentHTML("beforebegin",`<span class="ipb-tip">點任一格修改</span><button class="btn sm" onclick="Air.showMainSubTab('basic')" title="FLAG 項目、船型等其他欄位">完整表單</button>`);}}
+    sec.querySelectorAll(".av-kv>span").forEach(sp=>{const f=BF[sp.textContent.trim()],v=sp.nextElementSibling;if(f&&v){v.classList.add("ipbf");v.dataset.f=f[0];v.dataset.t=f[1];}});
+    return r;
+  };
+  Air.ipBasicToggle=function(){this._ipBasic=!this._ipBasic;this.renderView();};
+  function commit(){clearTimeout(Air._formSaveTimer);try{Air.autoSaveForm();}catch(e){}if(typeof toast==="function")toast("✓ 已儲存");Air.renderView();}
+  document.addEventListener("click",e=>{
+    const c=e.target.closest("#air-sub-view .av-sec.ipb .av-kv b.ipbf");if(!c||c.querySelector("select,input"))return;
+    const real=document.getElementById(c.dataset.f);if(!real)return;
+    c.classList.add("on");
+    if(c.dataset.t==="sel"){
+      const s=real.cloneNode(true);s.removeAttribute("id");s.removeAttribute("onchange");s.value=real.value;c.textContent="";c.appendChild(s);s.focus();
+      let done=false;const fin=()=>{if(done)return;done=true;
+        if(s.value!==real.value){real.value=s.value;real.dispatchEvent(new Event("change",{bubbles:true}));
+          if(c.dataset.f==="air-itype"&&s.value==="其他"){const o=document.getElementById("air-itype-other");const v=prompt("請輸入檢查來源（其他）：",o?o.value:"");if(o&&v!=null){o.value=v.trim();o.dispatchEvent(new Event("input",{bubbles:true}));}}
+          commit();}else Air.renderView();};
+      s.addEventListener("change",fin);s.addEventListener("blur",()=>setTimeout(fin,150));
+    }else{
+      const i=document.createElement("input");i.type="text";i.value=real.value;const ls=real.getAttribute("list");if(ls)i.setAttribute("list",ls);if(real.placeholder)i.placeholder=real.placeholder;
+      c.textContent="";c.appendChild(i);i.focus();i.select();
+      let done=false;const fin=()=>{if(done)return;done=true;if(i.value!==real.value){real.value=i.value;real.dispatchEvent(new Event("input",{bubbles:true}));commit();}else Air.renderView();};
+      i.addEventListener("keydown",ev=>{if(ev.key==="Enter")i.blur();if(ev.key==="Escape"){i.value=real.value;i.blur();}});i.addEventListener("blur",fin);
+    }
+  });
+  /* ── 缺失「完整表單」→ 右邊打開分類／人員／照片 ── */
+  Air._peekDef=null;
+  function mountPeek(){
+    const host=document.getElementById("air-peek-host");if(!host||Air._peekDef==null)return;
+    const card=document.querySelector("#air-defect-cards .air-def-card");if(!card)return;
+    host.innerHTML="";
+    const ppl=[...card.querySelectorAll("label.fw")].find(l=>/責任人員/.test(l.textContent));
+    if(ppl){ppl.classList.add("air-peek-ppl");host.appendChild(ppl);}
+    const bottom=card.lastElementChild;if(bottom)host.appendChild(bottom);
+  }
+  Air.viewEditDef=function(i){
+    if(typeof SidePeek==="undefined"){this.showMainSubTab("defects");try{this.setActiveDefRow(i);}catch(e){}return;}
+    const r=(this.defRows||[])[i];if(!r)return;
+    this._peekDef=i;this.activeDefRowIdx=i;this.renderDefectRows();
+    // 右邊打開時，左邊的填單清單先收起來（不然三欄太擠），關掉右邊再恢復
+    try{const t=AirSplit.tab();if(t&&t.classList.contains("asp")&&!t.classList.contains("full")&&innerWidth>=900){AirSplit.toggleFull();this._peekFull=true;}}catch(e){}
+    SidePeek.open({t:`缺失 #${i+1}${r.code?"　CODE "+r.code:""}：分類／人員／照片`,s:"在這裡勾選填寫，會自動儲存；缺失內容在左邊點格子改",
+      html:`<div id="air-peek-host"></div>`,mark:document.getElementById("av-def-"+i),
+      foot:`<span style="flex:1"></span><button class="btn" onclick="Air.peekDefFull(${i})">打開整個編輯表單 →</button>`});
+    mountPeek();
+  };
+  Air.peekDefFull=function(i){this._peekDef=null;SidePeek.close();this.showMainSubTab("defects");try{this.setActiveDefRow(i);}catch(e){}const c=$("#air-defect-cards");if(c)c.scrollIntoView({block:"start"});};
+  // 照片上傳等動作會重畫缺失卡片 → 重畫後再把那幾塊搬到右邊
+  const _rdr=Air.renderDefectRows;
+  Air.renderDefectRows=function(){const r=_rdr.apply(this,arguments);if(this._peekDef!=null&&document.body.classList.contains("sp-on")&&this.activeDefRowIdx===this._peekDef)setTimeout(mountPeek,0);return r;};
+  if(typeof SidePeek!=="undefined"){const _cl=SidePeek.close;SidePeek.close=function(){const had=Air._peekDef!=null;Air._peekDef=null;const r=_cl.apply(this,arguments);if(had)try{Air.renderDefectRows();}catch(e){}if(Air._peekFull){Air._peekFull=false;try{const t=AirSplit.tab();if(t&&t.classList.contains("full"))AirSplit.toggleFull();}catch(e){}}return r;};}
 })();
 </script>
