@@ -13,7 +13,10 @@
     if(h==="./"||h==="index.html"||h==="index-v2.html"){ev.preventDefault();try{T.goToTab("home");}catch(e){}return;}
     if(/^(intaudit|selfcheck-share-summary|psc-analysis)\.html([?#].*)?$/.test(h)){ev.preventDefault();try{T.Embed.openFile(T.officeFolder()+h);}catch(e){window.open(h,"_blank");}}
   },true);})();</script>
+<script>/* 2026-11-24 ?side=1：被船舶訴求「查看登錄」開在右邊，只顯示登錄單本身（藏頁首、上方分頁列） */
+if(/[?&]side=1(&|$)/.test(location.search))document.documentElement.classList.add("side");</script>
 <style>
+html.side .wrap>header,html.side .wrap>.toolbar,html.side #modeBanner{display:none!important}
 html.emb a[href="./"],html.emb a.back{display:none!important}
 html.emb header>h1,html.emb header>p{display:none!important}
 html.emb header{padding:6px 14px!important;display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap}
@@ -4064,8 +4067,11 @@ function renderSuggPage(){
     </div>`;  }).join(""):`<div class="banner">${suggStatusFlt==="active"?"🎉 目前沒有未結案的訴求／建議。":"目前沒有符合條件的訴求／建議。"}（只有「已送出」的登錄單才會立案；草稿不會出現在這裡。）</div>`;
 }
 function editDef0(rid){const r=Store.rows.find(x=>x.id===rid);if(r)editRec(rid);}
+/* 2026-11-24 編輯人一律用「目前登入的人」（主系統登入身份 vsm_identity_v1）；沒登入才用以前記的名字，最後才問 */
+function iaLoginName(){try{const s=(typeof IAAuth!=="undefined"&&IAAuth.ident)?IAAuth.ident():null;return (s&&s.name)||"";}catch(e){return "";}}
 function suggMe(){
-  let me="";try{me=localStorage.getItem("intaudit_me")||"";}catch(e){}
+  let me=iaLoginName();if(me){try{localStorage.setItem("intaudit_me",me);}catch(e){}return me;}
+  try{me=localStorage.getItem("intaudit_me")||"";}catch(e){}
   if(!me){me=(prompt("請輸入您的姓名（會記錄為編輯人，也用來顯示「誰正在編輯」）：")||"").trim();if(me){try{localStorage.setItem("intaudit_me",me);}catch(e){}}}
   return me;
 }
@@ -4209,7 +4215,7 @@ const SuggExt={
     this.list=[];this.ver={};
     rows.forEach(r=>{if(r&&r.payload&&r.payload.gid){this.list.push(r.payload);this.ver[r.payload.gid]=r.updated;}});
   },
-  canEdit(g){if(IAAuth.canDelete())return true;let me="";try{me=localStorage.getItem("intaudit_me")||"";}catch(e){}return !!(g&&me&&g.createdBy===me);},
+  canEdit(g){if(IAAuth.canDelete())return true;let me=iaLoginName();if(!me)try{me=localStorage.getItem("intaudit_me")||"";}catch(e){}return !!(g&&me&&g.createdBy===me);},
   started(g){return (g.items||[]).some(s=>(s.depts||[]).some(d=>{const rp=suggReply("x"+g.gid,s.uid,d);return rp&&suggRowState(rp)!=="new";}));},
   newItem(){return {uid:newSuggUid(),situation:"",suggestion:"",depts:[],photos:[],fa:null};},
   openNew(){
@@ -5142,6 +5148,7 @@ window.gotoReviewItem=function(rid,uid){Track.gotoItem(rid,uid);};
   if(new URLSearchParams(location.search).get("new")==="1"){try{history.replaceState(null,"",location.pathname);}catch(e){}newForm();}
   else if(new URLSearchParams(location.search).get("sugg")==="1"){try{history.replaceState(null,"",location.pathname);}catch(e){}showSugg();} // 從主系統「前往船舶訴求建議清單」進來，直接停在訴求清單
   else if(new URLSearchParams(location.search).get("review")==="1"){try{history.replaceState(null,"",location.pathname);}catch(e){}showTrack();} // 從主系統待辦事項「改善單待審核」進來，直接停在改善單審核清單
+  else if(/^\d+$/.test(new URLSearchParams(location.search).get("rec")||"")&&Store.rows.some(x=>x.id===+new URLSearchParams(location.search).get("rec"))){editRec(+new URLSearchParams(location.search).get("rec"));} // 2026-11-24 船舶訴求「查看登錄」在右邊開這一張
   else if(new URLSearchParams(location.search).get("list")==="1"){try{history.replaceState(null,"",location.pathname);}catch(e){}showList();}
   else showHome(); // 2026-11-12 登入後先到首頁
 })();
@@ -5159,6 +5166,92 @@ window.addEventListener("beforeunload",e=>{
     e.preventDefault();e.returnValue="";
   }
 });
+</script>
+<script>
+/* ════════ 2026-11-24 船舶訴求左右分割（只在主系統內嵌時 html.emb）════════
+   「✎ 承辦」「＋ 新增訴求／✎ 修改」「查看登錄」不再蓋住清單或換掉整頁：左邊留訴求清單，右邊打開。
+   右邊上方：⛶ 全螢幕、✕ 關閉。一次只開一個；換開別的之前，先照原本的規則關掉（承辦會解除鎖定、沒存的新增會先問）。 */
+(function(){
+  const R=document.documentElement;
+  if(!R.classList.contains("emb")||R.classList.contains("side"))return;
+  const css=document.createElement("style");css.textContent=`
+  html.sgside #suggPage{margin-right:calc(56% + 10px)}
+  html.sgfull #suggPage{visibility:hidden}
+  .sg-dock{position:fixed!important;right:0!important;bottom:0!important;left:auto!important;width:56%;z-index:120;background:#fff!important;box-shadow:-6px 0 18px rgba(20,40,60,.14);border-left:1px solid #dde4ea;overflow:auto;padding:0!important}
+  html.sgfull .sg-dock{width:100%}
+  #suggModal.sg-dock{display:block!important}
+  #suggModal.sg-dock>.box{width:auto!important;max-width:none!important;margin:0!important;border-radius:0!important;box-shadow:none!important;max-height:none!important}
+  #sgFormWrap.sg-dock>:not(.sg-dbar){margin:10px 12px}
+  #sgRecSide{display:flex;flex-direction:column}#sgRecSide iframe{flex:1;width:100%;border:0}
+  .sg-dbar{display:flex;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid #dde4ea;background:#f7f9fb;position:sticky;top:0;z-index:3}
+  .sg-dbar b{color:#1c3a5e;font-size:15px;margin-right:auto}
+  @media(max-width:900px){html.sgside #suggPage{margin-right:0}.sg-dock{width:100%}}`;
+  document.head.appendChild(css);
+  const $=s=>document.querySelector(s);
+  const onSugg=()=>{const p=$("#suggPage");return !!p&&p.style.display!=="none";};
+  const bar=(t,close,extra)=>`<div class="sg-dbar"><b>${t}</b>${extra||""}<button class="btn sm" type="button" data-sgfull onclick="SgSplit.full()">⛶ 全螢幕</button><button class="btn sm" type="button" onclick="${close}">✕ 關閉</button></div>`;
+  const SgSplit={
+    top(){const p=$("#suggPage");return Math.max(0,p?p.getBoundingClientRect().top:0);},
+    fit(){const t=this.top()+"px";document.querySelectorAll(".sg-dock").forEach(el=>el.style.top=t);},
+    sync(){const any=!!document.querySelector(".sg-dock");R.classList.toggle("sgside",any);if(!any)R.classList.remove("sgfull");
+      document.querySelectorAll("[data-sgfull]").forEach(b=>b.textContent=R.classList.contains("sgfull")?"⇲ 回左右分割":"⛶ 全螢幕");this.fit();},
+    full(){R.classList.toggle("sgfull");this.sync();},
+    /* 開新的之前把其他右邊畫面收掉；回傳 false 表示使用者選擇留在原本的（例如新增訴求還沒存） */
+    clearOthers(keep){
+      if(keep!=="form"&&typeof SuggExt!=="undefined"&&SuggExt.f){SuggExt.close();if(SuggExt.f)return false;}
+      if(keep!=="edit"&&$("#suggModal")&&$("#suggModal").style.display==="flex"&&typeof cancelSuggEdit==="function")cancelSuggEdit();
+      if(keep!=="rec")this.closeRec();
+      return true;
+    },
+    openRec(rid){
+      if(!this.clearOthers("rec"))return;
+      const r=Store.rows.find(x=>x.id===rid);
+      let s=$("#sgRecSide");
+      if(!s){s=document.createElement("div");s.id="sgRecSide";document.body.appendChild(s);}
+      s.className="sg-dock";
+      s.innerHTML=bar(`📋 登錄單 — ${esc(r?shipLabel(r.ship):"")}　${esc(r?dateText(r):"")}`,"SgSplit.closeRec()",`<button class="btn sm" type="button" onclick="window.open('intaudit.html?rec=${rid}','_blank')" title="另開一個瀏覽器分頁">↗ 另開視窗</button>`)+`<iframe src="intaudit.html?rec=${rid}&side=1" title="登錄單"></iframe>`;
+      this.sync();
+    },
+    closeRec(){const s=$("#sgRecSide");if(s){s.remove();}this.sync();}
+  };
+  window.SgSplit=SgSplit;
+  addEventListener("resize",()=>SgSplit.fit());addEventListener("scroll",()=>SgSplit.fit(),{passive:true});
+  /* ✎ 承辦：原本的視窗（#suggModal）改成貼右邊；用 MutationObserver 跟著它的開關，不改原本的存檔／鎖定流程 */
+  const m=$("#suggModal");
+  if(m){
+    const box=m.querySelector(".box");
+    if(box&&!box.querySelector(".sg-dbar")){const d=document.createElement("div");d.innerHTML=bar("✎ 承辦","cancelSuggEdit()");const b=d.firstChild;b.style.display="none";b.style.margin="-1px -1px 8px";box.insertBefore(b,box.firstChild);}
+    new MutationObserver(()=>{
+      const open=m.style.display==="flex"&&onSugg();
+      if(open&&!m.classList.contains("sg-dock")){SgSplit.clearOthers("edit");m.classList.add("sg-dock");}
+      if(!open&&m.classList.contains("sg-dock"))m.classList.remove("sg-dock");
+      const b=box&&box.querySelector(".sg-dbar");if(b)b.style.display=m.classList.contains("sg-dock")?"flex":"none";
+      SgSplit.sync();
+    }).observe(m,{attributes:true,attributeFilter:["style"]});
+  }
+  /* ＋ 新增訴求／✎ 修改：原本會把清單藏起來換成表單，改成表單貼右邊、清單留著 */
+  if(typeof SuggExt!=="undefined"){
+    const _show=SuggExt.show.bind(SuggExt),_close=SuggExt.close.bind(SuggExt);
+    SuggExt.show=function(){
+      if(!onSugg())return _show();
+      if(!SgSplit.clearOthers("form"))return;
+      const w=$("#sgFormWrap");w.classList.add("sg-dock");w.style.display="";
+      this.render();
+      if(!w.querySelector(":scope>.sg-dbar")){const d=document.createElement("div");d.innerHTML=bar(this.f&&this.f._new===false?"✎ 修改訴求／建議":"＋ 新增訴求／建議","SuggExt.close()");w.insertBefore(d.firstChild,w.firstChild);}
+      SgSplit.sync();
+    };
+    const _render=SuggExt.render.bind(SuggExt);
+    SuggExt.render=function(){const r=_render.apply(this,arguments);const w=$("#sgFormWrap");
+      if(w&&w.classList.contains("sg-dock")&&!w.querySelector(":scope>.sg-dbar")){const d=document.createElement("div");d.innerHTML=bar(this.f&&this.f._new===false?"✎ 修改訴求／建議":"＋ 新增訴求／建議","SuggExt.close()");w.insertBefore(d.firstChild,w.firstChild);SgSplit.sync();}
+      return r;};
+    SuggExt.close=function(){const r=_close.apply(this,arguments);if(!this.f){const w=$("#sgFormWrap");w.classList.remove("sg-dock");const b=w.querySelector(":scope>.sg-dbar");if(b)b.remove();SgSplit.sync();}return r;};
+  }
+  /* 查看登錄：右邊開一個只有登錄單的畫面（intaudit.html?rec=…&side=1） */
+  if(typeof editDef0==="function"){const _e=editDef0;window.editDef0=function(rid){if(onSugg())return SgSplit.openRec(rid);return _e.apply(this,arguments);};}
+  /* 離開訴求頁時，右邊的一律收掉 */
+  ["showHome","showList","showTrack","showYear","newForm","openForm"].forEach(n=>{const f=window[n];if(typeof f!=="function")return;
+    window[n]=function(){if(R.classList.contains("sgside")&&!SgSplit.clearOthers("none"))return;return f.apply(this,arguments);};});
+})();
 </script>
 </body>
 </html>

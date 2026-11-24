@@ -31413,6 +31413,7 @@ const Air={
         return;
       }
     }
+    if(typeof AirSplit!=="undefined"&&AirSplit.on()){AirSplit.reply(url,this.replyId);return;} // 2026-11-24 新版：在填單紀錄右邊打開，不另開分頁
     window.open(url,"_blank");
   },
   /* 複製單一欄位（中或英）目前顯示的內容到剪貼簿；內容一律來自 d.reply.items[i]，
@@ -43463,4 +43464,112 @@ window.addEventListener("DOMContentLoaded",async()=>{
   try{await BigStore.ready();}catch(e){console.warn("BigStore 啟動失敗，改用 localStorage",e);}
   App.init();GateSite.init();VoyRecv.init();if(typeof Density!=="undefined")Density.apply();if(typeof Perms!=="undefined")Perms.refreshUI();if(typeof Cloud!=="undefined"&&Cloud.enabled()){setTimeout(()=>{VoyRecv.loadCatCloud().then(()=>VoyRecv.syncCloud(true));},2500);}
 });
+</script>
+
+<script>
+/* ════════ 2026-11-24 填單紀錄左右分割（只在新版上方選單 body.tn）════════
+   按 ✎ 編輯、外（對外回覆）不再換掉整頁／另開分頁：左邊留簡單清單（操作、狀態、船名、日期、來源），右邊打開編輯畫面或一頁版對外回覆。
+   右邊上方：⛶ 全螢幕（左邊清單收起）、↗ 另開視窗（只有對外回覆）、✕ 關閉（回到完整清單）。點左邊別筆，右邊直接換。 */
+(function(){
+  const css=document.createElement("style");css.textContent=`
+  body.tn #tab-air.asp{display:grid;grid-template-columns:minmax(340px,.62fr) minmax(0,1.38fr);column-gap:12px;align-items:start}
+  body.tn #tab-air.asp>*{grid-column:1/-1}
+  body.tn #tab-air.asp>.banner{display:none}
+  body.tn #tab-air.asp>#air-list-page{grid-column:1;grid-row:20;overflow:auto;min-width:0}
+  body.tn #tab-air.asp>#air-form-page,body.tn #tab-air.asp>#air-side{grid-column:2;grid-row:20;overflow:auto;min-width:0;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:-6px 0 18px rgba(20,40,60,.07)}
+  body.tn #tab-air.asp>#air-form-page{padding:0 12px 12px}
+  body.tn #tab-air.asp.full>#air-list-page{display:none!important}
+  body.tn #tab-air.asp.full>#air-form-page,body.tn #tab-air.asp.full>#air-side{grid-column:1/-1}
+  body.tn #tab-air.asp #air-list-page .tblwrap{max-height:none!important}
+  body.tn #tab-air.asp #air-list-page tr>:nth-child(1),body.tn #tab-air.asp #air-list-page tr>:nth-child(4),
+  body.tn #tab-air.asp #air-list-page tr>:nth-child(n+8){display:none}
+  body.tn #tab-air.asp #air-list-page td:nth-child(2){white-space:normal!important;min-width:120px}
+  body.tn #tab-air.asp #air-list-page tr.asp-cur>td{background:#fff3e2!important}
+  body.tn #tab-air.asp #air-list-page tr.asp-cur>td:nth-child(2){box-shadow:inset 4px 0 0 #e8842c}
+  body.tn #tab-air.asp #air-list-page .card>h3>span{flex-wrap:wrap}
+  .asp-bar{display:none;align-items:center;gap:8px;padding:8px 12px;margin:0 -12px 10px;border-bottom:1px solid var(--line);background:#f7f9fb;position:sticky;top:0;z-index:5;flex-wrap:wrap}
+  body.tn #tab-air.asp .asp-bar{display:flex}
+  #air-side .asp-bar{margin:0}
+  .asp-bar b{color:var(--navy,#1c3a5e);font-size:15px}.asp-bar .x{margin-left:auto;display:flex;gap:6px}
+  #air-side iframe{width:100%;border:0;display:block}
+  @media(max-width:900px){body.tn #tab-air.asp{grid-template-columns:1fr}body.tn #tab-air.asp>#air-list-page{display:none!important}body.tn #tab-air.asp>#air-form-page,body.tn #tab-air.asp>#air-side{grid-column:1}}`;
+  document.head.appendChild(css);
+  const $=s=>document.querySelector(s);
+  const AirSplit={
+    mode:null,id:null,url:"",
+    on(){return document.body.classList.contains("tn")&&!!$("#tab-air");},
+    tab(){return $("#tab-air");},
+    side(){
+      let s=$("#air-side");
+      if(!s){s=document.createElement("div");s.id="air-side";s.style.display="none";
+        s.innerHTML=`<div class="asp-bar"><b id="air-side-t"></b><span class="x"><button class="btn sm" data-asp="full" onclick="AirSplit.toggleFull()">⛶ 全螢幕</button><button class="btn sm" onclick="AirSplit.popOut()" title="另開一個瀏覽器分頁">↗ 另開視窗</button><button class="btn sm" onclick="AirSplit.close()">✕ 關閉</button></span></div><iframe id="air-side-f" title="對外回覆"></iframe>`;
+        this.tab().appendChild(s);}
+      return s;
+    },
+    formBar(){
+      const fp=$("#air-form-page");if(!fp)return;let b=$("#air-form-asp");
+      if(!b){b=document.createElement("div");b.id="air-form-asp";b.className="asp-bar";
+        b.innerHTML=`<b id="air-form-asp-t"></b><span class="x"><button class="btn sm" data-asp="full" onclick="AirSplit.toggleFull()">⛶ 全螢幕</button><button class="btn sm" onclick="AirSplit.close()">✕ 關閉</button></span>`;
+        fp.insertBefore(b,fp.firstChild);}
+      const d=this.id!=null?(App.air||[]).find(x=>x.id===this.id):null;
+      $("#air-form-asp-t").textContent=d?`✎ 編輯填單 — ${shipFullLabel(d.ship)}　${d.date||""}　${d.itype||""}`:"＋ 新增填單";
+    },
+    async flushReply(){try{const f=$("#air-side-f"),w=f&&f.getAttribute("src")&&f.contentWindow;if(w&&typeof w.flushAutoSave==="function")await w.flushAutoSave();}catch(e){}},
+    show(mode,id){
+      const t=this.tab();this.mode=mode;this.id=id;
+      t.classList.add("asp");
+      $("#air-list-page").style.display="";
+      const fp=$("#air-form-page"),sd=this.side();
+      if(mode==="form"){sd.style.display="none";fp.style.display="";this.formBar();}
+      else{fp.style.display="none";sd.style.display="";}
+      this.syncFullBtn();this.mark();this.fit();
+    },
+    async reply(url,id){
+      const d=(App.air||[]).find(x=>x.id===id)||{};
+      const f=this.side().querySelector("iframe");
+      const src=url+(url.includes("?")?"&":"?")+"side=1";
+      if(this.mode!=="reply"||this.id!==id||!f.getAttribute("src")){await this.flushReply();f.src=src;}
+      this.url=src;
+      $("#air-side-t").textContent=`🌐 對外回覆 — ${shipFullLabel(d.ship||"")}　${d.date||""}　${d.itype||""}`;
+      this.show("reply",id);
+    },
+    clear(){
+      const t=this.tab();if(!t)return;
+      this.flushReply();
+      t.classList.remove("asp","full");this.mode=null;this.id=null;
+      const s=$("#air-side");if(s){s.style.display="none";const f=s.querySelector("iframe");if(f)setTimeout(()=>f.removeAttribute("src"),300);}
+      ["#air-list-page","#air-form-page","#air-side"].forEach(k=>{const el=$(k);if(el)el.style.maxHeight="";});
+    },
+    close(){this.clear();if(typeof Air!=="undefined")Air.showList();},
+    toggleFull(){const t=this.tab();t.classList.toggle("full");this.syncFullBtn();this.fit();
+      try{const w=$("#air-side-f").contentWindow;if(w&&w.arShip)w.arShip(t.classList.contains("full"));}catch(e){}},
+    syncFullBtn(){const full=this.tab().classList.contains("full");document.querySelectorAll('#tab-air [data-asp="full"]').forEach(b=>b.textContent=full?"⇲ 回左右分割":"⛶ 全螢幕");},
+    popOut(){let u=this.url;try{u=$("#air-side-f").contentWindow.location.href;}catch(e){}window.open(u.replace(/([?&])side=1(&|$)/,"$1").replace(/[?&]$/,""),"_blank");},
+    mark(){document.querySelectorAll("#air-tbody tr").forEach(tr=>{const b=tr.querySelector('button[onclick^="Air.showForm("]');const m=b&&/showForm\((\d+)\)/.exec(b.getAttribute("onclick"));tr.classList.toggle("asp-cur",!!m&&+m[1]===this.id);});},
+    fit(){
+      const t=this.tab();if(!t||!t.classList.contains("asp"))return;
+      const ref=t.classList.contains("full")?(this.mode==="form"?$("#air-form-page"):$("#air-side")):$("#air-list-page");
+      const top=Math.max(ref.getBoundingClientRect().top,0);
+      const h=Math.max(420,innerHeight-top-12);
+      [$("#air-list-page"),$("#air-form-page")].forEach(el=>{if(el)el.style.maxHeight=h+"px";});
+      const s=$("#air-side");if(s&&s.style.display!=="none"){const f=s.querySelector("iframe"),bar=s.querySelector(".asp-bar");s.style.height=h+"px";s.style.maxHeight="";if(f)f.style.height=(h-(bar?bar.offsetHeight:40)-2)+"px";}
+    }
+  };
+  window.AirSplit=AirSplit;
+  addEventListener("resize",()=>AirSplit.fit());
+  if(typeof Air==="undefined")return;
+  const _showForm=Air.showForm;
+  Air.showForm=function(id){
+    if(!AirSplit.on())return _showForm.apply(this,arguments);
+    // 換到另一筆之前，先把這一筆還在等的自動儲存存掉（原本 showForm 會直接清掉計時器）
+    if(this._formSaveTimer){clearTimeout(this._formSaveTimer);try{this.autoSaveForm();}catch(e){}}
+    const r=_showForm.apply(this,arguments);
+    if($("#air-form-page")&&$("#air-form-page").style.display!=="none"){AirSplit.flushReply();AirSplit.show("form",id);}
+    return r;
+  };
+  ["showList","showFollowUpList"].forEach(fn=>{const o=Air[fn];if(typeof o!=="function")return;
+    Air[fn]=function(){if(AirSplit.mode)AirSplit.clear();return o.apply(this,arguments);};});
+  const _rl=Air.renderList;if(typeof _rl==="function")Air.renderList=function(){const r=_rl.apply(this,arguments);if(AirSplit.mode)AirSplit.mark();return r;};
+  if(typeof AirQueue!=="undefined"&&typeof AirQueue.open==="function"){const o=AirQueue.open;AirQueue.open=function(){if(AirSplit.mode)AirSplit.clear();return o.apply(this,arguments);};}
+})();
 </script>

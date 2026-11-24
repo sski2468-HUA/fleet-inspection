@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>對外回覆編輯 — FPMC</title>
+<script>/* 2026-11-24 從主系統填單紀錄「右邊」打開（?side=1）：藏頁首、預設只放中英並排，船上填寫用按鈕或全螢幕才顯示 */
+(function(){var p=/[?&]side=1(&|$)/.test(location.search);try{if(!p&&window.top!==window&&window.top.AirSplit)p=true;}catch(e){}if(p)document.documentElement.classList.add("side");})();</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root{
@@ -113,6 +115,10 @@ body.ar-edit .wrap{padding-bottom:0}
 .ar-grid .c textarea:focus{outline:2px solid var(--signal);outline-offset:-2px;background:#fffdf8}
 .ar-grid .c.ship textarea{color:#33495a}
 .ar-grid .na{padding:8px 10px;color:#a3b1bc;font-size:12px}
+html.side header{display:none}html.side .wrap{padding-top:8px}
+html.side .ar-grid{grid-template-columns:96px minmax(0,1fr) minmax(0,1fr)}html.side .ar-grid .ship{display:none}
+html.side.showship .ar-grid{grid-template-columns:108px minmax(0,.9fr) minmax(0,1fr) minmax(0,1fr)}html.side.showship .ar-grid .c.ship{display:flex}html.side.showship .ar-grid .h.ship{display:block}
+#arShipBtn{display:none}html.side #arShipBtn{display:inline-flex}
 @media(max-width:1100px){.ar-grid{grid-template-columns:96px 1fr 1fr}.ar-grid .ship{display:none}.ar-ctx{grid-template-columns:auto 1fr}}
 @media(max-width:700px){.ar-grid{grid-template-rows:none!important;height:auto!important}.ar-grid .c textarea{min-height:110px}}
 /* ── 送出前預覽 ── */
@@ -184,6 +190,7 @@ textarea.merged-flash{animation:mflash 1.6s ease-out;background:#fff8dc;border-c
           <select id="confirmerSelect" onchange="onConfirmerSelectChange()"><option value="">讀取人員清單中…</option></select>
           <input type="text" id="confirmerName" placeholder="請輸入姓名" style="display:none;width:110px">
         </label>
+        <button class="btn" id="arShipBtn" type="button" onclick="arShip()" title="顯示／收起船上填寫的原文（第一欄）">🚢 顯示船上填寫</button>
         <button class="btn primary" id="submitAllBtn" onclick="openPreview()" title="先看全部缺失填好的內容，確認後再送出">👁 預覽並送出</button>
         <span class="ar-more" id="arMore"><button class="btn" type="button" onclick="event.stopPropagation();this.parentElement.classList.toggle('open')">⋯ 更多</button>
           <div class="ar-dd">
@@ -355,11 +362,14 @@ function setConfirmerValue(name){
 }
 /* ══════ 2026-11-23 一頁版小工具 ══════ */
 /* 表格高度撐到視窗底（整頁不捲，各格自己捲）；窄螢幕（手機）不固定高度，照常往下捲 */
+/* 2026-11-24 右邊模式：切換「🚢 船上填寫」欄（主系統按全螢幕時也會叫這個） */
+function arShip(on){const r=document.documentElement;if(on===undefined)on=!r.classList.contains("showship");r.classList.toggle("showship",!!on);
+  const b=document.getElementById("arShipBtn");if(b)b.textContent=on?"🚢 收起船上填寫":"🚢 顯示船上填寫";setTimeout(arFit,0);}
 function arFit(){
   const g=document.getElementById("arGrid");if(!g)return;
   if(innerWidth<=700){g.style.height="";return;}
   const top=g.getBoundingClientRect().top+window.scrollY;
-  g.style.height=Math.max(380,innerHeight-top-22)+"px";
+  g.style.height=Math.max(document.documentElement.classList.contains("side")?240:380,innerHeight-top-22)+"px";
 }
 window.addEventListener("resize",arFit);
 /* 「⋯ 更多」裡打開／收起的面板（AI 翻譯小幫手、操作說明）；打開後表格高度跟著重算 */
@@ -558,7 +568,7 @@ async function switchDefect(idx){
   defectMeta=it._defectMeta||null;
   stage=+row.stage||1;
   setConfirmerValue(row.confirmed_by||"");
-  try{ history.replaceState(null,"",`?rid=${RID}&didx=${idx}`); }catch(e){}
+  try{ history.replaceState(null,"",`?rid=${RID}&didx=${idx}`+(document.documentElement.classList.contains("side")?"&side=1":"")); }catch(e){}
   renderDefTabs();
   renderDefMeta();
   renderStage();
