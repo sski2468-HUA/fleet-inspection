@@ -6,6 +6,9 @@
    不會在框框裡再開一層。直接開這個網址時（不在框框裡）完全照舊。 */
 (function(){var T=null;try{if(window.self!==window.top&&window.top.Embed)T=window.top;}catch(e){}
   if(!T)return;document.documentElement.classList.add("emb");
+  /* 2026-11-24 看起來像主系統本來的頁面：只有 Owner 還看得到原本的深藍標題列（裡面有操作紀錄等管理功能） */
+  try{var me=(T.Role&&T.Role.cur)||JSON.parse(localStorage.getItem("vsm_identity_v1"));if(me&&me.tier==="owner")document.documentElement.classList.add("emb-owner");}catch(e){}
+  document.addEventListener("DOMContentLoaded",function(){var h=document.querySelector(".wrap>header");if(h&&h.parentNode)h.parentNode.appendChild(h);});
   /* 在主系統切換身份時，這一頁跟著重新載入成新身份（同網域其他視窗改 localStorage 會觸發 storage 事件） */
   window.addEventListener("storage",function(e){if(e.key==="vsm_identity_v1")location.reload();});
   document.addEventListener("click",function(ev){var a=ev.target&&ev.target.closest?ev.target.closest("a[href]"):null;if(!a)return;
@@ -23,6 +26,15 @@ html.emb header>div{display:none!important}
 html.emb header>span{flex-direction:row!important;flex-wrap:wrap}
 html.emb header .btn.sm{padding:3px 10px!important;font-size:12.5px!important}
 html.emb body{margin-top:0}
+html.emb,html.emb body{background:transparent!important} /* 2026-11-24 底色跟主系統一樣、不留邊框 */
+html.emb .wrap{max-width:none!important;padding:0 0 40px!important}
+html.emb:not(.emb-owner) header{display:none!important}
+/* 2026-11-24 Owner 看到的那條：不用深藍底，改淺色；移到頁面最下面（看起來不像另一個網頁） */
+html.emb.emb-owner header{background:#eef2f6!important;color:var(--ink)!important;border:1px solid var(--line);border-radius:10px;margin:18px 0 0!important}
+html.emb.emb-owner header a,html.emb.emb-owner header #iaWho,html.emb.emb-owner header #iaWho *{color:var(--navy)!important}
+html.emb.emb-owner header a{background:#fff!important;border:1px solid var(--line)!important}
+html.emb.emb-owner header .btn{background:#fff!important;color:var(--navy)!important;border-color:var(--line)!important}
+html.emb .wrap{max-width:none;padding-left:16px;padding-right:16px} /* 2026-11-24 嵌在主系統時用滿寬度 */
 </style>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -2053,7 +2065,8 @@ const SC={
    查看只限 Owner：本頁沒有登入，用主系統／內部檢查缺失登錄的登入身份（vsm_identity_v1，8 小時）判斷。 ══ */
 const SLog={
   rows:[],TIER:{owner:"Owner",admin:"管理員",op1:"督導",op2:"船舶",op3:"其他部門"},
-  ident(){try{const s=JSON.parse(localStorage.getItem("vsm_identity_v1"));return s&&s.name&&s.exp>Date.now()?s:null;}catch(e){return null;}},
+  ident(){try{const T=window.top;if(T&&T!==window&&T.Embed&&T.Role&&T.Role.cur&&T.Role.cur.name)return T.Role.cur;}catch(e){} /* 2026-11-24 嵌在主系統時沿用主系統身份 */
+    try{const s=JSON.parse(localStorage.getItem("vsm_identity_v1"));return s&&s.name&&s.exp>Date.now()?s:null;}catch(e){return null;}},
   isOwner(){const s=this.ident();return !!(s&&s.tier==="owner");},
   user(fallback){const s=this.ident();return s?`${s.name}（${this.TIER[s.tier]||s.tier}）`:(fallback||((typeof SC!=="undefined"&&SC.by())||"未具名"))+"（未登入）";},
   log(action,target,summary,by){
