@@ -45857,3 +45857,386 @@ body.tn .msel .panel .chip.op:hover{background:#eef3f8}
   setTimeout(hook,1300);setInterval(hook,3000);
 })();
 </script>
+
+<script>
+/* ════════ 2026-11-25 分割畫面可以拖拉中間線調整左右寬度（會記住；雙擊中間線回到預設）
+   ① 填單紀錄左右分割（#tab-air.asp）　② 右邊分割面板 SidePeek（檢查紀錄、首頁等點數字打開的） */
+(function(){
+  const LS={get:k=>{try{return localStorage.getItem(k);}catch(e){return null;}},set:(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v);}catch(e){}}};
+  const css=document.createElement("style");css.textContent=`
+  body.tn #tab-air.asp{grid-template-columns:var(--asp-l,minmax(340px,.62fr)) 12px minmax(0,1.38fr);column-gap:0}
+  body.tn #tab-air.asp>#air-form-page,body.tn #tab-air.asp>#air-side{grid-column:3}
+  body.tn #tab-air.asp.full>#air-form-page,body.tn #tab-air.asp.full>#air-side{grid-column:1/-1}
+  #asp-drag{display:none}
+  body.tn #tab-air.asp>#asp-drag{display:block;grid-column:2;grid-row:20;align-self:stretch;cursor:col-resize;position:relative;min-height:200px}
+  body.tn #tab-air.asp.full>#asp-drag{display:none}
+  .sd-line{position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:transparent;transition:background .15s}
+  .sd-grip{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);width:8px;height:44px;border-radius:5px;background:#c9d5e0;box-shadow:inset 0 0 0 2px #fff}
+  #asp-drag:hover .sd-line,#asp-drag.on .sd-line,#sp-drag:hover .sd-line,#sp-drag.on .sd-line{background:#e8842c}
+  #asp-drag:hover .sd-grip,#asp-drag.on .sd-grip,#sp-drag:hover .sd-grip,#sp-drag.on .sd-grip{background:#e8842c}
+  body.sd-dragging,body.sd-dragging *{cursor:col-resize!important;user-select:none!important}
+  body.sd-dragging iframe{pointer-events:none}
+  body.tn.sp-on .page{margin-right:var(--sp-w,min(56%,calc(100% - 420px)))}
+  #sidePeek{width:var(--sp-w,min(56%,calc(100% - 420px)))}
+  body.tn.sp-full #sidePeek{width:100%}
+  #sp-drag{position:absolute;left:-7px;top:0;bottom:0;width:14px;cursor:col-resize;z-index:2}
+  body.tn.sp-full #sp-drag{display:none}
+  @media(max-width:900px){body.tn #tab-air.asp{grid-template-columns:1fr}body.tn #tab-air.asp>#asp-drag,#sp-drag{display:none!important}body.tn #tab-air.asp>#air-form-page,body.tn #tab-air.asp>#air-side{grid-column:1}}`;
+  document.head.appendChild(css);
+  const H=`<span class="sd-line"></span><span class="sd-grip"></span>`;
+  function drag(handle,onMove,onEnd){
+    handle.addEventListener("mousedown",e=>{if(e.button!==0)return;e.preventDefault();handle.classList.add("on");document.body.classList.add("sd-dragging");
+      const mv=ev=>onMove(ev.clientX),up=()=>{removeEventListener("mousemove",mv);removeEventListener("mouseup",up);handle.classList.remove("on");document.body.classList.remove("sd-dragging");onEnd();};
+      addEventListener("mousemove",mv);addEventListener("mouseup",up);});
+  }
+  /* ① 填單紀錄 */
+  const tab=document.getElementById("tab-air");
+  if(tab){
+    const sv=LS.get("vsm_asp_l");if(sv)tab.style.setProperty("--asp-l",sv+"px");
+    const hd=document.createElement("div");hd.id="asp-drag";hd.title="拖拉調整左右寬度（雙擊回到預設）";hd.innerHTML=H;tab.appendChild(hd);
+    const refit=()=>{try{AirSplit.fit();}catch(e){}try{if(typeof Air!=="undefined"&&Air.fitReply2)Air.fitReply2();}catch(e){}};
+    drag(hd,x=>{const r=tab.getBoundingClientRect();const w=Math.round(Math.max(260,Math.min(r.width-420,x-r.left-6)));tab.style.setProperty("--asp-l",w+"px");},
+      ()=>{const v=parseInt(tab.style.getPropertyValue("--asp-l"));if(v)LS.set("vsm_asp_l",v);refit();});
+    hd.addEventListener("dblclick",()=>{tab.style.removeProperty("--asp-l");LS.set("vsm_asp_l",null);refit();});
+  }
+  /* ② SidePeek */
+  const spw=LS.get("vsm_sp_w");if(spw)document.body.style.setProperty("--sp-w",spw+"px");
+  function hookSp(){
+    const p=document.getElementById("sidePeek");if(!p||p.querySelector("#sp-drag"))return;
+    const hd=document.createElement("div");hd.id="sp-drag";hd.title="拖拉調整左右寬度（雙擊回到預設）";hd.innerHTML=H;p.appendChild(hd);
+    drag(hd,x=>{const w=Math.round(Math.max(360,Math.min(innerWidth-320,innerWidth-x)));document.body.style.setProperty("--sp-w",w+"px");},
+      ()=>{const v=parseInt(document.body.style.getPropertyValue("--sp-w"));if(v)LS.set("vsm_sp_w",v);try{SidePeek.fit();}catch(e){}});
+    hd.addEventListener("dblclick",()=>{document.body.style.removeProperty("--sp-w");LS.set("vsm_sp_w",null);});
+  }
+  if(typeof SidePeek!=="undefined"){const _o=SidePeek.open;SidePeek.open=function(){const r=_o.apply(this,arguments);try{hookSp();}catch(e){}return r;};}
+})();
+</script>
+
+<script>
+/* ════════ 2026-11-25 檢查紀錄改版（照 模擬_檢查紀錄改版.html：② 統計表格＋C 月曆）
+   ① 一進來就是列表；原本的「一覽表」改成列表上方的來源統計表（左外部、右內部；點欄位＝篩選該來源）
+   ② 期間改用 📅 月曆面板：年月（可跨年區間）＋指定日期（進階）；檢查紀錄、缺失紀錄都用
+   ③ 列表上方：摘要（期間、次數、缺失、平均、扣船）＋ 依月份分組 ＋ 各來源逐年統計表 ＋ 船隊風險清單
+   ④ 點列表任一列 → 右邊看這次檢查（缺失、報告檔案）
+   ⑤ 📎 報告檔案：每筆檢查可夾帶報告（PDF、Word、Excel、圖片，每檔 20MB），存在檢查紀錄的 reports 欄位 */
+(function(){
+  if(typeof Ov==="undefined")return;
+  const $=s=>document.querySelector(s);
+  const pad=n=>String(n).padStart(2,"0");
+  const admin=()=>typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();
+  const css=document.createElement("style");css.textContent=`
+  /* 月曆 */
+  .ea-row .ea-ym,.ea-row [data-g="ym"]{display:none!important}
+  .cpk{display:inline-block;position:relative}
+  .cpk-b{border:1.5px solid #b9c6d2;background:#fff;border-radius:8px;padding:6px 12px;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .cpk-b.on{border-color:#e8842c;background:#fff4ea;color:#a2560f}
+  .cpk-pop{display:none;position:fixed;z-index:3100;background:#fff;border:1px solid #c9d5e0;border-radius:12px;box-shadow:0 10px 28px rgba(20,40,60,.2);padding:12px;width:600px;max-width:calc(100vw - 16px);max-height:80vh;overflow:auto}
+  .cpk-pop.show{display:block}
+  .cpk-tab{display:flex;gap:4px;margin-bottom:10px;border-bottom:1px solid #eef1f4}
+  .cpk-tab button{border:0;background:none;padding:7px 14px;font:inherit;font-weight:700;color:#6b7c88;cursor:pointer;border-bottom:3px solid transparent}
+  .cpk-tab button.on{color:#1c3a5e;border-bottom-color:#e8842c}
+  .cpk-tip{font-size:12px;color:#6b7c88;margin:0 2px 8px}
+  .cpk-pop table{border-collapse:separate;border-spacing:4px;width:100%}
+  .cpk-pop td{text-align:center;padding:6px 0;border-radius:6px;cursor:pointer;font-size:13px;border:1px solid #eef1f4}
+  .cpk-pop td.yr{font-weight:800;color:#1c3a5e;border:0;width:64px;text-align:left}
+  .cpk-pop td.yr span{display:block;font-size:11px;color:#2f6690;text-decoration:underline;font-weight:600}
+  .cpk-pop td.m:hover{background:#eef3f8}
+  .cpk-pop td.m.in{background:#dce9f6;border-color:#9fbfdc}
+  .cpk-pop td.m.end{background:#1c3a5e;color:#fff;border-color:#1c3a5e;font-weight:700}
+  .cpk-pop td.m.none{color:#c3ccd4}
+  .cpk-qk{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid #eef1f4}
+  .cpk-qk button{border:1.5px solid #b9c6d2;background:#fff;border-radius:16px;padding:4px 11px;font:inherit;font-size:12.5px;cursor:pointer;font-weight:600}
+  .cpk-qk button:hover{border-color:#2f6690}
+  .cpk-qk button.ok{background:#1c3a5e;color:#fff;border-color:#1c3a5e}
+  .cpk-dn{display:flex;align-items:flex-start;gap:8px}
+  .cpk-dn>button{border:1.5px solid #b9c6d2;background:#fff;border-radius:8px;padding:3px 9px;cursor:pointer;font:inherit}
+  .cpk-two{display:flex;gap:16px;flex:1}
+  .cpk-mg{flex:1}.cpk-mh{text-align:center;font-weight:800;color:#1c3a5e;margin-bottom:4px}
+  .cpk-wk,.cpk-dg{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+  .cpk-wk span{font-size:11px;color:#6b7c88;padding:2px 0}
+  .cpk-dg span.dd{position:relative;padding:6px 0;border-radius:6px;cursor:pointer;font-size:13px}
+  .cpk-dg span.dd:hover{background:#eef3f8}
+  .cpk-dg span.dd i{position:absolute;left:50%;bottom:2px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:#e8842c}
+  .cpk-dg span.dd.in{background:#dce9f6;border-radius:0}
+  .cpk-dg span.dd.end{background:#1c3a5e;color:#fff;font-weight:700}.cpk-dg span.dd.end i{background:#fff}
+  .cpk-dg span.dd.td{box-shadow:inset 0 0 0 1.5px #e8842c}
+  /* 檢查紀錄：分頁按鈕、一覽表收起來 */
+  body.tn #tab-ov .ovx-subbar{display:none!important}
+  body.tn #tab-ov #ov-sub-summary{display:none!important}
+  /* 來源統計表 */
+  #ovx-src{margin-bottom:12px}
+  .ovx-t2s{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:12px;align-items:start}
+  .ovx-t2w{overflow-x:auto;border:1px solid #eef1f4;border-radius:8px}
+  .ovx-t2{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
+  .ovx-t2 th,.ovx-t2 td{padding:6px 6px;text-align:center;border-bottom:1px solid #eef1f4;white-space:nowrap;cursor:pointer}
+  .ovx-t2 th.g{width:56px;color:#fff;cursor:default;font-size:14px;letter-spacing:2px}
+  .ovx-t2.ext th.g{background:#2f6690}.ovx-t2.int th.g{background:#e8842c}
+  .ovx-t2 th.h{background:#f3f6f9;font-weight:800;color:#1f2d38;white-space:normal;line-height:1.2;font-size:12.5px;min-width:58px;vertical-align:bottom}
+  .ovx-t2 th.h{min-width:64px;max-width:104px}.ovx-t2 th.h .hn{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:normal;overflow-wrap:normal}color:#6b7c88;font-size:12.5px;cursor:default;background:#fafbfc}
+  .ovx-t2 td.v{font-family:var(--mono,Consolas,monospace);font-size:17px;font-weight:800;color:#1c3a5e}
+  .ovx-t2 td.v.x{color:#c0392b}
+  .ovx-t2 th.h:hover,.ovx-t2 td.v:hover{background:#eef3f8}
+  .ovx-t2 .on{background:#fff1e2!important}.ovx-t2 th.h.on{color:#a2560f;box-shadow:inset 0 3px 0 #e8842c}
+  .ovx-hint{font-size:12px;color:#6b7c88;margin-top:6px}
+  /* 摘要 */
+  .ovx-sum{display:flex;gap:20px;align-items:baseline;flex-wrap:wrap;font-weight:400}
+  .ovx-sum .n{font-size:22px;font-weight:800;color:#1c3a5e}.ovx-sum .n.r{color:#c0392b}
+  .ovx-sum .t{color:#6b7c88;font-size:13px;margin-left:3px}
+  /* 各來源逐年統計表 */
+  #ovx-cmp{display:none;margin:0 0 12px;overflow-x:auto}
+  #ovx-cmp.show{display:block}
+  .ovx-mtx{width:100%;border-collapse:collapse;font-size:12.5px}
+  .ovx-mtx td,.ovx-mtx th{border:1px solid #eef1f4;padding:5px 7px;text-align:center;background:#fff}
+  .ovx-mtx th{background:#f1f4f7}
+  .ovx-mtx th.gext{background:#2f6690;color:#fff;letter-spacing:3px}.ovx-mtx th.gint{background:#e8842c;color:#fff;letter-spacing:3px}
+  .ovx-mtx th.src{font-size:12px;white-space:normal;line-height:1.2;min-width:62px;vertical-align:bottom}
+  .ovx-mtx td.yr{font-weight:800;font-size:15px;color:#1c3a5e;background:#f7f9fb;width:60px}
+  .ovx-mtx td.mk{color:#6b7c88;text-align:left;width:46px;background:#fafbfc}
+  .ovx-mtx tr.ytop td{border-top:2px solid #c9d5e0}
+  .ovx-mtx td.v{font-family:var(--mono,Consolas,monospace);font-size:14px;font-weight:700}
+  .ovx-mtx td.avg{color:#6b7c88;font-weight:600}.ovx-mtx td.nil{color:#c3ccd4;font-weight:400}
+  .ovx-mtx .gsep{border-left:2px solid #c9d5e0!important}
+  /* 依月份分組 */
+  #ov-tbody tr.ovx-mh td{background:#eef3f8!important;font-weight:800;color:#1c3a5e;padding:6px 10px;font-size:13px}
+  #ov-tbody tr.ovx-mh td span{font-weight:500;color:#6b7c88;margin-left:10px}
+  #ov-tbody tr[data-oid]{cursor:pointer}
+  #ov-tbody tr[data-oid]:hover>td{background:#f5f9fc}
+  .ovx-rp{display:inline-block;font-size:11px;font-weight:700;color:#2f6690;background:#eef4fb;border-radius:8px;padding:0 6px;margin-left:4px}
+  /* 報告檔案 */
+  .ovx-files{border:1px solid #dde4ea;border-radius:10px;padding:8px 10px;margin-bottom:10px;background:#fbfcfd}
+  .ovx-files h4{margin:0 0 6px;font-size:13.5px;color:#1c3a5e;display:flex;align-items:center;gap:8px}
+  .ovx-files h4 .btn{margin-left:auto}
+  .ovx-file{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:13px;border-top:1px dashed #e6ebf0}
+  .ovx-file:first-of-type{border-top:0}
+  .ovx-file a{font-weight:700;color:#2f6690;overflow-wrap:anywhere}
+  .ovx-file .hint{font-size:11.5px}
+  .ovx-file .x{margin-left:auto;border:0;background:none;color:#b0322a;cursor:pointer;font-size:12px}`;
+  document.head.appendChild(css);
+
+  /* ════ ① 月曆期間選擇 ════ */
+  const dayOf=s=>{const d=typeof parseDate==="function"?parseDate(s):null;return d?`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`:"";};
+  const N=new Date(),NOWYM=`${N.getFullYear()}-${pad(N.getMonth()+1)}`,TODAY=`${NOWYM}-${pad(N.getDate())}`;
+  const ymAdd=(ym,n)=>{let [y,m]=ym.split("-").map(Number);m+=n;while(m<1){m+=12;y--;}while(m>12){m-=12;y++;}return `${y}-${pad(m)}`;};
+  const CP={
+    st:{ov:{df:"",dt:"",tab:"m",pick:null,view:""},defs:{df:"",dt:"",tab:"m",pick:null,view:""}},
+    cfg:{ov:{f:"ov-ymfrom",t:"ov-ymto",data:()=>App.insp||[],render:()=>{Ov.page=1;Ov.render();}},
+         defs:{f:"f-ymfrom",t:"f-ymto",data:()=>App.defs||[],render:()=>{Defs.page=1;Defs.render();}}},
+    sel(k){const c=this.cfg[k];return [document.getElementById(c.f),document.getElementById(c.t)];},
+    ensure(s,v){if(!s)return;if(v&&![...s.options].some(o=>o.value===v)){const o=document.createElement("option");o.value=v;o.textContent=v;s.appendChild(o);}s.value=v||"";},
+    setMonths(k,a,b){if(a&&b&&a>b)[a,b]=[b,a];const [f,t]=this.sel(k);this.ensure(f,a);this.ensure(t,b);const s=this.st[k];s.df=s.dt="";},
+    setDays(k,a,b){if(a&&b&&a>b)[a,b]=[b,a];const [f,t]=this.sel(k);if(f)f.value="";if(t)t.value="";const s=this.st[k];s.df=a||"";s.dt=b||"";},
+    label(k){const s=this.st[k];
+      if(s.df){const md=v=>`${+v.slice(5,7)}/${+v.slice(8)}`;return s.df===s.dt?`${s.df.slice(0,4)} 年 ${md(s.df)}`:s.df.slice(0,4)===s.dt.slice(0,4)?`${s.df.slice(0,4)} 年 ${md(s.df)} ～ ${md(s.dt)}`:`${s.df.replace(/-/g,"/")} ～ ${s.dt.replace(/-/g,"/")}`;}
+      const [f,t]=this.sel(k),a=f?f.value:"",b=t?t.value:"";if(!a&&!b)return "全部期間";
+      const ml=v=>`${v.slice(0,4)} 年 ${+v.slice(5)} 月`;
+      if(a===b)return ml(a);if(a&&b&&a.endsWith("-01")&&b.endsWith("-12")&&a.slice(0,4)===b.slice(0,4))return `${a.slice(0,4)} 年`;
+      if(a&&b&&a.slice(0,4)===b.slice(0,4))return `${a.slice(0,4)} 年 ${+a.slice(5)}～${+b.slice(5)} 月`;
+      return `${a?a.replace("-","/"):"最早"} ～ ${b?b.replace("-","/"):"最新"}`;},
+    active(k){const [f,t]=this.sel(k);return !!(this.st[k].df||(f&&f.value)||(t&&t.value));},
+    years(k){return [...new Set(this.cfg[k].data().map(d=>String(d.ym||ymOf(d.date)||"").slice(0,4)).filter(y=>/^\d{4}$/.test(y)))].sort().reverse();},
+    paint(k){
+      const w=document.querySelector(`.cpk[data-k="${k}"]`);if(!w)return;
+      const b=w.querySelector(".cpk-b");const on=this.active(k);b.classList.toggle("on",on);b.textContent=`📅 ${this.label(k)} ▾`;
+      const pop=w.querySelector(".cpk-pop");if(!pop.classList.contains("show"))return;
+      const s=this.st[k],[F,T]=this.sel(k),f=F?F.value:"",t=T?T.value:"";
+      const D=this.cfg[k].data();
+      if(s.tab==="m"){
+        const has=new Set(D.map(d=>d.ym||ymOf(d.date)));
+        pop.innerHTML=this.tabs(s.tab)+`<div class="cpk-tip">點一個月＝那個月；再點另一個月＝區間（可以跨年）。點年份＝整年。</div>
+          <table>${this.years(k).map(y=>`<tr><td class="yr" data-yr="${y}">${y}<span>整年</span></td>${[...Array(12)].map((_,i)=>{const v=`${y}-${pad(i+1)}`;const end=!s.df&&(v===f||v===t),inR=!s.df&&f&&t&&v>f&&v<t;return `<td class="m ${end?"end":inR?"in":""} ${has.has(v)?"":"none"}" data-v="${v}">${i+1}月</td>`;}).join("")}</tr>`).join("")}</table>
+          <div class="cpk-qk"><button data-q="0">本月</button><button data-q="-1">上個月</button><button data-q="3">近 3 個月</button><button data-q="6">近 6 個月</button><button data-q="12">近 12 個月</button><button data-q="all">全部期間</button><span style="flex:1"></span><button class="ok" data-q="ok">完成</button></div>`;
+      }else{
+        const days=new Set(D.map(d=>dayOf(d.date)).filter(Boolean));
+        const v0=s.view||(s.df?ymAdd(s.df.slice(0,7),0):ymAdd(NOWYM,-1));s.view=v0;
+        const grid=ym=>{const [y,m]=ym.split("-").map(Number),first=new Date(y,m-1,1).getDay(),n=new Date(y,m,0).getDate();let c="";for(let i=0;i<first;i++)c+="<span></span>";
+          for(let d=1;d<=n;d++){const v=`${ym}-${pad(d)}`,end=v===s.df||v===s.dt,inR=s.df&&s.dt&&v>s.df&&v<s.dt;c+=`<span class="dd ${end?"end":inR?"in":""} ${v===TODAY?"td":""}" data-d="${v}">${d}${days.has(v)?"<i></i>":""}</span>`;}
+          return `<div class="cpk-mg"><div class="cpk-mh">${y} 年 ${m} 月</div><div class="cpk-wk">${"日一二三四五六".split("").map(x=>`<span>${x}</span>`).join("")}</div><div class="cpk-dg">${c}</div></div>`;};
+        pop.innerHTML=this.tabs(s.tab)+`<div class="cpk-tip">點一天＝那一天；再點另一天＝區間。日期下面有橘點＝那天有資料。</div>
+          <div class="cpk-dn"><button data-nav="-1">◀</button><div class="cpk-two">${grid(v0)}${grid(ymAdd(v0,1))}</div><button data-nav="1">▶</button></div>
+          <div class="cpk-qk"><button data-qd="0">今天</button><button data-qd="7">近 7 天</button><button data-qd="30">近 30 天</button><button data-qd="clr">清除日期</button><span style="flex:1"></span><button class="ok" data-q="ok">完成</button></div>`;
+      }
+    },
+    tabs(t){return `<div class="cpk-tab"><button class="${t==="m"?"on":""}" data-tab="m">📅 年月</button><button class="${t==="d"?"on":""}" data-tab="d">🗓 指定日期（進階）</button></div>`;},
+    place(w){const b=w.querySelector(".cpk-b"),p=w.querySelector(".cpk-pop"),r=b.getBoundingClientRect();
+      p.style.left=Math.max(8,Math.min(innerWidth-p.offsetWidth-8,r.left))+"px";p.style.top=(r.bottom+6)+"px";p.style.maxHeight=Math.max(240,innerHeight-r.bottom-20)+"px";},
+    click(k,e){
+      const s=this.st[k],t=e.target;
+      const tb=t.closest("[data-tab]"),yr=t.closest("[data-yr]"),m=t.closest("td.m"),q=t.closest("[data-q]"),dd=t.closest("[data-d]"),nv=t.closest("[data-nav]"),qd=t.closest("[data-qd]");
+      let changed=false;
+      if(tb){s.tab=tb.dataset.tab;s.pick=null;}
+      else if(nv){s.view=ymAdd(s.view||NOWYM,+nv.dataset.nav);}
+      else if(dd){const v=dd.dataset.d;if(s.pick&&s.pick.length===10&&s.pick!==v){this.setDays(k,s.pick,v);s.pick=null;}else{s.pick=v;this.setDays(k,v,v);}changed=true;}
+      else if(qd){const x=qd.dataset.qd;if(x==="clr")this.setDays(k,"","");else if(x==="0")this.setDays(k,TODAY,TODAY);else{const d=new Date(N.getFullYear(),N.getMonth(),N.getDate()-(+x-1));this.setDays(k,`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,TODAY);}s.pick=null;changed=true;}
+      else if(yr){s.pick=null;this.setMonths(k,yr.dataset.yr+"-01",yr.dataset.yr+"-12");changed=true;}
+      else if(m){const v=m.dataset.v;if(s.pick&&s.pick.length===7&&s.pick!==v){this.setMonths(k,s.pick,v);s.pick=null;}else{s.pick=v;this.setMonths(k,v,v);}changed=true;}
+      else if(q){const x=q.dataset.q;if(x==="ok"){this.close();return;}s.pick=null;
+        if(x==="all")this.setMonths(k,"","");else if(x==="0")this.setMonths(k,NOWYM,NOWYM);else if(x==="-1"){const v=ymAdd(NOWYM,-1);this.setMonths(k,v,v);}else this.setMonths(k,ymAdd(NOWYM,-(+x-1)),NOWYM);changed=true;}
+      if(changed){try{this.cfg[k].render();}catch(err){console.warn("CalPick render",err);}}
+      this.paint(k);
+    },
+    close(){document.querySelectorAll(".cpk-pop.show").forEach(p=>p.classList.remove("show"));},
+    mount(k){
+      const row=document.querySelector(k==="ov"?"#tab-ov .ea-row":"#tab-defs .ea-row");if(!row||row.querySelector(".cpk"))return;
+      const ymg=row.querySelector('[data-g="ym"]'),kw=row.querySelector(".ea-kw");
+      const w=document.createElement("span");w.className="cpk";w.dataset.k=k;
+      w.innerHTML=`<button type="button" class="cpk-b">📅 全部期間 ▾</button><div class="cpk-pop"></div>`;
+      if(kw)kw.after(w);else if(ymg)ymg.before(w);else row.appendChild(w);
+      w.querySelector(".cpk-b").onclick=e=>{e.stopPropagation();const p=w.querySelector(".cpk-pop");const open=p.classList.contains("show");this.close();if(!open){p.classList.add("show");this.st[k].pick=null;this.paint(k);this.place(w);}};
+      w.querySelector(".cpk-pop").addEventListener("click",e=>{e.stopPropagation();this.click(k,e);});
+      this.paint(k);
+    }
+  };
+  window.CalPick=CP;
+  document.addEventListener("click",e=>{if(!e.target.closest(".cpk"))CP.close();});
+  addEventListener("resize",()=>CP.close());
+  // 指定日期：在原本的篩選結果上再過濾日期
+  const _fr=Ov.filteredRows;Ov.filteredRows=function(){const r=_fr.apply(this,arguments);const s=CP.st.ov;return s.df?r.filter(i=>{const v=dayOf(i.date);return v&&v>=s.df&&v<=s.dt;}):r;};
+  if(typeof Defs!=="undefined"){const _df=Defs.filtered;Defs.filtered=function(){const r=_df.apply(this,arguments);const s=CP.st.defs;return s.df?r.filter(d=>{const v=dayOf(d.date);return v&&v>=s.df&&v<=s.dt;}):r;};
+    const _dc=Defs.clearFilters;Defs.clearFilters=function(){CP.st.defs.df=CP.st.defs.dt="";return _dc.apply(this,arguments);};}
+  const _oc=Ov.clearFilters;Ov.clearFilters=function(){CP.st.ov.df=CP.st.ov.dt="";return _oc.apply(this,arguments);};
+  const _pl=Ov.periodLabel;Ov.periodLabel=function(){return CP.st.ov.df||CP.active("ov")?CP.label("ov"):_pl.apply(this,arguments);};
+
+  /* ════ ② 來源統計表、摘要、逐年統計、月份分組、點列看明細 ════ */
+  let grp=false;
+  const isDet=r=>String(r.detain||"").toUpperCase().startsWith("Y");
+  function baseRows(){const it=Ov.ms.itype;if(!it)return Ov.filteredRows();const keep=[...it.sel];it.set([]);let r;try{r=Ov.filteredRows();}finally{it.set(keep);}return r.filter(i=>!Ov.sel.size||Ov.sel.has(ymOf(i.date)));}
+  function stat(rows){const by={};rows.forEach(r=>{const o=by[r.itype]=by[r.itype]||{n:0,d:0,x:0};o.n++;o.d+=+r.ndef||0;if(isDet(r))o.x++;});return by;}
+  function groups(by){const sel=Ov.ms.itype?Ov.ms.itype.sel:new Set();
+    const L=[...new Set([...Object.keys(by),...sel])].filter(Boolean);
+    const sorter=(a,b)=>((by[b]||{n:0}).n-(by[a]||{n:0}).n)||String(a).localeCompare(String(b));
+    const ext=L.filter(t=>!isInternal(t)).sort(sorter),int=L.filter(t=>isInternal(t)).sort(sorter);
+    const G=[];if(Ov.scope!=="int"&&ext.length)G.push(["外部","ext",ext]);if(Ov.scope!=="ext"&&int.length)G.push(["內部","int",int]);return G;}
+  function srcTables(){
+    const box=$("#ovx-src");if(!box)return;
+    const b=baseRows(),by=stat(b),G=groups(by),sel=Ov.ms.itype?Ov.ms.itype.sel:new Set();
+    const O=t=>by[t]||{n:0,d:0,x:0},AV=o=>o.n?(o.d/o.n).toFixed(1):"–";
+    const at=t=>`data-it="${esc(t)}" title="點一下只看「${esc(t)}」，再點一次取消"`;
+    box.innerHTML=G.length?`<div class="ovx-t2s" style="--ovx-cols:${G.map(g=>(g[2].length+1)+"fr").join(" ")}">${G.map(([l,c,L])=>`<div class="ovx-t2w"><table class="ovx-t2 ${c}"><tr><th class="g">${l}</th>${L.map(t=>`<th class="h ${sel.has(t)?"on":""}" ${at(t)}><span class="hn">${esc(String(t).replace(/^其他：/,""))}</span></th>`).join("")}</tr>
+      ${[["次數",o=>o.n],["缺失數",o=>o.d],["平均缺失",AV],["扣船",o=>o.x||""]].filter(([k])=>k!=="扣船"||L.some(t=>O(t).x)).map(([k,f])=>`<tr><td class="k">${k}</td>${L.map(t=>`<td class="v ${sel.has(t)?"on":""} ${k==="扣船"?"x":""}" ${at(t)}>${f(O(t))}</td>`).join("")}</tr>`).join("")}</table></div>`).join("")}</div>
+      <div class="ovx-hint">點表格裡的來源（或數字）＝只看那種檢查，可以點好幾個；再點一次取消。統計跟著上面的篩選（船舶、期間…）變動。</div>`:`<div class="hint">目前篩選沒有資料。</div>`;
+  }
+  function cmpTable(){
+    const box=$("#ovx-cmp");if(!box||!box.classList.contains("show"))return;
+    const b=baseRows(),G=groups(stat(b));
+    const ys=[...new Set(b.map(r=>String(ymOf(r.date)).slice(0,4)).filter(Boolean))].sort().reverse();
+    const ex=(G.find(g=>g[1]==="ext")||[,,[]])[2],inn=(G.find(g=>g[1]==="int")||[,,[]])[2],cols=[...ex,...inn];
+    const cell=(t,y,k)=>{const a=b.filter(r=>r.itype===t&&String(ymOf(r.date)).startsWith(y));const sep=t===inn[0]?"gsep":"";if(!a.length)return `<td class="nil ${sep}">–</td>`;const n=a.reduce((s,r)=>s+(+r.ndef||0),0);
+      return `<td class="v ${k==="avg"?"avg":""} ${sep}">${k==="n"?a.length:k==="d"?n:(n/a.length).toFixed(1)}</td>`;};
+    box.innerHTML=cols.length?`<table class="ovx-mtx"><tr><th rowspan="2" colspan="2">年份</th>${ex.length?`<th colspan="${ex.length}" class="gext">外部</th>`:""}${inn.length?`<th colspan="${inn.length}" class="gint gsep">內部</th>`:""}</tr>
+      <tr>${cols.map(t=>`<th class="src ${t===inn[0]?"gsep":""}">${esc(t)}</th>`).join("")}</tr>
+      ${ys.map(y=>[["n","次數"],["d","缺失"],["avg","平均"]].map(([k,l],i)=>`<tr class="${i===0?"ytop":""}">${i===0?`<td rowspan="3" class="yr">${y}</td>`:""}<td class="mk">${l}</td>${cols.map(t=>cell(t,y,k)).join("")}</tr>`).join("")).join("")}</table>`:"";
+  }
+  function summary(){
+    const el=$("#ovx-sumline");if(!el)return;const R=Ov._lastFiltered||[];
+    const nd=R.reduce((s,r)=>s+(+r.ndef||0),0),nx=R.filter(isDet).length;
+    el.innerHTML=`<span><span class="n">${esc(CP.label("ov"))}</span></span><span><span class="n">${R.length}</span><span class="t">次檢查</span></span><span><span class="n">${nd}</span><span class="t">項缺失</span></span><span><span class="n">${R.length?(nd/R.length).toFixed(1):"0"}</span><span class="t">平均缺失／次</span></span>${nx?`<span><span class="n r">${nx}</span><span class="t">次扣船</span></span>`:""}`;
+  }
+  function decorateRows(){
+    const tb=$("#ov-tbody");if(!tb)return;const pg=Ov._pageRows||[];const all=Ov._lastFiltered||[];
+    const trs=[...tb.children].filter(tr=>!tr.classList.contains("ovx-mh"));
+    trs.forEach((tr,i)=>{const r=pg[i];if(!r||tr.querySelector(".empty"))return;tr.dataset.oid=String(r.id);
+      const n=(r.reports||[]).length;if(n){const c=tr.children[1];if(c&&!c.querySelector(".ovx-rp"))(c.querySelector("div")||c).insertAdjacentHTML("beforeend",`<span class="ovx-rp" title="有 ${n} 個報告檔案">📎${n}</span>`);}});
+    if(grp&&Ov.sortKey==="date"){
+      const cnt={};all.forEach(r=>{const m=ymOf(r.date);const o=cnt[m]=cnt[m]||{n:0,d:0,x:0};o.n++;o.d+=+r.ndef||0;if(isDet(r))o.x++;});
+      let last=null;trs.forEach((tr,i)=>{const r=pg[i];if(!r)return;const m=ymOf(r.date);if(m!==last){last=m;const o=cnt[m]||{n:0,d:0,x:0};
+        tr.insertAdjacentHTML("beforebegin",`<tr class="ovx-mh"><td colspan="14">${m?`${m.slice(0,4)} 年 ${+m.slice(5)} 月`:"（無日期）"}<span>${o.n} 次檢查・${o.d} 項缺失${o.x?`・⚑ 扣船 ${o.x}`:""}</span></td></tr>`);}});
+    }
+  }
+  function layout(){
+    const sec=$("#tab-ov");if(!sec)return;
+    const tb=[...sec.querySelectorAll(".toolbar")].find(t=>t.querySelector('.df-tabbtn[data-t="summary"]'));if(tb)tb.classList.add("ovx-subbar");
+    const lc=$("#ov-sub-list .card");
+    if(lc&&!$("#ovx-src")){
+      const sc=document.createElement("div");sc.className="card";sc.id="ovx-srccard";sc.innerHTML=`<div id="ovx-src"></div>`;lc.before(sc);
+      sc.querySelector("#ovx-src").addEventListener("click",e=>{const c=e.target.closest("[data-it]");if(!c||!Ov.ms.itype)return;const t=c.dataset.it,s=new Set(Ov.ms.itype.sel);s.has(t)?s.delete(t):s.add(t);Ov.ms.itype.set([...s]);Ov.page=1;Ov.render();});
+      const h3=lc.querySelector("h3");
+      if(h3){[...h3.childNodes].forEach(n=>{if(n.nodeType===3&&n.textContent.trim())n.textContent="";});
+        const sm=document.createElement("span");sm.className="ovx-sum";sm.id="ovx-sumline";h3.prepend(sm);
+        const tools=h3.querySelector("span[style*='margin-left:auto']");
+        if(tools){
+          const mk=(id,txt,title,fn)=>{const b=document.createElement("button");b.className="btn sm";b.id=id;b.type="button";b.textContent=txt;b.title=title;b.onclick=fn;return b;};
+          const bg=mk("ovx-grp","📅 依月份分組","每個月一個小標題（依日期排序時）",()=>{grp=!grp;if(grp){Ov.sortKey="date";Ov.sortAsc=false;}bg.classList.toggle("primary",grp);Ov.render();});
+          const bc=mk("ovx-cmpb","📊 各來源逐年統計","各檢查來源每一年的次數、缺失、平均",()=>{const c=$("#ovx-cmp");c.classList.toggle("show");bc.classList.toggle("primary",c.classList.contains("show"));cmpTable();});
+          const br=mk("ovx-risk","⚠ 船隊風險清單","Tokyo MOU Ship Risk Profile",()=>{Ov.setSubTab("risk");});
+          const badge=$("#risk-badge");if(badge)br.appendChild(badge);
+          tools.prepend(bg,bc,br);
+          // 匯出、選取收成選單（同缺失紀錄的 ⬇ 下載 ▾）
+          const B=re=>[...tools.querySelectorAll("button")].find(x=>re.test(x.getAttribute("onclick")||""));
+          const dd=(label,title,items)=>{const w=document.createElement("span");w.className="tbx";w.innerHTML=`<button type="button" class="btn sm" title="${title}">${label} ▾</button><div class="tbx-pop"></div>`;
+            const pop=w.querySelector(".tbx-pop");items.filter(Boolean).forEach(x=>pop.appendChild(x));
+            w.firstElementChild.onclick=e=>{e.stopPropagation();const was=w.classList.contains("open");document.querySelectorAll(".tbx.open").forEach(x=>x.classList.remove("open"));if(was)return;w.classList.add("open");
+              const r=w.firstElementChild.getBoundingClientRect();pop.style.top=(r.bottom+4)+"px";pop.style.left="auto";pop.style.right=Math.max(8,innerWidth-r.right)+"px";};
+            pop.addEventListener("click",()=>w.classList.remove("open"));return w;};
+          const sa=B(/selectAllFiltered/),sc2=B(/clearSel/),bx=B(/exportXlsx/),bw=B(/openMgmtReportModal/),bb=B(/openBatchEdit/);
+          const dSel=dd("☑ 選取","全選（含其他頁）、清除選取",[sa,sc2]),dDl=dd("⬇ 下載","匯出 Excel、主管會 Word",[bx,bw]);
+          if(bb)bb.before(dSel);else tools.appendChild(dSel);tools.appendChild(dDl);
+        }
+        const cmp=document.createElement("div");cmp.id="ovx-cmp";h3.after(cmp);
+      }
+      // 點列 → 右邊看這次檢查
+      const body=$("#ov-tbody");if(body)body.addEventListener("click",e=>{
+        if(e.target.closest("input,button,a,select,label,.sp-click"))return;
+        const tr=e.target.closest("tr[data-oid]");if(!tr)return;openPeek(tr.dataset.oid,tr);});
+      // 船隊風險清單：加「回列表」
+      const rh=$("#ov-sub-risk h3");if(rh&&!rh.querySelector(".ovx-back")){const b=document.createElement("button");b.className="btn sm ovx-back";b.textContent="← 回檢查紀錄列表";b.onclick=()=>Ov.setSubTab("list");rh.prepend(b);}
+    }
+  }
+  const _ss=Ov.setSubTab;Ov.setSubTab=function(t){if(t==="summary")t="list";const r=_ss.call(this,t);const sc=$("#ovx-srccard");if(sc)sc.style.display=t==="list"?"":"none";return r;};
+  const _rt=Ov.renderTable;Ov.renderTable=function(){const r=_rt.apply(this,arguments);try{decorateRows();}catch(e){console.warn("ovx rows",e);}return r;};
+  const _r=Ov.render;Ov.render=function(){const r=_r.apply(this,arguments);try{layout();srcTables();summary();cmpTable();CP.paint("ov");}catch(e){console.warn("ovx",e);}return r;};
+  if(typeof Defs!=="undefined"){const _dr=Defs.render;Defs.render=function(){const r=_dr.apply(this,arguments);try{CP.paint("defs");}catch(e){}return r;};}
+
+  /* ════ ③ 右邊明細＋📎 報告檔案 ════ */
+  const FMAX=20*1024*1024;
+  const size=n=>{n=+n||0;return n>=1048576?(n/1048576).toFixed(1)+" MB":Math.max(1,Math.round(n/1024))+" KB";};
+  const href=f=>/pdf|image/i.test(f.type||"")?f.url:`${f.url}?download=${encodeURIComponent(f.name||"")}`;
+  const icon=f=>/pdf/i.test(f.type||f.name)?"📕":/sheet|excel|xls/i.test(f.type||f.name)?"📗":/word|doc/i.test(f.type||f.name)?"📘":/image/i.test(f.type||"")?"🖼":"📄";
+  let upN=0;
+  function filesHtml(r){
+    const L=r.reports||[];
+    return `<div class="ovx-files" id="ovx-files"><h4>📎 報告檔案（${L.length}）${admin()?`<label class="btn sm">＋ 上傳報告<input type="file" multiple hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.zip" onchange="OvReports.add('${esc(String(r.id))}',this)"></label>`:""}</h4>
+      ${L.map((f,i)=>`<div class="ovx-file">${icon(f)} <a href="${esc(href(f))}" target="_blank" rel="noopener">${esc(f.name||"檔案")}</a><span class="hint">${size(f.size)}${f.by?"・"+esc(f.by):""}${f.at?"・"+new Date(f.at).toLocaleDateString("zh-TW"):""}</span>${admin()?`<button class="x" title="從這筆檢查移除這個檔案" onclick="OvReports.del('${esc(String(r.id))}',${i})">✕ 移除</button>`:""}</div>`).join("")||`<div class="hint">${admin()?"還沒有報告檔案。可以上傳檢查報告（PDF、Word、Excel、圖片），每檔 20MB 以內。":"還沒有報告檔案。"}</div>`}
+      ${upN?`<div class="hint">上傳中…</div>`:""}</div>`;
+  }
+  function openPeek(id,tr){
+    const r=(App.insp||[]).find(x=>String(x.id)===String(id));if(!r||typeof SidePeek==="undefined")return;
+    const v=SidePeek.inspView("defs",r);v.html=filesHtml(r)+v.html;v.mark=tr;v._oid=String(r.id);SidePeek.open(v);
+  }
+  function refreshFiles(id){const el=$("#ovx-files");const r=(App.insp||[]).find(x=>String(x.id)===String(id));if(el&&r)el.outerHTML=filesHtml(r);}
+  window.OvReports={
+    async add(id,inp){
+      if(!admin()){toast("⚠ 只有海技管理員／Owner 可以上傳");return;}
+      const files=[...(inp.files||[])];inp.value="";const r=(App.insp||[]).find(x=>String(x.id)===String(id));if(!r)return;
+      if(typeof Cloud==="undefined"||!Cloud.cfg||!Cloud.cfg.url){toast("⚠ 需要連上雲端才能上傳");return;}
+      for(const f of files){
+        upN++;refreshFiles(id);
+        try{
+          if(f.size>FMAX)throw new Error(`超過 20MB（${(f.size/1048576).toFixed(1)}MB），請壓縮或拆檔`);
+          toast(`「${f.name}」上傳中…`);
+          const p=await RefDl.uploadFile.call({FILE_MAX:FMAX},f);
+          r.reports=Array.isArray(r.reports)?r.reports:[];
+          if(!r.reports.some(x=>x.path===p.path)){let who="";try{who=(Role.name&&Role.name())||"";}catch(e){}r.reports.push(Object.assign(p,{by:who,at:Date.now()}));r.updatedAt=Date.now();App.saveAll();}
+          toast(`✓「${f.name}」已上傳`);
+        }catch(e){toast(`⚠「${f.name}」沒有上傳：${e.message||e}`,true);}
+        finally{upN--;refreshFiles(id);}
+      }
+      try{Ov.renderTable(Ov._lastFiltered||[]);}catch(e){}
+    },
+    del(id,i){
+      if(!admin())return;const r=(App.insp||[]).find(x=>String(x.id)===String(id));if(!r||!r.reports||!r.reports[i])return;
+      if(!confirm(`從這筆檢查移除「${r.reports[i].name}」？`))return;
+      r.reports.splice(i,1);r.updatedAt=Date.now();App.saveAll();refreshFiles(id);toast("✓ 已移除");try{Ov.renderTable(Ov._lastFiltered||[]);}catch(e){}
+    }
+  };
+
+  /* 啟動：預設列表、掛上月曆 */
+  function boot(){
+    try{layout();}catch(e){}
+    if(!boot.done){boot.done=1;try{Ov.setSubTab(Ov.subTab==="risk"?"risk":"list");}catch(e){}}
+    CP.mount("ov");CP.mount("defs");
+  }
+  Ov.subTab="list";
+  setTimeout(()=>{boot();try{if(document.querySelector("#tab-ov.show"))Ov.render();}catch(e){}},1600);
+  setInterval(()=>{if(!document.querySelector("#tab-ov .cpk")||!document.querySelector("#tab-defs .cpk"))boot();},3000);
+})();
+</script>
