@@ -46139,7 +46139,7 @@ body.tn .msel .panel .chip.op:hover{background:#eef3f8}
     if(grp&&Ov.sortKey==="date"){
       const cnt={};all.forEach(r=>{const m=ymOf(r.date);const o=cnt[m]=cnt[m]||{n:0,d:0,x:0};o.n++;o.d+=+r.ndef||0;if(isDet(r))o.x++;});
       let last=null;trs.forEach((tr,i)=>{const r=pg[i];if(!r)return;const m=ymOf(r.date);if(m!==last){last=m;const o=cnt[m]||{n:0,d:0,x:0};
-        tr.insertAdjacentHTML("beforebegin",`<tr class="ovx-mh"><td colspan="9">${m?`${m.slice(0,4)} 年 ${+m.slice(5)} 月`:"（無日期）"}<span>${o.n} 次檢查・${o.d} 項缺失${o.x?`・⚑ 扣船 ${o.x}`:""}</span></td></tr>`);}});
+        tr.insertAdjacentHTML("beforebegin",`<tr class="ovx-mh"><td colspan="13">${m?`${m.slice(0,4)} 年 ${+m.slice(5)} 月`:"（無日期）"}<span>${o.n} 次檢查・${o.d} 項缺失${o.x?`・⚑ 扣船 ${o.x}`:""}</span></td></tr>`);}});
     }
   }
   function layout(){
@@ -46185,9 +46185,9 @@ body.tn .msel .panel .chip.op:hover{background:#eef3f8}
   /* 2026-11-25 列表改成模擬的精簡版：☐｜日期｜船名（扣船、📎）｜檢查來源｜地點｜檢查員／單位｜缺失數｜正面評價｜✎ */
   function newHead(){
     const tb=$("#ov-tbody");if(!tb)return;const tbl=tb.closest("table");if(!tbl||tbl.dataset.ovx)return;tbl.dataset.ovx=1;tbl.classList.add("ovx-tbl");
-    const cg=tbl.querySelector("colgroup");if(cg)cg.innerHTML=`<col style="width:34px"><col style="width:150px"><col style="width:21%"><col style="width:15%"><col style="width:14%"><col style="width:18%"><col style="width:86px"><col style="width:86px"><col style="width:64px">`;
+    const cg=tbl.querySelector("colgroup");if(cg)cg.innerHTML=`<col style="width:34px"><col style="width:132px"><col style="width:15%"><col style="width:62px"><col style="width:11%"><col style="width:78px"><col style="width:11%"><col style="width:11%"><col style="width:10%"><col style="width:8%"><col style="width:70px"><col style="width:76px"><col style="width:56px">`;
     const tr=tbl.querySelector("thead tr");
-    if(tr)tr.innerHTML=`<th><input type="checkbox" id="ov-selall" onchange="Ov.toggleAllSel(this.checked)"></th><th class="sort" onclick="Ov.sort('date')">日期 ⇅</th><th class="sort" onclick="Ov.sort('ship')">船名 ⇅</th><th class="sort" onclick="Ov.sort('itype')">檢查來源 ⇅</th><th>地點</th><th>檢查員／單位</th><th class="sort" onclick="Ov.sort('ndef')" style="text-align:center">缺失數 ⇅</th><th class="sort" onclick="Ov.sort('npos')" style="text-align:center">正面評價 ⇅</th><th></th>`;
+    if(tr)tr.innerHTML=`<th><input type="checkbox" id="ov-selall" onchange="Ov.toggleAllSel(this.checked)"></th><th class="sort" onclick="Ov.sort('date')">日期 ⇅</th><th class="sort" onclick="Ov.sort('ship')">船名 ⇅</th><th>船型</th><th class="sort" onclick="Ov.sort('itype')">檢查來源 ⇅</th><th>檢查類型</th><th>地點</th><th>檢查員</th><th>檢查單位／油公司</th><th>FLAG 項目</th><th class="sort" onclick="Ov.sort('ndef')" style="text-align:center">缺失數 ⇅</th><th class="sort" onclick="Ov.sort('npos')" style="text-align:center">正面評價 ⇅</th><th></th>`;
   }
   Ov.renderTable=function(rows){
     newHead();
@@ -46205,13 +46205,13 @@ body.tn .msel .panel .chip.op:hover{background:#eef3f8}
         <td><input type="checkbox" ${this.selRows.has(String(r.id))?"checked":""} onchange="Ov.toggleSelRow('${r.id}',this.checked)"></td>
         <td class="ovx-date">${esc(inspDateText(r))}</td>
         <td><b>${esc(shipFullLabel(r.ship))}</b>${isDet(r)?` <span class="ovx-det">⚑ 扣船</span>`:""}${n?`<span class="ovx-rp" title="有 ${n} 個報告檔案">📎${n}</span>`:""}</td>
-        <td><span class="ovx-src ${intl?"int":"ext"}">${esc(r.itype||"—")}</span></td>
+        <td class="ovx-sm">${esc(r.vtype||"")}</td><td><span class="ovx-src ${intl?"int":"ext"}">${esc(r.itype||"—")}</span></td><td class="ovx-sm">${typeof icatOf==="function"&&icatOf(r.itype)?icatChip(icatOf(r.itype)):""}</td>
         <td class="ovx-sm">${esc(r.loc||"")}</td>
-        <td class="ovx-sm">${esc(r.inspector||"")}${r.unit?`<div class="ovx-unit">${esc(r.unit)}</div>`:""}</td>
+        <td class="ovx-sm">${esc(r.inspector||"")}</td><td class="ovx-sm">${esc(r.unit||"")}</td><td class="ovx-sm ovx-flag">${esc(r.flagType||"")}</td>
         <td class="ovx-num"${bd?` title="${esc(bd)}"`:""}>${InspPeek.cell(r,"defs")}</td>
         <td class="ovx-num ovx-pos">${+r.npos?InspPeek.cell(r,"pos"):`<span class="ovx-nil">–</span>`}</td>
         <td style="white-space:nowrap">${r._impAt?`<span title="轉入/匯入於 ${esc(new Date(r._impAt).toLocaleString("zh-TW",{hour12:false}))}${r._impBy?"，操作者："+esc(r._impBy):""}" style="cursor:help;color:var(--ink-3);font-size:12px">ℹ</span>`:""}<button class="btn sm" title="編輯這筆檢查" onclick="Ov.openEdit(${idx})">✎</button></td></tr>`;
-    }).join("")||`<tr><td colspan="9" class="empty">無符合資料</td></tr>`;
+    }).join("")||`<tr><td colspan="13" class="empty">無符合資料</td></tr>`;
     $("#ov-pager").innerHTML=pagerHtml(this.page,pages,total,"Ov","ov");
     try{decorateRows();}catch(e){console.warn("ovx rows",e);}
   };
@@ -46232,7 +46232,7 @@ body.tn .msel .panel .chip.op:hover{background:#eef3f8}
   }
   function openPeek(id,tr){
     const r=(App.insp||[]).find(x=>String(x.id)===String(id));if(!r||typeof SidePeek==="undefined")return;
-    const v=SidePeek.inspView("defs",r);v.html=filesHtml(r)+v.html;v.mark=tr;v._oid=String(r.id);SidePeek.open(v);
+    const v=SidePeek.inspView("defs",r);v.html=filesHtml(r)+v.html;if(admin())v.foot=`<button class="btn" onclick="Ov.openEdit(${App.insp.indexOf(r)})">✎ 編輯這筆檢查</button>`+(v.foot||"");v.mark=tr;v._oid=String(r.id);SidePeek.open(v);
   }
   function refreshFiles(id){const el=$("#ovx-files");const r=(App.insp||[]).find(x=>String(x.id)===String(id));if(el&&r)el.outerHTML=filesHtml(r);}
   window.OvReports={
@@ -46314,7 +46314,7 @@ table.ovx-tbl tbody tr:not(.ovx-mh)>td{border-bottom:1px solid #eef1f4}
 .ovx-nil{color:#c3ccd4;font-weight:400}
 /* 右邊打開時，左邊列表只留：日期、船名、來源、缺失數、✎ */
 body.tn.sp-on table.ovx-tbl tr>*{display:table-cell!important}
-body.tn.sp-on table.ovx-tbl tr>:is(:nth-child(1),:nth-child(5),:nth-child(6),:nth-child(8)){display:none!important}
+body.tn.sp-on table.ovx-tbl tr>:is(:nth-child(1),:nth-child(4),:nth-child(6),:nth-child(7),:nth-child(8),:nth-child(9),:nth-child(10),:nth-child(12)){display:none!important}
 body.tn.sp-on table.ovx-tbl tr.ovx-mh>td{display:table-cell!important}
 </style>
 
@@ -46329,5 +46329,111 @@ body.tn button[onclick="AdvFilterEngine.open('ov')"],body.tn #ov-adv-filter-chip
   const OFF=new Set(["ov","defs"]);
   const _p=AdvFilterEngine.pass.bind(AdvFilterEngine);
   AdvFilterEngine.pass=function(key,d){if(OFF.has(key)&&document.body.classList.contains("tn"))return true;return _p(key,d);};
+})();
+</script>
+
+<style>
+/* ════════ 2026-11-25 編輯／新增檢查紀錄：不跳視窗，在右邊分割畫面一欄一欄往下填 */
+#sidePeek #ovx-edit-host .mb{padding:4px 2px 10px;max-height:none;overflow:visible}
+#sidePeek #ovx-edit-host .fgrid{display:grid!important;grid-template-columns:1fr!important;gap:12px!important}
+#sidePeek #ovx-edit-host .fgrid>label,#sidePeek #ovx-edit-host .fgrid>.fld{display:grid!important;grid-template-columns:120px 1fr;align-items:center;gap:10px;font-weight:700;font-size:13px;color:#3d4f5c}
+#sidePeek #ovx-edit-host .fgrid>label>*:not(:first-child){grid-column:2}
+#sidePeek #ovx-edit-host .fgrid input:not([type=checkbox]),#sidePeek #ovx-edit-host .fgrid select{width:100%;font-size:14px;padding:8px 10px}
+#sidePeek #ovx-edit-host .fgrid>label:has(#i-detain){display:flex!important;grid-template-columns:none}
+#sidePeek #ovx-edit-host .fgrid>label:has(#i-itype-other[style*="none"]){display:none!important}
+#sidePeek #ovx-edit-foot{display:flex;width:100%;gap:8px;align-items:center}
+#sidePeek #ovx-edit-foot .mf{display:flex;width:100%;gap:8px;align-items:center;padding:0;border:0;background:none}
+.ovx-edit-note{font-size:12px;color:#6b7c88;margin:0 0 10px}
+</style>
+<script>
+(function(){
+  if(typeof Ov==="undefined"||typeof SidePeek==="undefined")return;
+  const $=s=>document.querySelector(s);
+  const M=$("#inspModal");if(!M)return;
+  const BOX=M.querySelector(".modal"),MB=M.querySelector(".mb"),MF=M.querySelector(".mf");
+  let inPeek=false;
+  function restore(){if(!inPeek)return;inPeek=false;BOX.appendChild(MB);BOX.appendChild(MF);}
+  const _oe=Ov.openEdit;
+  Ov.openEdit=async function(idx){
+    const r0=await _oe.apply(this,arguments);
+    if(!document.body.classList.contains("tn")||!M.classList.contains("show"))return r0;
+    M.classList.remove("show");
+    const r=idx==null?null:App.insp[idx];
+    const tr=r?document.querySelector(`#ov-tbody tr[data-oid="${String(r.id)}"]`):null;
+    restore();
+    SidePeek.open({t:idx==null?"＋ 新增檢查紀錄":"✎ 編輯檢查紀錄",s:r?`${shipFullLabel(r.ship)}　${r.itype||""}　${inspDateText(r)}`:"填完按最下面的「儲存」",
+      html:`<p class="ovx-edit-note">＊ 為必填。改完按最下面「儲存」；按「取消」或右上 ✕ 不會存。</p><div id="ovx-edit-host"></div>`,
+      foot:`<div id="ovx-edit-foot"></div>`,mark:tr,_ovEdit:true});
+    const host=$("#ovx-edit-host"),foot=$("#ovx-edit-foot");
+    if(host&&foot){host.appendChild(MB);foot.appendChild(MF);inPeek=true;}
+    setTimeout(()=>{const s=$("#i-ship");if(s&&idx==null)s.focus();},50);
+    return r0;
+  };
+  const _ce=Ov.closeEdit;
+  Ov.closeEdit=function(){const was=inPeek;restore();const r=_ce.apply(this,arguments);if(was&&document.body.classList.contains("sp-on"))SidePeek.close();return r;};
+  const _close=SidePeek.close;SidePeek.close=function(){restore();return _close.apply(this,arguments);};
+  const _open=SidePeek.open;SidePeek.open=function(v){if(inPeek&&!(v&&v._ovEdit))restore();return _open.apply(this,arguments);};
+  const _back=SidePeek.back;if(_back)SidePeek.back=function(){restore();return _back.apply(this,arguments);};
+})();
+</script>
+
+<style>
+/* ════════ 2026-11-25 編輯檢查紀錄（右邊）：日期一看就知道是月曆；檢查單位／油公司打關鍵字選以前填過的 */
+#sidePeek #ovx-edit-host #i-date,#sidePeek #ovx-edit-host #i-dateTo{background:#fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='3' y='5' width='18' height='16' rx='2' fill='none' stroke='%232f6690' stroke-width='2'/><path d='M3 10h18M8 3v4M16 3v4' stroke='%232f6690' stroke-width='2'/></svg>") no-repeat right 10px center/18px!important;padding-right:36px!important;cursor:pointer}
+.ux-sugg{position:absolute;z-index:80;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1px solid #c9d5e0;border-radius:8px;box-shadow:0 8px 24px rgba(12,36,51,.18);max-height:260px;overflow:auto;display:none}
+.ux-sugg div{padding:7px 11px;cursor:pointer;font-size:13.5px;font-weight:500;color:#1f2d38}
+.ux-sugg div:hover,.ux-sugg div.on{background:#eef3f8}
+.ux-sugg div small{color:#8a97a2;margin-left:6px}
+.ux-sugg .h{font-size:11.5px;color:#6b7c88;cursor:default;background:#f7f9fb}
+#sidePeek #ovx-edit-host .fgrid>label{position:relative}
+#sidePeek #ovx-edit-host .ux-sugg{left:130px}
+</style>
+<script>
+(function(){
+  if(typeof Ov==="undefined")return;
+  const $=s=>document.querySelector(s);
+  /* 打關鍵字 → 列出以前填過的（依使用次數排序，沒打字時列最常用的 10 個） */
+  function bindSuggest(id,getList){
+    const inp=document.getElementById(id);if(!inp||inp._uxs)return;inp._uxs=1;
+    inp.removeAttribute("list");inp.setAttribute("autocomplete","off");
+    const box=document.createElement("div");box.className="ux-sugg";inp.parentElement.style.position="relative";inp.parentElement.appendChild(box);
+    let act=-1;
+    const close=()=>{box.style.display="none";act=-1;};
+    function show(){
+      const q=inp.value.trim().toLowerCase(),all=getList();
+      const L=(q?all.filter(([v])=>v.toLowerCase().includes(q)):all).slice(0,q?12:10);
+      if(!L.length){close();return;}
+      box.innerHTML=(q?"":`<div class="h">最常用的（打字可以搜尋全部）</div>`)+L.map(([v,n])=>`<div data-v="${esc(v)}">${esc(v)}<small>${n} 次</small></div>`).join("");
+      box.style.display="block";act=-1;
+    }
+    box.addEventListener("mousedown",e=>{const d=e.target.closest("[data-v]");if(!d)return;e.preventDefault();inp.value=d.dataset.v;close();inp.dispatchEvent(new Event("change",{bubbles:true}));});
+    inp.addEventListener("input",show);inp.addEventListener("focus",show);
+    inp.addEventListener("blur",()=>setTimeout(close,150));
+    inp.addEventListener("keydown",e=>{const els=[...box.querySelectorAll("[data-v]")];if(box.style.display==="none"||!els.length)return;
+      if(e.key==="ArrowDown"){e.preventDefault();act=(act+1)%els.length;}else if(e.key==="ArrowUp"){e.preventDefault();act=(act-1+els.length)%els.length;}
+      else if(e.key==="Enter"){if(act>=0){e.preventDefault();inp.value=els[act].dataset.v;close();}return;}else if(e.key==="Escape"){close();return;}else return;
+      els.forEach((x,i)=>x.classList.toggle("on",i===act));});
+  }
+  const freq=()=>{const m=new Map();(App.insp||[]).forEach(i=>{const v=String(i.unit||"").trim();if(v)m.set(v,(m.get(v)||0)+1);});(App.defs||[]).forEach(d=>{const v=String(d.oilco||"").trim();if(v&&!m.has(v))m.set(v,0);});
+    return [...m.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));};
+  const _oe=Ov.openEdit;
+  Ov.openEdit=async function(){
+    const r=await _oe.apply(this,arguments);
+    try{if(typeof refreshInspectorList==="function")refreshInspectorList();if(typeof refreshUnitList==="function")refreshUnitList();}catch(e){}
+    bindSuggest("i-unit",freq);
+    const d=$("#i-date"),t=$("#i-dateTo");if(d)d.placeholder="點一下選日期";if(t)t.placeholder="點一下選日期（多天檢查才填）";
+    return r;
+  };
+})();
+</script>
+
+<script>
+/* ════════ 2026-11-25 檢查紀錄列表往下捲時，表頭上方會露出一條資料列：
+   表頭黏在整頁捲動區（.page）上，而 .page 上方有內距，黏住的位置會在內距下面。
+   表頭往上多黏「內距」的高度，剛好貼齊頂端。 */
+(function(){
+  function fix(){const pg=document.querySelector(".page");if(!pg)return;const pt=parseFloat(getComputedStyle(pg).paddingTop)||0;document.documentElement.style.setProperty("--pg-pt",pt+"px");}
+  const css=document.createElement("style");css.textContent=`table.ovx-tbl thead th{top:calc(-1 * var(--pg-pt,0px))!important;z-index:6}`;
+  document.head.appendChild(css);fix();addEventListener("resize",fix);setTimeout(fix,1500);
 })();
 </script>
