@@ -43990,7 +43990,7 @@ if(typeof Ov!=="undefined")Ov.peek=function(ti,k,el){
       const now=this.ymNow(),T=["SIRE","CDI","RIGHTSHIP","PSC"];
       this._rp=(App.air||[]).filter(d=>(d.defects||[]).length&&T.some(t=>String(d.itype||"").toUpperCase().includes(t))&&ymOf(d.date)>=ymAdd(now,-5)).map(d=>{const o=by[d.id];
         const dt=normDateSlash(d.date),age=Math.max(0,Math.round((Date.now()-new Date(String(dt).replace(/\//g,"-")))/864e5));
-        return {id:d.id,ship:d.ship,t:d.itype,d:dt,n:d.defects.length,st:!o?"none":o.sent>=o.n?"sent":o.sent?"part":"draft",age};}).sort((a,b)=>b.age-a.age);
+        const st0=!o?"none":o.sent>=o.n?"sent":o.sent?"part":"draft";return {id:d.id,ship:d.ship,t:d.itype,d:dt,n:d.defects.length,st:d.noReply&&st0!=="sent"?"skip":st0,st0,age};}).sort((a,b)=>b.age-a.age);
       this._rpAt=Date.now();
     }catch(e){console.warn("home reply",e);this._rp=this._rp||[];}
     this._rpLoading=false;
@@ -44002,8 +44002,8 @@ if(typeof Ov!=="undefined")Ov.peek=function(ti,k,el){
     const L=this.rpF==="todo"?todo:this.rpF==="draft"?draft:sent.slice().sort((a,b)=>a.age-b.age).slice(0,8);
     const ac=a=>a>60?"r":a>21?"o":"g";
     return `<div class="hm-sum">${[["todo","r",todo.length,"尚未建立回覆"],["draft","o",draft.length,"編輯中、還沒送出"],["sent","g",sent.length,"已送出"]].map(([k,c,n,l])=>`<div class="${c} ${this.rpF===k?"on":""}" onclick="Home.rpF='${k}';document.getElementById('hm-rp').innerHTML=Home.replyInner()"><b>${n}</b><span>${l}</span></div>`).join("")}</div>
-      ${L.length?`<table class="hm-t">${L.map(x=>`<tr class="cl" onclick="goToTab('air');setTimeout(()=>Air.${this.rpF==="todo"?"showForm":"goToExternalReply"}(${x.id}${this.rpF==="todo"?"":",0"}),50)" title="打開這筆填單"><td style="font-family:var(--mono);white-space:nowrap">${E(x.d)}</td><td><b>${E(this.shipName(x.ship))}</b></td><td><span class="hm-it">${E(x.t)}</span></td><td class="hint">${x.n} 條</td><td style="text-align:right"><span class="hm-age ${this.rpF==="sent"?"g":ac(x.age)}">${this.rpF==="sent"?"已送出":"已過 "+x.age+" 天"}</span></td></tr>`).join("")}</table>`:`<p class="hint">沒有符合的填單 🎉</p>`}
-      <div class="hint" style="margin-top:6px">近 6 個月 SIRE／CDI／RightShip／PSC 有缺失的填單。「尚未建立」只算近 60 天${old.length?`；更早另有 ${old.length} 筆沒有回覆紀錄（可能是系統上線前已回覆）`:""}${this.rpF==="sent"?"；已送出只列最近 8 筆":""}。</div>`;
+      ${L.length?`<table class="hm-t">${L.map(x=>`<tr class="cl" onclick="goToTab('air');setTimeout(()=>Air.${this.rpF==="todo"?"showForm":"goToExternalReply"}(${x.id}${this.rpF==="todo"?"":",0"}),50)" title="打開這筆填單"><td style="font-family:var(--mono);white-space:nowrap">${E(x.d)}</td><td><b>${E(this.shipName(x.ship))}</b></td><td><span class="hm-it">${E(x.t)}</span></td><td class="hint">${x.n} 條</td><td style="text-align:right"><span class="hm-age ${this.rpF==="sent"?"g":ac(x.age)}">${this.rpF==="sent"?"已送出":"已過 "+x.age+" 天"}</span>${this.rpF==="todo"&&typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin()?`<button class="btn sm nrb" title="這筆不需要對外回覆，標記後不再列入" onclick="event.stopPropagation();Air.setNoReply(${x.id},true)">不需回覆</button>`:""}</td></tr>`).join("")}</table>`:`<p class="hint">沒有符合的填單 🎉</p>`}
+      <div class="hint" style="margin-top:6px">近 6 個月 SIRE／CDI／RightShip／PSC 有缺失的填單。「尚未建立」只算近 60 天${old.length?`；更早另有 ${old.length} 筆沒有回覆紀錄（可能是系統上線前已回覆）`:""}${this.rpF==="sent"?"；已送出只列最近 8 筆":""}${this._rp.filter(x=>x.st==="skip").length?`；另有 ${this._rp.filter(x=>x.st==="skip").length} 筆已標記不需對外回覆`:""}。</div>`;
   };
   H.replyHtml=function(){
     if(!this._rp||Date.now()-this._rpAt>5*60000)setTimeout(()=>this.loadReply(),0);
@@ -44402,14 +44402,18 @@ f();setInterval(f,3000);})();</script>
     const cards=[...Array(n).keys()].map(i=>{
       const df=defs[i]||{},dr=rows.find(r=>r.defect_idx===i),it=(dr&&dr.items&&dr.items[0])||{},dm=it._defectMeta||{};let m=0;
       const code=df.code||dm.code||"",det=df.detail||dm.detail||"";
-      const ship=SF.map(([k,l])=>`<tr><th>${l}</th><td colspan="2">${String(df[k]||"").trim()?esc(df[k]):`<span class="av-empty">（未填）</span>`}</td></tr>`).join("");
-      const rep=dr?RF.map(([k,l])=>{const cn=String(it[k+"Cn"]||"").trim(),en=String(it[k+"En"]||"").trim();if(!cn)m++;if(!en)m++;
-        return `<tr><th>${esc(l)}</th><td class="${cn?"":"e"}">${cn?esc(cn):"⚠ 空白"}</td><td class="${en?"":"e"}">${en?esc(en):"⚠ 空白"}</td></tr>`;}).join(""):`<tr><td colspan="3" class="av-empty">這條缺失還沒有建立對外回覆</td></tr>`;
+      /* 2026-11-25 左：船上回覆／右：對外回覆（上中文、下英文）；沒有的格子顯示 NIL */
+      const NIL=`<span class="pv-nil">NIL</span>`;
+      const ROWS=[["實際情況 ／ Initial Operator Comment","actual","opComment"],["直接原因 Immediate Cause","immediateCause","immediateCause"],["矯正措施 Corrective Action","corrective","corrective"],["根本原因 Root Cause","rootCause","rootCause"],["預防措施 Preventive Measures","preventive","preventive"]];
+      const body=ROWS.map(([l,sk,rk])=>{const sv=String(df[sk]||"").trim();
+        let rv=NIL;
+        if(dr){const cn=String(it[rk+"Cn"]||"").trim(),en=String(it[rk+"En"]||"").trim();if(!cn)m++;if(!en)m++;
+          rv=cn||en?`${cn?`<div class="pv-cn">${esc(cn)}</div>`:""}${en?`<div class="pv-en">${esc(en)}</div>`:""}`:NIL;}
+        return `<tr><th>${esc(l)}</th><td>${sv?esc(sv):NIL}</td><td>${rv}</td></tr>`;}).join("");
       miss+=m;
       return `<div class="av-pv"><div>#${i+1}${code?"　CODE "+esc(code):""}${dr?`<span style="color:${m?"#b0322a":"#1f7a3f"}">${m?`⚠ ${m} 格空白`:"✓ 已填完"}</span>${(dr.confirm_count||0)>0?`<span style="color:#1f7a3f">已送出 ${dr.confirm_count} 次</span>`:`<span style="color:#9a6b00">尚未送出</span>`}`:""}</div>
         ${det?`<div style="padding:6px 12px;font-size:12.5px;color:#3d4f5c;white-space:pre-line">${esc(det)}</div>`:""}
-        <table><tr class="sec"><td colspan="3">🚢 船上填寫</td></tr>${ship}
-        <tr class="sec"><td>🌐 對外回覆</td><td>中文</td><td>English</td></tr>${rep}</table></div>`;}).join("");
+        <table class="pv-side"><tr class="sec"><td></td><td>🚢 船上回覆</td><td>🌐 對外回覆${dr?"":`<span style="font-weight:500;color:#8a97a2">（這條缺失還沒有建立對外回覆）</span>`}</td></tr>${body}</table></div>`;}).join("");
     const ed=canEd();
     box.innerHTML=`<div class="card"><h3>👁 預覽（唯讀）
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${rows.length?(miss?`<b style="color:#b0322a;font-size:13px">⚠ 對外回覆還有 ${miss} 格空白</b>`:`<b style="color:#1f7a3f;font-size:13px">✓ 對外回覆都填完了</b>`):""}
@@ -45563,3 +45567,163 @@ f();setInterval(f,3000);})();</script>
   setTimeout(()=>{layout();vals();if(DefsX.cur)DefsX.go(DefsX.cur);},900);
 })();
 </script>
+
+<script>
+/* ════════ 2026-11-25 填單紀錄：① 清單「操作」欄改成「✎ 開啟」＋「⋯ 選單」（左右分割不擁擠）
+   ② 編輯填單加 ④ 轉入／下載 分頁（原本藏在 ③ 下面的「其他」）
+   ③ 「不需對外回覆」標記：d.noReply={by,at}，首頁對外回覆進度不再算「尚未建立」 */
+(function(){
+  if(typeof Air==="undefined")return;
+  const $=s=>document.querySelector(s);
+  const admin=()=>typeof Role!=="undefined"&&Role.isAdmin&&Role.isAdmin();
+  const css=document.createElement("style");css.textContent=`
+  #air-tbody td.aops{white-space:nowrap}
+  #air-tbody td.aops .btn{padding:4px 10px}
+  #air-tbody td.aops .aops-k{display:none}
+  #airOpsMenu{position:fixed;z-index:3000;background:#fff;border:1px solid #c9d5e0;border-radius:10px;box-shadow:0 8px 24px rgba(20,40,60,.18);padding:5px;min-width:200px;display:none}
+  #airOpsMenu.show{display:block}
+  #airOpsMenu button{display:flex;width:100%;align-items:center;gap:8px;border:0;background:none;padding:8px 11px;border-radius:7px;font:inherit;font-size:14px;text-align:left;cursor:pointer;color:#1f2d38}
+  #airOpsMenu button:hover{background:#eef3f8}
+  #airOpsMenu button.del{color:#b0322a}#airOpsMenu hr{border:0;border-top:1px solid #eef1f4;margin:4px 2px}
+  .nr-tag{display:inline-block;font-size:10.5px;font-weight:700;color:#5b6770;background:#eceff2;border-radius:10px;padding:1px 7px;margin-top:2px}
+  #air-sub-tools .nrbox{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .hm-t .nrb{margin-left:6px;padding:1px 8px;font-size:11.5px}`;
+  document.head.appendChild(css);
+
+  /* ── 不需對外回覆 ── */
+  Air.setNoReply=function(id,on){
+    if(!admin()){toast("⚠ 只有海技管理員／Owner 可以設定");return;}
+    const d=(App.air||[]).find(x=>String(x.id)===String(id));if(!d)return;
+    let who="";try{who=(typeof Role!=="undefined"&&Role.name&&Role.name())||"";}catch(e){}
+    if(on)d.noReply={by:who,at:Date.now()};else delete d.noReply;
+    d.updatedAt=Date.now();App.saveAll();
+    toast(on?"✓ 已標記：這筆不需對外回覆":"✓ 已取消「不需對外回覆」");
+    try{this.renderList();}catch(e){}
+    try{if(this.editId!=null&&String(this.editId)===String(id))renderTools();}catch(e){}
+    try{if(typeof Home!=="undefined"&&Home._rp){const x=Home._rp.find(r=>String(r.id)===String(id));if(x)x.st=on&&x.st0!=="sent"?"skip":(x.st0||"none");const b=document.getElementById("hm-rp");if(b)b.innerHTML=Home.replyInner();}}catch(e){}
+  };
+
+  /* ── 清單操作欄 → 選單 ── */
+  const LBL=[["Air.openListDownloadModal","⬇ 下載匯出檔"],["AttachDL.air","📎 下載附件"],["Air.goToExternalReply","🌐 對外回覆"],["Air.openShareCheckWizard","📤 分享給船隊自查"],["Air.openPushModal","➜ 轉入紀錄"],["Air.delAir","🗑 刪除這筆"]];
+  let menu=null;
+  function closeMenu(){if(menu)menu.classList.remove("show");}
+  function openMenu(btn){
+    const td=btn.closest("td"),id=td.dataset.id,d=(App.air||[]).find(x=>String(x.id)===String(id));
+    if(!menu){menu=document.createElement("div");menu.id="airOpsMenu";document.body.appendChild(menu);
+      menu.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;closeMenu();
+        if(b.dataset.k!=null){const src=menu._td.querySelectorAll(".aops-k button")[+b.dataset.k];if(src)src.click();}
+        else if(b.dataset.nr)Air.setNoReply(menu._id,b.dataset.nr==="1");});
+      document.addEventListener("click",e=>{if(menu.classList.contains("show")&&!e.target.closest("#airOpsMenu,.aops-more"))closeMenu();},true);
+      document.addEventListener("scroll",e=>{if(!e.target.closest||!e.target.closest("#airOpsMenu"))closeMenu();},true);}
+    menu._td=td;menu._id=id;
+    const src=[...td.querySelectorAll(".aops-k button")];
+    let h="",del="";
+    src.forEach((b,i)=>{const oc=b.getAttribute("onclick")||"";if(oc.startsWith("Air.showForm"))return;
+      const hit=LBL.find(([k])=>oc.startsWith(k));let l=hit?hit[1]:b.textContent.trim();
+      if(oc.startsWith("AttachDL.air"))l+=`（${b.textContent.replace(/\D/g,"")} 個）`;
+      if(oc.startsWith("Air.delAir"))del=`<hr><button class="del" data-k="${i}">${l}</button>`;else h+=`<button data-k="${i}">${l}</button>`;});
+    if(admin()&&d&&(d.defects||[]).length)h+=`<hr><button data-nr="${d.noReply?0:1}">${d.noReply?"↩ 取消「不需對外回覆」":"🚫 標記不需對外回覆"}</button>`;
+    menu.innerHTML=h+del;
+    menu.classList.add("show");
+    const r=btn.getBoundingClientRect(),mw=menu.offsetWidth,mh=menu.offsetHeight;
+    menu.style.left=Math.max(8,Math.min(innerWidth-mw-8,r.left))+"px";
+    menu.style.top=(r.bottom+mh+8>innerHeight?Math.max(8,r.top-mh-4):r.bottom+4)+"px";
+  }
+  Air._opsMenu=openMenu;
+  function rework(){
+    const tb=$("#air-tbody");if(!tb)return;
+    tb.querySelectorAll("tr").forEach(tr=>{
+      const td=tr.children[1];if(!td||td.classList.contains("aops"))return;
+      const ed=td.querySelector('button[onclick^="Air.showForm"]');if(!ed)return;
+      const id=(ed.getAttribute("onclick").match(/\(([^)]*)\)/)||[])[1];
+      td.classList.add("aops");td.dataset.id=id;
+      const keep=document.createElement("span");keep.className="aops-k";[...td.childNodes].forEach(n=>keep.appendChild(n));
+      td.innerHTML=`<button class="btn sm" onclick="Air.showForm(${id})">✎ 開啟</button> <button class="btn sm aops-more" title="下載、對外回覆、分享、轉入、刪除…" onclick="event.stopPropagation();Air._opsMenu(this)">⋯</button>`;
+      td.appendChild(keep);
+      const d=(App.air||[]).find(x=>String(x.id)===String(id));
+      if(d&&d.noReply&&tr.children[2])tr.children[2].insertAdjacentHTML("beforeend",`<div><span class="nr-tag" title="海技已標記這筆不需要對外回覆">🚫 不需對外回覆</span></div>`);
+    });
+  }
+  const _rl=Air.renderList;Air.renderList=function(){const r=_rl.apply(this,arguments);try{rework();}catch(e){console.warn("airops",e);}return r;};
+  setTimeout(()=>{try{rework();}catch(e){}},600);
+
+  /* ── ④ 轉入／下載 分頁 ── */
+  const tabs=$("#air-mainsub-tabs"),fs=$("#air-sub-files");
+  if(tabs&&fs&&!$("#air-sub-tools")){
+    const b=document.createElement("button");b.className="btn sm";b.id="air-mainsub-btn-tools";
+    b.innerHTML=`<span class="n">4</span><span>轉入／下載<small>轉入紀錄、下載檔案、匯入、分享</small></span>`;
+    b.onclick=()=>Air.showMainSubTab("tools");tabs.appendChild(b);
+    const tl=document.createElement("div");tl.id="air-sub-tools";tl.style.display="none";
+    tl.innerHTML=`<div class="card" id="air-tools-nr"></div>`;
+    const more=$("#air-files-more");
+    const src=more?[...more.children].filter(c=>c.tagName!=="SUMMARY"):[...fs.children].filter(c=>c.id!=="air-files-preview");
+    src.forEach(c=>tl.appendChild(c));if(more)more.remove();
+    fs.after(tl);
+  }
+  function renderTools(){
+    const box=$("#air-tools-nr");if(!box)return;const d=(App.air||[]).find(x=>x.id===Air.editId);
+    if(!d||!(d.defects||[]).length||!admin()){box.style.display="none";return;}
+    box.style.display="";
+    const nr=d.noReply;
+    box.innerHTML=`<h3>🚫 不需對外回覆</h3><div class="nrbox">${nr?`<b style="color:#5b6770">這筆已標記「不需對外回覆」（${nr.by?esc(nr.by)+"，":""}${new Date(nr.at).toLocaleDateString("zh-TW")}）</b><button class="btn sm" onclick="Air.setNoReply(${d.id},false)">↩ 取消標記</button>`
+      :`<span class="hint" style="margin:0">檢查單位不要求回覆、或已用其他方式回覆過的填單，標記後首頁「尚未建立回覆」就不會再算這筆。</span><button class="btn sm" onclick="Air.setNoReply(${d.id},true)">🚫 標記這筆不需對外回覆</button>`}</div>`;
+  }
+  const _sm=Air.showMainSubTab;
+  Air.showMainSubTab=function(tab,o){
+    const isT=tab==="tools";
+    if(isT&&this.editId==null){toast("⚠ 請先填妥並儲存基本資料，才能繼續");return;}
+    const r=_sm.call(this,isT?"__tools":tab,o);
+    const tl=$("#air-sub-tools"),b=$("#air-mainsub-btn-tools");
+    if(tl)tl.style.display=isT?"":"none";if(b)b.className=isT?"btn sm primary":"btn sm";
+    if(isT){this._subCur="tools";renderTools();}
+    return r;
+  };
+})();
+</script>
+
+<style>
+/* ════════ 2026-11-25 多選下拉（船舶、檢查來源…）：改成一項一列、照順序往下排，前面有勾選框，比較好找 */
+body.tn .msel .panel{min-width:280px;max-width:380px;max-height:min(70vh,560px)}
+body.tn .msel .panel .chips{display:grid;grid-template-columns:1fr 1fr;gap:2px 6px;max-height:none}
+body.tn .msel .panel .chip{grid-column:1/-1;display:flex;align-items:center;gap:9px;max-width:none;border:0;border-radius:6px;padding:7px 9px;font-size:13.5px;background:transparent;color:#1f2d38;white-space:normal;line-height:1.3}
+body.tn .msel .panel .chip::before{content:"";flex:none;width:16px;height:16px;border:1.5px solid #9fb0bf;border-radius:4px;background:#fff}
+body.tn .msel .panel .chip:hover{background:#eef3f8;color:#1f2d38}
+body.tn .msel .panel .chip.on{background:#fff4ea;color:#1c3a5e;font-weight:700}
+body.tn .msel .panel .chip.on::before{content:"✓";background:#e8842c;border-color:#e8842c;color:#fff;font-size:12px;font-weight:900;line-height:14px;text-align:center}
+body.tn .msel .panel .chip:nth-child(odd):not(.op){}
+body.tn .msel .panel .chip.op{grid-column:auto;justify-content:center;border:1px solid #c9d5e0;background:#fff;color:#2f6690;font-weight:700;font-size:12.5px;padding:5px 8px;margin-bottom:4px}
+body.tn .msel .panel .chip.op::before{display:none}
+body.tn .msel .panel .chip.op:hover{background:#eef3f8}
+</style>
+
+<script>
+/* ════════ 2026-11-25 編輯填單：往下捲之後右下角出現「↑」浮動按鈕，按一下回到最上面 */
+(function(){
+  const css=document.createElement("style");css.textContent=`
+  #airToTop{position:fixed;right:28px;bottom:34px;z-index:900;width:50px;height:50px;border-radius:50%;border:0;background:#1c3a5e;color:#fff;font-size:24px;font-weight:900;line-height:50px;text-align:center;cursor:pointer;box-shadow:0 4px 14px rgba(20,40,60,.3);display:none}
+  #airToTop:hover{background:#e8842c}
+  #airToTop.show{display:block}
+  body.mob #airToTop{bottom:80px;right:16px;width:44px;height:44px;line-height:44px;font-size:21px}`;
+  document.head.appendChild(css);
+  const b=document.createElement("button");b.id="airToTop";b.type="button";b.title="回到最上面";b.textContent="↑";document.body.appendChild(b);
+  const pg=()=>document.getElementById("air-form-page");
+  const vis=e=>e&&e.offsetParent!==null&&getComputedStyle(e).display!=="none";
+  // 找出實際在捲動的容器（左右分割時是填單頁本身，全頁時可能是外層或視窗）
+  function scroller(){const p=pg();if(!vis(p))return null;let e=p;while(e&&e!==document.body){if(e.scrollHeight>e.clientHeight+5&&/(auto|scroll)/.test(getComputedStyle(e).overflowY))return e;e=e.parentElement;}return window;}
+  function top(){const s=scroller();return !s?0:s===window?(window.scrollY||document.documentElement.scrollTop):s.scrollTop;}
+  function upd(){const p=pg();const on=vis(p)&&!p.classList.contains("on-reply2")&&top()>300;b.classList.toggle("show",!!on);}
+  b.onclick=()=>{const s=scroller();if(!s)return;s.scrollTo({top:0,behavior:"smooth"});if(s!==window)window.scrollTo({top:0,behavior:"smooth"});};
+  document.addEventListener("scroll",upd,true);window.addEventListener("resize",upd);setInterval(upd,1200);
+})();
+</script>
+
+<style>
+/* ════════ 2026-11-25 ③ 預覽：左船上回覆、右對外回覆（上中文下英文） */
+.av-pv table.pv-side th{width:170px}
+.av-pv table.pv-side td{width:calc(50% - 85px)}
+.av-pv table.pv-side tr.sec td:first-child{background:#eef3f8}
+.av-pv .pv-cn{color:#1f2d38}
+.av-pv .pv-en{color:#3d4f5c;margin-top:6px;padding-top:6px;border-top:1px dashed #d6dee6}
+.av-pv .pv-cn+.pv-en{}
+.av-pv .pv-nil{color:#a3afb9;font-weight:700;letter-spacing:.5px}
+</style>
