@@ -44349,6 +44349,10 @@ f();setInterval(f,3000);})();</script>
     rows.forEach((row,i)=>{
       const el=document.getElementById("av-def-"+i);if(!el)return;
       const d=el.querySelector(".d");if(d){d.classList.add("ipf");d.dataset.k="detail";}
+      // 2026-11-24 CODE 也可以點格子改（左上角「CODE x.x.x」）
+      {const no=el.querySelector(".no");if(no){const sm=[...no.querySelectorAll("small")].find(s=>/^CODE /.test(s.textContent));
+        if(sm)sm.innerHTML=`CODE <span class="ipf" data-k="code" style="display:inline-block;min-width:44px">${esc(row.code||"")}</span>`;
+        else no.insertAdjacentHTML("beforeend",`<small>CODE <span class="ipf" data-k="code" style="display:inline-block;min-width:44px"></span></small>`);}}
       el.querySelectorAll(".f>span").forEach(sp=>{const k=FK[sp.textContent.trim()];const v=sp.nextElementSibling;if(k&&v){v.classList.add("ipf");v.dataset.k=k;}});
       const ops=el.lastElementChild;
       if(ops){const ed=ops.querySelector('button[onclick^="Air.viewEditDef"]'),del=ops.querySelector('button[onclick^="Air.viewDelDef"]');
@@ -44373,7 +44377,8 @@ f();setInterval(f,3000);})();</script>
       if(v===old)return;
       if(!Role.can||Role.can("air_edit_content")){Air.setDefField(row.id,k,v);try{Air.renderDefectRows();}catch(_){}
         clearTimeout(Air._formSaveTimer);try{Air.autoSaveForm();}catch(_){}
-        f.classList.add("saved");if(typeof toast==="function")toast("✓ 已儲存");}
+        f.classList.add("saved");if(typeof toast==="function")toast("✓ 已儲存");
+        if(k==="code")setTimeout(()=>{try{if(!document.querySelector("#air-sub-view .ipf.on"))Air.renderView();}catch(_){}},400);} // 上方的「#N · CODE」標籤一起更新
       else{toast("⚠ 沒有修改填單內容的權限");}
     });
   });
@@ -44945,5 +44950,174 @@ f();setInterval(f,3000);})();</script>
     }
     return r;
   };
+})();
+</script>
+
+<script>
+/* ════════ 2026-11-25 手機版版面（照 模擬_手機版）— 只在螢幕寬度 ≤ 768px 生效，電腦版完全不變 ════════
+   ① 上方深藍列縮成一行（系統名＋身分＋☰）② 主選單改成最下面固定分頁列：首頁／檢查紀錄／缺失／待辦／☰ 更多
+   ③ 檢查紀錄、缺失紀錄、填單紀錄、我經管的船：表格每一列變一張卡片（只留重要欄位）
+   ④ 篩選收成「🔍 篩選」按鈕，點了才展開 ⑤ 右邊分割畫面改整頁，左上「← 返回」 */
+(function(){
+  if(typeof TopNav==="undefined")return;
+  const $=s=>document.querySelector(s);
+  const MQ=matchMedia("(max-width:768px)");
+  const css=document.createElement("style");css.textContent=`
+  body:not(.mob) #mobBar,body:not(.mob) #mobMask,body:not(.mob) #mobSheet,body:not(.mob) #mobMenuBtn,body:not(.mob) .mf-btn,body:not(.mob) #sp-mback,body:not(.mob) .mob-pc{display:none!important} /* 電腦版：手機專用的東西一律不顯示 */
+  @media(max-width:768px){
+  body.mob{padding-bottom:calc(62px + env(safe-area-inset-bottom))}
+  body.mob .tn-top{flex-wrap:nowrap!important;padding:8px 10px!important;gap:8px!important;min-height:0!important}
+  body.mob .tn-top>*:not(.tn-sys):not(#tnRoleSlot):not(#mobMenuBtn){display:none!important}
+  body.mob .tn-sys{font-size:15px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  body.mob .tn-sys small{display:none!important}
+  body.mob #tnRoleSlot{margin-left:auto;min-width:0}
+  body.mob #tnRoleSlot .role-box{padding:3px 8px!important;font-size:11px!important;min-width:0!important;max-width:150px}
+  body.mob #tnRoleSlot .role-box .role-line .role-tag,body.mob #tnRoleSlot .role-box a{display:none!important}
+  #mobMenuBtn{display:none}
+  body.mob #mobMenuBtn{display:inline-flex;align-items:center;justify-content:center;width:38px;height:36px;border:0;background:transparent;color:#fff;font-size:22px;cursor:pointer;flex:none}
+  body.mob #tnav{display:none!important}
+  body.mob .page{padding:10px 10px 20px!important}
+  body.mob #pageTitle+*{display:none}
+  /* 下方分頁列 */
+  #mobBar{display:none}
+  body.mob #mobBar{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:800;background:#fff;border-top:1px solid var(--line);padding:3px 0 calc(3px + env(safe-area-inset-bottom));box-shadow:0 -2px 10px rgba(0,0,0,.06)}
+  #mobBar button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:11px;color:#6b7c88;padding:5px 0;font-family:inherit;position:relative;cursor:pointer}
+  #mobBar button span{font-size:20px;line-height:1.15}
+  #mobBar button.on{color:var(--navy);font-weight:800}
+  #mobBar .bd{position:absolute;top:1px;left:calc(50% + 6px);background:#c0392b;color:#fff;border-radius:9px;font-size:10px;padding:0 5px;font-weight:800}
+  /* ☰ 更多 */
+  #mobMask{display:none;position:fixed;inset:0;background:rgba(20,30,40,.45);z-index:850}
+  #mobMask.show{display:block}
+  #mobSheet{position:fixed;left:0;right:0;bottom:0;max-height:80vh;overflow:auto;background:#fff;border-radius:18px 18px 0 0;z-index:860;padding:6px 16px calc(16px + env(safe-area-inset-bottom));transform:translateY(105%);transition:transform .22s}
+  #mobSheet.show{transform:none}
+  #mobSheet .grab{width:40px;height:4px;background:#d3dbe2;border-radius:2px;margin:6px auto 8px}
+  #mobSheet a{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid #eef1f4;font-size:15px;color:var(--ink);cursor:pointer;text-decoration:none}
+  #mobSheet a small{margin-left:auto;font-size:11px;color:#b5600f;background:#fff3e4;border-radius:8px;padding:1px 7px}
+  #mobSheet .grp{font-size:12px;color:#6b7c88;font-weight:700;margin:12px 0 0}
+  /* 表格 → 卡片 */
+  body.mob table.mcard{display:block!important;width:100%!important;table-layout:auto!important;border:0!important;background:transparent!important;overflow:visible!important}
+  body.mob table.mcard colgroup,body.mob table.mcard thead,body.mob table.mcard tr.mhead{display:none!important}
+  body.mob table.mcard tbody{display:block}
+  body.mob table.mcard tr{display:flex;flex-direction:column;background:#fff;border:1px solid var(--line)!important;border-radius:12px;margin:0 0 8px;padding:8px 10px;box-shadow:none}
+  body.mob table.mcard td{display:flex!important;align-items:flex-start;gap:8px;border:0!important;padding:2px 0!important;width:auto!important;max-width:none!important;white-space:normal!important;background:transparent!important;font-size:14px;min-width:0!important;overflow-wrap:anywhere}
+  body.mob table.mcard td[data-label]::before{content:attr(data-label);flex:none;width:78px;color:#6b7c88;font-size:12px;padding-top:2px}
+  body.mob table.mcard td.mhide,body.mob table.mcard td:empty{display:none!important}
+  body.mob table.mcard td.mfirst{font-size:15px;font-weight:800;order:-1}
+  body.mob table.mcard td.mfirst::before{display:none}
+  body.mob table.mcard td[colspan]{display:block!important}body.mob table.mcard td[colspan]::before{display:none}
+  body.mob .tblwrap,body.mob .hm-tw{max-height:none!important;overflow:visible!important;border:0!important}
+  body.mob table.mcard tr.s-red{border-left:4px solid #c0392b!important}body.mob table.mcard tr.s-orange{border-left:4px solid #e8842c!important}body.mob table.mcard tr.s-green{border-left:4px solid #2e8b57!important}
+  /* 篩選收合 */
+  .mf-btn{display:none}
+  body.mob .mf-btn{display:inline-flex;border:1px solid var(--navy);color:var(--navy);background:#fff;border-radius:10px;padding:8px 12px;font-weight:800;font-family:inherit;font-size:14px;white-space:nowrap;cursor:pointer}
+  body.mob .mf-sec:not(.mf-open) .mf-hide{display:none!important}
+  body.mob .mf-sec .toolbar:first-child{flex-wrap:nowrap}
+  body.mob .mf-sec .toolbar:first-child input.kw{flex:1;min-width:0;width:auto!important}
+  /* 右邊分割畫面 → 整頁 */
+  body.mob #sidePeek{top:0!important;width:100%!important;z-index:900}
+  body.mob.sp-on .page{margin-right:0!important}
+  body.mob #sidePeek #sp-full{display:none}
+  #sp-mback{display:none}
+  body.mob #sp-mback{display:inline-flex;border:0;background:none;color:#2f6690;font-weight:800;font-size:15px;padding:2px 6px 2px 0;cursor:pointer;font-family:inherit;flex:none}
+  body.mob #sidePeek .sp-x .btn:not(#sp-full){display:none}
+  body.mob #sidePeek2{position:fixed!important;inset:0!important;width:100%!important;z-index:910}
+  body.mob #ov-sub-list .card>h3 .btn,body.mob #ov-sub-list .card>h3 .hint,body.mob #tab-defs .card>h3 .btn{display:none!important}
+  /* 編輯類頁面提示 */
+  .mob-pc{display:none}
+  body.mob .mob-pc{display:block;background:#fff3e4;border:1px solid #f1c88f;color:#8a4b12;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px}
+  }`;
+  document.head.appendChild(css);
+
+  /* ── 上方 ☰、下方分頁列、更多選單 ── */
+  const flat=()=>{const out=[];TopNav.MENU.forEach(m=>{if(m.gap)return;if(m.admin&&!TopNav.isAdm())return;(m.dd?m.dd.map(d=>Object.assign({grp:m.lbl},d)):[m]).forEach(d=>{if(TopNav.shown(d))out.push(d);});});return out;};
+  const PC=/統計|分析|Dash|趨勢|熱區|審核|佇列|審核匯入/;
+  function findItem(re){return flat().find(d=>re.test(d.lbl));}
+  function build(){
+    const top=$("#tnTop");if(!top||$("#mobBar"))return;
+    const mb=document.createElement("button");mb.id="mobMenuBtn";mb.type="button";mb.textContent="☰";mb.onclick=()=>sheet(true);top.appendChild(mb);
+    const bar=document.createElement("div");bar.id="mobBar";document.body.appendChild(bar);
+    const mask=document.createElement("div");mask.id="mobMask";mask.onclick=()=>sheet(false);document.body.appendChild(mask);
+    const sh=document.createElement("div");sh.id="mobSheet";document.body.appendChild(sh);
+    renderBar();
+  }
+  const TABS=[["🏠","首頁",/首頁/],["📋","檢查紀錄",/檢查紀錄/],["⚠️","缺失",/缺失紀錄/],["📌","待辦",null],["☰","更多",null]];
+  function renderBar(){
+    const bar=$("#mobBar");if(!bar)return;
+    const act=document.querySelector("#sidebar .nav-item.active"),at=act&&act.dataset.tab;
+    const bd=$("#tnTodoBdg"),n=bd&&bd.style.display!=="none"?bd.textContent.trim():"";
+    const html=TABS.map(([i,l,re],k)=>{const it=re&&findItem(re);const on=it&&it.t&&it.t===at;
+      return `<button type="button" class="${on?"on":""}" data-k="${k}"><span>${i}</span>${l}${k===3&&n?`<b class="bd">${n}</b>`:""}</button>`;}).join("");
+    if(bar._h===html)return; // 沒變就不重畫（避免 MutationObserver 一直觸發）
+    bar._h=html;bar.innerHTML=html;
+    bar.querySelectorAll("button").forEach(b=>b.onclick=()=>{const k=+b.dataset.k;
+      if(k===3){try{Todo.toggle();}catch(e){}return;}
+      if(k===4){sheet(true);return;}
+      const it=findItem(TABS[k][2]);if(it){if(typeof SidePeek!=="undefined"&&document.body.classList.contains("sp-on"))SidePeek.close();TopNav.go(it);window.scrollTo(0,0);setTimeout(renderBar,50);}});
+  }
+  function sheet(on){
+    const sh=$("#mobSheet"),mk=$("#mobMask");if(!sh)return;
+    if(on){
+      let last="";const items=flat();
+      sh.innerHTML=`<div class="grab"></div>`+items.map((d,i)=>{const g=d.grp&&d.grp!==last?`<div class="grp">${esc(d.grp.replace(/^\S+\s*/,""))}</div>`:"";last=d.grp||"";
+        return g+`<a data-i="${i}">${esc(d.lbl)}${d.ext?" ↗":""}${PC.test(d.lbl)||PC.test(d.grp||"")?"<small>建議用電腦</small>":""}</a>`;}).join("")
+        +`<div class="grp">其他</div><a data-x="ref">🔄 載入最新資料</a><a data-x="guide">📖 操作說明</a>${$("#tnSys")&&$("#tnSys").style.display!=="none"?`<a data-x="sys">⚙ 系統管理 <small>建議用電腦</small></a>`:""}<a data-x="who">👤 切換身分</a>`;
+      sh.querySelectorAll("a[data-i]").forEach(a=>a.onclick=()=>{sheet(false);if(typeof SidePeek!=="undefined"&&document.body.classList.contains("sp-on"))SidePeek.close();TopNav.go(items[+a.dataset.i]);window.scrollTo(0,0);setTimeout(renderBar,50);});
+      sh.querySelectorAll("a[data-x]").forEach(a=>a.onclick=()=>{sheet(false);const x=a.dataset.x;
+        if(x==="ref")Cloud.refreshLatest();else if(x==="guide")TopNav.go({t:"guide"});else if(x==="sys")TopNav.go({t:"data"});
+        else{const l=[...document.querySelectorAll("#tnRoleSlot a,#tnRoleSlot [onclick]")].find(e=>/切換/.test(e.textContent));if(l)l.click();}});
+    }
+    sh.classList.toggle("show",on);mk.classList.toggle("show",on);
+  }
+  window.MobNav={sheet,renderBar};
+
+  /* ── 表格 → 卡片：依欄位名稱決定手機上顯示哪些欄位 ── */
+  const CARD=[
+    {sel:"table:has(>#ov-tbody)",keep:/船名|檢查來源|檢查日期|檢查地點|檢查員|缺失數|扣船|操作/,first:/船名/},
+    {sel:"table:has(#f-tbody)",keep:/船|日期|來源|CODE|缺失|實際|分類|大類|具體|狀態|操作|照片/,first:/船/},
+    {sel:"table:has(>#air-tbody)",keep:/操作|狀態|船名|日期|檢查來源|缺失數/,first:/船名/},
+    {sel:"table.hm-ships",keep:/./,first:/船名/},
+    {sel:"#sidePeek table.sp-t2",keep:/./,first:/船名|CODE/},
+    {sel:"#sidePeek table.ipk-tbl, #sidePeek2 table, table.dft",keep:/./,first:/CODE/}
+  ];
+  function cardify(){
+    if(!document.body.classList.contains("mob"))return;
+    CARD.forEach(c=>{let list=[];try{list=document.querySelectorAll(c.sel);}catch(e){}list.forEach(t=>{
+      t.classList.add("mcard");
+      const hr=t.querySelector("thead tr")||[...t.querySelectorAll("tr")].find(r=>r.querySelector("th")&&!r.querySelector("td"));
+      if(!hr)return;if(!t.tHead)hr.classList.add("mhead");
+      const lb=[...hr.children].map(th=>th.textContent.replace(/[⇅↑↓▲▼]/g,"").trim());
+      t.querySelectorAll("tr").forEach(tr=>{if(tr===hr)return;let ci=0;[...tr.children].forEach(td=>{if(td.tagName!=="TD")return;const l=lb[ci]||"";ci+=td.colSpan||1;
+        if(td.colSpan>1)return;td.dataset.label=l;td.classList.toggle("mhide",!l||!c.keep.test(l));td.classList.toggle("mfirst",c.first.test(l));});});
+    });});
+  }
+  /* ── 篩選收合 ── */
+  function filterFold(){
+    [["#tab-ov",["#tab-ov .df-fgroups","#ov-months"]],["#tab-defs",["#tab-defs .df-fgroups"]]].forEach(([s,extra])=>{
+      const sec=$(s);if(!sec||sec.dataset.mf)return;sec.dataset.mf=1;sec.classList.add("mf-sec");
+      const tb=sec.querySelector(".toolbar");if(!tb)return;
+      [...tb.children].forEach(x=>{if(!x.classList.contains("kw"))x.classList.add("mf-hide");});
+      extra.forEach(q=>document.querySelectorAll(q).forEach(x=>x.classList.add("mf-hide")));
+      const b=document.createElement("button");b.type="button";b.className="mf-btn";b.textContent="🔍 篩選";
+      b.onclick=()=>{const o=sec.classList.toggle("mf-open");b.textContent=o?"✕ 收起篩選":"🔍 篩選";};
+      const kw=tb.querySelector(".kw");if(kw)kw.after(b);else tb.prepend(b);
+    });
+  }
+  /* ── 右邊分割畫面：手機上整頁＋「← 返回」 ── */
+  function peekBack(){
+    const h=document.querySelector("#sidePeek .sp-h");if(!h||$("#sp-mback"))return;
+    const b=document.createElement("button");b.id="sp-mback";b.type="button";b.textContent="← 返回";
+    b.onclick=()=>{if(SidePeek.stack&&SidePeek.stack.length>1)SidePeek.back();else SidePeek.close();};h.prepend(b);
+  }
+  /* ── 編輯填單：提示建議用電腦 ── */
+  function pcHint(){const fp=$("#air-form-main");if(fp&&!$("#air-mobpc")){const d=document.createElement("div");d.id="air-mobpc";d.className="mob-pc";d.textContent="💻 填單編輯、對外回覆欄位多，建議用電腦操作；手機可以先看內容。";fp.prepend(d);}}
+  function apply(){
+    document.body.classList.toggle("mob",MQ.matches);
+    if(!MQ.matches)return;
+    build();filterFold();peekBack();pcHint();cardify();renderBar();
+  }
+  MQ.addEventListener?MQ.addEventListener("change",apply):MQ.addListener(apply);
+  let t=null;new MutationObserver(()=>{if(!document.body.classList.contains("mob"))return;clearTimeout(t);t=setTimeout(()=>{cardify();peekBack();renderBar();},120);}).observe(document.body,{childList:true,subtree:true});
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",apply);else apply();
+  setTimeout(apply,1500);
 })();
 </script>
