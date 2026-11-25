@@ -45133,3 +45133,91 @@ f();setInterval(f,3000);})();</script>
   setTimeout(apply,1500);
 })();
 </script>
+
+<script>
+/* ════════ 2026-11-25 手機版篩選面板（照 模擬_手機版）：按「🔍 篩選」從下方滑出，點選項立刻套用，最下面顯示「看 N 筆結果」
+   直接操作原本的篩選（Ov.ms／Defs.ms、年月選單、外部／內部），電腦版不受影響 */
+(function(){
+  if(typeof Ov==="undefined")return;
+  const $=s=>document.querySelector(s);
+  const css=document.createElement("style");css.textContent=`
+  #mobFilter{display:none}
+  @media(max-width:768px){
+  body.mob #mobFilter{display:block;position:fixed;left:0;right:0;bottom:0;max-height:84vh;overflow:auto;background:#fff;border-radius:18px 18px 0 0;z-index:870;padding:6px 16px 0;transform:translateY(105%);transition:transform .22s}
+  body.mob #mobFilter.show{transform:none}
+  #mobFilter .grab{width:40px;height:4px;background:#d3dbe2;border-radius:2px;margin:6px auto 8px}
+  #mobFilter h4{margin:14px 0 7px;font-size:13px;color:#6b7c88}
+  #mobFilter .opts{display:flex;flex-wrap:wrap;gap:7px}
+  #mobFilter .opt{border:1px solid var(--line);border-radius:16px;padding:7px 13px;font-size:14px;background:#fff;cursor:pointer;user-select:none}
+  #mobFilter .opt.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  #mobFilter .opt.my{border-color:#e8842c;color:#a2560f}#mobFilter .opt.my.on{background:#e8842c;color:#fff}
+  #mobFilter .more{font-size:13px;color:#2f6690;font-weight:700;cursor:pointer;padding:7px 4px}
+  #mobFilter .foot{position:sticky;bottom:0;background:#fff;display:flex;gap:8px;padding:12px 0 calc(12px + env(safe-area-inset-bottom));margin-top:14px;border-top:1px solid #eef1f4}
+  #mobFilter .foot button{flex:1;border-radius:11px;padding:12px;font-weight:800;font-family:inherit;font-size:15px;cursor:pointer}
+  #mobFilter .b1{border:1px solid var(--line);background:#fff}#mobFilter .b2{flex:1.6!important;border:0;background:var(--navy);color:#fff}
+  .mf-btn b{background:#e8842c;color:#fff;border-radius:9px;padding:0 6px;font-size:11px;margin-left:4px}
+  }`;
+  document.head.appendChild(css);
+  const ymOpts=id=>{const s=document.getElementById(id);return s?[...s.options].map(o=>o.value).filter(Boolean):[];};
+  const now=new Date(),Y=now.getFullYear(),M=String(now.getMonth()+1).padStart(2,"0"),NOW=`${Y}-${M}`;
+  const ymAdd2=(ym,n)=>{const [y,m]=ym.split("-").map(Number);const d=new Date(y,m-1+n,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;};
+  const PER=[["近 3 個月",ymAdd2(NOW,-2),""],["今年",`${Y}-01`,`${Y}-12`],["去年",`${Y-1}-01`,`${Y-1}-12`],["全部","",""]];
+  const K={
+    ov:{o:()=>Ov,ym:["ov-ymfrom","ov-ymto"],scope:true,detain:true,data:()=>App.insp||[],count:()=>Ov.filteredRows().length,render:()=>Ov.render(),clear:()=>Ov.clearFilters()},
+    defs:{o:()=>Defs,ym:["f-ymfrom","f-ymto"],scope:false,detain:false,data:()=>App.defs||[],count:()=>{try{return Defs.filtered().length;}catch(e){return null;}},render:()=>{Defs.page=1;Defs.render();},clear:()=>Defs.clearFilters()}
+  };
+  let cur=null,showAllShips=false;
+  const myShips=()=>{try{return (typeof Home!=="undefined"&&Home.kind&&Home.kind()==="sup")?Home.myShips():[];}catch(e){return [];}};
+  function setYm(c,from,to){
+    const [a,b]=c.ym.map(id=>document.getElementById(id));if(!a||!b)return;
+    const op=ymOpts(c.ym[0]);
+    a.value=from?(op.find(v=>v>=from)||""):"";
+    b.value=to?([...op].reverse().find(v=>v<=to)||""):"";
+  }
+  function perOn(c){const [a,b]=c.ym.map(id=>(document.getElementById(id)||{}).value||"");
+    return PER.findIndex(([,f,t])=>{const op=ymOpts(c.ym[0]);const ef=f?(op.find(v=>v>=f)||""):"",et=t?([...op].reverse().find(v=>v<=t)||""):"";return ef===a&&et===b;});}
+  function activeN(k){const c=K[k],o=c.o();let n=0;["ship","itype","detain"].forEach(x=>{if(o.ms[x]&&o.ms[x].sel.size)n++;});if(c.scope&&o.scope!=="all")n++;
+    const [a,b]=c.ym.map(id=>(document.getElementById(id)||{}).value||"");if(a||b)n++;return n;}
+  function paint(){
+    const el=$("#mobFilter");if(!el||!cur)return;const c=K[cur],o=c.o(),D=c.data();
+    const freq=key=>{const m=new Map();D.forEach(r=>{const v=r[key];if(v)m.set(v,(m.get(v)||0)+1);});return [...m.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]);};
+    const ships=freq("ship").sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true})),itypes=freq("itype").slice(0,14);
+    const ms=myShips(),selS=o.ms.ship?o.ms.ship.sel:new Set(),isMy=ms.length&&selS.size===ms.length&&ms.every(s=>selS.has(s));
+    const shipList=showAllShips?ships:ships.filter(s=>selS.has(s)||ms.includes(s)).concat(ships.filter(s=>!selS.has(s)&&!ms.includes(s))).slice(0,showAllShips?999:12);
+    const pi=perOn(c),n=c.count();
+    el.innerHTML=`<div class="grab"></div><b style="font-size:16px">🔍 篩選</b>
+      ${c.scope?`<h4>檢查類型</h4><div class="opts">${[["all","全部"],["ext","外部檢查"],["int","內部檢查"]].map(([v,l])=>`<span class="opt ${o.scope===v?"on":""}" data-a="scope" data-v="${v}">${l}</span>`).join("")}</div>`:""}
+      <h4>船舶</h4><div class="opts">${ms.length?`<span class="opt my ${isMy?"on":""}" data-a="my">我督導的船</span>`:""}<span class="opt ${selS.size?"":"on"}" data-a="allship">全船隊</span>
+        ${shipList.map(s=>`<span class="opt ${selS.has(s)?"on":""}" data-a="ship" data-v="${esc(s)}">${esc(s)}</span>`).join("")}${!showAllShips&&ships.length>12?`<span class="more" data-a="moreship">＋ 全部 ${ships.length} 艘</span>`:""}</div>
+      <h4>檢查來源</h4><div class="opts">${itypes.map(t=>`<span class="opt ${o.ms.itype&&o.ms.itype.sel.has(t)?"on":""}" data-a="itype" data-v="${esc(t)}">${esc(t)}</span>`).join("")}</div>
+      <h4>期間</h4><div class="opts">${PER.map(([l],i)=>`<span class="opt ${pi===i?"on":""}" data-a="per" data-v="${i}">${l}</span>`).join("")}</div>
+      ${c.detain?`<h4>其他</h4><div class="opts"><span class="opt ${o.ms.detain&&o.ms.detain.sel.has("⚑ 扣船")?"on":""}" data-a="det">有扣船</span></div>`:""}
+      <div class="foot"><button class="b1" data-a="clear">清除</button><button class="b2" data-a="close">看 ${n==null?"":n+" 筆"}結果</button></div>`;
+  }
+  function act(e){
+    const t=e.target.closest("[data-a]");if(!t||!cur)return;const c=K[cur],o=c.o(),a=t.dataset.a,v=t.dataset.v;
+    if(a==="close"){close();return;}
+    if(a==="clear"){c.clear();}
+    else if(a==="scope"){const btn=[...document.querySelectorAll("#ov-scope button")][["all","ext","int"].indexOf(v)];o.setScope(v,btn||document.createElement("button"));}
+    else if(a==="my"){const ms=myShips();const on=t.classList.contains("on");o.ms.ship.set(on?[]:ms);}
+    else if(a==="allship"){o.ms.ship.set([]);}
+    else if(a==="moreship"){showAllShips=true;paint();return;}
+    else if(a==="ship"){const s=new Set(o.ms.ship.sel);s.has(v)?s.delete(v):s.add(v);o.ms.ship.set([...s]);}
+    else if(a==="itype"){const s=new Set(o.ms.itype.sel);s.has(v)?s.delete(v):s.add(v);o.ms.itype.set([...s]);}
+    else if(a==="per"){const p=PER[+v];setYm(c,p[1],p[2]);}
+    else if(a==="det"){o.ms.detain.set(o.ms.detain.sel.has("⚑ 扣船")?[]:["⚑ 扣船"]);}
+    try{c.render();}catch(err){console.warn("MobFilter render",err);}
+    paint();label();
+  }
+  function label(){["ov","defs"].forEach(k=>{const b=document.querySelector(k==="ov"?"#tab-ov .mf-btn":"#tab-defs .mf-btn");if(!b)return;const n=activeN(k),h=`🔍 篩選${n?`<b>${n}</b>`:""}`;if(b.innerHTML!==h)b.innerHTML=h;});}
+  function open(k){
+    let el=$("#mobFilter");if(!el){el=document.createElement("div");el.id="mobFilter";el.addEventListener("click",act);document.body.appendChild(el);}
+    cur=k;showAllShips=false;paint();el.classList.add("show");const m=$("#mobMask");if(m){m.classList.add("show");m.onclick=()=>{close();try{MobNav.sheet(false);}catch(e){}};}
+  }
+  function close(){const el=$("#mobFilter");if(el)el.classList.remove("show");const m=$("#mobMask");if(m)m.classList.remove("show");label();}
+  window.MobFilter={open,close,label};
+  // 「🔍 篩選」按鈕改成打開面板（原本是展開整片篩選）
+  const hook=()=>{[["#tab-ov","ov"],["#tab-defs","defs"]].forEach(([s,k])=>{const b=document.querySelector(s+" .mf-btn");if(b&&!b.dataset.mfh){b.dataset.mfh=1;b.onclick=()=>open(k);}});label();};
+  setInterval(()=>{if(document.body.classList.contains("mob"))hook();},1500);
+})();
+</script>
