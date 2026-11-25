@@ -45727,3 +45727,133 @@ body.tn .msel .panel .chip.op:hover{background:#eef3f8}
 .av-pv .pv-cn+.pv-en{}
 .av-pv .pv-nil{color:#a3afb9;font-weight:700;letter-spacing:.5px}
 </style>
+
+<script>
+/* ════════ 2026-11-25 多選下拉：優先往下開，高度縮到畫面底部為止；下面空間太少（不到 180px 且上面比較大）才往上開 */
+(function(){
+  function place(root){
+    const p=root.querySelector(".panel");if(!p||!root.classList.contains("open"))return;
+    const r=root.getBoundingClientRect(),below=innerHeight-r.bottom-12,above=r.top-12;
+    if(below>=180||below>=above){p.style.top=(r.bottom+4)+"px";p.style.bottom="auto";p.style.maxHeight=Math.max(160,below)+"px";}
+    else{p.style.top="auto";p.style.bottom=(innerHeight-r.top+4)+"px";p.style.maxHeight=Math.max(160,above)+"px";}
+  }
+  document.addEventListener("click",e=>{const b=e.target.closest(".msel>button");if(!b)return;const root=b.parentElement;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>place(root)));},true);
+})();
+</script>
+
+<script>
+/* ════════ 2026-11-25 缺失紀錄／檢查紀錄：
+   ① 篩選列加「年／月」快選（直接設定期間的起訖）
+   ② 欄位設定加「取消全選」
+   ③ 缺失紀錄明細右上角工具整理：批量編輯｜⬇ 下載 ▾｜⚙ 欄位 ▾（顯示欄位快選收進去） */
+(function(){
+  if(typeof Defs==="undefined")return;
+  const $=s=>document.querySelector(s);
+  const css=document.createElement("style");css.textContent=`
+  .ea-ym{display:inline-flex;align-items:center;gap:4px}
+  .ea-ym select{font-weight:700}
+  .ea-ym select.on{border-color:#e8842c!important;background:#fff4ea!important;color:#a2560f}
+  .tbx{position:relative;display:inline-block}
+  .tbx-pop{display:none;position:fixed;z-index:3000;background:#fff;border:1px solid #c9d5e0;border-radius:10px;box-shadow:0 8px 24px rgba(20,40,60,.18);padding:6px;min-width:220px;max-width:560px;max-height:70vh;overflow:auto}
+  .tbx.open .tbx-pop{display:block}
+  .tbx-pop>.btn{display:flex!important;width:100%;justify-content:flex-start;margin:0 0 3px!important;border:0!important;background:none!important;color:#1f2d38!important;font-size:13.5px!important;padding:8px 11px!important;border-radius:7px!important;font-weight:600!important;box-shadow:none!important}
+  .tbx-pop>.btn:hover{background:#eef3f8!important}
+  .tbx-pop hr{border:0;border-top:1px solid #eef1f4;margin:5px 2px}
+  .tbx-pop #dfx-colchips{margin:2px 2px 6px;max-width:520px}
+  .tbx-pop #dfx-colchips>b{display:block;width:100%;margin-bottom:2px}
+  .tbx-pop #dfx-colchips .btn,.tbx-pop #dfx-colchips .hint{display:none}
+  .tbx-pop .tbx-dens{display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:12.5px;color:#6b7c88}
+  .tbx.open>.btn{border-color:#2f6690;background:#eef3f8}`;
+  document.head.appendChild(css);
+
+  /* ── ① 年／月快選 ── */
+  const MN=["01","02","03","04","05","06","07","08","09","10","11","12"];
+  function ymQuick(row,fromId,toId,rerender,data){
+    const ymg=row.querySelector('[data-g="ym"]');if(!ymg||row.querySelector(".ea-ym"))return;
+    const f=document.getElementById(fromId),t=document.getElementById(toId);if(!f||!t)return;
+    const w=document.createElement("span");w.className="ea-ym";
+    w.innerHTML=`<select class="ea-y" title="快選年份"></select><select class="ea-m" title="快選月份"></select>`;
+    ymg.before(w);
+    const ys=w.querySelector(".ea-y"),msel=w.querySelector(".ea-m");
+    const opts=()=>[...f.options].map(o=>o.value).filter(Boolean);
+    function fill(){
+      const years=[...new Set((data?data():[]).map(d=>String(d.ym||ymOf(d.date)||"").slice(0,4)).concat(opts().map(v=>v.slice(0,4))).filter(y=>/^\d{4}$/.test(y)))].sort().reverse();
+      const yv=ys.value;ys.innerHTML=`<option value="">全部年份</option>`+years.map(y=>`<option value="${y}">${y} 年</option>`).join("")+`<option value="custom" hidden>自訂期間</option>`;ys.value=yv;
+      if(!msel.options.length)msel.innerHTML=`<option value="">全年</option>`+MN.map(m=>`<option value="${m}">${+m} 月</option>`).join("");
+    }
+    function ensure(sel,v){if(v&&![...sel.options].some(o=>o.value===v)){const o=document.createElement("option");o.value=v;o.textContent=v;sel.appendChild(o);}sel.value=v;}
+    function apply(){
+      const y=ys.value,m=msel.value;
+      if(!y||y==="custom"){f.value="";t.value="";msel.value="";}
+      else if(!m){ensure(f,y+"-01");ensure(t,y+"-12");}
+      else{ensure(f,y+"-"+m);ensure(t,y+"-"+m);}
+      sync();rerender();
+    }
+    function sync(){
+      fill();const a=f.value,b=t.value;let y="",m="";
+      if(!a&&!b){y="";}
+      else if(a&&a===b){y=a.slice(0,4);m=a.slice(5,7);}
+      else{const op=opts().filter(v=>a&&v.startsWith(a.slice(0,4)));
+        if(a&&b&&a.slice(0,4)===b.slice(0,4)&&(a===op[0]||a.endsWith("-01"))&&(b===op[op.length-1]||b.endsWith("-12")))y=a.slice(0,4);else y="custom";}
+      ys.value=y;msel.value=m;msel.disabled=!y||y==="custom";
+      ys.classList.toggle("on",!!y);msel.classList.toggle("on",!!m);
+    }
+    ys.onchange=()=>{if(ys.value!=="custom")msel.value="";apply();};
+    msel.onchange=apply;
+    w._sync=sync;sync();
+    return w;
+  }
+
+  /* ── ② 欄位設定：取消全選 ── */
+  function noneBtn(){
+    const all=document.querySelector('button[onclick="Defs.colPickerAll(true)"]');
+    if(all&&!all.nextElementSibling?.classList.contains("cp-none")){
+      const b=document.createElement("button");b.className="btn cp-none";b.textContent="取消全選";b.title="全部取消（會保留船名一欄）";
+      b.onclick=()=>{Defs.colPickerAll(false);try{const v=Defs.loadVisible();if(!v.length||!v.includes("ship"))Defs.toggleColVis("ship",true);}catch(e){}try{Defs.openColPicker();}catch(e){}try{Defs.render();}catch(e){}};
+      all.after(b);}
+  }
+
+  /* ── ③ 工具按鈕收成選單 ── */
+  function dd(label,title,items){
+    const w=document.createElement("span");w.className="tbx";
+    w.innerHTML=`<button type="button" class="btn sm" title="${title}">${label} ▾</button><div class="tbx-pop"></div>`;
+    const pop=w.querySelector(".tbx-pop");items.forEach(x=>{if(x)pop.appendChild(x);});
+    w.firstElementChild.onclick=e=>{e.stopPropagation();const was=w.classList.contains("open");document.querySelectorAll(".tbx.open").forEach(x=>x.classList.remove("open"));
+      if(was)return;w.classList.add("open");
+      const r=w.firstElementChild.getBoundingClientRect();pop.style.top=(r.bottom+4)+"px";pop.style.left="auto";pop.style.right=Math.max(8,innerWidth-r.right)+"px";
+      pop.style.maxHeight=Math.max(200,innerHeight-r.bottom-16)+"px";};
+    pop.addEventListener("click",e=>{if(e.target.closest(".btn")&&!e.target.closest("#dfx-colchips"))w.classList.remove("open");});
+    return w;
+  }
+  document.addEventListener("click",e=>{if(!document.contains(e.target))return;if(!e.target.closest(".tbx"))document.querySelectorAll(".tbx.open").forEach(x=>x.classList.remove("open"));});
+  document.addEventListener("scroll",e=>{if(e.target.closest&&e.target.closest(".tbx-pop"))return;document.querySelectorAll(".tbx.open").forEach(x=>x.classList.remove("open"));},true);
+  function tools(){
+    const h3=[...document.querySelectorAll("#defs-page-list h3")].find(h=>/缺失紀錄明細/.test(h.textContent));if(!h3||h3.dataset.tbx)return;
+    const box=h3.querySelector("span");if(!box)return;h3.dataset.tbx=1;
+    const B=re=>[...box.querySelectorAll("button")].find(b=>re.test(b.getAttribute("onclick")||""));
+    const batch=B(/openBatchEdit/),dl=B(/openDownloadModal/),att=B(/AttachDL\.defsPick/),ic=B(/openInternalControlList/),tpl=B(/exportTemplate/),cp=B(/openColPicker/),rs=B(/resetColOrder/);
+    if(cp)cp.textContent="⚙ 全部欄位設定／排序…";
+    const chipsEl=$("#dfx-colchips");
+    const dens=$("#f-dens");let dw=null;if(dens){dw=document.createElement("div");dw.className="tbx-dens";dw.innerHTML="<span>表格疏密：</span>";dw.appendChild(dens);}
+    const hr=()=>document.createElement("hr");
+    const dDl=dd("⬇ 下載","下載表單、附件、匯入模板、內控清單",[dl,att,tpl,ic?hr():null,ic]);
+    const dCol=dd("⚙ 欄位","顯示／隱藏欄位、欄位排序、表格疏密",[chipsEl,hr(),cp,rs,dw?hr():null,dw]);
+    box.innerHTML="";[batch,dDl,dCol].forEach(x=>{if(x)box.appendChild(x);});
+  }
+  // 快速顯示欄位一定要看得到（原本只在 ④ 顯示，現在收在選單裡）
+  
+
+  function hook(){
+    try{const r=document.querySelector("#tab-defs .ea-row");if(r){const w=ymQuick(r,"f-ymfrom","f-ymto",()=>{Defs.page=1;Defs.render();},()=>App.defs||[]);}}catch(e){console.warn("ymQuick defs",e);}
+    try{const r=document.querySelector("#tab-ov .ea-row");if(r){ymQuick(r,"ov-ymfrom","ov-ymto",()=>Ov.render(),()=>App.insp||[]);}}catch(e){console.warn("ymQuick ov",e);}
+    try{tools();}catch(e){console.warn("defs tools",e);}
+    noneBtn();
+  }
+  const syncAll=()=>document.querySelectorAll(".ea-ym").forEach(w=>{try{w._sync&&w._sync();}catch(e){}});
+  const _r=Defs.render;Defs.render=function(){const r=_r.apply(this,arguments);try{syncAll();}catch(e){}return r;};
+  if(typeof Ov!=="undefined"){const _o=Ov.render;Ov.render=function(){const r=_o.apply(this,arguments);try{syncAll();}catch(e){}return r;};}
+  const _op=Defs.openColPicker;Defs.openColPicker=function(){const r=_op.apply(this,arguments);try{noneBtn();}catch(e){}return r;};
+  setTimeout(hook,1300);setInterval(hook,3000);
+})();
+</script>
