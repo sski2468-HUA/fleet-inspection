@@ -43499,6 +43499,7 @@ window.addEventListener("DOMContentLoaded",async()=>{
 (function(){
   const css=document.createElement("style");css.textContent=`
   body.tn #tab-air.asp{display:grid;grid-template-columns:minmax(340px,.62fr) minmax(0,1.38fr);column-gap:12px;align-items:start}
+  body.tn #tab-air.asp:not(.show){display:none!important} /* 2026-11-25 切到別的大分頁時要藏起來（左右分割的 display:grid 會蓋過 .tabpage 的隱藏） */
   body.tn #tab-air.asp>*{grid-column:1/-1}
   body.tn #tab-air.asp>.banner{display:none}
   body.tn #tab-air.asp>#air-list-page{grid-column:1;grid-row:20;overflow:auto;min-width:0}
@@ -45290,7 +45291,7 @@ f();setInterval(f,3000);})();</script>
     let cur=null;
     function paint(){
       const all=builtin().concat(mine().map(v=>Object.assign({mine:1},v)));
-      bar.innerHTML=`<span class="ea-lbl">⭐ 常用：</span>`+all.map((v,i)=>`<button type="button" class="ea-v ${cur===v.name?"on":""}" data-i="${i}" title="${esc(v.tip||"")}">${esc(v.name)}${v.n!=null?` <span class="n">${v.n}</span>`:""}${v.mine?`<span class="x" data-del="${esc(v.name)}" title="刪除這個常用">✕</span>`:""}</button>`).join("")
+      bar.innerHTML=`<span class="ea-lbl">⭐ 常用：</span>`+all.map((v,i)=>`<button type="button" class="ea-v ${cur===v.name?"on":""}" data-i="${i}" data-nm="${esc(v.name)}" title="${esc(v.tip||"")}">${v.n!=null?`<span class="n">${Number(v.n).toLocaleString()}</span>`:""}<span class="nm">${esc(v.name)}</span>${v.mine?`<span class="x" data-del="${esc(v.name)}" title="刪除這個常用">✕</span>`:""}</button>`).join("")
         +`<button type="button" class="ea-v save" data-save="1">💾 存成常用</button>`;
       bar.querySelectorAll("button[data-i]").forEach(b=>b.onclick=e=>{const v=all[+b.dataset.i];
         if(e.target.dataset.del){if(confirm(`刪除常用「${v.name}」？`)){try{localStorage.setItem(KEY,JSON.stringify(mine().filter(x=>x.name!==v.name)));}catch(_){}paint();}return;}
@@ -45329,7 +45330,7 @@ f();setInterval(f,3000);})();</script>
     const V=viewsBar("defs",row,()=>{const D=base();const out=[{name:"全部",n:D.length,s:{}}];
       if(ms.length)out.push({name:"我督導的船・今年",n:D.filter(d=>ms.includes(d.ship)&&String(d.ym||ymOf(d.date)).startsWith(Y)).length,s:{ship:ms,year:1}});
       else out.push({name:"今年",n:D.filter(d=>String(d.ym||ymOf(d.date)).startsWith(Y)).length,s:{year:1}});
-      out.push({name:"高風險・未結案",n:D.filter(d=>String(d.risk)==="3"&&isOpen(d)).length,s:{risk:["3"],open:1}});
+      out.push({name:"高風險",n:D.filter(d=>String(d.risk)==="3").length,s:{risk:["3"]}});
       out.push({name:"須關注",n:D.filter(d=>d.ncFocus==="是").length,s:{focus:1}});
       out.push({name:"近 3 個月",n:D.filter(d=>String(d.ym||ymOf(d.date))>=ymAdd2(NOWYM,-2)).length,s:{m3:1}});
       return out;},
@@ -45366,8 +45367,9 @@ f();setInterval(f,3000);})();</script>
     go(k){
       this.cur=k;Defs._preset=PRE[k]||null;
       const rp=$("#defs-page-reply");
-      Defs.setSubTab("list",k==="x3");
-      if(k==="x3"){$("#defs-page-list").style.display="none";if(rp){rp.style.display="";}this.limit=100;this.renderReply();}
+      const clean=k==="x1"||k==="x2"||k==="x3"; // ①②③ 用簡潔表格（照模擬）；④ 用原本的列表
+      Defs.setSubTab("list",clean);
+      if(clean){$("#defs-page-list").style.display="none";if(rp){rp.style.display="";}this.limit=100;if(k==="x3")this.renderReply();else this.renderClean(k);}
       else if(rp)rp.style.display="none";
       document.querySelectorAll("#tab-defs .df-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.p===k));
       try{localStorage.setItem("vsm_dfx_tab",k);}catch(e){}
@@ -45393,7 +45395,7 @@ f();setInterval(f,3000);})();</script>
   Defs.setSubTab=function(tab){const r=_st.apply(this,arguments);if(tab!=="list")DefsX.leave();
     if(DefsX.cur&&tab==="list")document.querySelectorAll("#tab-defs .df-tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.p===DefsX.cur));return r;};
   const _rd=Defs.render;
-  Defs.render=function(){const r=_rd.apply(this,arguments);try{kpis();}catch(e){}if(DefsX.cur==="x3")try{DefsX.renderReply();}catch(e){}return r;};
+  Defs.render=function(){const r=_rd.apply(this,arguments);try{kpis();}catch(e){}if(DefsX.cur==="x3")try{DefsX.renderReply();}catch(e){}else if(DefsX.cur==="x1"||DefsX.cur==="x2")try{DefsX.renderClean(DefsX.cur);}catch(e){}return r;};
   function kpis(){
     const kp=$("#tab-defs .dfx-kpis");if(!kp)return;let rows=[];try{rows=Defs.filtered();}catch(e){return;}
     const n=rows.length,y=rows.filter(d=>String(d.ym||ymOf(d.date)).startsWith(Y)).length,h=rows.filter(d=>String(d.risk)==="3").length,f=rows.filter(d=>d.ncFocus==="是").length;
@@ -45442,5 +45444,122 @@ f();setInterval(f,3000);})();</script>
   function boot(){try{Ov.populateYm&&Ov.populateYm();}catch(e){}buildOv();buildDefs();
     if(!DefsX.cur&&Defs.subTab==="view"){let t="x1";try{t=localStorage.getItem("vsm_dfx_tab")||"x1";}catch(e){}if(document.getElementById("tab-defs").classList.contains("show")||true)DefsX.go(t);}}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(boot,300));else setTimeout(boot,300);
+})();
+</script>
+
+<script>
+/* ════════ 2026-11-25 缺失紀錄改版 第二輪 ════════
+   ・上方數字卡＝常用（不重複兩排）；高風險不加「未結案」
+   ・篩選按鈕直接顯示目前選的值（例：船名 全部、風險 高）
+   ・① 檢查結果 ② 分類：改成跟模擬一樣的簡潔表格（中英欄名、來源標籤、風險色點、須關注旗），點一列在右邊看完整內容
+   ・分頁按鈕放大；「分享給船隊自查」移到分頁列最右邊
+   ・快速分類（進度條）移進「編輯模式」（只有 Owner／海技管理員看得到）
+   ・④ 自訂列表：上方一排欄位快選，點一下顯示／隱藏 */
+(function(){
+  if(typeof DefsX==="undefined"||typeof Defs==="undefined")return;
+  const $=s=>document.querySelector(s);
+  const css=document.createElement("style");css.textContent=`
+  #tab-defs .dfx-kpis{display:none!important}
+  /* 常用＝數字卡 */
+  .ea-views .ea-v{flex-direction:column;align-items:flex-start;gap:0;padding:6px 14px 5px;border-top:3px solid #1c3a5e;min-width:96px;line-height:1.25}
+  .ea-views .ea-v .n{font-size:18px;color:var(--ink);font-family:var(--mono)}
+  .ea-views .ea-v .nm{font-size:12px;color:#6b7c88;font-weight:700}
+  .ea-views .ea-v.on{background:#eaf2fb;box-shadow:inset 0 0 0 2px #1c3a5e}
+  .ea-views .ea-v[data-nm="高風險"]{border-top-color:#c0392b}.ea-views .ea-v[data-nm="須關注"]{border-top-color:#e08a00}
+  .ea-views .ea-v[data-nm="有扣船"]{border-top-color:#c0392b}
+  .ea-views .ea-v.save{border-top:1px dashed #9fb3c8;flex-direction:row;align-self:stretch;align-items:center}
+  .ea-views .ea-v .x{position:absolute;margin:-2px 0 0 0;right:6px}.ea-views .ea-v{position:relative}
+  /* 篩選按鈕顯示目前值 */
+  .ea-row .msel button[data-val]::after{content:attr(data-val);margin-left:6px;color:#1c3a5e;font-weight:800}
+  .ea-row .msel.has button:first-of-type{background:#eaf2fb!important;border-color:#1c3a5e!important}
+  /* 分頁按鈕放大 */
+  .dfx-tabs{gap:8px!important;align-items:stretch!important;flex-wrap:wrap}
+  .dfx-tabs .df-tabbtn{font-size:15px!important;padding:9px 18px!important;border:2px solid #c9d5e0!important;border-radius:10px!important;background:#fff!important;color:#3d4f5c!important;height:auto!important}
+  .dfx-tabs .df-tabbtn small{font-size:10px}
+  .dfx-tabs .df-tabbtn:hover{border-color:#2f6690!important;color:#1c3a5e!important}
+  .dfx-tabs .df-tabbtn.active{background:#1c3a5e!important;border-color:#1c3a5e!important;color:#fff!important;box-shadow:0 3px 10px rgba(28,58,94,.25)}
+  .dfx-tabs .dfx-share{margin-left:auto;display:flex;gap:6px;align-items:center}
+  /* ①② 簡潔表格 */
+  .cl-t{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
+  .cl-t th{background:#f3f6f9;color:#44607b;text-align:left;padding:8px 10px;font-size:12.5px;white-space:nowrap;border-bottom:2px solid #d6e1ec;position:sticky;top:0;z-index:1}
+  .cl-t th small{display:block;font-weight:400;font-size:9.5px;letter-spacing:1px;opacity:.7;text-transform:uppercase}
+  .cl-t td{padding:9px 10px;border-top:1px solid #eef1f4;vertical-align:top}
+  .cl-t tr.cl-r{cursor:pointer}.cl-t tr.cl-r:hover td{background:#f3f8fe}
+  .cl-t tr.sp-cur td{background:#fff3e2!important}
+  .cl-ship b{display:block;white-space:nowrap}.cl-ship small{color:#6b7c88;font-family:var(--mono);font-size:11px}
+  .cl-mono{font-family:var(--mono);white-space:nowrap;font-size:12.5px}
+  .cl-src{display:inline-block;background:#eef3f8;color:#2f6690;border-radius:10px;padding:1px 8px;font-size:12px;font-weight:700;white-space:nowrap}
+  .cl-det{min-width:280px;line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .cl-rk{display:inline-flex;align-items:center;gap:5px;font-weight:800;font-size:12.5px;white-space:nowrap}.cl-rk i{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .cl-r3{color:#c0392b}.cl-r3 i{background:#c0392b}.cl-r2{color:#b5600f}.cl-r2 i{background:#e08a00}.cl-r1{color:#1f7a3f}.cl-r1 i{background:#2e8b57}
+  .cl-fc{color:#c0392b;font-weight:800;white-space:nowrap}
+  .cl-tag{display:inline-block;border:1px solid #dde4ea;border-radius:10px;padding:0 7px;font-size:12px;margin:1px 3px 1px 0;background:#fff;white-space:normal;line-height:1.4}
+  .cl-t td:has(.cl-tag){min-width:110px;max-width:190px}.cl-t .cl-det{min-width:240px}
+  .cl-head{display:flex;align-items:center;gap:10px;padding:8px 12px;font-size:12.5px;color:#6b7c88}
+  /* ④ 欄位快選 */
+  #dfx-colchips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 10px;font-size:12.5px}
+  #dfx-colchips label{border:1px solid #c9d5e0;border-radius:14px;padding:3px 10px;cursor:pointer;background:#fff;user-select:none}
+  #dfx-colchips label.on{background:#1c3a5e;color:#fff;border-color:#1c3a5e}
+  #dfx-colchips label:hover{border-color:#2f6690}
+  /* 右邊看缺失內容 */
+  .dv-kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:7px 12px;font-size:13.5px}
+  .dv-kv>span{color:#6b7c88;font-size:12.5px;padding-top:2px}.dv-kv>div{white-space:pre-line;line-height:1.6;overflow-wrap:anywhere}
+  .dv-sec{font-weight:800;color:#1c3a5e;margin:14px 0 6px;font-size:13.5px;border-top:1px solid #eef1f4;padding-top:10px}`;
+  document.head.appendChild(css);
+  const RK={"3":["高","cl-r3"],"2":["中","cl-r2"],"1":["低","cl-r1"]};
+  const tags=v=>(typeof ncTags==="function"?ncTags(v):String(v||"").split(/‖|、/)).filter(Boolean).map(t=>`<span class="cl-tag">${esc(t)}</span>`).join("")||'<span style="color:#b2bdc6">—</span>';
+  const H=(z,e)=>`<th>${z}<small>${e}</small></th>`;
+  const COLS={
+    x1:[["船名","Vessel",d=>`<td class="cl-ship"><b>${esc(shipFullLabel(d.ship))}</b></td>`],["檢查日期","Date",d=>`<td class="cl-mono">${esc(normDateSlash(d.date)||"")}</td>`],["來源","Source",d=>`<td><span class="cl-src">${esc(d.itype||"")}</span></td>`],
+      ["檢查員","Inspector",d=>`<td style="white-space:nowrap">${esc(d.inspector||"")}</td>`],["CODE","Ref.",d=>`<td class="cl-mono">${esc(d.code||"")}</td>`],["缺失內容","Finding",d=>`<td><div class="cl-det">${esc(d.detail||"")}</div></td>`],
+      ["風險","Risk",d=>{const r=RK[String(d.risk)];return `<td>${r?`<span class="cl-rk ${r[1]}"><i></i>${r[0]}</span>`:""}</td>`;}],["須關注","Focus",d=>`<td>${d.ncFocus==="是"?'<span class="cl-fc">⚑ 須關注</span>':""}</td>`]],
+    x2:null};
+  COLS.x2=[COLS.x1[0],COLS.x1[1],COLS.x1[4],COLS.x1[5],["問題別","Type",d=>`<td>${tags(d.ncProb)}</td>`],["大類","Category",d=>`<td>${tags(d.ncMain)}</td>`],["具體名稱","Item",d=>`<td>${tags(d.ncLeaf)}</td>`],["根因","Root Cause",d=>`<td>${tags(d.ncRoot)}</td>`],COLS.x1[6],COLS.x1[7]];
+  DefsX.renderClean=function(k){
+    const box=$("#defs-page-reply");if(!box)return;
+    const rows=Defs.filtered().slice().sort((a,b)=>String(normDateSlash(b.date)).localeCompare(String(normDateSlash(a.date)),undefined,{numeric:true}));
+    const show=rows.slice(0,this.limit),C=COLS[k];this._rows=show;
+    box.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div class="cl-head">共 <b style="color:#1c3a5e">${rows.length.toLocaleString()}</b> 筆（依目前篩選，新的在上面）；點一列在右邊看完整內容</div>
+      <div style="overflow:auto;max-height:70vh"><table class="cl-t"><thead><tr>${C.map(c=>H(c[0],c[1])).join("")}</tr></thead><tbody>${show.map((d,i)=>`<tr class="cl-r" data-i="${i}">${C.map(c=>c[2](d)).join("")}</tr>`).join("")||`<tr><td colspan="${C.length}" style="text-align:center;color:#9aa7b1;padding:24px">沒有符合的缺失</td></tr>`}</tbody></table></div>
+      ${rows.length>show.length?`<div style="padding:10px;text-align:center"><button class="btn sm" onclick="DefsX.limit+=100;DefsX.renderClean('${k}')">再顯示 100 筆（還有 ${rows.length-show.length} 筆）</button></div>`:""}</div>`;
+    box.querySelectorAll("tr.cl-r").forEach(tr=>tr.onclick=()=>DefsX.peek(this._rows[+tr.dataset.i],tr));
+  };
+  const RF=[["opComment","Initial Operator Comment"],["immediateCause","直接原因"],["rootCause","根本原因"],["corrective","矯正措施"],["preventive","預防措施"]];
+  DefsX.peek=function(d,tr){
+    if(!d||typeof SidePeek==="undefined")return;
+    const kv=(l,v)=>`<span>${l}</span><div>${v}</div>`,T=v=>String(v||"").trim()?esc(v):'<span style="color:#b2bdc6">（未填）</span>';
+    const r=RK[String(d.risk)],rep=RF.filter(([k])=>String(d[k+"Reply"]||"").trim());
+    SidePeek.open({t:`${shipFullLabel(d.ship)}　CODE ${d.code||"—"}`,s:[normDateSlash(d.date),d.itype,d.place,d.inspector?`檢查員：${d.inspector}`:""].filter(Boolean).join("　｜　"),mark:tr,
+      html:`<div class="dv-kv">${kv("缺失內容",T(d.detail))}${kv("實際情況",T(d.actual))}${kv("風險",r?`<span class="cl-rk ${r[1]}"><i></i>${r[0]}</span>`:"—")}${kv("須關注",d.ncFocus==="是"?'<span class="cl-fc">⚑ 須關注</span>':"否")}</div>
+        <div class="dv-sec">分類</div><div class="dv-kv">${kv("問題別",tags(d.ncProb))}${kv("大類",tags(d.ncMain))}${kv("具體名稱",tags(d.ncLeaf))}${kv("根因",tags(d.ncRoot))}</div>
+        <div class="dv-sec">船上填寫的原因與措施</div><div class="dv-kv">${kv("直接原因",T(d.immediateCause))}${kv("根本原因",T(d.rootCause))}${kv("矯正措施",T(d.corrective))}${kv("預防措施",T(d.preventive))}</div>
+        ${rep.length?`<div class="dv-sec">對外回覆</div><div class="dv-kv">${rep.map(([k,l])=>kv(l,T(d[k+"Reply"]))).join("")}</div>`:""}`});
+  };
+  /* 篩選按鈕顯示目前選的值 */
+  const VAL={"ms-f-ship":["ship",v=>v],"ms-f-itype":["itype",v=>v],"ms-f-risk":["risk",v=>({"3":"高","2":"中","1":"低","":"未設定"}[v]??v)],"ms-o-ship":["ship",v=>v],"ms-o-itype":["itype",v=>v]};
+  function vals(){document.querySelectorAll(".ea-row .msel").forEach(el=>{const m=VAL[el.id];if(!m)return;const o=el.id.startsWith("ms-o")?Ov:Defs,ms=o.ms&&o.ms[m[0]];if(!ms)return;
+    const a=[...ms.sel].map(m[1]);const t=a.length?(a.length<=2?a.join("、"):`${a.length} 項`):"全部";const b=el.querySelector("button")||el;if(b.dataset.val!==t)b.dataset.val=t;el.classList.toggle("has",a.length>0);});}
+  /* 版面搬移：分享按鈕、快速分類、欄位快選 */
+  function layout(){
+    const tbar=$("#tab-defs .dfx-tabs");
+    if(tbar&&!tbar.querySelector(".dfx-share")){const share=[...document.querySelectorAll("#defs-page-list button")].find(b=>/分享給船隊自查/.test(b.textContent));
+      if(share){const w=document.createElement("span");w.className="dfx-share";const help=share.nextElementSibling;w.appendChild(share);if(help&&/❓/.test(help.textContent))w.appendChild(help);tbar.appendChild(w);
+        const hint=[...document.querySelectorAll("#defs-page-list .hint")].find(h=>/勾選列/.test(h.textContent));if(hint)hint.style.display="none";}}
+    const dg=$("#dg-bar"),ep=$("#defs-page-edit");if(dg&&ep&&dg.parentElement!==ep)ep.prepend(dg); // 快速分類只在編輯模式
+    const lp=$("#defs-page-list .tblwrap");if(lp&&!$("#dfx-colchips")){const c=document.createElement("div");c.id="dfx-colchips";lp.before(c);}
+    chips();
+  }
+  const QUICK=["ship","date","itype","place","inspector","oilco","code","detail","actual","ncProb","ncMain","ncLeaf","ncRoot","risk","ncFocus","ncImp","rank","person","corrective","correctiveReply","photos","icat","vtype"];
+  function chips(){
+    const c=$("#dfx-colchips");if(!c)return;c.style.display=DefsX.cur==="x4"?"":"none";if(DefsX.cur!=="x4")return;
+    const vis=new Set(Defs.loadVisible()),cols=QUICK.map(k=>Defs.ALL_COLS.find(x=>x.k===k)).filter(Boolean);
+    const h=`<b style="margin-right:4px">顯示欄位：</b>`+cols.map(x=>`<label class="${vis.has(x.k)?"on":""}" data-k="${x.k}">${esc(x.t.replace(/（.*?）/g,m=>m.includes("對外")?"（回覆）":""))}</label>`).join("")+`<button class="btn sm" type="button" onclick="Defs.openColPicker()">⚙ 全部欄位／排序…</button><span class="hint" style="margin-left:4px">點一下顯示／隱藏，會記住</span>`;
+    if(c._h===h)return;c._h=h;c.innerHTML=h;
+    c.querySelectorAll("label").forEach(l=>l.onclick=()=>{Defs.toggleColVis(l.dataset.k,!l.classList.contains("on"));chips();});
+  }
+  const _go=DefsX.go.bind(DefsX);DefsX.go=function(k){const r=_go(k);layout();return r;};
+  const _r=Defs.render;Defs.render=function(){const r=_r.apply(this,arguments);try{vals();chips();}catch(e){}return r;};
+  const _or=Ov.render;Ov.render=function(){const r=_or.apply(this,arguments);try{vals();}catch(e){}return r;};
+  setTimeout(()=>{layout();vals();if(DefsX.cur)DefsX.go(DefsX.cur);},900);
 })();
 </script>
