@@ -46135,11 +46135,11 @@ body.tn .msel .panel .chip.op:hover{background:#eef3f8}
     const tb=$("#ov-tbody");if(!tb)return;const pg=Ov._pageRows||[];const all=Ov._lastFiltered||[];
     const trs=[...tb.children].filter(tr=>!tr.classList.contains("ovx-mh"));
     trs.forEach((tr,i)=>{const r=pg[i];if(!r||tr.querySelector(".empty"))return;tr.dataset.oid=String(r.id);
-      const n=(r.reports||[]).length;if(n){const c=tr.children[1];if(c&&!c.querySelector(".ovx-rp"))(c.querySelector("div")||c).insertAdjacentHTML("beforeend",`<span class="ovx-rp" title="有 ${n} 個報告檔案">📎${n}</span>`);}});
+      });
     if(grp&&Ov.sortKey==="date"){
       const cnt={};all.forEach(r=>{const m=ymOf(r.date);const o=cnt[m]=cnt[m]||{n:0,d:0,x:0};o.n++;o.d+=+r.ndef||0;if(isDet(r))o.x++;});
       let last=null;trs.forEach((tr,i)=>{const r=pg[i];if(!r)return;const m=ymOf(r.date);if(m!==last){last=m;const o=cnt[m]||{n:0,d:0,x:0};
-        tr.insertAdjacentHTML("beforebegin",`<tr class="ovx-mh"><td colspan="14">${m?`${m.slice(0,4)} 年 ${+m.slice(5)} 月`:"（無日期）"}<span>${o.n} 次檢查・${o.d} 項缺失${o.x?`・⚑ 扣船 ${o.x}`:""}</span></td></tr>`);}});
+        tr.insertAdjacentHTML("beforebegin",`<tr class="ovx-mh"><td colspan="9">${m?`${m.slice(0,4)} 年 ${+m.slice(5)} 月`:"（無日期）"}<span>${o.n} 次檢查・${o.d} 項缺失${o.x?`・⚑ 扣船 ${o.x}`:""}</span></td></tr>`);}});
     }
   }
   function layout(){
@@ -46182,7 +46182,39 @@ body.tn .msel .panel .chip.op:hover{background:#eef3f8}
     }
   }
   const _ss=Ov.setSubTab;Ov.setSubTab=function(t){if(t==="summary")t="list";const r=_ss.call(this,t);const sc=$("#ovx-srccard");if(sc)sc.style.display=t==="list"?"":"none";return r;};
-  const _rt=Ov.renderTable;Ov.renderTable=function(){const r=_rt.apply(this,arguments);try{decorateRows();}catch(e){console.warn("ovx rows",e);}return r;};
+  /* 2026-11-25 列表改成模擬的精簡版：☐｜日期｜船名（扣船、📎）｜檢查來源｜地點｜檢查員／單位｜缺失數｜正面評價｜✎ */
+  function newHead(){
+    const tb=$("#ov-tbody");if(!tb)return;const tbl=tb.closest("table");if(!tbl||tbl.dataset.ovx)return;tbl.dataset.ovx=1;tbl.classList.add("ovx-tbl");
+    const cg=tbl.querySelector("colgroup");if(cg)cg.innerHTML=`<col style="width:34px"><col style="width:150px"><col style="width:21%"><col style="width:15%"><col style="width:14%"><col style="width:18%"><col style="width:86px"><col style="width:86px"><col style="width:64px">`;
+    const tr=tbl.querySelector("thead tr");
+    if(tr)tr.innerHTML=`<th><input type="checkbox" id="ov-selall" onchange="Ov.toggleAllSel(this.checked)"></th><th class="sort" onclick="Ov.sort('date')">日期 ⇅</th><th class="sort" onclick="Ov.sort('ship')">船名 ⇅</th><th class="sort" onclick="Ov.sort('itype')">檢查來源 ⇅</th><th>地點</th><th>檢查員／單位</th><th class="sort" onclick="Ov.sort('ndef')" style="text-align:center">缺失數 ⇅</th><th class="sort" onclick="Ov.sort('npos')" style="text-align:center">正面評價 ⇅</th><th></th>`;
+  }
+  Ov.renderTable=function(rows){
+    newHead();
+    const k=this.sortKey,asc=this.sortAsc?1:-1;
+    const arr=[...rows].sort((a,b)=>{let x=a[k],y=b[k];if(k==="date"){x=parseDate(x)||0;y=parseDate(y)||0;}if(k==="ndef"||k==="npos"){x=+x||0;y=+y||0;}return (x>y?1:x<y?-1:0)*asc;});
+    this._lastFiltered=arr;
+    const total=arr.length,pages=Math.max(1,Math.ceil(total/this.PER));
+    this.page=Math.min(this.page,pages);
+    const pg=arr.slice((this.page-1)*this.PER,this.page*this.PER);this._pageRows=pg;
+    if($("#ov-selcount"))$("#ov-selcount").textContent=this.selRows.size?`已選 ${this.selRows.size} 筆`:"";
+    if($("#ov-selall"))$("#ov-selall").checked=pg.length>0&&pg.every(r=>this.selRows.has(String(r.id)));
+    $("#ov-tbody").innerHTML=pg.map(r=>{
+      const idx=App.insp.indexOf(r),intl=isInternal(r.itype),n=(r.reports||[]).length,bd=typeof intAuditTopicBreakdown==="function"?intAuditTopicBreakdown(r):"";
+      return `<tr class="${this.selRows.has(String(r.id))?"sel":""}">
+        <td><input type="checkbox" ${this.selRows.has(String(r.id))?"checked":""} onchange="Ov.toggleSelRow('${r.id}',this.checked)"></td>
+        <td class="ovx-date">${esc(inspDateText(r))}</td>
+        <td><b>${esc(shipFullLabel(r.ship))}</b>${isDet(r)?` <span class="ovx-det">⚑ 扣船</span>`:""}${n?`<span class="ovx-rp" title="有 ${n} 個報告檔案">📎${n}</span>`:""}</td>
+        <td><span class="ovx-src ${intl?"int":"ext"}">${esc(r.itype||"—")}</span></td>
+        <td class="ovx-sm">${esc(r.loc||"")}</td>
+        <td class="ovx-sm">${esc(r.inspector||"")}${r.unit?`<div class="ovx-unit">${esc(r.unit)}</div>`:""}</td>
+        <td class="ovx-num"${bd?` title="${esc(bd)}"`:""}>${InspPeek.cell(r,"defs")}</td>
+        <td class="ovx-num ovx-pos">${+r.npos?InspPeek.cell(r,"pos"):`<span class="ovx-nil">–</span>`}</td>
+        <td style="white-space:nowrap">${r._impAt?`<span title="轉入/匯入於 ${esc(new Date(r._impAt).toLocaleString("zh-TW",{hour12:false}))}${r._impBy?"，操作者："+esc(r._impBy):""}" style="cursor:help;color:var(--ink-3);font-size:12px">ℹ</span>`:""}<button class="btn sm" title="編輯這筆檢查" onclick="Ov.openEdit(${idx})">✎</button></td></tr>`;
+    }).join("")||`<tr><td colspan="9" class="empty">無符合資料</td></tr>`;
+    $("#ov-pager").innerHTML=pagerHtml(this.page,pages,total,"Ov","ov");
+    try{decorateRows();}catch(e){console.warn("ovx rows",e);}
+  };
   const _r=Ov.render;Ov.render=function(){const r=_r.apply(this,arguments);try{layout();srcTables();summary();cmpTable();CP.paint("ov");}catch(e){console.warn("ovx",e);}return r;};
   if(typeof Defs!=="undefined"){const _dr=Defs.render;Defs.render=function(){const r=_dr.apply(this,arguments);try{CP.paint("defs");}catch(e){}return r;};}
 
@@ -46240,3 +46272,48 @@ body.tn .msel .panel .chip.op:hover{background:#eef3f8}
   setInterval(()=>{if(!document.querySelector("#tab-ov .cpk")||!document.querySelector("#tab-defs .cpk"))boot();},3000);
 })();
 </script>
+
+<style>
+/* ════════ 2026-11-25 「更多條件」展開後：不分類框，所有條件排成一排膠囊按鈕（缺失紀錄、檢查紀錄） */
+body.tn :is(#tab-ov,#tab-defs) .df-fgroups:not(.ea-more-hide){display:flex!important;flex-wrap:wrap;gap:8px;align-items:center;margin:-4px 0 12px!important;padding:12px 14px;background:#f7f9fb;border:1px dashed #c9d5e0;border-radius:12px;position:relative}
+body.tn :is(#tab-ov,#tab-defs) .df-fgroups:not(.ea-more-hide)::before{content:"更多條件";font-weight:800;color:#1c3a5e;font-size:13px;margin-right:4px}
+body.tn :is(#tab-ov,#tab-defs) .df-fgroups .df-fgroup{display:contents!important}
+body.tn :is(#tab-ov,#tab-defs) .df-fgroups .df-fgroup-label{display:none!important}
+body.tn :is(#tab-ov,#tab-defs) .df-fgroups .df-fgroup-fields{display:contents!important}
+body.tn :is(#tab-ov,#tab-defs) .df-fgroups .msel>button{border-radius:18px!important;border:1.5px solid #c9d5e0!important;background:#fff!important;padding:6px 13px!important;font-size:13px!important}
+body.tn :is(#tab-ov,#tab-defs) .df-fgroups .msel>button:hover{border-color:#2f6690!important}
+body.tn :is(#tab-ov,#tab-defs) .df-fgroups .msel:has(.cnt)>button{border-color:#e8842c!important;background:#fff4ea!important;color:#a2560f;font-weight:700}
+body.tn :is(#tab-ov,#tab-defs) .df-fgroups select{border-radius:18px!important;border:1.5px solid #c9d5e0!important;padding:5px 10px!important;font-size:13px!important;background:#fff}
+body.tn :is(#tab-ov,#tab-defs) .df-fgroups label{display:inline-flex;align-items:center;gap:5px;border:1.5px solid #c9d5e0;border-radius:18px;padding:5px 12px;background:#fff;font-size:13px;cursor:pointer}
+body.tn #tab-ov #ov-months{display:none!important} /* 舊的年份晶片：已改用 📅 月曆 */
+.ea-dd .mc{background:#e8842c;color:#fff;border-radius:9px;padding:0 7px;font-size:11.5px;margin-left:5px}
+</style>
+<script>
+/* 「更多條件」按鈕上顯示目前用了幾個更多條件 */
+(function(){
+  function upd(){document.querySelectorAll("#tab-ov .ea-row .ea-dd,#tab-defs .ea-row .ea-dd").forEach(b=>{
+    const sec=b.closest(".tabpage"),fg=sec&&sec.querySelector(".df-fgroups");if(!fg)return;
+    const n=[...fg.querySelectorAll(".msel")].filter(m=>m.querySelector(":scope>button .cnt")).length+[...fg.querySelectorAll("select")].filter(s=>s.value).length+[...fg.querySelectorAll("input[type=checkbox]")].filter(c=>c.checked).length;
+    let c=b.querySelector(".mc");if(n){if(!c){c=document.createElement("span");c.className="mc";b.appendChild(c);}if(c.textContent!==String(n))c.textContent=n;}else if(c)c.remove();});}
+  setInterval(upd,1000);
+})();
+</script>
+
+<style>
+/* ════════ 2026-11-25 檢查紀錄精簡列表（照模擬） */
+table.ovx-tbl td{padding:9px 10px!important;vertical-align:middle}
+table.ovx-tbl tbody tr:not(.ovx-mh)>td{border-bottom:1px solid #eef1f4}
+.ovx-date{font-family:var(--mono,Consolas,monospace);white-space:nowrap;font-size:13px}
+.ovx-det{background:#c0392b;color:#fff;border-radius:6px;padding:1px 7px;font-size:11.5px;font-weight:800;white-space:nowrap}
+.ovx-src{display:inline-block;border-radius:6px;padding:2px 9px;font-size:12.5px;font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
+.ovx-src.ext{background:#e6eef6;color:#2f6690}.ovx-src.int{background:#fdeedd;color:#a2560f}
+.ovx-sm{font-size:13px;overflow-wrap:anywhere}
+.ovx-unit{font-size:11.5px;color:#6b7c88;margin-top:1px}
+.ovx-num{text-align:center;font-family:var(--mono,Consolas,monospace);font-size:14px;font-weight:700}
+.ovx-pos{color:#1f7a3f}
+.ovx-nil{color:#c3ccd4;font-weight:400}
+/* 右邊打開時，左邊列表只留：日期、船名、來源、缺失數、✎ */
+body.tn.sp-on table.ovx-tbl tr>*{display:table-cell!important}
+body.tn.sp-on table.ovx-tbl tr>:is(:nth-child(1),:nth-child(5),:nth-child(6),:nth-child(8)){display:none!important}
+body.tn.sp-on table.ovx-tbl tr.ovx-mh>td{display:table-cell!important}
+</style>
