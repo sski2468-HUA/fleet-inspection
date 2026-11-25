@@ -46178,7 +46178,7 @@ body.tn .msel .panel .chip.op:hover{background:#eef3f8}
         if(e.target.closest("input,button,a,select,label,.sp-click"))return;
         const tr=e.target.closest("tr[data-oid]");if(!tr)return;openPeek(tr.dataset.oid,tr);});
       // 船隊風險清單：加「回列表」
-      const rh=$("#ov-sub-risk h3");if(rh&&!rh.querySelector(".ovx-back")){const b=document.createElement("button");b.className="btn sm ovx-back";b.textContent="← 回檢查紀錄列表";b.onclick=()=>Ov.setSubTab("list");rh.prepend(b);}
+      const rh=$("#ov-sub-risk h3");if(rh&&!rh.querySelector(".ovx-back")){const b=document.createElement("button");b.className="btn sm ovx-back";b.textContent="← 回到檢查紀錄列表";b.onclick=()=>Ov.setSubTab("list");rh.prepend(b);}
     }
   }
   const _ss=Ov.setSubTab;Ov.setSubTab=function(t){if(t==="summary")t="list";const r=_ss.call(this,t);const sc=$("#ovx-srccard");if(sc)sc.style.display=t==="list"?"":"none";return r;};
@@ -46437,3 +46437,60 @@ body.tn button[onclick="AdvFilterEngine.open('ov')"],body.tn #ov-adv-filter-chip
   document.head.appendChild(css);fix();addEventListener("resize",fix);setTimeout(fix,1500);
 })();
 </script>
+
+<style>
+/* ════════ 2026-11-25 缺失紀錄：① 檢查結果、② 分類 的缺失內容完整顯示（不截斷）；③ 對外回覆 上中文、下英文 */
+#defs-page-reply .cl-det{display:block!important;-webkit-line-clamp:unset!important;overflow:visible!important;white-space:pre-line;overflow-wrap:anywhere}
+#defs-page-reply .rp-det{display:block!important;-webkit-line-clamp:unset!important;overflow:visible!important;max-width:none!important;white-space:pre-line;overflow-wrap:anywhere}
+#defs-page-reply .rp-v .en{color:#3d4f5c;margin-top:6px;padding-top:6px;border-top:1px dashed #d6dee6}
+#defs-page-reply .rp-v .nil{color:#9aa7b1}
+#defs-page-reply .rp-v .lg{display:inline-block;font-size:10.5px;font-weight:800;color:#6b7c88;background:#eef2f5;border-radius:4px;padding:0 5px;margin-right:6px;vertical-align:1px}
+</style>
+<script>
+(function(){
+  if(typeof DefsX==="undefined")return;
+  const RF=[["opComment","Initial Operator Comment","初步說明"],["immediateCause","直接原因","Immediate Cause"],["rootCause","根本原因","Root Cause"],["corrective","矯正措施","Corrective Action"],["preventive","預防措施","Preventive Measures"]];
+  const hasReply=d=>RF.some(([k])=>String(d[k+"Reply"]||"").trim());
+  /* 缺失紀錄 → 哪一筆填單第幾條缺失（填單的 defects[i].pushedDefId） */
+  function linkMap(){const m=new Map();(App.air||[]).forEach(a=>(a.defects||[]).forEach((df,i)=>{if(df&&df.pushedDefId!=null)m.set(String(df.pushedDefId),{rid:String(a.id),i});}));return m;}
+  const EN={},loading=new Set();
+  async function loadEn(rids){
+    const need=rids.filter(r=>!(r in EN)&&!loading.has(r));if(!need.length||typeof Cloud==="undefined"||!Cloud.enabled())return false;
+    need.forEach(r=>loading.add(r));
+    try{
+      const sel="air_record_id,defect_idx,"+RF.map(([k])=>`${k}:items->0->>${k}En`).join(",");
+      for(let i=0;i<need.length;i+=60){const part=need.slice(i,i+60);
+        const rows=await Cloud.api(`air_reply_drafts?air_record_id=in.(${part.map(encodeURIComponent).join(",")})&select=${sel}`)||[];
+        part.forEach(r=>{EN[r]=EN[r]||{};});rows.forEach(x=>{(EN[String(x.air_record_id)]=EN[String(x.air_record_id)]||{})[x.defect_idx]=x;});}
+    }catch(e){console.warn("對外回覆英文讀取失敗",e);}
+    finally{need.forEach(r=>loading.delete(r));}
+    return true;
+  }
+  DefsX.renderReply=function(){
+    const box=$("#defs-page-reply");if(!box)return;
+    const rows=Defs.filtered().filter(hasReply).sort((a,b)=>String(normDateSlash(b.date)).localeCompare(String(normDateSlash(a.date)),undefined,{numeric:true}));
+    const show=rows.slice(0,this.limit),LM=linkMap();
+    const enOf=d=>{const l=LM.get(String(d.id));return l&&EN[l.rid]?(EN[l.rid][l.i]||null):undefined;};
+    const opened=show.filter(d=>this.open.has(String(d.id)));
+    const want=[...new Set(opened.map(d=>LM.get(String(d.id))).filter(Boolean).map(l=>l.rid))];
+    if(want.some(r=>!(r in EN)))loadEn(want).then(ok=>{if(ok&&DefsX.cur==="x3")DefsX.renderReply();});
+    box.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div style="padding:8px 12px;font-size:12.5px;color:#6b7c88">共 ${rows.length} 筆有對外回覆內容的缺失（依目前篩選）；點一列看 5 個欄位（上中文、下英文）。</div>
+      <table><thead><tr><th style="width:24px"></th><th>船名</th><th>檢查日期</th><th>來源</th><th>CODE</th><th>缺失內容</th><th>已填欄位</th></tr></thead><tbody>${show.map(d=>{const n=RF.filter(([k])=>String(d[k+"Reply"]||"").trim()).length,op=this.open.has(String(d.id));
+        let exp="";
+        if(op){const en=enOf(d),lk=LM.get(String(d.id));
+          exp=`<tr class="rp-exp"><td></td><td colspan="6"><div class="rp-g">${RF.map(([k,a,b])=>{const v=String(d[k+"Reply"]||"").trim();
+            const e=en===undefined?(lk?'<span class="nil">讀取英文中…</span>':'<span class="nil">（找不到對應的填單，沒有英文版）</span>'):String((en&&en[k])||"").trim();
+            return `<b>${a}<small>${b}</small></b><div class="rp-v"><div><span class="lg">中</span>${v?esc(v):'<span class="nil">（未填）</span>'}</div><div class="en"><span class="lg">EN</span>${en===undefined?e:(e?esc(e):'<span class="nil">（未填）</span>')}</div></div>`;}).join("")}</div></td></tr>`;}
+        return `<tr class="rp-row" data-id="${esc(String(d.id))}"><td>${op?"▾":"▸"}</td><td style="white-space:nowrap"><b>${esc(shipFullLabel(d.ship))}</b></td><td style="white-space:nowrap;font-family:var(--mono)">${esc(normDateSlash(d.date)||"")}</td><td>${esc(d.itype||"")}</td><td style="font-family:var(--mono)">${esc(d.code||"")}</td><td><div class="rp-det">${esc(d.detail||"")}</div></td><td class="rp-n" style="color:${n===5?"#1f7a3f":"#b5600f"}">${n}/5</td></tr>`+exp;}).join("")}</tbody></table>
+      ${rows.length>show.length?`<div style="padding:10px;text-align:center"><button class="btn sm" onclick="DefsX.limit+=100;DefsX.renderReply()">再顯示 100 筆（還有 ${rows.length-show.length} 筆）</button></div>`:""}</div>`;
+    box.querySelectorAll("tr.rp-row").forEach(tr=>tr.onclick=()=>{const id=tr.dataset.id;if(this.open.has(id))this.open.delete(id);else this.open.add(id);this.renderReply();});
+  };
+})();
+</script>
+
+<style>
+/* ════════ 2026-11-25 船隊風險清單：「回檢查紀錄列表」放最右邊、加大、明顯顏色 */
+#ov-sub-risk h3{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+#ov-sub-risk h3 .ovx-back{order:99;margin-left:8px;background:#1c3a5e!important;border:0!important;color:#fff!important;font-size:15px!important;font-weight:800!important;padding:9px 18px!important;border-radius:10px!important;box-shadow:0 3px 10px rgba(28,58,94,.25)}
+#ov-sub-risk h3 .ovx-back:hover{background:#2f6690!important}
+</style>

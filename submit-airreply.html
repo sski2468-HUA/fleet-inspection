@@ -1520,6 +1520,7 @@ async function applyDocxImport(text){
     bar();
     const a=document.getElementById("alAll");if(a){const on=allDrafts.length&&allDrafts.every(r=>open.has(r.defect_idx));a.classList.toggle("on",!!on);a.textContent=on?"✓ 全部完成":"✎ 全部編輯";}
     if(box.querySelector(".al-f.active"))return; // 正在打字：先不重畫，離開格子後再更新
+    navPaint(box);
     if(!allDrafts.length){box.innerHTML="";return;}
     box.innerHTML=allDrafts.map(r=>{const it=itemOf(r),dm=it._defectMeta||{},i=r.defect_idx,ed=open.has(i);
       return `<div class="al-def ${ed?"editing":""}" data-i="${i}">
@@ -1530,6 +1531,21 @@ async function applyDocxImport(text){
       <div class="al-ops"><button type="button" class="al-eb" data-i="${i}">${ed?"✓ 完成":"✎ 編輯"}</button><span class="al-tip">點任一格修改</span></div></div>`;}).join("");
   }
   window.arListPaint=paint;
+  /* 2026-11-25 缺失跳轉列（同 ① 填單內容）：#1 · CODE x.x.x，點一下捲到那條缺失；捲動時黏在工具列下面 */
+  const NAVC=["#1c3a5e","#1f6b4a","#a0631f","#6a3b8f","#a33a3a"];
+  function navPaint(box){
+    let nv=document.getElementById("alNav");
+    if(!nv){nv=document.createElement("div");nv.id="alNav";box.parentNode.insertBefore(nv,box);
+      nv.addEventListener("click",e=>{const b=e.target.closest("[data-j]");if(!b)return;const el=document.querySelector(`#arList .al-def[data-i="${b.dataset.j}"]`);if(el){el.scrollIntoView({behavior:"smooth",block:"start"});setTimeout(()=>{const t=el.getBoundingClientRect().top,nb=nv.getBoundingClientRect().bottom;if(t<nb-2||t>nb+40)el.scrollIntoView({block:"start"});},900);}});
+      const st=document.createElement("style");st.textContent=`#alNav{display:flex;gap:8px;flex-wrap:wrap;padding:8px 16px;border-bottom:1px solid var(--line);position:sticky;top:var(--arbar-h,0px);background:#fff;z-index:5}
+        #alNav button{border:1.5px solid;background:#fff;border-radius:8px;padding:5px 12px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit}
+        #alNav button:hover{background:#f6f8fb}#alNav:empty{display:none}
+        #arList .al-def{scroll-margin-top:calc(var(--arbar-h,0px) + var(--alnav-h,0px) + 6px)}`;document.head.appendChild(st);}
+    const h=allDrafts.length>1?allDrafts.map((r,k)=>{const dm=itemOf(r)._defectMeta||{},c=NAVC[k%5];return `<button type="button" data-j="${r.defect_idx}" style="border-color:${c};color:${c}">#${r.defect_idx+1}${dm.code?" · CODE "+esc(dm.code):""}</button>`;}).join(""):"";
+    if(nv._h!==h){nv._h=h;nv.innerHTML=h;}
+    const ab=document.querySelector(".ar-bar");const r=document.documentElement.style;
+    r.setProperty("--arbar-h",(ab&&getComputedStyle(ab).position==="sticky"?ab.offsetHeight:0)+"px");r.setProperty("--alnav-h",nv.offsetHeight+"px");
+  }
   /* 存一格：切到那條缺失（會先存上一條、再抓雲端最新），改那一格，立刻合併存檔；一次只存一格，照順序 */
   /* 2026-11-24 缺失內容（缺失詳情、CODE、實際情況、矯正、根本原因、預防）在這裡改，同步回主系統這筆填單的「船上填寫版本」
      （① 填單內容那邊），兩邊一致。只有從主系統 ② 打開時才同步得到。 */
