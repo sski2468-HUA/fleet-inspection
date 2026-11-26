@@ -2099,6 +2099,18 @@ SLog.initBtn();
 // 關分頁／重新整理／按「回主系統」時，新建自訂自查還有沒存的內容 → 瀏覽器跳「確定要離開？」提示
 window.addEventListener("beforeunload",e=>{if(SC._dirty){e.preventDefault();e.returnValue="";}});
 if(/^#new$/.test(location.hash||"")){setHash("");setTimeout(()=>{setSubTab("case");SC.ctab("new");},0);}
+// 2026-11-26 主系統「缺失紀錄 → 🤖 AI 分析 → 建立船隊自查」：AI 整理好的題目放在這台電腦的暫存（scs_ai_prefill），帶進「新建自訂自查」讓人確認後再發佈
+if(/^#ai$/.test(location.hash||"")){setHash("");setTimeout(async()=>{
+  let p=null;try{p=JSON.parse(localStorage.getItem("scs_ai_prefill")||"null");localStorage.removeItem("scs_ai_prefill");}catch(e){}
+  setSubTab("case");try{await SC.enter();}catch(e){}SC.ctab("new");
+  // 切到這個分頁時會先畫一份空白表單（非同步），等它畫完再帶入，避免空白表單晚到把 AI 題目蓋掉
+  for(let i=0;i<20&&!document.getElementById("scTitle");i++)await new Promise(r=>setTimeout(r,150));
+  await new Promise(r=>setTimeout(r,500));
+  if(p&&Array.isArray(p.q)&&p.q.length){await SC.mount(p);
+    setTimeout(()=>{const ti=document.getElementById("scTitle");if(ti&&!ti.value)SC.mount(p).then(()=>{SC._dirty=true;});},900);
+    SC._dirty=true;notify(`✓ 已帶入 AI 整理的 ${p.q.length} 題，請確認內容、選擇發給哪些船，再預覽／發佈`,"ok2");}
+  else notify("⚠ 沒有讀到 AI 題目，請回主系統重新按「建立船隊自查」");
+},0);}
 loadCampaignList();
 /* 打開頁面時已自動整理一次；之後只在「離開又回到這個分頁」且距上次整理超過 60 秒時才自動再整理，
    停在原頁面沒動作的情況才需要自己按「🔄 重新整理」。整理時停留在原本畫面，不會被跳回活動列表。 */
