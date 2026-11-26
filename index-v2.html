@@ -19186,6 +19186,9 @@ const Defs={
     let targets,tb,itypes;
     try{
       targets=App.defs.filter(d=>this.selected.has(String(d.id)));
+      // 2026-11-26 順序跟畫面上的清單一樣（依目前篩選、日期新的在上）；不在目前篩選結果裡的排最後
+      try{const ord=new Map(this.filtered().slice().sort((a,b)=>String(normDateSlash(b.date)).localeCompare(String(normDateSlash(a.date)),undefined,{numeric:true})).map((d,i)=>[String(d.id),i]));
+        targets.sort((a,b)=>(ord.has(String(a.id))?ord.get(String(a.id)):1e9)-(ord.has(String(b.id))?ord.get(String(b.id)):1e9));}catch(e){}
       $("#defbe-count").textContent=targets.length;
       tb=$("#defbe-tbody");tb.innerHTML="";
       const table=$("#defbe-table");if(table)table.classList.add("defbe-collapsed");
@@ -45372,7 +45375,7 @@ f();setInterval(f,3000);})();</script>
     // 常用
     const base=()=>App.defs||[],ms=myShips();
     const V=viewsBar("defs",row,()=>{const D=base();const out=[{name:"全部",n:D.length,s:{}}];
-      if(ms.length)out.push({name:"我督導的船・今年",n:D.filter(d=>ms.includes(d.ship)&&String(d.ym||ymOf(d.date)).startsWith(Y)).length,s:{ship:ms,year:1}});
+      const ms=myShips();if(ms.length)out.push({name:"我督導的船",n:D.filter(d=>ms.includes(d.ship)).length,s:{ship:ms}},{name:"我督導的船・今年",n:D.filter(d=>ms.includes(d.ship)&&String(d.ym||ymOf(d.date)).startsWith(Y)).length,s:{ship:ms,year:1}});
       else out.push({name:"今年",n:D.filter(d=>String(d.ym||ymOf(d.date)).startsWith(Y)).length,s:{year:1}});
       out.push({name:"高風險",n:D.filter(d=>String(d.risk)==="3").length,s:{risk:["3"]}});
       out.push({name:"須關注",n:D.filter(d=>d.ncFocus==="是").length,s:{focus:1}});
@@ -45383,7 +45386,7 @@ f();setInterval(f,3000);})();</script>
         const s=v.s||{};if(s.ship)Defs.ms.ship.set(s.ship);if(s.year){nearYm("f-ymfrom",`${Y}-01`);nearYm("f-ymto",undefined,`${Y}-12`);}
         if(s.m3)nearYm("f-ymfrom",ymAdd2(NOWYM,-2));if(s.risk)Defs.ms.risk.set(s.risk);if(s.open)Defs.ms.close.set(["待船上改善","已填改善措施","未填改善措施"]);if(s.focus)Defs.ms.ncfocus.set(["是"]);
         Defs.page=1;Defs.render();sync();},
-      {snapshot:()=>snap(Defs,["f-ymfrom","f-ymto"])});
+      {snapshot:()=>snap(Defs,["f-ymfrom","f-ymto"])});window._eaV_defs=V;
     function sync(){ckb.checked=Defs.ms.ncfocus.sel.has("是")&&Defs.ms.ncfocus.sel.size===1;}
     // 分頁
     const tbar=[...sec.querySelectorAll(".toolbar")].find(t=>t.querySelector(".df-tabbtn"));
@@ -45472,7 +45475,7 @@ f();setInterval(f,3000);})();</script>
     const ms=myShips(),base=()=>App.insp||[];
     const setScope=v=>{const btn=[...document.querySelectorAll("#ov-scope button")][["all","ext","int"].indexOf(v)];Ov.setScope(v,btn||document.createElement("button"));};
     const V=viewsBar("ov",row,()=>{const D=base();const ext=i=>!isInternal(i.itype);const out=[{name:"全部",n:D.length,s:{}}];
-      if(ms.length)out.push({name:"我督導的船・今年",n:D.filter(i=>ms.includes(i.ship)&&String(i.date||"").startsWith(Y)).length,s:{ship:ms,year:1}});
+      const ms=myShips();if(ms.length)out.push({name:"我督導的船",n:D.filter(i=>ms.includes(i.ship)).length,s:{ship:ms}},{name:"我督導的船・今年",n:D.filter(i=>ms.includes(i.ship)&&String(i.date||"").startsWith(Y)).length,s:{ship:ms,year:1}});
       out.push({name:"今年・外部檢查",n:D.filter(i=>String(i.date||"").startsWith(Y)&&ext(i)).length,s:{year:1,scope:"ext"}});
       out.push({name:"今年・內部檢查",n:D.filter(i=>String(i.date||"").startsWith(Y)&&!ext(i)).length,s:{year:1,scope:"int"}});
       out.push({name:"有扣船",n:D.filter(i=>String(i.detain||"").toUpperCase().startsWith("Y")).length,s:{det:1}});
@@ -45481,7 +45484,7 @@ f();setInterval(f,3000);})();</script>
         Object.values(Ov.ms).forEach(m=>m.clear());$("#ov-ymfrom").value="";$("#ov-ymto").value="";if(okw)okw.value="";kw.value="";setScope("all");
         const s=v.s||{};if(s.ship)Ov.ms.ship.set(s.ship);if(s.year){nearYm("ov-ymfrom",`${Y}-01`);nearYm("ov-ymto",undefined,`${Y}-12`);}if(s.scope)setScope(s.scope);if(s.det)Ov.ms.detain.set(["⚑ 扣船"]);
         ckb.checked=!!s.det;Ov.render();},
-      {snapshot:()=>snap(Ov,["ov-ymfrom","ov-ymto"])});
+      {snapshot:()=>snap(Ov,["ov-ymfrom","ov-ymto"])});window._eaV_ov=V;
   }
   /* 電腦版才收起原本的第一列（手機版還要用它的關鍵字和「🔍 篩選」按鈕） */
   const css2=document.createElement("style");css2.textContent=`body:not(.mob) #tab-defs>.toolbar.ea-orig,body:not(.mob) #tab-ov>.toolbar.ea-orig{display:none!important}.dfx-tabs .df-tabbtn:is([data-p="view"],[data-p="list"],[data-p="listcompact"],[data-p="list3"],[data-p="edit"]){display:none!important}`;document.head.appendChild(css2);
@@ -46744,8 +46747,8 @@ table{border-collapse:collapse}
 <p class="h2">二、AI 分析</p>
 <table class="ai"><tr><td>${reply?md(reply):`<p class="note">（未貼上 AI 分析內容）</p>`}</td></tr></table>
 <p class="h2" style="page-break-before:always">三、缺失清單（共 ${R.length} 筆）</p>
-<table class="lst"><thead><tr style="mso-yfti-firstrow:yes"><th style="width:22pt">#</th><th style="width:110pt">船名</th><th style="width:58pt">日期</th><th style="width:70pt">來源</th><th style="width:44pt">CODE</th><th>缺失內容</th><th style="width:120pt">大類／具體名稱</th><th style="width:30pt">風險</th></tr></thead><tbody>
-${sorted.map((d,i)=>{const r=String(d.risk);return `<tr${i%2?' class="z"':""}><td style="text-align:center">${i+1}</td><td><b>${esc2(shipName(d.ship))}</b></td><td>${esc2(normDateSlash(d.date)||"")}</td><td>${esc2(d.itype)}</td><td>${esc2(d.code)}</td><td>${esc2(d.detail).replace(/\n/g,"<br>")}</td><td>${esc2(nc(d.ncMain))}${d.ncLeaf?`<br><span class="note">${esc2(nc(d.ncLeaf))}</span>`:""}</td><td style="text-align:center" class="rk${r}">${RISK[r]||""}</td></tr>`;}).join("")}</tbody></table>
+<table class="lst" style="width:745pt;table-layout:fixed"><colgroup><col width="26"><col width="92"><col width="62"><col width="70"><col width="56"><col width="331"><col width="80"><col width="28"></colgroup><thead><tr style="mso-yfti-firstrow:yes"><th width="26" style="width:26pt">#</th><th width="92" style="width:92pt">船名</th><th width="62" style="width:62pt">日期</th><th width="70" style="width:70pt">來源</th><th width="56" style="width:56pt">CODE</th><th width="331" style="width:331pt">缺失內容</th><th width="80" style="width:80pt">大類／具體名稱</th><th width="28" style="width:28pt">風險</th></tr></thead><tbody>
+${sorted.map((d,i)=>{const r=String(d.risk);return `<tr${i%2?' class="z"':""}><td width="26" style="text-align:center;width:26pt">${i+1}</td><td width="92" style="width:92pt"><b>${esc2(shipName(d.ship))}</b></td><td width="62" style="width:62pt">${esc2(normDateSlash(d.date)||"")}</td><td width="70" style="width:70pt">${esc2(d.itype)}</td><td width="56" style="width:56pt">${esc2(d.code)}</td><td width="331" style="width:331pt">${esc2(d.detail).replace(/\n/g,"<br>")}</td><td width="80" style="width:80pt">${esc2(nc(d.ncMain))}${d.ncLeaf?`<br><span class="note">${esc2(nc(d.ncLeaf))}</span>`:""}</td><td width="28" style="text-align:center;width:28pt" class="rk${r}">${RISK[r]||""}</td></tr>`;}).join("")}</tbody></table>
 <p class="note" style="margin-top:6pt">本報告由「船舶檢查暨缺失管理系統 → 缺失紀錄 → AI 分析」產出；AI 分析內容請經人工確認後使用。</p>
 </div></body></html>`;
       const blob=new Blob(["﻿"+html],{type:"application/msword"});
@@ -46900,6 +46903,10 @@ body.mob #tnFsz{display:none!important}
 #dx2-cols{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 12px;border-bottom:1px solid #eef1f4;font-size:12.5px}
 #dx2-cols label{border:1px solid #c9d5e0;border-radius:14px;padding:3px 10px;cursor:pointer;background:#fff;user-select:none}
 #dx2-cols label.on{background:#1a4c75;color:#fff;border-color:#1a4c75}
+#dx2-cols label.dg{cursor:grab;touch-action:none;user-select:none}#dx2-cols label.dg i{font-style:normal;opacity:.6;margin-right:4px}
+#dx2-cols label.drg{opacity:.45;cursor:grabbing}
+#dx2-cols label.ins-l{box-shadow:-3px 0 0 #d97a2b}#dx2-cols label.ins-r{box-shadow:3px 0 0 #d97a2b}
+#dx2-cols .dx2-sep{width:1px;height:20px;background:#c9d5e0;margin:0 4px}
 /* 責任人列表 */
 .dp-t{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
 .dp-t th{background:#f3f6f9;color:#6b7c88;text-align:left;padding:8px 10px;font-size:12px;white-space:nowrap;position:sticky;top:0;z-index:1}
@@ -46986,13 +46993,37 @@ body.mob .dx2-f{grid-template-columns:1fr}
       if(a==="clr")b.onclick=()=>{sel.clear();DefsX.renderClean(k);};
       if(a==="quick")b.onclick=()=>{if(!sel.size){toast("⚠ 請先勾選要編輯的缺失");return;}Defs.openBatchEdit();};
       if(a==="batch")b.onclick=()=>DefsX2.openBatch();});
-    if(k==="x4")box.querySelectorAll("#dx2-cols label").forEach(l=>l.onclick=()=>{Defs.toggleColVis(l.dataset.k,!l.classList.contains("on"));DefsX.renderClean("x4");});
+    if(k==="x4"){box.querySelectorAll("#dx2-cols label").forEach(l=>l.onclick=()=>{if(l._dragged)return;Defs.toggleColVis(l.dataset.k,!l.classList.contains("on"));DefsX.renderClean("x4");});chipDrag(box);}
   };
   const QUICK=["ship","date","itype","place","inspector","oilco","code","detail","actual","ncProb","ncMain","ncLeaf","ncRoot","risk","ncFocus","ncImp","rank","person","corrective","correctiveReply","photos","icat","vtype"];
   function colChips(){
     let vis=new Set();try{vis=new Set(Defs.loadVisible());}catch(e){}
-    const cols=QUICK.map(k=>Defs.ALL_COLS.find(x=>x.k===k)).filter(Boolean);
-    return `<div id="dx2-cols"><b style="margin-right:4px">顯示欄位：</b>${cols.map(x=>`<label class="${vis.has(x.k)?"on":""}" data-k="${x.k}">${esc(String(x.t).replace(/（.*?）/g,m=>m.includes("對外")?"（回覆）":""))}</label>`).join("")}<button class="btn sm" type="button" onclick="Defs.openColPicker()">⚙ 全部欄位／排序…</button><span class="hint">點一下顯示／隱藏，會記住</span></div>`;
+    const nm=x=>esc(String(x.t).replace(/（.*?）/g,m=>m.includes("對外")?"（回覆）":""));
+    const saved=Defs._preset;Defs._preset=null;let on=[];try{on=Defs.viewCols();}catch(e){}Defs._preset=saved;
+    const off=QUICK.map(k=>Defs.ALL_COLS.find(x=>x.k===k)).filter(x=>x&&!vis.has(x.k));
+    return `<div id="dx2-cols"><b style="margin-right:4px">顯示欄位：</b>${on.map(x=>`<label class="on dg" data-k="${x.k}" title="拖曳可調整順序；點一下隱藏"><i>⠿</i>${nm(x)}</label>`).join("")}<span class="dx2-sep"></span>${off.map(x=>`<label data-k="${x.k}" title="點一下顯示">${nm(x)}</label>`).join("")}<button class="btn sm" type="button" onclick="Defs.openColPicker()">⚙ 全部欄位…</button><span class="hint">深色＝顯示中，<b>按住拖曳</b>可排順序；點一下顯示／隱藏，會記住</span></div>`;
+  }
+  /* 拖曳排序（滑鼠、觸控都可以） */
+  function chipDrag(box){
+    const wrap=box.querySelector("#dx2-cols");if(!wrap)return;
+    wrap.querySelectorAll("label.dg").forEach(ch=>{
+      ch.addEventListener("pointerdown",e=>{
+        if(e.button!==undefined&&e.button!==0)return;
+        const sx=e.clientX,sy=e.clientY;let drag=false,tgt=null,after=false;
+        const L=[...wrap.querySelectorAll("label.dg")];
+        const mv=ev=>{if(!drag&&Math.hypot(ev.clientX-sx,ev.clientY-sy)<6)return;
+          if(!drag){drag=true;ch.classList.add("drg");try{ch.setPointerCapture(e.pointerId);}catch(_){}}
+          ev.preventDefault();L.forEach(x=>x.classList.remove("ins-l","ins-r"));
+          let best=null,bd=1e9;L.forEach(x=>{if(x===ch)return;const r=x.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,dd=Math.hypot(ev.clientX-cx,(ev.clientY-cy)*2);if(dd<bd){bd=dd;best=x;}});
+          tgt=best;if(tgt){const r=tgt.getBoundingClientRect();after=ev.clientX>r.left+r.width/2;tgt.classList.add(after?"ins-r":"ins-l");}};
+        const up=()=>{document.removeEventListener("pointermove",mv);document.removeEventListener("pointerup",up);document.removeEventListener("pointercancel",up);
+          L.forEach(x=>x.classList.remove("ins-l","ins-r","drg"));
+          if(!drag)return;ch._dragged=true;setTimeout(()=>{ch._dragged=false;},50);
+          if(!tgt)return;const keys=L.map(x=>x.dataset.k).filter(k=>k!==ch.dataset.k);let i=keys.indexOf(tgt.dataset.k);if(after)i++;keys.splice(i,0,ch.dataset.k);
+          const ord=Defs.loadColOrder();Defs.colOrder=keys.concat(ord.filter(k=>!keys.includes(k)));Defs.saveColOrder();DefsX.renderClean("x4");};
+        document.addEventListener("pointermove",mv,{passive:false});document.addEventListener("pointerup",up);document.addEventListener("pointercancel",up);
+      });
+    });
   }
   /* ④ 改成跟 ①②③ 一樣的表格 */
   const _go=DefsX.go;
@@ -47098,11 +47129,15 @@ body.mob .dx2-f{grid-template-columns:1fr}
     box.innerHTML=`<div class="card" style="padding:0;overflow:auto;max-height:72vh"><table class="dp-t"><thead><tr><th style="width:22px"></th><th>姓名</th><th>職位</th><th style="text-align:center">次數</th><th style="text-align:center">涉及船數</th><th>檢查來源</th><th>最近一次</th><th></th></tr></thead><tbody>`+
       list.map(([name,g],idx)=>{const its=Object.entries(g.itypeCount).sort((a,b)=>b[1]-a[1]);
         const items=g.items.slice().sort((a,b)=>(typeof dateSortVal==="function"?dateSortVal(b.date)-dateSortVal(a.date):0));
-        return `<tr class="dp-r" data-idx="${idx}"><td id="dfperson-caret-${idx}">▸</td><td class="nm">${esc(name)}</td><td class="rk">${esc([...g.ranks].join("／"))}</td><td class="num">${g.items.length}</td><td class="num" style="font-weight:600">${g.ships.size}</td>
+        return `<tr class="dp-r" data-idx="${idx}"><td id="dfperson-caret-${idx}">›</td><td class="nm">${esc(name)}</td><td class="rk">${esc([...g.ranks].join("／"))}</td><td class="num">${g.items.length}</td><td class="num" style="font-weight:600">${g.ships.size}</td>
           <td>${its.slice(0,4).map(([it,n])=>`<span class="chip">${esc(it)} ×${n}</span>`).join("")}${its.length>4?`<span class="chip">＋${its.length-4}</span>`:""}</td><td class="cl-mono" style="white-space:nowrap">${fmt(g.last)}</td>
           <td style="text-align:right"><button class="btn sm" onclick="event.stopPropagation();Defs.openPersonPrintPick(${idx})" title="列印前可勾選要印出哪幾筆">🖨 列印</button></td></tr>
           <tr class="dp-d" id="dfperson-detail-${idx}" style="display:none"><td></td><td colspan="7"><table><thead><tr><th>船名</th><th>檢查日期</th><th>來源</th><th>CODE</th><th>缺失內容</th></tr></thead><tbody>${items.map((d,j)=>`<tr class="dl" data-idx="${idx}" data-j="${j}"><td style="white-space:nowrap"><b>${esc(shipFullLabel(d.ship))}</b></td><td class="cl-mono" style="white-space:nowrap">${esc(normDateSlash(d.date)||"")}</td><td>${esc(d.itype||"")}</td><td class="cl-mono">${esc(d.code||"")}</td><td style="white-space:pre-wrap">${esc(d.detail||"")}</td></tr>`).join("")}</tbody></table></td></tr>`;}).join("")+`</tbody></table></div>`;
-    box.querySelectorAll("tr.dp-r").forEach(tr=>tr.onclick=()=>{const i=+tr.dataset.idx;Defs.togglePersonDetail(i);const c=$("#dfperson-caret-"+i),d=$("#dfperson-detail-"+i);if(c&&d)c.textContent=d.style.display==="none"?"▸":"▾";});
+    box.querySelectorAll("tr.dp-r").forEach(tr=>tr.onclick=()=>{const g=list[+tr.dataset.idx];if(!g||typeof SidePeek==="undefined")return;
+      const items=g[1].items.slice().sort((a,b)=>(typeof dateSortVal==="function"?dateSortVal(b.date)-dateSortVal(a.date):0));
+      SidePeek.open({t:`${g[0]}　${[...g[1].ranks].join("／")}`,s:`共 ${items.length} 筆缺失・${g[1].ships.size} 艘船（點一筆看完整內容）`,mark:tr,
+        html:`<div class="dp-pk">${items.map((d,j)=>`<div class="dp-it" data-j="${j}"><div class="h"><b>${esc(shipFullLabel(d.ship))}</b>　${esc(normDateSlash(d.date)||"")}　<span class="cl-src">${esc(d.itype||"")}</span>${d.code?`　CODE ${esc(d.code)}`:""}</div><div class="b">${esc(d.detail||"")}</div></div>`).join("")}</div>`});
+      setTimeout(()=>{document.querySelectorAll("#sidePeek .dp-it").forEach(el=>el.onclick=()=>DefsX.peek(items[+el.dataset.j],tr));},0);});
     box.querySelectorAll("tr.dl").forEach(tr=>tr.onclick=e=>{e.stopPropagation();const g=list[+tr.dataset.idx];if(!g)return;
       const items=g[1].items.slice().sort((a,b)=>(typeof dateSortVal==="function"?dateSortVal(b.date)-dateSortVal(a.date):0));DefsX.peek(items[+tr.dataset.j],tr);});
   };
@@ -47570,6 +47605,8 @@ body.mob #sp2-list table{table-layout:fixed;width:100%}body.mob #sp2-list .cm{ov
     const lp=$("#sire-sub-list");if(lp){[...lp.children].forEach(c=>c.style.display="none");const d=document.createElement("div");d.id="sp2-list";d.className="card";d.style.padding="0";d.style.overflow="hidden";lp.prepend(d);}
     // 統計排行：加「各船獲正向評論次數」
     const g=$("#sire-sub-summary");if(g&&!$("#sp2-shipcard")){const c=document.createElement("div");c.className="card";c.id="sp2-shipcard";c.style.marginBottom="14px";c.innerHTML=`<h3>各船獲正向評論次數<span class="hint" style="margin-left:8px;font-weight:400">點一列＝只看那艘船</span></h3><div id="sp2-ships"></div>`;g.appendChild(c);}
+    // 個人正向評論排行放最上面（2026-11-26）
+    const pc=$("#sire-card-person");if(g&&pc)g.prepend(pc);
     SirePos.setSubTab("list");
   }
   /* ── ① 評價列表（新表格） ── */
@@ -47622,5 +47659,540 @@ body.mob #sp2-list table{table-layout:fixed;width:100%}body.mob #sp2-list .cm{ov
   const _st=SirePos.setSubTab;SirePos.setSubTab=function(t){LIM=100;return _st.apply(this,arguments);};
   SirePos.subTab="list";
   const t=setInterval(()=>{if($("#sire-filterbar")&&SirePos.ms&&SirePos.ms.rank){clearInterval(t);try{layout();}catch(e){console.warn("sp2 layout",e);}}},500);
+})();
+</script>
+
+<style>
+/* ════════ 2026-11-26 正面評價 ② 個人正向評論排行：改成跟列表一樣的簡潔表格，評論內容點一列在右邊看 */
+#sire-card-person .card-body>.tblwrap{display:none}
+.sp2-rk{width:100%;border-collapse:collapse;font-size:13.5px}
+.sp2-rk th{background:#f3f6f9;color:#6b7c88;font-size:12px;text-align:left;padding:8px 10px;white-space:nowrap;position:sticky;top:0}
+.sp2-rk th small{display:block;font-size:9.5px;font-weight:400;letter-spacing:.5px}
+.sp2-rk td{border-top:1px solid #eef1f4;padding:9px 10px;vertical-align:middle}
+.sp2-rk tr.r{cursor:pointer}.sp2-rk tr.r:hover>td{background:#f6f9fd}
+.sp2-rk .no{width:46px;text-align:center;font-family:var(--mono);font-weight:800;color:#7c8994}
+.sp2-rk .no.m1,.sp2-rk .no.m2,.sp2-rk .no.m3{color:#fff}
+.sp2-rk .no span{display:inline-block;min-width:24px;border-radius:12px;padding:1px 6px}
+.sp2-rk .no.m1 span{background:#c9a227}.sp2-rk .no.m2 span{background:#9aa7b1}.sp2-rk .no.m3 span{background:#b07a4f}
+.sp2-rk .nm{font-weight:800;color:var(--navy)}
+.sp2-rk .n{width:190px}.sp2-rk .n div{display:flex;align-items:center;gap:8px}.sp2-rk .n i{display:block;height:10px;border-radius:0 4px 4px 0;background:var(--navy)}.sp2-rk .n b{font-family:var(--mono)}
+.sp2-rk .tg{display:inline-block;border:1px solid #dde4ea;border-radius:10px;padding:0 7px;font-size:12px;margin:1px 3px 1px 0;background:#fff;white-space:nowrap}
+.sp2-rk td.m{font-family:var(--mono);white-space:nowrap;color:#4a5a66}
+.sp2-cmt{border-top:1px dashed #e3e9ee;padding:8px 0}.sp2-cmt:first-child{border-top:0}
+.sp2-cmt .h{font-size:12px;color:#6b7c88;margin-bottom:3px}.sp2-cmt .b{white-space:pre-line;line-height:1.65}
+body.mob .sp2-rk thead{display:none}body.mob .sp2-rk tr.r{display:grid;grid-template-columns:40px 1fr auto;gap:2px 8px;padding:8px 10px;border-top:1px solid #eef1f4}
+body.mob .sp2-rk tr.r>td{border:0;padding:0}body.mob .sp2-rk td.sh,body.mob .sp2-rk td.src{grid-column:2/-1}body.mob .sp2-rk td.m{display:none}
+body.mob .sp2-rk .n{width:auto}
+</style>
+<script>
+(function(){
+  if(typeof SirePos==="undefined")return;
+  const $=s=>document.querySelector(s);
+  let LIST=[];
+  SirePos.renderPersonRank=function(rows){
+    const card=$("#sire-card-person");if(!card)return;
+    const body=card.querySelector(".card-body");if(!body)return;
+    let box=body.querySelector("#sp2-rkbox");if(!box){box=document.createElement("div");box.id="sp2-rkbox";box.style.cssText="overflow:auto;max-height:520px";body.appendChild(box);}
+    const m=new Map();
+    rows.forEach(d=>{const p=String(d.person||"").trim();if(!p)return;const k=p+"｜"+(d.rank||"");
+      if(!m.has(k))m.set(k,{person:p,rank:d.rank||"",items:[],ships:new Set(),src:new Map(),last:0});
+      const o=m.get(k);o.items.push(d);if(d.ship)o.ships.add(d.ship);const it=this.itypeOf(d)||"—";o.src.set(it,(o.src.get(it)||0)+1);
+      const t=typeof parseDate==="function"?(parseDate(d.date)||0):0;if(+t>o.last)o.last=+t;});
+    const topEl=$("#sire-person-topn"),topN=topEl?Math.max(1,+topEl.value||15):15;
+    LIST=[...m.values()].sort((a,b)=>b.items.length-a.items.length||b.last-a.last).slice(0,topN);
+    const mx=Math.max(1,...LIST.map(x=>x.items.length));
+    const fmt=t=>{if(!t)return "";const d=new Date(t);return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;};
+    let rk=0,prev=null;
+    box.innerHTML=LIST.length?`<table class="sp2-rk"><thead><tr><th style="text-align:center">排名</th><th>姓名<small>NAME</small></th><th>職稱<small>RANK</small></th><th>次數<small>COUNT</small></th><th>船舶<small>VESSEL</small></th><th>檢查來源<small>SOURCE</small></th><th>最近一次<small>LATEST</small></th></tr></thead><tbody>`+
+      LIST.map((x,i)=>{const n=x.items.length;if(n!==prev){rk=i+1;prev=n;}
+        return `<tr class="r" data-i="${i}"><td class="no ${rk<=3?"m"+rk:""}"><span>${rk}</span></td><td class="nm">${esc(x.person)}</td><td>${esc(x.rank)}</td>
+          <td class="n"><div><i style="width:${Math.max(6,n/mx*120)}px"></i><b>${n}</b></div></td>
+          <td class="sh">${[...x.ships].slice(0,3).map(s=>`<span class="tg">${esc(shipFullLabel(s).replace(/\s+FPMC.*$/,""))}</span>`).join("")}${x.ships.size>3?`<span class="tg">＋${x.ships.size-3}</span>`:""}</td>
+          <td class="src">${[...x.src.entries()].sort((a,b)=>b[1]-a[1]).map(([s,c])=>`<span class="tg">${esc(s)}${c>1?" ×"+c:""}</span>`).join("")}</td><td class="m">${fmt(x.last)}</td></tr>`;}).join("")+`</tbody></table>`
+      :`<p class="hint" style="padding:16px;text-align:center">目前沒有資料</p>`;
+    box.querySelectorAll("tr.r").forEach(tr=>tr.onclick=()=>{const x=LIST[+tr.dataset.i];if(!x||typeof SidePeek==="undefined")return;
+      const items=x.items.slice().sort((a,b)=>(parseDate(b.date)||0)-(parseDate(a.date)||0));
+      SidePeek.open({t:`${x.person}　${x.rank||""}`,s:`共 ${items.length} 次正向評論・${x.ships.size} 艘船`,mark:tr,
+        html:items.map(d=>`<div class="sp2-cmt"><div class="h"><b>${esc(shipFullLabel(d.ship))}</b>　${esc(normDateSlash?normDateSlash(d.date):d.date)}　${esc(SirePos.itypeOf(d))}${d.code?"　CODE "+esc(d.code):""}</div>${d.item?`<div class="h">${esc(d.item)}</div>`:""}<div class="b">${esc(d.comment||"")}</div></div>`).join("")});});
+  };
+})();
+</script>
+
+<style>
+/* ════════ 2026-11-26 全系統列表統一成「缺失紀錄」模板：淺灰表頭、細橫線、不用直線格、滑過淡藍；熱度圖／矩陣類表格不變 */
+table.tbl:not(.dhm):not(.ad-tbl):not(.ap-extbl) th{background:#f3f6f9!important;color:#5f6f7b!important;font-weight:700;font-size:12px;letter-spacing:.3px;border-right:0!important;border-bottom:1px solid #e3e9ee;padding:9px 10px}
+table.tbl:not(.dhm):not(.ad-tbl):not(.ap-extbl) th .sort:hover{color:var(--navy)}
+table.tbl:not(.dhm):not(.ad-tbl):not(.ap-extbl) th .colresize:hover{background:rgba(26,76,117,.15)}
+table.tbl:not(.dhm):not(.ad-tbl):not(.ap-extbl) td{border-right:0!important;border-bottom:1px solid #eef1f4;padding:9px 10px}
+table.tbl:not(.dhm):not(.ad-tbl):not(.ap-extbl) tbody tr:nth-child(even)>td{background:#fff}
+table.tbl:not(.dhm):not(.ad-tbl):not(.ap-extbl) tbody tr:hover>td{background:#f6f9fd}
+table.tbl:not(.dhm):not(.ad-tbl):not(.ap-extbl) tbody tr.sel>td{background:#eaf2fb}
+table.tbl:not(.dhm):not(.ad-tbl):not(.ap-extbl) tbody tr.sel:hover>td{background:#e1ecf8}
+.tblwrap:has(>table.tbl){border:1px solid #e3e9ee;border-radius:10px;background:#fff}
+</style>
+
+<script>
+/* 2026-11-26 常用：資料或身分（督導的船）晚一點才載入時，數字和「我督導的船」要跟著更新 */
+(function(){
+  let last="";
+  setInterval(()=>{try{
+    const sig=[(App.defs||[]).length,(App.insp||[]).length,(typeof Home!=="undefined"&&Home.myShips)?Home.myShips().join(","):"",Role&&Role.cur?Role.cur.tier+Role.name():""].join("|");
+    if(sig===last)return;last=sig;
+    ["_eaV_defs","_eaV_ov"].forEach(k=>{const v=window[k];if(v&&v.paint&&!document.querySelector(".ea-views:hover"))v.paint();});
+  }catch(e){}},2000);
+})();
+</script>
+
+<style>
+/* ════════ 2026-11-26 填單紀錄改版（照 模擬_填單紀錄改版）：常用＋篩選條件、處理流程、分頁、簡潔清單、點一列右邊看下一步 */
+#tab-air>.banner:first-child{display:none}
+#air-toptabs.a2{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+#air-toptabs.a2>.btn{border:1px solid var(--line);background:#fff;color:#4a5a66;border-radius:8px;padding:8px 16px;font-weight:800}
+#air-toptabs.a2>.btn.a2on{background:var(--navy);color:#fff;border-color:var(--navy)}
+#air-toptabs.a2>.btn small{font-weight:400;font-size:10px;margin-left:5px;opacity:.75}
+#air-toptabs.a2 .a2-sm{padding:5px 10px!important;font-weight:600!important;font-size:12.5px}
+#a2-tabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+#a2-tabs .btn{border:1px solid var(--line);background:#fff;color:#4a5a66;border-radius:8px;padding:8px 16px;font-weight:800}
+#a2-tabs .btn.on{background:var(--navy);color:#fff;border-color:var(--navy)}#a2-tabs .btn small{font-weight:400;font-size:10px;margin-left:5px;opacity:.75}
+#a2-tabs #a2-qn{background:#c0392b;color:#fff;border-radius:9px;padding:0 6px;font-size:11px;margin-left:6px}
+body.mob #a2-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}body.mob #a2-tabs .btn{flex:none}body.mob #a2-tabs small{display:none}
+#a2-views{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px}
+#a2-views .lb{font-weight:800;font-size:13.5px}
+#a2-views .v{display:inline-flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-top:3px solid var(--navy);border-radius:8px;padding:4px 14px;min-width:96px;cursor:pointer;font-family:inherit;text-align:left}
+#a2-views .v b{font-size:17px;font-family:var(--mono);line-height:1.2}#a2-views .v span{font-size:12px;color:#6b7c88}
+#a2-views .v.r{border-top-color:#c0392b}#a2-views .v.r b{color:#c0392b}#a2-views .v.a{border-top-color:#c27c0e}#a2-views .v.a b{color:#c27c0e}
+#a2-views .v.on{box-shadow:inset 0 0 0 1.5px var(--navy);background:#eef5fb}
+#a2-views .v.save{border-style:dashed;border-top-width:1px;color:var(--navy);font-weight:700;justify-content:center}
+#air-list-page>.toolbar.a2f{background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin-bottom:8px;gap:8px;flex-wrap:wrap;align-items:center}
+.a2f .a2-lb{font-weight:800;font-size:13.5px;white-space:nowrap}
+.a2f>.lbl{display:none!important}
+.a2f .a2-kw{border:1.5px solid #b9c6d2;border-radius:8px;padding:6px 10px;font-size:13px;width:220px;font-family:inherit}
+.a2f .msel button{border:1.5px solid #b9c6d2!important;border-radius:8px!important;background:#fff;padding:6px 10px!important;font-size:13px!important}
+.a2f>button.btn.sm{border:0;background:none;color:var(--navy);font-weight:700;text-decoration:underline}
+#a2-flow{display:flex;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0 0 10px}
+#a2-flow .st{flex:1;padding:7px 12px;border-right:1px solid var(--line);cursor:pointer;position:relative;background:none;border-top:0;border-bottom:0;border-left:0;text-align:left;font-family:inherit}
+#a2-flow .st:last-child{border-right:0}#a2-flow .st:hover{background:#f6f9fd}#a2-flow .st.on{background:#eaf2fb;box-shadow:inset 0 -3px 0 var(--navy)}
+#a2-flow .st b{font-size:19px;font-family:var(--mono);display:block;line-height:1.2}#a2-flow .st span{font-size:12px;color:#7c8994}
+#a2-flow .st.r b{color:#c0392b}#a2-flow .st.a b{color:#c27c0e}#a2-flow .st.g b{color:#2e7d4f}
+#air-list-page>.card:not(#a2-card){display:none!important}
+#a2-card{padding:0;overflow:hidden}
+#a2-card .cap{display:flex;gap:8px;align-items:center;padding:8px 12px;font-size:12.5px;color:#6b7c88;border-bottom:1px solid #eef1f4;flex-wrap:wrap}
+#a2-card .cap b{color:var(--navy)}#a2-card .cap .sp{flex:1}
+#a2-card table{width:100%;border-collapse:collapse;font-size:13.5px}
+#a2-card th{background:#f3f6f9;color:#6b7c88;font-size:12px;text-align:left;padding:8px 10px;white-space:nowrap;position:sticky;top:0;z-index:1}
+#a2-card th small{display:block;font-size:9.5px;font-weight:400;letter-spacing:.5px}
+#a2-card td{border-top:1px solid #eef1f4;padding:9px 10px;vertical-align:middle;overflow-wrap:anywhere}
+#a2-card tr.r{cursor:pointer}#a2-card tr.r:hover>td{background:#f6f9fd}#a2-card tr.r.chk>td{background:#eef5fb}
+#a2-card td.m{font-family:var(--mono);white-space:nowrap;color:#4a5a66}
+#a2-card td.ck{width:34px;text-align:center}#a2-card td.ck input,#a2-card th.ck input{width:16px;height:16px;accent-color:var(--navy)}
+#a2-card .src{display:inline-block;background:#eaf2fb;color:var(--navy);font-weight:700;font-size:12px;border-radius:5px;padding:1px 8px;white-space:nowrap}
+#a2-card .num{white-space:nowrap}#a2-card .num b{font-family:var(--mono);font-size:15px}#a2-card .num b.z{color:#b2bdc6}#a2-card .num small{color:#7c8994}
+#a2-card .pl{display:none;font-size:12px;color:#7c8994;font-weight:400;margin-top:2px}
+#a2-card .who small{display:block;color:#7c8994;font-size:12px}
+.a2-steps{display:flex;gap:4px;flex-wrap:wrap}
+.a2-sp{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;border-radius:10px;padding:1px 8px;border:1px solid #dde4ea;color:#9aa7b1;background:#fff;white-space:nowrap}
+.a2-sp.ok{color:#2e7d4f;border-color:#bfe0cb;background:#eef7f1}.a2-sp.todo{color:#c0392b;border-color:#efc2bc;background:#fdf0ee;font-weight:700}
+.a2-sp.nr{color:#5b6770;background:#eef1f3}
+.a2-ops{border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 9px;cursor:pointer;font-family:inherit}
+#a2-menu{position:fixed;z-index:3000;background:#fff;border:1px solid #c9d5e0;border-radius:10px;box-shadow:0 8px 24px rgba(20,40,60,.18);padding:5px;min-width:210px;display:none}
+#a2-menu.show{display:block}#a2-menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:6px;font:inherit;font-size:13px;cursor:pointer}
+#a2-menu button:hover{background:#f0f5fa}#a2-menu hr{border:0;border-top:1px solid #eef1f4;margin:4px 0}#a2-menu .del{color:#c0392b}
+/* 右邊明細 */
+.a2-chk{display:grid;grid-template-columns:22px 1fr auto;gap:7px 8px;align-items:center;font-size:13.5px}
+.a2-chk .o{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;color:#fff;background:#c9d5e0}.a2-chk .o.ok{background:#2e7d4f}.a2-chk .o.todo{background:#c0392b}
+.a2-chk button{font:inherit;font-size:12px;border:1px solid var(--navy);color:#fff;background:var(--navy);border-radius:6px;padding:2px 10px;cursor:pointer;white-space:nowrap}
+.a2-chk .done{color:#2e7d4f;font-size:12px}
+.a2-dl{border-top:1px dashed #e3e9ee;padding:6px 0;font-size:13px;line-height:1.55}.a2-dl:first-child{border-top:0}.a2-dl b{font-family:var(--mono);color:var(--navy);margin-right:6px}
+/* 分割畫面、平板：收起地點／填報／⋯，地點改在船名下 */
+body.sp-on #a2-card th.c5,body.sp-on #a2-card td.c5,body.sp-on #a2-card th.c8,body.sp-on #a2-card td.c8,body.sp-on #a2-card th.c9,body.sp-on #a2-card td.c9{display:none}
+body.sp-on #a2-card .pl{display:block}
+body.sp-on #a2-flow{flex-wrap:wrap}body.sp-on #a2-flow .st{flex:1 1 30%;border-bottom:1px solid var(--line)}
+@media(max-width:1100px){#a2-card th.c5,#a2-card td.c5,#a2-card th.c8,#a2-card td.c8{display:none}#a2-card .pl{display:block}#a2-flow{flex-wrap:wrap}#a2-flow .st{flex:1 1 30%}}
+body.mob #a2-views,body.mob #air-toptabs.a2{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}body.mob #a2-views .v,body.mob #air-toptabs.a2>*{flex:none}
+body.mob .a2f .a2-kw{width:100%}body.mob #a2-flow .st{flex:1 1 45%;border-bottom:1px solid var(--line)}
+body.mob #a2-card thead{display:none}body.mob #a2-card table,body.mob #a2-card tbody,body.mob #a2-card tr,body.mob #a2-card td{display:block}
+body.mob #a2-card tr.r{padding:10px 12px;border-top:1px solid #eef1f4;position:relative}body.mob #a2-card td{border:0;padding:2px 0}
+body.mob #a2-card td.ck{position:absolute;right:10px;top:10px;width:auto}body.mob #a2-card td.m,body.mob #a2-card td.s,body.mob #a2-card td.num{display:inline-block;margin-right:8px}
+body.mob #a2-card td.c9,body.mob #a2-card td.c5,body.mob #a2-card td.c8{display:none}body.mob #a2-card .pl{display:block}
+</style>
+<script>
+(function(){
+  if(typeof Air==="undefined")return;
+  const $=s=>document.querySelector(s);
+  const adm=()=>{try{return Role.isAdmin&&Role.isAdmin();}catch(e){return false;}};
+  const canShare=()=>{try{return typeof canShareCheck==="function"&&canShareCheck();}catch(e){return false;}};
+  const now=new Date(),Y=now.getFullYear(),pad=n=>String(n).padStart(2,"0"),NOWYM=`${Y}-${pad(now.getMonth()+1)}`;
+  const ymAdd=(ym,n)=>{let [y,m]=ym.split("-").map(Number);m+=n;while(m<1){m+=12;y--;}while(m>12){m-=12;y++;}return `${y}-${pad(m)}`;};
+  const dayOf=s=>{const d=typeof parseDate==="function"?parseDate(s):null;return d?`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`:"";};
+  /* 狀態判斷 */
+  const ext=d=>!!(Air._extIds&&Air._extIds.has(String(d.id)));
+  const shared=d=>{try{return Air._shareCount(d)>0;}catch(e){return false;}};
+  const pend=d=>{try{return Air.replyPendCount(d)>0;}catch(e){return false;}};
+  const hasPos=d=>(d.posComments||[]).some(pc=>pc.comment||pc.item||pc.person||(pc.people||[]).some(p=>p.person));
+  const nDef=d=>(d.defects||[]).length||(+d.ndef||0);
+  const mgrOf=c=>{const s=(typeof SHIPINFO!=="undefined")?SHIPINFO.find(x=>x.code===c):null;return s?String(s.mgr||"").trim():"";};
+  const me=()=>{try{return String(Role.personName?Role.personName()||"":"").trim();}catch(e){return "";}};
+  const myShips=()=>{try{if(typeof Home!=="undefined"&&Home.kind&&Home.kind()==="sup")return Home.myShips();}catch(e){}const m=me();return m?(typeof SHIPINFO!=="undefined"?SHIPINFO.filter(s=>String(s.mgr||"").trim()===m).map(s=>s.code):[]):[];};
+  const FLOW=[["todo","待處理（還沒轉入）","r",d=>Air.statusText(d)==="待處理"],["insp","已轉檢查紀錄","",d=>!!d.usedInsp],["def","已轉缺失紀錄","",d=>!!d.usedDef],
+    ["pend","對外回覆未轉入","a",pend],["ext","已對外回覆","g",ext],["share","已分享自查","g",shared]];
+  let KW="",FL=null,curV=null,LIM=100,ROWS=[];
+  /* 篩選：關鍵字、期間（月曆）、流程 */
+  const _f=Air.filtered;
+  Air.filtered=function(){let r=_f.apply(this,arguments);
+    const q=KW.trim().toLowerCase();if(q)r=r.filter(d=>[shipFullLabel(d.ship),d.ship,d.place,d.itype,d.createdBy,d.inspector].join(" ").toLowerCase().includes(q));
+    const f=($("#air-ymfrom")||{}).value||"",t=($("#air-ymto")||{}).value||"";
+    if(f||t)r=r.filter(d=>{const ym=ymOf(d.date);return ym&&(!f||ym>=f)&&(!t||ym<=t);});
+    const s=window.CalPick&&CalPick.st.air;if(s&&s.df)r=r.filter(d=>{const v=dayOf(d.date);return v&&v>=s.df&&v<=s.dt;});
+    if(FL){const fl=FLOW.find(x=>x[0]===FL);if(fl)r=r.filter(fl[3]);}
+    if(this._a2ships&&this._a2ships.length)r=r.filter(d=>this._a2ships.includes(d.ship));
+    return r;};
+  const _cf=Air.clearFilters;
+  Air.clearFilters=function(){KW="";FL=null;curV=null;this._a2ships=null;const k=$("#a2-kw");if(k)k.value="";["air-ymfrom","air-ymto"].forEach(id=>{const s=document.getElementById(id);if(s)s.value="";});
+    if(window.CalPick&&CalPick.st.air){CalPick.st.air.df=CalPick.st.air.dt="";}const r=_cf.apply(this,arguments);try{CalPick.paint("air");}catch(e){}return r;};
+  /* 常用 */
+  function views(){
+    const box=$("#a2-views");if(!box)return;const D=App.air||[],ms=myShips(),sup=(typeof Home!=="undefined"&&Home.kind&&Home.kind()==="sup");
+    // 待處理、對外回覆未轉入 已經在下面的處理流程列，常用不重複放（2026-11-26）
+    const B=[{name:"全部",n:D.length,cls:""}];
+    if(ms.length)B.push({name:sup?"我督導的船":"我負責的船",n:D.filter(d=>ms.includes(d.ship)).length,cls:"",ships:ms});
+    B.push({name:"近 3 個月",n:D.filter(d=>ymOf(d.date)>=ymAdd(NOWYM,-2)).length,cls:"",m3:1});
+    box.innerHTML=`<span class="lb">⭐ 常用：</span>`+B.map((v,i)=>`<button type="button" class="v ${v.cls} ${curV===v.name?"on":""}" data-i="${i}"><b>${v.n.toLocaleString()}</b><span>${esc(v.name)}</span></button>`).join("");
+    box.querySelectorAll("button[data-i]").forEach(b=>b.onclick=()=>{const v=B[+b.dataset.i];
+      Object.values(Air.ms||{}).forEach(m=>m&&m.clear&&m.clear());KW="";FL=v.fl||null;Air._a2ships=v.ships||null;const k=$("#a2-kw");if(k)k.value="";
+      if(window.CalPick&&CalPick.st.air){CalPick.st.air.df=CalPick.st.air.dt="";}
+      const F=$("#air-ymfrom"),T=$("#air-ymto");if(v.m3&&window.CalPick)CalPick.setMonths("air",ymAdd(NOWYM,-2),NOWYM);else{if(F)F.value="";if(T)T.value="";}
+      curV=v.name;Air.page=1;Air.renderList();try{CalPick.paint("air");}catch(e){}});
+  }
+  function flow(){
+    const box=$("#a2-flow");if(!box)return;const D=App.air||[];
+    box.innerHTML=FLOW.map(([k,l,c,fn],i)=>`<button type="button" class="st ${c} ${FL===k?"on":""}" data-k="${k}" title="點一下只看「${l}」，再點一次取消"><b>${D.filter(fn).length}</b><span>${i+1 > 0?["①","②","③","④","⑤","⑥"][i]:""} ${l}</span></button>`).join("");
+    box.querySelectorAll(".st").forEach(b=>b.onclick=()=>{FL=FL===b.dataset.k?null:b.dataset.k;curV=null;Air.page=1;Air.renderList();});
+  }
+  /* 清單 */
+  const STEPS=d=>{const L=[];L.push(["檢查紀錄",d.usedInsp?1:0]);if(nDef(d))L.push(["缺失紀錄",d.usedDef?1:0]);if(hasPos(d))L.push(["正評",d.usedPos?1:0]);
+    if(nDef(d))L.push(d.noReply&&!ext(d)?["不需回覆",2]:["對外回覆",ext(d)?(pend(d)?0:1):0]);if(nDef(d))L.push(["分享自查",shared(d)?1:0]);return L;};
+  const stepHtml=d=>STEPS(d).map(([l,s])=>`<span class="a2-sp ${s===1?"ok":s===2?"nr":"todo"}">${s===1?"✓":s===2?"—":"○"} ${l}${l==="對外回覆"&&pend(d)?"（未轉入）":""}</span>`).join("");
+  Air.renderList=(function(_orig){return function(){
+    const r=_orig.apply(this,arguments);
+    try{draw();}catch(e){console.warn("air2",e);}
+    return r;};})(Air.renderList);
+  function draw(){
+    const card=$("#a2-card");if(!card)return;
+    views();flow();try{if(window.CalPick)CalPick.paint("air");}catch(e){}
+    const rows=Air.filtered();ROWS=rows;const show=rows.slice(0,LIM),sel=Air.selected||new Set();
+    const allOn=show.length&&show.every(d=>sel.has(String(d.id)));
+    card.innerHTML=`<div class="cap">共 <b>${rows.length.toLocaleString()}</b> 筆填單（待處理排在最上面）；點一列在右邊看內容和下一步${sel.size?`<span>｜已勾選 <b>${sel.size}</b> 筆 <a href="#" data-clr="1">取消勾選</a></span>`:""}<span class="sp"></span>
+      ${canShare()?`<button class="btn sm" type="button" data-a="merge" title="先勾選 2 筆以上，把它們的缺失合併成一個分享自查">📤 合併分享</button>`:""}${adm()?`<button class="btn sm" type="button" data-a="push" title="勾選的填單一起轉入紀錄">➜ 轉入紀錄</button>`:""}
+      <button class="btn sm" type="button" data-a="exp">⬇ 匯出</button><button class="btn sm" type="button" data-a="more">⋯ 更多</button>${adm()?`<button class="btn sm primary" type="button" data-a="new">＋ 新增／匯入</button>`:""}</div>
+      <div style="overflow:auto;max-height:68vh"><table><thead><tr><th class="ck">${canShare()?`<input type="checkbox" data-all="1" ${allOn?"checked":""} title="勾選這一頁">`:""}</th><th>船名<small>VESSEL</small></th><th>日期<small>DATE</small></th><th>來源<small>SOURCE</small></th><th class="c5">地點<small>PORT</small></th><th>缺失／正評<small>FINDINGS</small></th><th>處理進度<small>PROGRESS</small></th><th class="c8">填報<small>REPORTED BY</small></th><th class="c9"></th></tr></thead>
+      <tbody>${show.map((d,i)=>{const o=Air.originShort?String(Air.originShort(d)).replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim():"";
+        return `<tr class="r ${sel.has(String(d.id))?"chk":""}" data-i="${i}"><td class="ck">${canShare()?`<input type="checkbox" ${sel.has(String(d.id))?"checked":""}>`:""}</td><td><b>${esc(shipFullLabel(d.ship))}</b><span class="pl">${esc([d.place,o].filter(Boolean).join("・"))}</span></td><td class="m">${esc(normDateSlash(d.date)||"")}</td><td class="s"><span class="src">${esc(d.itype||"")}</span></td><td class="c5">${esc(d.place||"")}</td>
+        <td class="num"><b class="${nDef(d)?"":"z"}">${nDef(d)}</b> <small>缺失</small>　<b class="${(+d.npos||0)?"":"z"}">${+d.npos||0}</b> <small>正評</small></td><td><div class="a2-steps">${stepHtml(d)}</div></td><td class="c8 who">${esc(o)}</td><td class="c9"><button type="button" class="a2-ops" data-op="${i}">⋯</button></td></tr>`;}).join("")||`<tr><td colspan="9" style="text-align:center;color:#9aa7b1;padding:24px">沒有符合的填單</td></tr>`}</tbody></table></div>
+      ${rows.length>show.length?`<div style="padding:10px;text-align:center"><button class="btn sm" type="button" data-a="lim">再顯示 100 筆（還有 ${rows.length-show.length} 筆）</button></div>`:""}`;
+    card.querySelectorAll("tr.r").forEach(tr=>tr.onclick=e=>{const d=ROWS[+tr.dataset.i];if(!d)return;
+      if(e.target.closest("td.ck")){const cb=tr.querySelector("td.ck input");if(!cb)return;if(e.target!==cb)cb.checked=!cb.checked;Air.toggleSel(String(d.id),cb.checked);tr.classList.toggle("chk",cb.checked);return;}
+      if(e.target.closest("[data-op]")){e.stopPropagation();menuFor(d,e.target.closest("[data-op]"));return;}
+      peek(d,tr);});
+    const all=card.querySelector("[data-all]");if(all)all.onchange=()=>{show.forEach(d=>Air.toggleSel(String(d.id),all.checked));Air.renderList();};
+    card.querySelectorAll("[data-a]").forEach(b=>b.onclick=e=>{const a=b.dataset.a;
+      if(a==="merge")Air.openShareCheckWizardMulti();else if(a==="push")Air.openPushModal();else if(a==="exp")Air.openExportPickModal();else if(a==="new")Air.openNewOrImportModal();
+      else if(a==="lim"){LIM+=100;draw();}else if(a==="more")menuMore(b);});
+    const clr=card.querySelector("[data-clr]");if(clr)clr.onclick=e=>{e.preventDefault();Air.clearSel();};
+  }
+  /* ⋯ 選單 */
+  let menu=null;
+  function showMenu(btn,items){
+    if(!menu){menu=document.createElement("div");menu.id="a2-menu";document.body.appendChild(menu);
+      document.addEventListener("click",e=>{if(menu.classList.contains("show")&&!e.target.closest("#a2-menu,[data-op],[data-a='more']"))menu.classList.remove("show");},true);
+      document.addEventListener("scroll",e=>{if(!e.target.closest||!e.target.closest("#a2-menu"))menu.classList.remove("show");},true);}
+    menu.innerHTML=items.map((x,i)=>x==="-"?"<hr>":`<button type="button" class="${x[2]||""}" data-m="${i}">${x[0]}</button>`).join("");
+    menu.querySelectorAll("button").forEach(b=>b.onclick=()=>{menu.classList.remove("show");const x=items[+b.dataset.m];if(x)x[1]();});
+    menu.classList.add("show");const r=btn.getBoundingClientRect(),mw=menu.offsetWidth,mh=menu.offsetHeight;
+    menu.style.left=Math.max(8,Math.min(innerWidth-mw-8,r.right-mw))+"px";menu.style.top=(r.bottom+mh+8>innerHeight?Math.max(8,r.top-mh-4):r.bottom+4)+"px";
+  }
+  function acts(d){
+    const id=d.id,L=[],att=typeof AttachDL!=="undefined"?(d.defects||[]).reduce((s,df)=>s+AttachDL.count(df),0):0;
+    L.push(["✎ 開啟編輯",()=>{closePeek();Air.showForm(id);}]);
+    L.push(["⬇ 下載匯出檔",()=>Air.openListDownloadModal(id)]);
+    if(att)L.push([`📎 下載附件（${att} 個）`,()=>AttachDL.air(id)]);
+    if(nDef(d))L.push(["🌐 對外回覆",()=>Air.goToExternalReply(id,0)]);
+    if(pend(d)&&adm())L.push(["⚠ 對外回覆轉入缺失紀錄",()=>Air.pushReplyOnly([String(id)])]);
+    if(canShare()&&nDef(d))L.push(["📤 分享給船隊自查",()=>Air.openShareCheckWizard(id)]);
+    if(adm())L.push(["➜ 轉入紀錄",()=>Air.openPushModal(id)]);
+    if(adm()&&nDef(d)){L.push("-");L.push([d.noReply?"↩ 取消「不需對外回覆」":"🚫 標記不需對外回覆",()=>Air.setNoReply(id,!d.noReply)]);
+      if(ext(d))L.push(["✕ 取消對外回覆案件",()=>Air.cancelExtReply(String(id)),"del"]);}
+    if(adm()){L.push("-");L.push(["🗑 刪除這筆",()=>{closePeek();Air.delAir(id);},"del"]);}
+    return L;
+  }
+  function menuFor(d,btn){showMenu(btn,acts(d).filter(x=>x==="-"||!/開啟編輯/.test(x[0])));}
+  function menuMore(btn){
+    const L=[];if(adm())L.push(["📥 匯回對外回覆",()=>Air.restoreExtReply()]);
+    L.push(["🔗 船上用的線上填單連結",()=>Air.openIntakeSite()]);
+    if(typeof AirDel!=="undefined")L.push(["🗑 已刪除的紀錄",()=>AirDel.open()]);
+    showMenu(btn,L);
+  }
+  /* 右邊明細 */
+  function closePeek(){try{if(typeof SidePeek!=="undefined"&&document.body.classList.contains("sp-on"))SidePeek.close();}catch(e){}}
+  function peek(d,tr){
+    if(typeof SidePeek==="undefined")return;
+    const id=d.id,o=Air.originShort?String(Air.originShort(d)).replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim():"";
+    const S=[["轉入檢查紀錄",!!d.usedInsp,adm()?()=>Air.openPushModal(id):null,"轉入"]];
+    if(nDef(d))S.push(["轉入缺失紀錄",!!d.usedDef,adm()?()=>Air.openPushModal(id):null,"轉入"]);
+    if(hasPos(d))S.push(["轉入正面評價",!!d.usedPos,adm()?()=>Air.openPushModal(id):null,"轉入"]);
+    if(nDef(d)){
+      if(d.noReply&&!ext(d))S.push(["對外回覆（已標記不需回覆）",true,null,""]);
+      else S.push([pend(d)?"對外回覆（內容已更新，還沒轉入缺失紀錄）":"對外回覆",ext(d)&&!pend(d),pend(d)&&adm()?()=>Air.pushReplyOnly([String(id)]):()=>Air.goToExternalReply(id,0),pend(d)?"轉入":"建立回覆"]);
+      S.push(["分享船隊自查",shared(d),canShare()?()=>Air.openShareCheckWizard(id):null,"分享"]);}
+    window._a2S=S;
+    const defs=(d.defects||[]).slice(0,30);
+    SidePeek.open({t:shipFullLabel(d.ship),s:[normDateSlash(d.date),d.itype,d.place].filter(Boolean).join("　｜　"),mark:tr,
+      html:`<div class="dv-kv"><span>填報</span><div>${esc(o)||"—"}</div><span>缺失／正評</span><div>${nDef(d)} 條缺失、${+d.npos||0} 則正評</div>${d.inspector?`<span>檢查員</span><div>${esc(d.inspector)}</div>`:""}</div>
+        <div class="dv-sec">處理進度・下一步</div><div class="a2-chk">${S.map((x,i)=>`<span class="o ${x[1]?"ok":"todo"}">${x[1]?"✓":"!"}</span><span>${esc(x[0])}</span>${x[1]?`<span class="done">已完成</span>`:x[2]?`<button type="button" onclick="window._a2S[${i}][2]()">${x[3]}</button>`:`<span class="hint">—</span>`}`).join("")}</div>
+        ${defs.length?`<div class="dv-sec">缺失清單（${nDef(d)}）</div><div>${defs.map(x=>`<div class="a2-dl"><b>${esc(x.code||"—")}</b>${esc(String(x.detail||x.actual||"").slice(0,200))}</div>`).join("")}${nDef(d)>defs.length?`<div class="hint">…還有 ${nDef(d)-defs.length} 條，請開啟編輯看全部</div>`:""}</div>`:""}`,
+      foot:`<button class="btn primary" type="button" onclick="Air._a2open(${JSON.stringify(String(id))})">✎ 開啟編輯</button>${nDef(d)?`<button class="btn" type="button" onclick="Air.goToExternalReply(${id},0)">🌐 對外回覆</button>`:""}${canShare()&&nDef(d)?`<button class="btn" type="button" onclick="Air.openShareCheckWizard(${id})">📤 分享自查</button>`:""}<button class="btn" type="button" onclick="Air._a2menu(${JSON.stringify(String(id))},this)">⋯</button>`});
+  }
+  Air._a2open=id=>{closePeek();const d=(App.air||[]).find(x=>String(x.id)===String(id));if(d)Air.showForm(d.id);};
+  Air._a2menu=(id,btn)=>{const d=(App.air||[]).find(x=>String(x.id)===String(id));if(d)menuFor(d,btn);};
+  /* 版面 */
+  function calMount(bar){
+    if(!window.CalPick||bar.querySelector(".cpk"))return;const CP=CalPick;
+    ["air-ymfrom","air-ymto"].forEach(id=>{if(!document.getElementById(id)){const s=document.createElement("select");s.id=id;s.style.display="none";s.innerHTML=`<option value=""></option>`;bar.appendChild(s);}});
+    CP.cfg.air={f:"air-ymfrom",t:"air-ymto",data:()=>App.air||[],render:()=>{curV=null;Air.page=1;Air.renderList();}};
+    CP.st.air=CP.st.air||{df:"",dt:"",tab:"m",pick:null,view:""};
+    const w=document.createElement("span");w.className="cpk";w.dataset.k="air";w.innerHTML=`<button type="button" class="cpk-b">📅 全部期間 ▾</button><div class="cpk-pop"></div>`;
+    const kw=bar.querySelector(".a2-kw");if(kw)kw.after(w);else bar.prepend(w);
+    w.querySelector(".cpk-b").onclick=e=>{e.stopPropagation();const p=w.querySelector(".cpk-pop");const open=p.classList.contains("show");CP.close();if(!open){p.classList.add("show");CP.st.air.pick=null;CP.paint("air");CP.place(w);}};
+    w.querySelector(".cpk-pop").addEventListener("click",e=>{e.stopPropagation();CP.click("air",e);});CP.paint("air");
+  }
+  function tabsState(){
+    const tb=$("#air-toptabs");if(!tb)return;const vis=id=>{const e=document.getElementById(id);return e&&e.style.display!=="none";};
+    const on=vis("air-cloudqueue-page")?"q":vis("air-followup-page")?"f":vis("air-list-page")?"l":"";
+    document.querySelectorAll("#a2-tabs [data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===on));
+    const bd=document.getElementById("air-cq-badge"),nb=document.getElementById("a2-qn");if(bd&&nb){const n=bd.style.display!=="none"?bd.textContent.trim():"";nb.textContent=n;nb.style.display=n?"":"none";}
+    const tw=document.getElementById("a2-tabs");if(tw)tw.style.display=vis("air-form-page")?"none":"";
+  }
+  function layout(){
+    const sec=$("#tab-air"),lp=$("#air-list-page");if(!sec||!lp||sec.dataset.a2)return;sec.dataset.a2=1;
+    const tb=$("#air-toptabs");
+    if(tb){tb.classList.add("a2");
+      const L=$("#air-tab-list-btn"),Q=$("#air-tab-cloudqueue-btn"),F=$("#air-tab-followup-btn");
+      if(L){L.className="btn";L.innerHTML=`① 填單清單<small>RECORDS</small>`;}
+      if(Q){const badge=Q.querySelector("#air-cq-badge");Q.className="btn";Q.innerHTML=`② 線上填單審核佇列<small>QUEUE</small>`;if(badge)Q.appendChild(badge);}
+      if(F){F.className="btn";F.innerHTML=`③ Follow Up 追蹤<small>FOLLOW UP</small>`;}
+      [L,Q,F].forEach(b=>b&&tb.prepend(b));if(L)tb.prepend(L);if(Q&&L)L.after(Q);if(F&&Q)Q.after(F);
+      [...tb.querySelectorAll(":scope>.btn")].forEach(b=>{if(![L,Q,F].includes(b)&&b.id!=="air-tab-new-btn"){b.classList.add("a2-sm");if(/線上填單\(船上用\)|已刪除/.test(b.textContent))b.style.display="none";}});
+    }
+    if(!$("#a2-tabs")){const tw=document.createElement("div");tw.id="a2-tabs";
+      tw.innerHTML=`<button type="button" class="btn" data-t="l">① 填單清單<small>RECORDS</small></button><button type="button" class="btn" data-t="q">② 線上填單審核佇列<small>QUEUE</small><b id="a2-qn" style="display:none"></b></button><button type="button" class="btn" data-t="f">③ Follow Up 追蹤<small>FOLLOW UP</small></button>`;
+      const first=$("#air-followup-page")||lp;first.before(tw);
+      const goX=x=>{try{const it=TopNav.MENU.flatMap(m=>m.dd||[m]).find(z=>z.x===x);if(it){TopNav.go(it);return true;}}catch(e){}return false;};
+      tw.querySelector("[data-t=l]").onclick=()=>{Air.showList();setTimeout(tabsState,50);};
+      tw.querySelector("[data-t=q]").onclick=()=>{if(!goX("__air_queue__")&&typeof AirQueue!=="undefined")AirQueue.open();setTimeout(tabsState,80);};
+      tw.querySelector("[data-t=f]").onclick=()=>{if(!goX("__air_followup__"))Air.showFollowUpList();setTimeout(tabsState,80);};}
+    const bar=lp.querySelector(".toolbar");
+    if(bar){bar.classList.add("a2f");const lb=document.createElement("span");lb.className="a2-lb";lb.textContent="🔍 篩選條件：";
+      const kw=document.createElement("input");kw.className="a2-kw";kw.id="a2-kw";kw.placeholder="打字搜尋（船名、地點、填報人）";
+      kw.oninput=()=>{KW=kw.value;curV=null;Air.page=1;Air.renderList();};bar.prepend(lb,kw);calMount(bar);
+      const cb=[...bar.querySelectorAll("button")].find(b=>/清除篩選/.test(b.textContent));if(cb)cb.textContent="清除全部";
+      const vb=document.createElement("div");vb.id="a2-views";bar.before(vb);
+      const fl=document.createElement("div");fl.id="a2-flow";bar.after(fl);}
+    const card=document.createElement("div");card.className="card";card.id="a2-card";lp.appendChild(card);
+    Air.renderList();tabsState();
+  }
+  ["showList","showFollowUpList","showForm"].forEach(fn=>{const o=Air[fn];if(typeof o==="function")Air[fn]=function(){const r=o.apply(this,arguments);setTimeout(tabsState,0);return r;};});
+  if(typeof AirQueue!=="undefined"&&AirQueue.open){const o=AirQueue.open;AirQueue.open=function(){const r=o.apply(this,arguments);setTimeout(tabsState,0);return r;};}
+  const t=setInterval(()=>{if($("#air-list-page")&&Air.ms&&Air.ms.ship){clearInterval(t);try{layout();}catch(e){console.warn("air2 layout",e);}}},500);
+  setInterval(tabsState,1500);
+})();
+</script>
+<style>
+/* 2026-11-26 責任人：右邊分割的缺失清單 */
+.dp-pk .dp-it{border-top:1px dashed #e3e9ee;padding:8px 2px;cursor:pointer;border-radius:6px}.dp-pk .dp-it:first-child{border-top:0}
+.dp-pk .dp-it:hover{background:#f6f9fd}.dp-pk .h{font-size:12.5px;color:#6b7c88;margin-bottom:3px}.dp-pk .b{white-space:pre-line;line-height:1.6;font-size:13.5px}
+.dp-t tr.dp-r td:first-child{color:#9aa7b1}
+</style>
+
+<style>
+/* ════════ 2026-11-26 檢查計劃改版（照 模擬_檢查計劃改版）：大分頁、常用、篩選條件、燈號＋提醒一行膠囊、矩陣只標要注意的格子、點格子右邊分割 */
+#tab-inspctrl>.card:first-child{background:none;border:0;box-shadow:none;padding:0;margin-bottom:10px!important}
+#tab-inspctrl>.card:first-child .toolbar{gap:8px!important;flex-wrap:wrap}
+#tab-inspctrl .ig-tabbtn{border:1px solid var(--line)!important;background:#fff!important;color:#4a5a66!important;border-radius:8px!important;padding:8px 16px!important;font-weight:800!important;font-size:14px!important}
+#tab-inspctrl .ig-tabbtn.active{background:var(--navy)!important;color:#fff!important;border-color:var(--navy)!important}
+#tab-inspctrl .ig-tabbtn small{font-weight:400;font-size:10px;margin-left:5px;opacity:.75}
+#tab-inspctrl>.card:first-child .toolbar>.btn:last-child{border:0;background:none;color:var(--navy);font-size:12.5px;padding:4px 6px}
+/* 常用 */
+#ic3-views{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px}
+#ic3-views .lb{font-weight:800;font-size:13.5px}
+#ic3-views .v{display:inline-flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-top:3px solid var(--navy);border-radius:8px;padding:4px 14px;min-width:96px;cursor:pointer;font-family:inherit;text-align:left}
+#ic3-views .v b{font-size:17px;font-family:var(--mono);line-height:1.2}#ic3-views .v span{font-size:12px;color:#6b7c88}
+#ic3-views .v.on{box-shadow:inset 0 0 0 1.5px var(--navy);background:#eef5fb}
+/* 篩選條件、燈號、檢視列 */
+#ig-page-plan2 .ic3-fcard{padding:8px 10px!important;margin-bottom:8px!important}
+#ig-page-plan2 .ic3-fcard .ic2-lbl.ic3-fl{font-weight:800;color:var(--ink);font-size:13.5px}
+#ig-page-plan2 .ic3-fcard select,#ig-page-plan2 .ic3-fcard .btn{border:1.5px solid #b9c6d2!important;border-radius:8px!important;background:#fff;padding:6px 10px!important;font-size:13px!important}
+#ig-page-plan2 .ic3-fcard #ic2-mine-sup,#ig-page-plan2 .ic3-fcard #ic2-mine-own{display:none!important}
+#ig-page-plan2 .ic3-kcard{padding:6px 10px!important;margin-bottom:8px!important}
+#ic2-kpis{gap:5px!important}
+#ic2-kpis .ic2-kpi{background:#fff!important;color:var(--ink)!important;border:1px solid var(--line)!important;border-radius:16px!important;padding:2px 10px!important;font-size:12.5px!important;font-weight:600;gap:5px!important;align-items:center!important}
+#ic2-kpis .ic2-kpi b{font-size:14px!important}
+#ic2-kpis .ic2-kpi::before{content:"";width:8px;height:8px;border-radius:50%;background:#9aa7b1;flex:none}
+#ic2-kpis .ic2-kpi.s0::before{background:#c0392b}#ic2-kpis .ic2-kpi.s0 b{color:#c0392b}
+#ic2-kpis .ic2-kpi.s1::before{background:#d4691b}#ic2-kpis .ic2-kpi.s1 b{color:#d4691b}
+#ic2-kpis .ic2-kpi.s2::before{background:#c27c0e}#ic2-kpis .ic2-kpi.s2 b{color:#c27c0e}
+#ic2-kpis .ic2-kpi.s3::before{background:#2e7d4f}#ic2-kpis .ic2-kpi.s3 b{color:#2e7d4f}
+#ic2-kpis .ic2-kpi[data-st="nosched"]::before{background:none;width:0}
+#ic2-kpis .ic2-kpi[data-st="nosched"] span{display:none}
+#ic2-kpis .ic2-kpi[data-st="attn"],#ic2-kpis .ic2-kpi[data-st="all"]{display:none!important}
+#ic2-kpis .ic2-kpi.on{outline:0!important;box-shadow:inset 0 0 0 1.5px var(--navy);background:#eef5fb!important}
+#ic2-kpis .ic2-kpi:hover{border-color:var(--navy)!important}
+#ic2-kpis>span[style*="flex:1"]{flex:0 0 0!important;width:1px;height:20px;background:var(--line);margin:0 4px}
+#ic2-kpis .ic2-alert{background:#fdf0ee!important;color:#a5281a!important;border:1px solid #efc2bc!important;border-radius:16px!important;padding:2px 11px!important;font-size:12.5px!important}
+#ic2-kpis .ic2-alert[data-st="enh"]{background:#fdf7ec!important;color:#8a5a00!important;border-color:#ead3a8!important}
+#ic2-kpis .ic2-alert.on{outline:0!important;box-shadow:inset 0 0 0 1.5px #a5281a}
+#ic2-kpis::before{content:"燈號：";font-size:12.5px;color:#7c8994;font-weight:700}
+#ig-page-plan2 .ic3-vrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px}
+#ig-page-plan2 .ic3-vrow .ic2-seg button{padding:6px 14px;font-weight:700}
+/* 矩陣：表頭淺灰；只有逾期／30 天／90 天上色，正常灰字 */
+#ig-page-plan2 .ic2-mx thead th{background:#f3f6f9!important;color:#5f6f7b!important;border-right:0!important;border-bottom:1px solid #e3e9ee!important}
+#ig-page-plan2 .ic2-mx thead th.cert{background:repeating-linear-gradient(135deg,#f3f6f9 0 6px,#fff 6px 9px)!important}
+#ig-page-plan2 .ic2-mx th,#ig-page-plan2 .ic2-mx td{border-right:0!important;border-bottom:1px solid #eef1f4!important}
+#ig-page-plan2 .ic2-mx tbody th{border-right:1px solid #e3e9ee!important}
+#ig-page-plan2 .ic2-mx tbody th b{color:var(--navy)}
+#ig-page-plan2 td.c{padding:5px 4px!important}
+#ig-page-plan2 .ic2-mx td.c.s3{background:transparent!important;color:#4a5a66!important;font-weight:400!important}
+#ig-page-plan2 .ic2-mx td.c.s4{background:transparent!important;color:#9aa7b1!important}
+#ig-page-plan2 .ic2-mx td.c.s0{background:#fbeae7!important;color:#a5281a!important;font-weight:700!important;box-shadow:inset 0 0 0 1px #efc2bc}
+#ig-page-plan2 .ic2-mx td.c.s1{background:#fdeee3!important;color:#b05616!important;font-weight:700!important;box-shadow:inset 0 0 0 1px #f1c9a6}
+#ig-page-plan2 .ic2-mx td.c.s2{background:#fdf7ec!important;color:#8a5a00!important;box-shadow:inset 0 0 0 1px #ead3a8}
+#ig-page-plan2 .ic2-mx td.c:hover{filter:none!important;background:#eef5fb!important}
+#ig-page-plan2 .ic2-legend i.s3{background:#fff!important;border:1px solid #dde4ea}
+/* 點格子：右邊分割 */
+body.ic3-split #tab-inspctrl{padding-right:min(480px,45vw)}
+body.ic3-split .ic2-drawer{top:var(--ic3-top,0);width:min(470px,45vw)!important;box-shadow:-6px 0 18px rgba(20,40,60,.1)!important}
+body.mob.ic3-split #tab-inspctrl{padding-right:0}body.mob .ic2-drawer{width:100%!important}
+body.mob #ic3-views{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}body.mob #ic3-views .v{flex:none}
+body.mob #tab-inspctrl>.card:first-child .toolbar{flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none}body.mob #tab-inspctrl .ig-tabbtn{flex:none}
+</style>
+<script>
+(function(){
+  if(typeof InspCtrl2==="undefined")return;
+  const $=s=>document.querySelector(s);
+  function tabs(){
+    const L={plan2:["① 檢查管控","CONTROL"],audit2:["② 內稽動態","AUDIT"],annual:["③ 年度計畫暨執行情形","ANNUAL"],enhlog:["④ 加強管理歷史","HISTORY"],execov:["⑤ 執行情形一覽表","OVERVIEW"]};
+    document.querySelectorAll("#tab-inspctrl .ig-tabbtn").forEach(b=>{const l=L[b.dataset.p];if(l&&!b.dataset.ic3){b.dataset.ic3=1;b.innerHTML=`${l[0]}<small>${l[1]}</small>`;}});
+  }
+  function views(){
+    const box=$("#ic3-views");if(!box)return;
+    const k=$('#ic2-kpis [data-st="all"] b'),sup=$("#ic2-mine-sup"),own=$("#ic2-mine-own");
+    const supOn=sup&&sup.classList.contains("on"),ownOn=own&&own.classList.contains("on");
+    const allOn=!supOn&&!ownOn&&!!$('#ic2-kpis [data-st="all"].on');
+    const h=`<span class="lb">⭐ 常用：</span><button type="button" class="v ${allOn?"on":""}" data-v="all"><b>${k?k.textContent:""}</b><span>全部項目</span></button>`+
+      (sup?`<button type="button" class="v ${supOn?"on":""}" data-v="sup"><b>${supOn?"✓ 開":"—"}</b><span>我督導的船</span></button>`:"")+
+      (own?`<button type="button" class="v ${ownOn?"on":""}" data-v="own"><b>${ownOn?"✓ 開":"—"}</b><span>我負責安排的</span></button>`:"");
+    if(box._h===h)return;box._h=h;box.innerHTML=h;
+    box.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{const v=b.dataset.v,s=$("#ic2-mine-sup"),o=$("#ic2-mine-own");
+      if(v==="all"){if(s&&s.classList.contains("on"))s.click();if(o&&o.classList.contains("on"))o.click();const a=$('#ic2-kpis [data-st="all"]');if(a)a.click();}
+      else if(v==="sup"&&s)s.click();else if(v==="own"&&o)o.click();setTimeout(views,60);});
+  }
+  function layout(){
+    const pg=$("#ig-page-plan2");if(!pg||pg.dataset.ic3)return;const kc=$("#ic2-kpis")&&$("#ic2-kpis").closest(".card");if(!kc)return;
+    const cc=kc.nextElementSibling;if(!cc||!cc.querySelector("#ic2-view"))return;pg.dataset.ic3=1;
+    const rows=cc.querySelectorAll(":scope>.ic2-row");const vrow=rows[0],frow=rows[1];
+    const vb=document.createElement("div");vb.id="ic3-views";kc.before(vb);
+    // 篩選條件卡片在上、燈號在中、檢視列在下
+    cc.classList.add("ic3-fcard");kc.before(cc);kc.classList.add("ic3-kcard");
+    if(vrow){vrow.classList.add("ic3-vrow");kc.after(vrow);}
+    if(frow){const l=frow.querySelector(".ic2-lbl");if(l){l.textContent="🔍 篩選條件：";l.classList.add("ic3-fl");}}
+    views();
+  }
+  /* 頁面標題旁的操作說明 */
+  function guide(){const tb=$("#tab-inspctrl>.card:first-child .toolbar");if(!tb)return;const g=[...tb.querySelectorAll(".btn")].find(b=>/操作說明/.test(b.textContent));if(g&&!g.dataset.ic3){g.dataset.ic3=1;g.classList.remove("btn");g.classList.add("btn");}}
+  /* 抽屜＝右邊分割 */
+  function split(){
+    const d=document.querySelector(".ic2-drawer"),on=!!d&&document.getElementById("tab-inspctrl")&&document.getElementById("tab-inspctrl").classList.contains("show");
+    document.body.classList.toggle("ic3-split",on);
+    if(on){const hd=document.querySelector(".tn-top"),nv=document.getElementById("tnav");const top=(hd?hd.getBoundingClientRect().height:0)+(nv?nv.getBoundingClientRect().height:0);document.body.style.setProperty("--ic3-top",Math.round(top)+"px");}
+  }
+  new MutationObserver(()=>{try{split();}catch(e){}}).observe(document.body,{childList:true});
+  const _r=InspCtrl2.render;
+  InspCtrl2.render=function(){const r=_r.apply(this,arguments);try{tabs();layout();views();}catch(e){console.warn("ic3",e);}return r;};
+  setInterval(()=>{try{tabs();layout();views();split();}catch(e){}},1500);
+})();
+</script>
+<style id="ic3mob-css">
+#ic3-mcards{display:none}
+body.mob #ig-page-plan2.ic3-cardv #ic3-mcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;align-items:start}
+body.mob #ig-page-plan2.ic3-cardv .ic2-scroll{display:none!important}
+#ic3-mtog{display:none}
+body.mob #ic3-mtog{display:flex;gap:6px;align-items:center;margin:0 0 8px;font-size:12.5px;color:var(--muted)}
+#ic3-mtog button{border:1.5px solid #b9c6d2;background:#fff;border-radius:8px;padding:5px 12px;font-weight:700;font-size:13px;color:#33475b}
+#ic3-mtog button.on{background:#1a4c75;border-color:#1a4c75;color:#fff}
+.ic3-mc{background:#fff;border:1px solid #dbe3ea;border-radius:12px;padding:10px 12px}
+.ic3-mc .h{display:flex;align-items:baseline;gap:8px}.ic3-mc .h b{font-size:15px;color:#1a4c75}.ic3-mc .h small{color:var(--muted);font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ic3-mc .h .n{font-size:12px;color:var(--muted);white-space:nowrap}
+.ic3-mc .it{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;background:none;padding:8px 2px;border-top:1px solid #eef2f5;font-size:13.5px;cursor:pointer}
+.ic3-mc .it:first-of-type{margin-top:6px}
+.ic3-mc .it i{width:9px;height:9px;border-radius:50%;flex:none}
+.ic3-mc .it.m0 i{background:#c0392b}.ic3-mc .it.m1 i{background:#e67e22}.ic3-mc .it.m2 i{background:#d4a017}
+.ic3-mc .it .k{font-weight:700;color:#24384c;min-width:74px}.ic3-mc .it .d{flex:1;color:#33475b}.ic3-mc .it .r{font-size:12px;font-weight:700;white-space:nowrap}
+.ic3-mc .it.m0 .r{color:#c0392b}.ic3-mc .it.m1 .r{color:#c2620f}.ic3-mc .it.m2 .r{color:#9a7400}
+.ic3-mc .ok{color:#2e7d4f;font-size:12.5px;margin-top:4px}
+.ic3-mc .more{border:0;background:none;color:#1a4c75;font-size:12.5px;font-weight:700;padding:6px 0 0;cursor:pointer}
+.ic3-mc .it.m3 i{background:#7fb08f}.ic3-mc .it.m4 i{background:#c5ced6}.ic3-mc .it.m3 .r,.ic3-mc .it.m4 .r{color:var(--muted);font-weight:500}
+.ic3-mempty{padding:18px;text-align:center;color:var(--muted);background:#fff;border-radius:12px;border:1px dashed #cfd8e0}
+/* 手機篩選收合 */
+body.mob .ic3-fcard .ic3-fl{cursor:pointer;user-select:none}
+body.mob .ic3-fcard .ic3-fl::after{content:" ▾";color:var(--muted)}
+body.mob .ic3-fcard.ic3-col .ic3-fl::after{content:" ▸"}
+body.mob .ic3-fcard.ic3-col>.ic2-row>*:not(.ic3-fl){display:none!important}
+body.mob .ic3-fcard.ic3-col>.ic2-row{margin:0!important}
+</style>
+<script>
+(function(){
+  if(typeof InspCtrl2==="undefined")return;
+  const $=s=>document.querySelector(s);
+  const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  let mode="card";try{mode=localStorage.getItem("vsm_ic3_mview")||"card";}catch(e){}
+  const open={};
+  function build(){
+    const pg=$("#ig-page-plan2"),mx=$("#ic2-mx");if(!pg||!mx)return;
+    const wrap=mx.closest(".ic2-scroll")||mx.parentElement;
+    let tog=$("#ic3-mtog"),box=$("#ic3-mcards");
+    if(!box){tog=document.createElement("div");tog.id="ic3-mtog";box=document.createElement("div");box.id="ic3-mcards";wrap.before(tog);wrap.before(box);
+      box.addEventListener("click",e=>{const b=e.target.closest("[data-cell]");if(b){const [s,k]=b.dataset.cell.split("|");const td=document.querySelector(`#ic2-mx td[data-ship="${CSS.escape(s)}"][data-k="${CSS.escape(k)}"]`);if(td)td.click();return;}
+        const m=e.target.closest("[data-more]");if(m){open[m.dataset.more]=!open[m.dataset.more];box._sig="";build();}});}
+    else if(box.nextElementSibling!==wrap&&tog.nextElementSibling!==box){wrap.before(tog);wrap.before(box);}
+    const th=$("#ic2-mx thead");const heads=th?[...th.querySelectorAll("th")].map(t=>(t.childNodes[0]&&t.childNodes[0].textContent||t.innerText).split("\n")[0].trim()):[];
+    const sig=mx.tBodies[0]?mx.tBodies[0].innerHTML.length+"|"+mx.tBodies[0].rows.length+"|"+mode+"|"+(heads.join(",")):"";
+    pg.classList.toggle("ic3-cardv",mode==="card");
+    const th2=`<span>檢視：</span><button type="button" data-m="card" class="${mode==="card"?"on":""}">卡片</button><button type="button" data-m="table" class="${mode==="table"?"on":""}">表格</button><span style="margin-left:auto">點項目看詳情</span>`;
+    if(tog._h!==th2){tog._h=th2;tog.innerHTML=th2;tog.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{mode=b.dataset.m;try{localStorage.setItem("vsm_ic3_mview",mode);}catch(e){}build();});}
+    if(mode!=="card"||box._sig===sig+JSON.stringify(open))return;box._sig=sig+JSON.stringify(open);
+    const rows=mx.tBodies[0]?[...mx.tBodies[0].rows]:[];
+    const cards=rows.map(tr=>{
+      const sh=tr.querySelector("th[data-ship]");if(!sh)return null;const ship=sh.dataset.ship;
+      const small=sh.querySelector("small");
+      const cells=[...tr.cells].slice(1).map((td,i)=>{const m=(td.className.match(/\bs([0-4])\b/)||[])[1];if(m==null||!td.dataset.k)return null;
+        const sub=td.querySelector(".sub");const date=(td.childNodes[0]&&td.childNodes[0].textContent||"").trim();
+        return {s:+m,k:td.dataset.k,lab:heads[i+1]||td.dataset.k,date,sub:sub?sub.textContent.trim():""};}).filter(Boolean);
+      const att=cells.filter(c=>c.s<=2).sort((a,b)=>a.s-b.s);const rest=cells.filter(c=>c.s>2);
+      return {ship,small:small?small.textContent:"",att,rest,worst:att.length?att[0].s:9};
+    }).filter(Boolean).sort((a,b)=>a.worst-b.worst||b.att.length-a.att.length);
+    const it=(c,ship)=>`<button type="button" class="it m${c.s}" data-cell="${esc(ship)}|${esc(c.k)}"><i></i><span class="k">${esc(c.lab)}</span><span class="d">${esc(c.date)}</span><span class="r">${esc(c.sub||(c.s===0?"逾期":c.s===4?"無到期日":""))}</span></button>`;
+    box.innerHTML=cards.length?cards.map(c=>`<div class="ic3-mc"><div class="h"><b>${esc(c.ship)}</b><small>${esc(c.small)}</small><span class="n">${c.att.length?c.att.length+" 項需注意":""}</span></div>`+
+      c.att.map(x=>it(x,c.ship)).join("")+
+      (c.att.length?"":`<div class="ok">✓ 目前沒有需要注意的項目</div>`)+
+      (open[c.ship]?c.rest.map(x=>it(x,c.ship)).join(""):"")+
+      (c.rest.length?`<button type="button" class="more" data-more="${esc(c.ship)}">${open[c.ship]?"收合正常項目":"顯示其餘 "+c.rest.length+" 項"}</button>`:"")+`</div>`).join("")
+      :`<div class="ic3-mempty">沒有符合條件的船舶</div>`;
+  }
+  function fcol(){
+    const f=$(".ic3-fcard");if(!f)return;const l=f.querySelector(".ic3-fl");if(!l||l.dataset.col)return;l.dataset.col=1;
+    if(document.body.classList.contains("mob"))f.classList.add("ic3-col");
+    l.addEventListener("click",()=>{if(document.body.classList.contains("mob"))f.classList.toggle("ic3-col");});
+  }
+  const _r=InspCtrl2.render;
+  InspCtrl2.render=function(){const r=_r.apply(this,arguments);try{fcol();build();}catch(e){console.warn("ic3mob",e);}return r;};
+  setInterval(()=>{try{if($("#ig-page-plan2")&&$("#ig-page-plan2").offsetParent){fcol();build();}}catch(e){}},1500);
 })();
 </script>
